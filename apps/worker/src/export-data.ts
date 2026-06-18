@@ -249,8 +249,6 @@ function stringifyField(value: string | string[]): string {
 }
 
 function applyDedup(nodes: ProxyNode[], strategy: NodeCollection['dedup']): ProxyNode[] {
-  if (strategy === 'full_config') return nodes
-
   const seen = new Set<string>()
   return nodes.filter((node) => {
     const key = getDedupKey(node, strategy)
@@ -266,6 +264,8 @@ function getDedupKey(node: ProxyNode, strategy: NodeCollection['dedup']): string
       return `${node.server}:${node.port}`
     case 'protocol_server_port':
       return `${node.protocol}:${node.server}:${node.port}`
+    case 'full_config':
+      return JSON.stringify(node.parsedConfig)
     case 'name':
     default:
       return node.name
