@@ -322,6 +322,7 @@ export interface SourceRefreshResult {
   success: boolean;
   nodeCount: number;
   addedCount: number;
+  updatedCount?: number;
   removedCount: number;
   error?: string;
 }

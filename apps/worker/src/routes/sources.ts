@@ -180,19 +180,37 @@ app.post('/:id/refresh', async (c) => {
 
   // Load existing nodes for this source to compute diff
   const { results: existingRows } = await c.env.DB.prepare(
-    'SELECT id, name, server, port FROM nodes WHERE source_id = ? AND is_manual = 0'
+    'SELECT id, name, server, port, protocol, country, country_code, raw_config, parsed_config FROM nodes WHERE source_id = ? AND is_manual = 0'
   )
     .bind(id)
-    .all<{ id: string; name: string; server: string; port: number }>();
+    .all<{
+      id: string;
+      name: string;
+      server: string;
+      port: number;
+      protocol: string;
+      country: string | null;
+      country_code: string | null;
+      raw_config: string | null;
+      parsed_config: string | null;
+    }>();
 
-  const existingKeys = new Set(existingRows.map((r) => `${r.server}:${r.port}:${r.name}`));
+  const existingByKey = new Map(existingRows.map((r) => [`${r.server}:${r.port}:${r.name}`, r]));
 
   const addedNodes: typeof parsedNodes = [];
+  const updatedNodes: Array<{ id: string; node: ParsedNodeRaw }> = [];
   const seenKeys = new Set<string>();
 
   for (const node of parsedNodes) {
     const key = `${node.server}:${node.port}:${node.name}`;
-    if (!existingKeys.has(key) && !seenKeys.has(key)) {
+    if (seenKeys.has(key)) continue;
+
+    const existing = existingByKey.get(key);
+    if (existing) {
+      if (shouldUpdateNode(existing, node)) {
+        updatedNodes.push({ id: existing.id, node });
+      }
+    } else {
       addedNodes.push(node);
     }
     seenKeys.add(key);
@@ -230,6 +248,25 @@ app.post('/:id/refresh', async (c) => {
       .run();
   }
 
+  // Update existing nodes whose identity is unchanged but config may have changed
+  for (const item of updatedNodes) {
+    await c.env.DB.prepare(
+      `UPDATE nodes SET
+        protocol = ?, country = ?, country_code = ?, raw_config = ?, parsed_config = ?, updated_at = ?
+       WHERE id = ?`
+    )
+      .bind(
+        item.node.protocol,
+        item.node.country ?? null,
+        item.node.countryCode ?? null,
+        jsonStringify(item.node.rawConfig),
+        jsonStringify(item.node.parsedConfig),
+        ts,
+        item.id
+      )
+      .run();
+  }
+
   // Delete removed nodes
   for (const rem of toRemove) {
     await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(rem.id).run();
@@ -257,6 +294,7 @@ app.post('/:id/refresh', async (c) => {
       success: true,
       nodeCount,
       addedCount: addedNodes.length,
+      updatedCount: updatedNodes.length,
       removedCount: toRemove.length,
       format,
     },
@@ -310,6 +348,23 @@ function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string }
   const lines = trimmed.split('\n').filter((l) => l.trim().length > 0);
   const nodes = parseRawLines(lines);
   return { nodes, format: 'raw' };
+}
+
+function shouldUpdateNode(
+  existing: {
+    protocol: string;
+    country: string | null;
+    country_code: string | null;
+    raw_config: string | null;
+    parsed_config: string | null;
+  },
+  next: ParsedNodeRaw
+): boolean {
+  return existing.protocol !== next.protocol ||
+    (existing.country ?? null) !== (next.country ?? null) ||
+    (existing.country_code ?? null) !== (next.countryCode ?? null) ||
+    existing.raw_config !== jsonStringify(next.rawConfig) ||
+    existing.parsed_config !== jsonStringify(next.parsedConfig);
 }
 
 function parseClashYaml(content: string): ParsedNodeRaw[] {

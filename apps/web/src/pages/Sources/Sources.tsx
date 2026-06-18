@@ -139,7 +139,7 @@ export function Sources() {
                 <div className={styles.refreshStatus}>
                   {t('sources.refresh_success', { count: refreshResults[source.id].nodeCount })}
                   <span>
-                    +{refreshResults[source.id].addedCount} / -{refreshResults[source.id].removedCount}
+                    +{refreshResults[source.id].addedCount} / ~{refreshResults[source.id].updatedCount ?? 0} / -{refreshResults[source.id].removedCount}
                   </span>
                 </div>
               )}
