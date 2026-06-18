@@ -19,7 +19,7 @@
     "pnpm": ">=10.0.0"
   },
   "devDependencies": {
-    "prettier": "^3.5.3",
-    "typescript": "^5.8.3"
+    "prettier": "catalog:",
+    "typescript": "catalog:"
   }
 }

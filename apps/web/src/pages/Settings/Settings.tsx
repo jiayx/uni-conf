@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
-import { Button } from '@/components/ui/Button/Button'
 import { useSettingsStore } from '@/store/settings.store'
 import type { Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'

@@ -134,7 +134,7 @@ app.get('/:id/preview', async (c) => {
   const collection = mapCollection(row);
 
   // Fetch candidate nodes
-  let nodeRows: Record<string, unknown>[] = [];
+  let nodeRows: Record<string, unknown>[];
 
   if (collection.nodeIds.length > 0) {
     // Explicit node selection
@@ -210,36 +210,38 @@ function getNodeFieldValue(node: ProxyNode, field: NodeFilter['field']): string 
 function matchesFilter(node: ProxyNode, filter: NodeFilter): boolean {
   const fieldValue = getNodeFieldValue(node, filter.field);
   const filterValue = filter.value;
+  const firstFilterValue = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+  if (firstFilterValue === undefined) return true;
 
   switch (filter.operator) {
     case 'contains': {
       const val = Array.isArray(fieldValue) ? fieldValue.join(' ') : fieldValue;
-      const pattern = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+      const pattern = firstFilterValue;
       return val.toLowerCase().includes(pattern.toLowerCase());
     }
     case 'not_contains': {
       const val = Array.isArray(fieldValue) ? fieldValue.join(' ') : fieldValue;
-      const pattern = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+      const pattern = firstFilterValue;
       return !val.toLowerCase().includes(pattern.toLowerCase());
     }
     case 'equals': {
       const val = Array.isArray(fieldValue) ? fieldValue.join(' ') : fieldValue;
-      const pattern = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+      const pattern = firstFilterValue;
       return val === pattern;
     }
     case 'not_equals': {
       const val = Array.isArray(fieldValue) ? fieldValue.join(' ') : fieldValue;
-      const pattern = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+      const pattern = firstFilterValue;
       return val !== pattern;
     }
     case 'regex': {
       const val = Array.isArray(fieldValue) ? fieldValue.join(' ') : fieldValue;
-      const pattern = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+      const pattern = firstFilterValue;
       try { return new RegExp(pattern, 'i').test(val); } catch { return false; }
     }
     case 'not_regex': {
       const val = Array.isArray(fieldValue) ? fieldValue.join(' ') : fieldValue;
-      const pattern = Array.isArray(filterValue) ? filterValue[0] : filterValue;
+      const pattern = firstFilterValue;
       try { return !new RegExp(pattern, 'i').test(val); } catch { return true; }
     }
     case 'in': {

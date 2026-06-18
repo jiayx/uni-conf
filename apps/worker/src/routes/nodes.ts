@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { jsonStringify, jsonParse, mapNode, newId, now } from '../db/helpers';
+import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import type { ProxyProtocol } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();

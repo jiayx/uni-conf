@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { newId, now, jsonStringify } from '../db/helpers';
-import type { RuleTemplate, ProxyRule } from '@uni-conf/types';
+import type { ProxyRule } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();
 

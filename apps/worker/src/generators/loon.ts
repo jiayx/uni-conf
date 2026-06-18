@@ -67,7 +67,6 @@ function groupToLoon(
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const collectionIds = safeJson(group['collection_ids'] as string)
   const groupIds = (safeJson(group['group_ids'] as string) as unknown as string[]) ?? []
   const builtins = (safeJson(group['builtins'] as string) as unknown as string[]) ?? []
 

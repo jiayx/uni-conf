@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
-import type { ProxyProtocol } from '@uni-conf/types'
 import styles from './Nodes.module.css'
 
 const PROTOCOL_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning' | 'default'> = {

@@ -2,12 +2,11 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import {
   jsonStringify,
-  jsonParse,
   mapSource,
   newId,
   now,
 } from '../db/helpers';
-import type { ProxyNode, ProxyProtocol, NormalizedProxyConfig } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -171,7 +170,7 @@ app.post('/:id/refresh', async (c) => {
   }
 
   // Detect format and parse nodes
-  const { nodes: parsedNodes, format } = detectAndParse(rawContent, id);
+  const { nodes: parsedNodes, format } = detectAndParse(rawContent);
 
   // Load existing nodes for this source to compute diff
   const { results: existingRows } = await c.env.DB.prepare(
@@ -180,7 +179,6 @@ app.post('/:id/refresh', async (c) => {
     .bind(id)
     .all<{ id: string; name: string; server: string; port: number }>();
 
-  const existingIds = new Set(existingRows.map((r) => r.id));
   const existingKeys = new Set(existingRows.map((r) => `${r.server}:${r.port}:${r.name}`));
 
   const addedNodes: typeof parsedNodes = [];
@@ -272,10 +270,7 @@ interface ParsedNodeRaw {
   parsedConfig: NormalizedProxyConfig;
 }
 
-function detectAndParse(
-  raw: string,
-  sourceId: string
-): { nodes: ParsedNodeRaw[]; format: string } {
+function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string } {
   const trimmed = raw.trim();
 
   // Try YAML (Clash/Mihomo format)
@@ -318,22 +313,26 @@ function parseClashYaml(content: string): ParsedNodeRaw[] {
   if (!proxyBlockMatch) return nodes;
 
   const block = proxyBlockMatch[1];
+  if (block === undefined) return nodes;
   // Split into individual proxy entries (each starting with "  - name:")
-  const entries = block.split(/\n  - (?=name:)/);
+  const entries = block.split(/\n {2}- (?=name:)/);
 
   for (const entry of entries) {
-    const entryText = entry.startsWith('name:') ? `  - ${entry}` : `  - ${entry}`;
     const nameMatch = entry.match(/name:\s*["']?([^"'\n]+)["']?/);
     const typeMatch = entry.match(/type:\s*([^\n]+)/);
     const serverMatch = entry.match(/server:\s*([^\n]+)/);
     const portMatch = entry.match(/port:\s*(\d+)/);
 
-    if (!nameMatch || !typeMatch || !serverMatch || !portMatch) continue;
+    const nameValue = nameMatch?.[1];
+    const typeValue = typeMatch?.[1];
+    const serverValue = serverMatch?.[1];
+    const portValue = portMatch?.[1];
+    if (!nameValue || !typeValue || !serverValue || !portValue) continue;
 
-    const name = nameMatch[1].trim();
-    const type = typeMatch[1].trim().toLowerCase();
-    const server = serverMatch[1].trim();
-    const port = parseInt(portMatch[1].trim(), 10);
+    const name = nameValue.trim();
+    const type = typeValue.trim().toLowerCase();
+    const server = serverValue.trim();
+    const port = parseInt(portValue.trim(), 10);
 
     const protocol = clashTypeToProtocol(type);
     const rawConfig = parseEntryToObject(entry);
@@ -357,8 +356,10 @@ function parseEntryToObject(entry: string): Record<string, unknown> {
   for (const line of lines) {
     const match = line.match(/^\s+(\w[\w-]*):\s*(.+)$/);
     if (match) {
-      const key = match[1].trim();
-      const val = match[2].trim().replace(/^["']|["']$/g, '');
+      const key = match[1];
+      const rawValue = match[2];
+      if (!key || !rawValue) continue;
+      const val = rawValue.trim().replace(/^["']|["']$/g, '');
       // Try numeric
       if (/^\d+$/.test(val)) {
         obj[key] = parseInt(val, 10);
@@ -519,8 +520,8 @@ function parseSsUri(uri: string): ParsedNodeRaw | null {
 
   let server: string;
   let port: number;
-  let method = 'aes-256-gcm';
-  let password = '';
+  let method: string;
+  let password: string;
 
   if (main.includes('@')) {
     // ss://BASE64(method:pass)@host:port

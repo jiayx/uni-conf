@@ -14,7 +14,7 @@ interface CollectionsState {
   previewCollection: (id: string) => Promise<ProxyNode[]>
 }
 
-export const useCollectionsStore = create<CollectionsState>((set, get) => ({
+export const useCollectionsStore = create<CollectionsState>((set) => ({
   collections: [],
   previews: {},
   loading: false,

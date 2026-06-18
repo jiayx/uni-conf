@@ -32,11 +32,8 @@ export function Templates() {
         tpl.rules.map((rule, i) =>
           addRule({
             ...rule,
-            id: undefined as unknown as string,
             targetGroupId,
             order: i,
-            createdAt: '',
-            updatedAt: '',
           })
         )
       )

@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
-import { generateMihomo } from '../generators/mihomo'
-import { generateSingbox } from '../generators/singbox'
+import { generateMihomoYaml } from '../generators/mihomo'
+import { generateSingboxJson } from '../generators/singbox'
 import { generateLoon } from '../generators/loon'
+import { mapGroup, mapNode, mapRemoteRuleSet, mapRule } from '../db/helpers'
 import type { Env } from '../types'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
@@ -35,16 +36,20 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
   const rawGroups = groups as Record<string, unknown>[]
   const rawRules = rules as Record<string, unknown>[]
   const rawSets = remoteSets as Record<string, unknown>[]
+  const mappedNodes = rawNodes.map(mapNode)
+  const mappedGroups = rawGroups.map(mapGroup)
+  const mappedRules = rawRules.map(mapRule)
+  const mappedSets = rawSets.map(mapRemoteRuleSet)
 
   let content: string
   let contentType: string
 
   // Determine format from filename
   if (filename === 'mihomo.yaml' || filename === 'clash.yaml') {
-    content = generateMihomo(rawNodes, rawGroups, rawRules, rawSets)
+    content = generateMihomoYaml(mappedNodes, mappedGroups, mappedRules, mappedSets)
     contentType = 'text/yaml; charset=utf-8'
   } else if (filename === 'singbox.json') {
-    content = generateSingbox(rawNodes, rawGroups, rawRules, rawSets)
+    content = generateSingboxJson(mappedNodes, mappedGroups, mappedRules, mappedSets)
     contentType = 'application/json; charset=utf-8'
   } else if (filename === 'loon.conf') {
     content = generateLoon(rawNodes, rawGroups, rawRules, rawSets)
@@ -80,9 +85,10 @@ function generateNodeSubscription(nodes: Record<string, unknown>[]): string {
     const parsed = safeJson(node['parsed_config'] as string)
 
     let uri: string | null = null
+    const extra = asRecord(parsed?.['extra'])
 
     if (protocol === 'ss') {
-      const cipher = String(parsed?.['extra']?.['cipher'] ?? 'aes-256-gcm')
+      const cipher = String(extra?.['cipher'] ?? 'aes-256-gcm')
       const password = String(parsed?.['password'] ?? '')
       const credentials = btoa(`${cipher}:${password}`)
       uri = `ss://${credentials}@${server}:${port}#${name}`
@@ -90,7 +96,7 @@ function generateNodeSubscription(nodes: Record<string, unknown>[]): string {
       const vmessObj = {
         v: '2', ps: decodeURIComponent(name), add: server, port: String(port),
         id: String(parsed?.['uuid'] ?? ''), aid: '0', net: String(parsed?.['network'] ?? 'tcp'),
-        type: 'none', host: '', path: String(parsed?.['extra']?.['wsPath'] ?? ''),
+        type: 'none', host: '', path: String(extra?.['wsPath'] ?? ''),
         tls: parsed?.['tls'] ? 'tls' : '',
       }
       uri = `vmess://${btoa(JSON.stringify(vmessObj))}`
@@ -114,4 +120,8 @@ function generateNodeSubscription(nodes: Record<string, unknown>[]): string {
 function safeJson(text: string | null | undefined): Record<string, unknown> | null {
   if (!text) return null
   try { return JSON.parse(text) as Record<string, unknown> } catch { return null }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : null
 }

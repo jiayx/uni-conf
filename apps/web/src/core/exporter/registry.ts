@@ -11,14 +11,13 @@ const loonExporter = new LoonExporter()
 const nodeBase64Exporter = new NodeBase64Exporter()
 const nodeRawExporter = new NodeRawExporter()
 
-const exporters: Map<ExportFormat, IExporter> = new Map([
-  ['mihomo', mihomoExporter],
-  ['clash', mihomoExporter], // same format
-  ['singbox', singboxExporter],
-  ['loon', loonExporter],
-  ['nodes_base64', nodeBase64Exporter],
-  ['nodes_raw', nodeRawExporter],
-])
+const exporters = new Map<ExportFormat, IExporter>()
+exporters.set('mihomo', mihomoExporter)
+exporters.set('clash', mihomoExporter) // same format
+exporters.set('singbox', singboxExporter)
+exporters.set('loon', loonExporter)
+exporters.set('nodes_base64', nodeBase64Exporter)
+exporters.set('nodes_raw', nodeRawExporter)
 
 export function getExporter(format: ExportFormat): IExporter | undefined {
   return exporters.get(format)

@@ -1,6 +1,6 @@
 import { RouterProvider } from 'react-router'
 import { useEffect } from 'react'
-import { router } from './router'
+import { router } from '@/app/router'
 import { useSettingsStore } from '@/store'
 import i18n from '@/i18n'
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
@@ -27,12 +27,16 @@ export function Export() {
   const [form, setForm] = useState({ name: '', format: 'mihomo' as ExportFormat })
   const [copied, setCopied] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try { setConfigs(await api.export.listConfigs()) } finally { setLoading(false) }
-  }
+  }, [])
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => {
+    queueMicrotask(() => {
+      void load()
+    })
+  }, [load])
 
   const handleAdd = async () => {
     await api.export.createConfig({ name: form.name, format: form.format, enabled: true, includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [] })

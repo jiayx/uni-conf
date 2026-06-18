@@ -16,7 +16,7 @@ export class NodeBase64Exporter implements IExporter {
     return btoa(uris)
   }
 
-  validate(_input: ExportInput): CompatibilityWarning[] {
+  validate(): CompatibilityWarning[] {
     return []
   }
 }
@@ -34,7 +34,7 @@ export class NodeRawExporter implements IExporter {
       .join('\n')
   }
 
-  validate(_input: ExportInput): CompatibilityWarning[] {
+  validate(): CompatibilityWarning[] {
     return []
   }
 }

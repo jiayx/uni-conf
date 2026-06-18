@@ -9,25 +9,29 @@
     "deploy": "wrangler deploy",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --project worker",
-    "test:coverage": "vitest run --project worker --coverage",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "db:migrate": "wrangler d1 migrations apply DB",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:studio": "wrangler d1 studio DB"
   },
   "dependencies": {
     "@uni-conf/types": "workspace:*",
-    "hono": "^4.12.25",
-    "js-yaml": "^4.1.0"
+    "hono": "^4.12.26",
+    "js-yaml": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.8.25",
+    "@eslint/js": "catalog:",
+    "@cloudflare/vitest-pool-workers": "^0.16.16",
     "@cloudflare/workers-types": "^4.20260617.1",
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^24.12.3",
-    "@vitest/coverage-v8": "^3.2.4",
-    "typescript": "~6.0.2",
-    "vitest": "^3.2.4",
+    "@types/js-yaml": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "^4.101.0"
   }
 }

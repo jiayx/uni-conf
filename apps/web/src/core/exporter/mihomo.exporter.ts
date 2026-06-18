@@ -145,7 +145,7 @@ export class MihomoExporter implements IExporter {
     return yaml.dump(config, { lineWidth: -1, quotingType: '"', noRefs: true })
   }
 
-  validate(_input: ExportInput): CompatibilityWarning[] {
+  validate(): CompatibilityWarning[] {
     return []
   }
 }
