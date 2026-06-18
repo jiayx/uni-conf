@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapNode, newId, now } from '../db/helpers';
-import type { NodeCollection, NodeFilter, ProxyNode } from '@uni-conf/types';
+import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -167,6 +167,9 @@ app.get('/:id/preview', async (c) => {
   // Apply in-memory filters
   nodes = applyFilters(nodes, collection.filters);
 
+  // Apply renames
+  nodes = applyRenames(nodes, collection.renames);
+
   // Apply dedup
   nodes = applyDedup(nodes, collection.dedup);
 
@@ -192,6 +195,87 @@ function applyFilters(nodes: ProxyNode[], filters: NodeFilter[]): ProxyNode[] {
   return nodes.filter((node) =>
     enabledFilters.every((filter) => matchesFilter(node, filter))
   );
+}
+
+// ─── Rename helpers ───────────────────────────────────────────────────────────
+
+const EMOJI_RE =
+  /[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F1E0}-\u{1F1FF}]/gu;
+
+const COUNTRY_STANDARDIZE: Array<[RegExp, string]> = [
+  [/🇭🇰|hong\s*kong|hongkong|\bHK\b/gi, '香港'],
+  [/🇯🇵|japan|\bJP\b|tokyo/gi, '日本'],
+  [/🇺🇸|united\s+states?|usa|\bUS\b|america/gi, '美国'],
+  [/🇸🇬|singapore|\bSG\b/gi, '新加坡'],
+  [/🇹🇼|taiwan|\bTW\b/gi, '台湾'],
+  [/🇰🇷|korea|\bKR\b/gi, '韩国'],
+  [/🇬🇧|united\s+kingdom|britain|england|\bGB\b|\bUK\b/gi, '英国'],
+  [/🇩🇪|germany|german|\bDE\b/gi, '德国'],
+  [/🇫🇷|france|\bFR\b/gi, '法国'],
+  [/🇳🇱|netherlands|\bNL\b/gi, '荷兰'],
+  [/🇦🇺|australia|\bAU\b/gi, '澳大利亚'],
+  [/🇨🇦|canada|\bCA\b/gi, '加拿大'],
+];
+
+function applyRename(name: string, rename: NodeRename): string {
+  if (!rename.enabled) return name;
+
+  switch (rename.type) {
+    case 'replace':
+      return rename.pattern ? name.split(rename.pattern).join(rename.replacement ?? '') : name;
+    case 'regex': {
+      if (!rename.pattern) return name;
+      try {
+        return name.replace(new RegExp(rename.pattern, 'g'), rename.replacement ?? '');
+      } catch {
+        return name;
+      }
+    }
+    case 'prefix':
+      return (rename.replacement ?? '') + name;
+    case 'suffix':
+      return name + (rename.replacement ?? '');
+    case 'strip_emoji':
+      return name.replace(EMOJI_RE, '').trim();
+    case 'standardize_country': {
+      let result = name;
+      for (const [pattern, replacement] of COUNTRY_STANDARDIZE) {
+        result = result.replace(pattern, replacement);
+      }
+      return result.trim();
+    }
+    case 'auto_number':
+    default:
+      return name;
+  }
+}
+
+function applyRenames(nodes: ProxyNode[], renames: NodeRename[]): ProxyNode[] {
+  const enabledRenames = [...renames].sort((a, b) => a.order - b.order).filter((r) => r.enabled);
+  const hasAutoNumber = enabledRenames.some((r) => r.type === 'auto_number');
+  const nonAutoRenames = enabledRenames.filter((r) => r.type !== 'auto_number');
+
+  const renamed = nodes.map((node) => ({
+    ...node,
+    name: nonAutoRenames.reduce((current, rename) => applyRename(current, rename), node.name),
+  }));
+
+  if (!hasAutoNumber) return renamed;
+
+  const nameCount = new Map<string, number>();
+  for (const node of renamed) {
+    nameCount.set(node.name, (nameCount.get(node.name) ?? 0) + 1);
+  }
+
+  const nameIndex = new Map<string, number>();
+  return renamed.map((node) => {
+    const count = nameCount.get(node.name) ?? 1;
+    if (count <= 1) return node;
+
+    const idx = (nameIndex.get(node.name) ?? 0) + 1;
+    nameIndex.set(node.name, idx);
+    return { ...node, name: `${node.name} ${idx.toString().padStart(2, '0')}` };
+  });
 }
 
 function getNodeFieldValue(node: ProxyNode, field: NodeFilter['field']): string | string[] {

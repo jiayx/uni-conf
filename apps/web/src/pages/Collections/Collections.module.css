@@ -1,7 +1,59 @@
-.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeIn var(--transition-normal) ease; }
+.page { display: flex; flex-direction: column; gap: 1.25rem; animation: fadeIn var(--transition-normal) ease; }
 .loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-.card { display: flex; flex-direction: column; gap: 0.75rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+.card { display: flex; flex-direction: column; gap: 0.875rem; }
+.cardHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .cardTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
+.cardNotes { margin-top: 0.25rem; font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
 .cardMeta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.cardActions { display: flex; gap: 0.5rem; }
+.cardActions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.selectLabel { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
+.select, .textInput {
+  width: 100%; min-width: 0; padding: 0.5rem 0.75rem; background: var(--color-surface2);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  color: var(--color-text-primary); font-family: inherit; font-size: 0.875rem; outline: none;
+}
+.select:focus, .textInput:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+.textInput:disabled { color: var(--color-text-tertiary); opacity: 0.65; cursor: not-allowed; }
+.checkboxRow { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-primary); font-size: 0.875rem; }
+.selector, .section { display: flex; flex-direction: column; gap: 0.625rem; }
+.selectorHeader, .sectionHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.sectionHeader { color: var(--color-text-primary); font-size: 0.875rem; font-weight: 600; }
+.clearButton {
+  border: none; background: transparent; color: var(--color-accent); cursor: pointer;
+  font: inherit; font-size: 0.8125rem; padding: 0.125rem 0;
+}
+.optionList {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem;
+  max-height: 11rem; overflow: auto; padding: 0.625rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface2);
+}
+.optionItem {
+  display: flex; align-items: center; gap: 0.5rem; min-width: 0;
+  color: var(--color-text-primary); font-size: 0.8125rem; line-height: 1.4;
+}
+.optionItem span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selectorEmpty, .inlineEmpty {
+  padding: 0.75rem; border: 1px dashed var(--color-border); border-radius: var(--radius-md);
+  color: var(--color-text-secondary); font-size: 0.8125rem;
+}
+.ruleRow { display: grid; grid-template-columns: 1.5rem minmax(7rem, 1fr) minmax(8rem, 1fr) minmax(8rem, 1.2fr) auto; gap: 0.5rem; align-items: center; }
+.section .ruleRow + .ruleRow { margin-top: 0.5rem; }
+.ruleToggle { display: flex; align-items: center; justify-content: center; }
+.preview { padding: 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.previewHeader { font-size: 0.8125rem; color: var(--color-text-secondary); margin-bottom: 0.5rem; }
+.previewList { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.previewNode, .previewMore {
+  max-width: 100%; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-text-primary); font-size: 0.75rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.previewMore { color: var(--color-text-secondary); }
+.formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
+@media (max-width: 720px) {
+  .grid { grid-template-columns: 1fr; }
+  .formGrid, .optionList { grid-template-columns: 1fr; }
+  .ruleRow { grid-template-columns: 1.5rem 1fr; }
+  .ruleRow .select, .ruleRow .textInput, .ruleRow button { grid-column: 2; }
+}

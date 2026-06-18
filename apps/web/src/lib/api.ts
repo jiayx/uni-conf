@@ -93,7 +93,10 @@ const collections = {
   update: (id: string, data: Partial<NodeCollection>): Promise<NodeCollection> =>
     put(`/collections/${id}`, data),
   remove: (id: string): Promise<void> => del(`/collections/${id}`),
-  preview: (id: string): Promise<ProxyNode[]> => get(`/collections/${id}/preview`),
+  preview: async (id: string): Promise<ProxyNode[]> => {
+    const result = await get<{ collectionId: string; nodes: ProxyNode[]; total: number }>(`/collections/${id}/preview`)
+    return result.nodes
+  },
 }
 
 // ============================================================
