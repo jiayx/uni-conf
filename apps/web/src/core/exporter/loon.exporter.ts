@@ -23,7 +23,7 @@ export class LoonExporter implements IExporter {
   readonly contentType = 'text/plain'
 
   generate(input: ExportInput): string {
-    const { nodes, groups, rules, remoteSets } = input
+    const { nodes, groups, rules, remoteSets, collectionNodeNames = {} } = input
     const lines: string[] = []
 
     // [General]
@@ -63,14 +63,18 @@ export class LoonExporter implements IExporter {
         const nested = groups.find((g) => g.id === gid)
         if (nested) members.push(nested.name)
       }
-      if (group.collectionIds.length === 0 || group.collectionIds.includes('*')) {
+      const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? [])
+      if (collectionNames.length > 0) {
+        members.push(...collectionNames)
+      } else if (group.collectionIds.length === 0 || group.collectionIds.includes('*')) {
         for (const node of nodes) {
           members.push(node.name)
         }
       }
 
       const loonType = mapLoonGroupType(group.type)
-      let line = `${group.name} = ${loonType},${members.join(',')}`
+      const dedupedMembers = [...new Set(members)]
+      let line = `${group.name} = ${loonType},${dedupedMembers.join(',')}`
 
       if (group.type === 'url-test' || group.type === 'fallback') {
         line += `,url=${group.testUrl ?? 'http://www.google.com/generate_204'}`
@@ -86,12 +90,13 @@ export class LoonExporter implements IExporter {
     const enabledRules = rules.filter((r) => r.enabled).sort((a, b) => a.order - b.order)
     for (const rule of enabledRules) {
       if (UNSUPPORTED_RULE_TYPES.has(rule.type)) continue
+      const targetGroup = resolveGroupName(rule.targetGroupId, groups)
       if (rule.type === 'MATCH') {
-        lines.push(`FINAL,${rule.targetGroupId}`)
+        lines.push(`FINAL,${targetGroup}`)
       } else if (rule.noResolve) {
-        lines.push(`${rule.type},${rule.payload},${rule.targetGroupId},no-resolve`)
+        lines.push(`${rule.type},${rule.payload},${targetGroup},no-resolve`)
       } else {
-        lines.push(`${rule.type},${rule.payload},${rule.targetGroupId}`)
+        lines.push(`${rule.type},${rule.payload},${targetGroup}`)
       }
     }
     // Ensure FINAL at end
@@ -103,7 +108,8 @@ export class LoonExporter implements IExporter {
     // [Remote Rule]
     lines.push('[Remote Rule]')
     for (const rs of remoteSets.filter((s) => s.enabled)) {
-      lines.push(`${rs.url}, policy=${rs.targetGroupId}, tag=${rs.name}, enabled=true`)
+      const targetGroup = resolveGroupName(rs.targetGroupId, groups)
+      lines.push(`${rs.url}, policy=${targetGroup}, tag=${rs.name}, enabled=true`)
     }
     lines.push('')
 
@@ -152,4 +158,8 @@ function mapLoonGroupType(type: string): string {
     reject: 'select',
   }
   return map[type] ?? 'select'
+}
+
+function resolveGroupName(groupId: string, groups: Array<{ id: string; name: string }>): string {
+  return groups.find((group) => group.id === groupId)?.name ?? groupId
 }
