@@ -126,7 +126,7 @@ const rules = {
   remove: (id: string): Promise<void> => del(`/rules/${id}`),
   reorder: (orderedIds: string[]): Promise<ProxyRule[]> => post('/rules/reorder', { ids: orderedIds }),
   batchCreate: (data: Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<ProxyRule[]> =>
-    post('/rules/batch', data),
+    post('/rules/batch', { rules: data }),
 }
 
 // ============================================================

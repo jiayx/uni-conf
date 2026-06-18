@@ -8,24 +8,158 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { useRulesStore } from '@/store/rules.store'
 import { useGroupsStore } from '@/store/groups.store'
-import type { RuleType } from '@uni-conf/types'
+import type { ProxyRule, RuleType } from '@uni-conf/types'
 import styles from './Rules.module.css'
 
-const RULE_TYPES: RuleType[] = ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'IP-CIDR', 'IP-CIDR6', 'GEOIP', 'GEOSITE', 'RULE-SET', 'PROCESS-NAME', 'MATCH']
+type RuleForm = Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>
+
+const RULE_TYPES: RuleType[] = [
+  'DOMAIN',
+  'DOMAIN-SUFFIX',
+  'DOMAIN-KEYWORD',
+  'DOMAIN-REGEX',
+  'IP-CIDR',
+  'IP-CIDR6',
+  'IP-ASN',
+  'GEOIP',
+  'GEOSITE',
+  'PROCESS-NAME',
+  'PROCESS-PATH',
+  'PORT',
+  'SRC-PORT',
+  'SRC-IP-CIDR',
+  'PROTOCOL',
+  'NETWORK',
+  'RULE-SET',
+  'MATCH',
+]
+
+function createEmptyForm(order: number, targetGroupId = ''): RuleForm {
+  return {
+    name: '',
+    type: 'DOMAIN-SUFFIX',
+    payload: '',
+    targetGroupId,
+    noResolve: false,
+    enabled: true,
+    order,
+    compatibility: [],
+    notes: '',
+  }
+}
 
 export function Rules() {
   const { t } = useTranslation()
-  const { rules, loading, fetchRules, addRule, deleteRule } = useRulesStore()
+  const {
+    rules,
+    loading,
+    fetchRules,
+    addRule,
+    updateRule,
+    deleteRule,
+    reorderRules,
+    batchAddRules,
+  } = useRulesStore()
   const { groups, fetchGroups } = useGroupsStore()
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ type: 'DOMAIN-SUFFIX' as RuleType, payload: '', targetGroupId: '', noResolve: false, notes: '' })
+  const [showBatchModal, setShowBatchModal] = useState(false)
+  const [editingRule, setEditingRule] = useState<ProxyRule | null>(null)
+  const [form, setForm] = useState<RuleForm>(() => createEmptyForm(0))
+  const [batchText, setBatchText] = useState('')
+  const [batchTargetGroupId, setBatchTargetGroupId] = useState('')
+  const [formError, setFormError] = useState('')
+  const [batchError, setBatchError] = useState('')
 
-  useEffect(() => { void fetchRules(); void fetchGroups() }, [fetchRules, fetchGroups])
+  useEffect(() => {
+    void fetchRules()
+    void fetchGroups()
+  }, [fetchRules, fetchGroups])
 
-  const handleAdd = async () => {
-    if (!form.payload || !form.targetGroupId) return
-    await addRule({ type: form.type, payload: form.payload, targetGroupId: form.targetGroupId, noResolve: form.noResolve, enabled: true, order: rules.length, compatibility: [], notes: form.notes })
-    setShowModal(false); setForm({ type: 'DOMAIN-SUFFIX', payload: '', targetGroupId: '', noResolve: false, notes: '' })
+  const defaultTargetGroupId = groups.find(group => group.name === 'PROXY')?.id ?? groups[0]?.id ?? ''
+
+  const openCreate = () => {
+    setEditingRule(null)
+    setForm(createEmptyForm(rules.length, defaultTargetGroupId))
+    setFormError('')
+    setShowModal(true)
+  }
+
+  const openEdit = (rule: ProxyRule) => {
+    setEditingRule(rule)
+    setForm({
+      name: rule.name ?? '',
+      type: rule.type,
+      payload: rule.payload,
+      targetGroupId: rule.targetGroupId,
+      noResolve: rule.noResolve ?? false,
+      enabled: rule.enabled,
+      order: rule.order,
+      compatibility: rule.compatibility,
+      notes: rule.notes ?? '',
+    })
+    setFormError('')
+    setShowModal(true)
+  }
+
+  const openBatch = () => {
+    setBatchTargetGroupId(defaultTargetGroupId)
+    setBatchText('')
+    setBatchError('')
+    setShowBatchModal(true)
+  }
+
+  const handleSave = async () => {
+    const payload: RuleForm = {
+      ...form,
+      name: form.name?.trim() || undefined,
+      payload: normalizePayload(form.type, form.payload),
+      notes: form.notes?.trim() || undefined,
+    }
+
+    if (payload.type !== 'MATCH' && !payload.payload) {
+      setFormError('payload is required')
+      return
+    }
+    if (!payload.targetGroupId) {
+      setFormError('target group is required')
+      return
+    }
+
+    if (editingRule) {
+      await updateRule(editingRule.id, payload)
+    } else {
+      await addRule(payload)
+    }
+
+    setShowModal(false)
+    setEditingRule(null)
+    setForm(createEmptyForm(rules.length, defaultTargetGroupId))
+  }
+
+  const handleBatchImport = async () => {
+    if (!batchTargetGroupId) {
+      setBatchError('target group is required')
+      return
+    }
+
+    const parsed = parseRules(batchText, batchTargetGroupId, groups, rules.length)
+    if (parsed.length === 0) {
+      setBatchError('no valid rules found')
+      return
+    }
+
+    await batchAddRules(parsed)
+    setShowBatchModal(false)
+    setBatchText('')
+  }
+
+  const moveRule = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= rules.length) return
+    const ordered = [...rules]
+    const [item] = ordered.splice(index, 1)
+    ordered.splice(target, 0, item)
+    void reorderRules(ordered.map(rule => rule.id))
   }
 
   const getGroupName = (id: string) => groups.find(g => g.id === id)?.name ?? id
@@ -35,29 +169,62 @@ export function Rules() {
       <PageHeader
         title={t('rules.title')}
         description={t('rules.reorder_hint')}
-        actions={<Button onClick={() => setShowModal(true)} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}>{t('rules.new')}</Button>}
+        actions={
+          <div className={styles.headerActions}>
+            <Button variant="secondary" onClick={openBatch}>{t('rules.import_batch', { defaultValue: '批量导入' })}</Button>
+            <Button onClick={openCreate} icon={<PlusIcon />}>{t('rules.new')}</Button>
+          </div>
+        }
       />
-      {loading ? <div className={styles.loading}>{t('common.loading')}</div> : rules.length === 0 ? (
-        <EmptyState title="暂无规则" description="添加规则或从模板导入" action={{ label: t('rules.new'), onClick: () => setShowModal(true) }} />
+      {loading && rules.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : rules.length === 0 ? (
+        <EmptyState title="暂无规则" description="添加规则或从模板导入" action={{ label: t('rules.new'), onClick: openCreate }} />
       ) : (
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead><tr>
-              <th>#</th><th>{t('rules.type')}</th><th>{t('rules.payload')}</th>
-              <th>{t('rules.target')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th>
+              <th>#</th>
+              <th>{t('rules.type')}</th>
+              <th>{t('rules.payload')}</th>
+              <th>{t('rules.target')}</th>
+              <th>{t('common.status')}</th>
+              <th>{t('common.actions')}</th>
             </tr></thead>
             <tbody>
-              {rules.map((rule, i) => (
+              {rules.map((rule, index) => (
                 <tr key={rule.id} className={styles.row}>
-                  <td className={styles.orderNum}>{i + 1}</td>
+                  <td className={styles.orderNum}>
+                    <div className={styles.orderCell}>
+                      <span>{index + 1}</span>
+                      <div className={styles.orderControls}>
+                        <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => moveRule(index, -1)} title="上移"><ArrowUpIcon /></Button>
+                        <Button variant="ghost" size="sm" disabled={index === rules.length - 1} onClick={() => moveRule(index, 1)} title="下移"><ArrowDownIcon /></Button>
+                      </div>
+                    </div>
+                  </td>
                   <td><Badge variant="info">{rule.type}</Badge></td>
-                  <td className={styles.payload}>{rule.payload}</td>
+                  <td className={styles.payload}>
+                    {rule.payload || 'MATCH'}
+                    {rule.name && <div className={styles.ruleName}>{rule.name}</div>}
+                    {rule.notes && <div className={styles.ruleNotes}>{rule.notes}</div>}
+                  </td>
                   <td><Badge variant="purple">{getGroupName(rule.targetGroupId)}</Badge></td>
-                  <td><Badge variant={rule.enabled ? 'success' : 'default'}>{rule.enabled ? t('common.enabled') : t('common.disabled')}</Badge></td>
                   <td>
-                    <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此规则？')) void deleteRule(rule.id) }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                    </Button>
+                    <Badge variant={rule.enabled ? 'success' : 'default'}>
+                      {rule.enabled ? t('common.enabled') : t('common.disabled')}
+                    </Badge>
+                  </td>
+                  <td>
+                    <div className={styles.rowActions}>
+                      <Button variant="ghost" size="sm" onClick={() => void updateRule(rule.id, { enabled: !rule.enabled })}>
+                        {rule.enabled ? t('common.disable') : t('common.enable')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(rule)}>
+                        {t('common.edit')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此规则？')) void deleteRule(rule.id) }}>
+                        <TrashIcon />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -65,28 +232,167 @@ export function Rules() {
           </table>
         </div>
       )}
-      <Modal open={showModal} onOpenChange={setShowModal} title={t('rules.new')}
-        footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleAdd()}>{t('common.save')}</Button></>}>
+
+      <Modal
+        open={showModal}
+        onOpenChange={setShowModal}
+        title={editingRule ? t('common.edit') : t('rules.new')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void handleSave()}>{t('common.save')}</Button>
+          </>
+        }
+      >
+        {formError && <div className={styles.formError}>{formError}</div>}
+        <Input label={t('rules.name_optional')} value={form.name ?? ''} onChange={e => setFormValue('name', e.target.value, setForm)} />
         <div>
           <label className={styles.label}>{t('rules.type')}</label>
-          <select className={styles.select} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as RuleType }))}>
-            {RULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          <select className={styles.select} value={form.type} onChange={e => setForm(current => ({
+            ...current,
+            type: e.target.value as RuleType,
+            payload: e.target.value === 'MATCH' ? '' : current.payload,
+          }))}>
+            {RULE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
           </select>
         </div>
-        <Input label={t('rules.payload')} value={form.payload} onChange={e => setForm(f => ({ ...f, payload: e.target.value }))} placeholder="example.com" />
+        <Input
+          label={t('rules.payload')}
+          value={form.payload}
+          onChange={e => setFormValue('payload', e.target.value, setForm)}
+          placeholder={form.type === 'MATCH' ? 'MATCH' : t('rules.payload_placeholder')}
+          disabled={form.type === 'MATCH'}
+        />
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
-          <select className={styles.select} value={form.targetGroupId} onChange={e => setForm(f => ({ ...f, targetGroupId: e.target.value }))}>
+          <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
             <option value="">-- {t('rules.target')} --</option>
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
         <label className={styles.checkLabel}>
-          <input type="checkbox" checked={form.noResolve} onChange={e => setForm(f => ({ ...f, noResolve: e.target.checked }))} />
+          <input type="checkbox" checked={form.enabled} onChange={e => setFormValue('enabled', e.target.checked, setForm)} />
+          {t('common.enabled')}
+        </label>
+        <label className={styles.checkLabel}>
+          <input type="checkbox" checked={form.noResolve ?? false} onChange={e => setFormValue('noResolve', e.target.checked, setForm)} />
           {t('rules.no_resolve')}
         </label>
-        <Input label={t('common.notes')} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        <Input label={t('common.notes')} value={form.notes ?? ''} onChange={e => setFormValue('notes', e.target.value, setForm)} />
+      </Modal>
+
+      <Modal
+        open={showBatchModal}
+        onOpenChange={setShowBatchModal}
+        title={t('rules.import_batch', { defaultValue: '批量导入规则' })}
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowBatchModal(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void handleBatchImport()}>{t('common.save')}</Button>
+          </>
+        }
+      >
+        {batchError && <div className={styles.formError}>{batchError}</div>}
+        <div>
+          <label className={styles.label}>{t('rules.target')}</label>
+          <select className={styles.select} value={batchTargetGroupId} onChange={e => setBatchTargetGroupId(e.target.value)}>
+            <option value="">-- {t('rules.target')} --</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={styles.label}>规则文本</label>
+          <textarea
+            className={styles.textarea}
+            value={batchText}
+            onChange={e => setBatchText(e.target.value)}
+            placeholder="DOMAIN-SUFFIX,example.com,PROXY&#10;DOMAIN,api.example.com&#10;IP-CIDR,10.0.0.0/8,no-resolve"
+          />
+        </div>
+        <div className={styles.helpText}>
+          支持 Clash 行格式；目标策略组可省略，省略时使用上方选择的策略组。
+        </div>
       </Modal>
     </div>
   )
+}
+
+function setFormValue<K extends keyof RuleForm>(
+  key: K,
+  value: RuleForm[K],
+  setForm: React.Dispatch<React.SetStateAction<RuleForm>>
+) {
+  setForm(current => ({ ...current, [key]: value }))
+}
+
+function normalizePayload(type: RuleType, payload: string): string {
+  return type === 'MATCH' ? '' : payload.trim()
+}
+
+function parseRules(
+  text: string,
+  targetGroupId: string,
+  groups: Array<{ id: string; name: string }>,
+  startOrder: number
+): RuleForm[] {
+  return text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'))
+    .map((line, index) => parseRuleLine(line, targetGroupId, groups, startOrder + index))
+    .filter((rule): rule is RuleForm => Boolean(rule))
+}
+
+function parseRuleLine(
+  line: string,
+  fallbackTargetGroupId: string,
+  groups: Array<{ id: string; name: string }>,
+  order: number
+): RuleForm | null {
+  const parts = line.split(',').map(part => part.trim()).filter(Boolean)
+  if (parts.length === 0) return null
+
+  const type = parts[0] as RuleType
+  if (!RULE_TYPES.includes(type)) return null
+
+  const isMatch = type === 'MATCH'
+  const noResolve = parts.some(part => part.toLowerCase() === 'no-resolve')
+  const payload = isMatch ? '' : parts[1] ?? ''
+  if (!isMatch && !payload) return null
+  const targetText = isMatch ? parts[1] : parts[2]
+  const targetGroupId = resolveGroupId(targetText, groups) ?? fallbackTargetGroupId
+
+  return {
+    name: '',
+    type,
+    payload,
+    targetGroupId,
+    noResolve,
+    enabled: true,
+    order,
+    compatibility: [],
+    notes: '',
+  }
+}
+
+function resolveGroupId(target: string | undefined, groups: Array<{ id: string; name: string }>): string | undefined {
+  if (!target || target.toLowerCase() === 'no-resolve') return undefined
+  return groups.find(group => group.id === target || group.name === target)?.id
+}
+
+function PlusIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+}
+
+function TrashIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+}
+
+function ArrowUpIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+}
+
+function ArrowDownIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
 }
