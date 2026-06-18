@@ -13,6 +13,27 @@ import type {
   AppSettings,
 } from '@uni-conf/types'
 
+export interface RuleTemplateSummary {
+  id: string
+  name: string
+  nameEn: string
+  description: string
+  descriptionEn: string
+  category: string
+  suggestedGroupName?: string
+  ruleCount: number
+  hasRemoteSets: boolean
+  isBuiltin: boolean
+  createdAt: string
+}
+
+export interface TemplateImportResult {
+  templateId: string
+  targetGroupId: string
+  rules: ProxyRule[]
+  remoteSets: RemoteRuleSet[]
+}
+
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
 // ============================================================
@@ -148,9 +169,9 @@ const remoteRuleSets = {
 // ============================================================
 
 const templates = {
-  list: (): Promise<RuleTemplate[]> => get('/templates'),
+  list: (): Promise<RuleTemplateSummary[]> => get('/templates'),
   get: (id: string): Promise<RuleTemplate> => get(`/templates/${id}`),
-  importTemplate: (id: string, targetGroupId: string): Promise<{ imported: number }> =>
+  importTemplate: (id: string, targetGroupId: string): Promise<TemplateImportResult> =>
     post(`/templates/${id}/import`, { targetGroupId }),
 }
 
