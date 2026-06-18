@@ -1,0 +1,7 @@
+.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeIn var(--transition-normal) ease; }
+.loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+.card { display: flex; flex-direction: column; gap: 0.75rem; }
+.cardTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
+.cardMeta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.cardActions { display: flex; gap: 0.5rem; }

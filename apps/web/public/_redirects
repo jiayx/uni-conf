@@ -1,0 +1,9 @@
+/*
+  /index.html  200
+  /api/*  https://uni-conf-worker.<your-subdomain>.workers.dev/api/:splat  200
+  /sub/*  https://uni-conf-worker.<your-subdomain>.workers.dev/sub/:splat  200
+  /*  /index.html  200
+*/
+
+# SPA fallback (all non-asset routes -> index.html)
+/*    /index.html   200

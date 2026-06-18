@@ -1,0 +1,25 @@
+{
+  "name": "uni-conf",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Manage once, export everywhere. A unified proxy configuration management tool.",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "dev:worker": "pnpm --filter worker dev",
+    "build": "pnpm --filter types build && pnpm --filter web build",
+    "build:worker": "pnpm --filter worker build",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "pnpm -r format"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  }
+}

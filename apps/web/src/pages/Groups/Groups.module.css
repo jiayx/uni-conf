@@ -1,0 +1,10 @@
+.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeIn var(--transition-normal) ease; }
+.loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
+.list { display: flex; flex-direction: column; gap: 0.5rem; }
+.groupCard { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; }
+.cardLeft { display: flex; flex-direction: column; gap: 0.5rem; }
+.groupName { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
+.groupMeta { display: flex; gap: 0.5rem; }
+.selectLabel { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
+.select { width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-primary); font-family: inherit; font-size: 0.875rem; outline: none; }
+.select:focus { border-color: var(--color-accent); }

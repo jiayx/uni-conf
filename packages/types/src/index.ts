@@ -1,0 +1,358 @@
+// ============================================================
+// Proxy Protocol Types
+// ============================================================
+
+export type ProxyProtocol =
+  | 'ss'
+  | 'ssr'
+  | 'vmess'
+  | 'vless'
+  | 'trojan'
+  | 'hysteria'
+  | 'hysteria2'
+  | 'tuic'
+  | 'naive'
+  | 'wireguard'
+  | 'socks5'
+  | 'http'
+  | 'https'
+  | 'ssh'
+  | 'reality'
+  | 'shadowtls'
+  | 'direct'
+  | 'reject'
+  | 'unknown';
+
+export type SourceFormat =
+  | 'clash'
+  | 'mihomo'
+  | 'singbox'
+  | 'base64'
+  | 'surge'
+  | 'loon'
+  | 'quantumultx'
+  | 'shadowrocket'
+  | 'raw'
+  | 'auto';
+
+export type SourceType = 'url' | 'manual' | 'file' | 'clipboard';
+
+export type ExportFormat =
+  | 'mihomo'
+  | 'clash'
+  | 'singbox'
+  | 'loon'
+  | 'surge'
+  | 'shadowrocket'
+  | 'quantumultx'
+  | 'stash'
+  | 'egern'
+  | 'nodes_base64'
+  | 'nodes_raw';
+
+export type GroupType =
+  | 'select'
+  | 'url-test'
+  | 'fallback'
+  | 'load-balance'
+  | 'direct'
+  | 'reject';
+
+export type RuleType =
+  | 'DOMAIN'
+  | 'DOMAIN-SUFFIX'
+  | 'DOMAIN-KEYWORD'
+  | 'DOMAIN-REGEX'
+  | 'IP-CIDR'
+  | 'IP-CIDR6'
+  | 'IP-ASN'
+  | 'GEOIP'
+  | 'GEOSITE'
+  | 'PROCESS-NAME'
+  | 'PROCESS-PATH'
+  | 'PORT'
+  | 'SRC-PORT'
+  | 'SRC-IP-CIDR'
+  | 'PROTOCOL'
+  | 'NETWORK'
+  | 'IN-TYPE'
+  | 'RULE-SET'
+  | 'SCRIPT'
+  | 'MATCH';
+
+export type CompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
+
+// ============================================================
+// Core Data Models
+// ============================================================
+
+export interface ProxySource {
+  id: string;
+  name: string;
+  type: SourceType;
+  url?: string;
+  format: SourceFormat;
+  enabled: boolean;
+  nodeCount: number;
+  lastUpdated?: string; // ISO string
+  updateInterval?: number; // minutes, 0 = manual only
+  userAgent?: string;
+  notes?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NormalizedProxyConfig {
+  protocol: ProxyProtocol;
+  server: string;
+  port: number;
+  // Common fields
+  password?: string;
+  uuid?: string;
+  // TLS
+  tls?: boolean;
+  sni?: string;
+  skipCertVerify?: boolean;
+  // Transport
+  network?: 'tcp' | 'ws' | 'http' | 'h2' | 'grpc' | 'quic';
+  wsPath?: string;
+  wsHeaders?: Record<string, string>;
+  // Protocol specific (stored as opaque object)
+  extra: Record<string, unknown>;
+}
+
+export interface ProxyNode {
+  id: string;
+  sourceId: string;
+  name: string;
+  protocol: ProxyProtocol;
+  server: string;
+  port: number;
+  country?: string;
+  countryCode?: string; // ISO 3166-1 alpha-2
+  enabled: boolean;
+  tags: string[];
+  notes?: string;
+  rawConfig: Record<string, unknown>;
+  parsedConfig: NormalizedProxyConfig;
+  isManual: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FilterOperator =
+  | 'contains'
+  | 'not_contains'
+  | 'regex'
+  | 'not_regex'
+  | 'equals'
+  | 'not_equals'
+  | 'in'
+  | 'not_in';
+
+export interface NodeFilter {
+  id: string;
+  field: 'name' | 'server' | 'protocol' | 'country' | 'countryCode' | 'tag' | 'sourceId';
+  operator: FilterOperator;
+  value: string | string[];
+  enabled: boolean;
+}
+
+export interface NodeRename {
+  id: string;
+  type: 'replace' | 'regex' | 'prefix' | 'suffix' | 'strip_emoji' | 'standardize_country' | 'auto_number';
+  pattern?: string;
+  replacement?: string;
+  enabled: boolean;
+  order: number;
+}
+
+export type DedupStrategy = 'name' | 'server_port' | 'protocol_server_port' | 'full_config';
+
+export type SortStrategy =
+  | 'country'
+  | 'name'
+  | 'source'
+  | 'protocol'
+  | 'manual';
+
+export interface NodeCollection {
+  id: string;
+  name: string;
+  sourceIds: string[]; // empty = all sources
+  nodeIds: string[]; // explicit node selection (for manual picks)
+  filters: NodeFilter[];
+  renames: NodeRename[];
+  dedup: DedupStrategy;
+  sort: SortStrategy;
+  sortCountryOrder?: string[]; // custom country order
+  enabled: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProxyGroup {
+  id: string;
+  name: string;
+  type: GroupType;
+  collectionIds: string[];
+  groupIds: string[]; // nested groups
+  builtins: ('DIRECT' | 'REJECT')[];
+  testUrl?: string;
+  interval?: number; // seconds
+  tolerance?: number;
+  lazy?: boolean;
+  enabled: boolean;
+  order: number;
+  isBuiltin: boolean; // fixed built-in groups (PROXY, AI, etc.)
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientCompatibility {
+  client: ExportFormat;
+  level: CompatibilityLevel;
+  note?: string;
+}
+
+export interface ProxyRule {
+  id: string;
+  name?: string;
+  type: RuleType;
+  payload: string;
+  noResolve?: boolean;
+  targetGroupId: string;
+  enabled: boolean;
+  order: number;
+  notes?: string;
+  compatibility: ClientCompatibility[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RuleSetFormat = 'clash' | 'mihomo' | 'singbox' | 'surge' | 'text';
+
+export interface RemoteRuleSet {
+  id: string;
+  name: string;
+  url: string;
+  format: RuleSetFormat;
+  targetGroupId: string;
+  updateInterval: number; // hours
+  enabled: boolean;
+  lastUpdated?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RuleTemplate {
+  id: string;
+  name: string;
+  nameEn: string;
+  description: string;
+  descriptionEn: string;
+  category: string;
+  rules: Omit<ProxyRule, 'id' | 'targetGroupId' | 'createdAt' | 'updatedAt'>[];
+  remoteSets?: Omit<RemoteRuleSet, 'id' | 'targetGroupId' | 'createdAt' | 'updatedAt'>[];
+  suggestedGroupName?: string;
+  isBuiltin: boolean;
+  createdAt: string;
+}
+
+// ============================================================
+// Export Config
+// ============================================================
+
+export interface ExportConfig {
+  id: string;
+  name: string;
+  format: ExportFormat;
+  token: string; // for /sub/:token/:format URLs
+  enabled: boolean;
+  includeCollectionIds: string[];
+  includeGroupIds: string[];
+  includeRuleIds: string[];
+  includeRemoteSetIds: string[];
+  // Format-specific overrides
+  extraConfig?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// App Settings
+// ============================================================
+
+export type Language = 'zh' | 'en';
+export type ThemePreference = 'system' | 'light' | 'dark';
+
+export interface AppSettings {
+  language: Language;
+  theme: ThemePreference;
+  defaultExportToken?: string;
+  // Feature flags
+  showCompatibilityWarnings: boolean;
+  enableAutoRefresh: boolean;
+  autoRefreshInterval: number; // minutes
+}
+
+// ============================================================
+// API Request/Response Types
+// ============================================================
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface SourceRefreshResult {
+  sourceId: string;
+  success: boolean;
+  nodeCount: number;
+  addedCount: number;
+  removedCount: number;
+  error?: string;
+}
+
+export interface ExportResult {
+  format: ExportFormat;
+  content: string;
+  contentType: string;
+  warnings: CompatibilityWarning[];
+}
+
+export interface CompatibilityWarning {
+  ruleId?: string;
+  groupId?: string;
+  client: ExportFormat;
+  level: CompatibilityLevel;
+  message: string;
+  messageEn: string;
+}
+
+// ============================================================
+// Dashboard Stats
+// ============================================================
+
+export interface DashboardStats {
+  sourceCount: number;
+  nodeCount: number;
+  enabledNodeCount: number;
+  collectionCount: number;
+  groupCount: number;
+  ruleCount: number;
+  exportConfigCount: number;
+  lastRefreshedAt?: string;
+}

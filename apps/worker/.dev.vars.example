@@ -1,0 +1,8 @@
+# Copy this to .dev.vars and fill in values for local development
+# .dev.vars is gitignored
+
+ENVIRONMENT=development
+
+# Optional: set an API key to protect the admin API endpoints
+# Leave empty to allow all requests in development
+API_KEY=

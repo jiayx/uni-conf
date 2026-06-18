@@ -1,0 +1,15 @@
+.page { display: flex; flex-direction: column; gap: 1.25rem; animation: fadeIn var(--transition-normal) ease; }
+.loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
+.tableWrapper { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.table th { padding: 0.75rem 1rem; text-align: left; font-weight: 500; color: var(--color-text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--color-border); background: var(--color-surface2); }
+.row { border-bottom: 1px solid var(--color-border); transition: background var(--transition-fast); }
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--color-surface2); }
+.table td { padding: 0.625rem 1rem; }
+.orderNum { color: var(--color-text-secondary); font-size: 0.75rem; width: 40px; }
+.payload { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--color-text-primary); }
+.label { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
+.select { width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-primary); font-family: inherit; font-size: 0.875rem; outline: none; }
+.select:focus { border-color: var(--color-accent); }
+.checkLabel { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--color-text-primary); cursor: pointer; }

@@ -1,0 +1,22 @@
+name = "uni-conf-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "../web/dist"
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "uni-conf-db"
+database_id = "local"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "local"
+
+[dev]
+port = 8787
+local_protocol = "http"

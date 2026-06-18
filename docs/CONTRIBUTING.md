@@ -1,0 +1,131 @@
+# Contributing to UniConf
+
+## Prerequisites
+
+- Node.js ≥ 20
+- pnpm ≥ 10
+- Cloudflare account (for deployment)
+
+## Local Development Setup
+
+```bash
+# 1. Install dependencies
+pnpm install
+
+# 2. Create local dev vars for worker
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars
+# Edit .dev.vars with your settings
+
+# 3. Initialize local D1 database
+pnpm --filter worker db:migrate:local
+
+# 4. Start worker (in one terminal)
+pnpm dev:worker
+
+# 5. Start frontend (in another terminal)
+pnpm dev
+```
+
+Frontend: http://localhost:5173  
+Worker API: http://localhost:8787  
+Vite proxy automatically forwards `/api/*` and `/sub/*` to the worker.
+
+## Project Structure
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full architecture overview.
+
+## Running Tests
+
+```bash
+pnpm test              # Run all tests
+pnpm test:coverage     # Run with coverage report
+pnpm --filter web test # Frontend tests only
+pnpm --filter worker test # Worker tests only
+```
+
+## Code Style
+
+- TypeScript strict mode (no `any`, no implicit `any`)
+- No default exports for non-component modules
+- CSS Modules for component styles
+- i18n for all user-facing strings (no hardcoded text in components)
+- All new features need tests
+
+## Git Workflow
+
+1. Create a feature branch: `git checkout -b feat/your-feature`
+2. Make changes with tests
+3. Run `pnpm lint && pnpm typecheck && pnpm test`
+4. Commit and open a PR
+
+## Deployment
+
+### Cloudflare Setup
+
+1. Create a D1 database:
+   ```bash
+   wrangler d1 create uni-conf-db
+   ```
+
+2. Create a KV namespace:
+   ```bash
+   wrangler kv namespace create KV
+   ```
+
+3. Update `apps/worker/wrangler.toml` with real database_id and KV id.
+
+4. Run migrations on production:
+   ```bash
+   pnpm --filter worker db:migrate
+   ```
+
+5. Deploy worker:
+   ```bash
+   pnpm --filter worker deploy
+   ```
+
+6. Build and deploy frontend (Cloudflare Pages):
+   ```bash
+   pnpm build
+   # Connect to Cloudflare Pages via dashboard or wrangler pages deploy
+   ```
+
+### Environment Variables
+
+Worker production env vars (set in Cloudflare Dashboard):
+- `ENVIRONMENT=production`
+- `API_KEY=<your-admin-api-key>` (optional)
+
+Frontend env (set in Cloudflare Pages settings):
+- `VITE_API_URL=https://your-worker.workers.dev/api`
+
+## Adding Features
+
+### New Proxy Protocol Support
+1. Add protocol to `ProxyProtocol` in `packages/types/src/index.ts`
+2. Add parsing logic in `apps/web/src/core/parser/proxy-link.parser.ts`
+3. Add Clash format mapping in `apps/web/src/core/parser/clash.parser.ts`
+4. Add node-to-client serializers in `apps/web/src/core/exporter/node-serializer.ts`
+
+### New Export Format
+See [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md).
+
+### New Rule Template
+Add to the `BUILTIN_TEMPLATES` array in `apps/web/src/core/templates/index.ts`.
+
+## Debugging
+
+### Worker logs
+```bash
+wrangler tail --format=pretty
+```
+
+### D1 queries
+```bash
+wrangler d1 execute DB --command="SELECT * FROM sources LIMIT 10"
+```
+
+### Frontend build analysis
+```bash
+pnpm --filter web build -- --analyze
+```
