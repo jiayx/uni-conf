@@ -51,19 +51,28 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
   refreshSource: async (id) => {
     try {
       const result = await api.sources.refresh(id)
-      set(s => ({
-        refreshResults: { ...s.refreshResults, [id]: result },
-        refreshErrors: { ...s.refreshErrors, [id]: '' },
-      }))
+      set(s => {
+        const newErrors = { ...s.refreshErrors }
+        delete newErrors[id] // Remove error on success
+        return {
+          refreshResults: { ...s.refreshResults, [id]: result },
+          refreshErrors: newErrors,
+        }
+      })
       if (result.success) {
         await get().fetchSources()
       }
       return result
     } catch (e) {
       const message = (e as Error).message
-      set(s => ({
-        refreshErrors: { ...s.refreshErrors, [id]: message },
-      }))
+      set(s => {
+        const newResults = { ...s.refreshResults }
+        delete newResults[id] // Remove success result on error
+        return {
+          refreshResults: newResults,
+          refreshErrors: { ...s.refreshErrors, [id]: message },
+        }
+      })
       throw e
     }
   },

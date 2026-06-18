@@ -16,10 +16,23 @@ const NAV_ITEMS = [
   { path: '/settings', label: 'nav.settings', icon: SettingsIcon },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation()
+
+  const handleNavClick = () => {
+    // Close sidebar on mobile when a nav item is clicked
+    if (onClose && window.innerWidth <= 768) {
+      onClose()
+    }
+  }
+
   return (
-    <div className={styles.sidebar}>
+    <div className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}>
       <div className={styles.logo}>
         <div className={styles.logoText}>UniConf</div>
         <div className={styles.slogan}>{t('app.slogan')}</div>
@@ -30,6 +43,7 @@ export function Sidebar() {
             key={path}
             to={path}
             end={end}
+            onClick={handleNavClick}
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.active : ''}`
             }

@@ -21,9 +21,9 @@
     "js-yaml": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
     "@cloudflare/vitest-pool-workers": "^0.16.16",
     "@cloudflare/workers-types": "^4.20260617.1",
+    "@eslint/js": "catalog:",
     "@types/js-yaml": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

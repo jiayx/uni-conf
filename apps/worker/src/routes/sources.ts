@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { load as parseYAML } from 'js-yaml';
 import type { Env } from '../types';
 import {
   jsonStringify,
@@ -106,7 +107,8 @@ app.put('/:id', async (c) => {
       body.format ?? existing.format,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.updateInterval !== undefined ? body.updateInterval : existing.update_interval,
-      body.userAgent !== undefined ? body.userAgent : existing.user_agent,
+      // Allow explicitly setting to null or empty string to clear user_agent
+      'userAgent' in body ? (body.userAgent || null) : existing.user_agent,
       body.notes !== undefined ? body.notes : existing.notes,
       body.tags !== undefined ? jsonStringify(body.tags) : existing.tags,
       ts,
@@ -148,11 +150,23 @@ app.post('/:id/refresh', async (c) => {
     return c.json({ success: false, error: 'Source has no URL to fetch' }, 400);
   }
 
+  // Use mainstream client User-Agent to avoid 502 errors from airport servers
+  // that check UA for anti-crawler protection
+  // Based on sub-store's default: https://github.com/sub-store-org/Sub-Store
+  const defaultUserAgent = 'clash.meta/v1.19.23';
+
   let rawContent: string;
+  let subscriptionInfo: {
+    uploadBytes?: number;
+    downloadBytes?: number;
+    totalBytes?: number;
+    expireTime?: number;
+  } = {};
+
   try {
     const response = await fetch(row.url as string, {
       headers: {
-        'User-Agent': (row.user_agent as string | null) ?? 'ClashMeta/1.0',
+        'User-Agent': (row.user_agent as string | null) ?? defaultUserAgent,
         Accept: '*/*',
       },
       redirect: 'follow',
@@ -161,6 +175,25 @@ app.post('/:id/refresh', async (c) => {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
+
+    // Parse subscription-userinfo header if present
+    const userInfoHeader = response.headers.get('subscription-userinfo');
+    if (userInfoHeader) {
+      const parts = userInfoHeader.split(';').map(p => p.trim());
+      for (const part of parts) {
+        const [key, value] = part.split('=').map(s => s.trim());
+        if (key && value) {
+          const numValue = parseInt(value, 10);
+          if (!isNaN(numValue)) {
+            if (key === 'upload') subscriptionInfo.uploadBytes = numValue;
+            else if (key === 'download') subscriptionInfo.downloadBytes = numValue;
+            else if (key === 'total') subscriptionInfo.totalBytes = numValue;
+            else if (key === 'expire') subscriptionInfo.expireTime = numValue;
+          }
+        }
+      }
+    }
+
     rawContent = await response.text();
   } catch (err) {
     return c.json(
@@ -272,7 +305,7 @@ app.post('/:id/refresh', async (c) => {
     await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(rem.id).run();
   }
 
-  // Update source node_count and last_updated
+  // Update source node_count, last_updated, and subscription info
   const { results: countResult } = await c.env.DB.prepare(
     'SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?'
   )
@@ -282,9 +315,26 @@ app.post('/:id/refresh', async (c) => {
   const nodeCount = countResult[0]?.cnt ?? parsedNodes.length;
 
   await c.env.DB.prepare(
-    'UPDATE sources SET node_count = ?, last_updated = ?, updated_at = ? WHERE id = ?'
+    `UPDATE sources SET
+      node_count = ?,
+      last_updated = ?,
+      upload_bytes = ?,
+      download_bytes = ?,
+      total_bytes = ?,
+      expire_time = ?,
+      updated_at = ?
+     WHERE id = ?`
   )
-    .bind(nodeCount, ts, ts, id)
+    .bind(
+      nodeCount,
+      ts,
+      subscriptionInfo.uploadBytes ?? null,
+      subscriptionInfo.downloadBytes ?? null,
+      subscriptionInfo.totalBytes ?? null,
+      subscriptionInfo.expireTime ?? null,
+      ts,
+      id
+    )
     .run();
 
   return c.json({
@@ -368,72 +418,53 @@ function shouldUpdateNode(
 }
 
 function parseClashYaml(content: string): ParsedNodeRaw[] {
-  // Simple YAML proxy list parser – extracts proxy entries without full YAML lib
+  // Use full YAML parser for robust handling of all edge cases
   const nodes: ParsedNodeRaw[] = [];
-  const proxyBlockMatch = content.match(/proxies:\s*\n([\s\S]*?)(?=\n\w|\n?$)/);
-  if (!proxyBlockMatch) return nodes;
 
-  const block = proxyBlockMatch[1];
-  if (block === undefined) return nodes;
-  // Split into individual proxy entries (each starting with "  - name:")
-  const entries = block.split(/\n {2}- (?=name:)/);
+  try {
+    const doc = parseYAML(content);
+    if (!doc || typeof doc !== 'object') return nodes;
 
-  for (const entry of entries) {
-    const nameMatch = entry.match(/name:\s*["']?([^"'\n]+)["']?/);
-    const typeMatch = entry.match(/type:\s*([^\n]+)/);
-    const serverMatch = entry.match(/server:\s*([^\n]+)/);
-    const portMatch = entry.match(/port:\s*(\d+)/);
+    const proxies = (doc as Record<string, unknown>).proxies;
+    if (!Array.isArray(proxies)) return nodes;
 
-    const nameValue = nameMatch?.[1];
-    const typeValue = typeMatch?.[1];
-    const serverValue = serverMatch?.[1];
-    const portValue = portMatch?.[1];
-    if (!nameValue || !typeValue || !serverValue || !portValue) continue;
+    for (const proxy of proxies) {
+      if (!proxy || typeof proxy !== 'object') continue;
 
-    const name = nameValue.trim();
-    const type = typeValue.trim().toLowerCase();
-    const server = serverValue.trim();
-    const port = parseInt(portValue.trim(), 10);
+      const proxyObj = proxy as Record<string, unknown>;
+      const name = proxyObj.name;
+      const type = proxyObj.type;
+      const server = proxyObj.server;
+      const port = proxyObj.port;
 
-    const protocol = clashTypeToProtocol(type);
-    const rawConfig = parseEntryToObject(entry);
+      // Skip entries missing required fields
+      if (!name || !type || !server || !port) continue;
 
-    nodes.push({
-      name,
-      protocol,
-      server,
-      port,
-      rawConfig,
-      parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),
-    });
+      const nameStr = String(name).trim();
+      const typeStr = String(type).trim().toLowerCase();
+      const serverStr = String(server).trim();
+      const portNum = typeof port === 'number' ? port : parseInt(String(port), 10);
+
+      if (!nameStr || !serverStr || isNaN(portNum)) continue;
+
+      const protocol = clashTypeToProtocol(typeStr);
+      const rawConfig = proxyObj;
+
+      nodes.push({
+        name: nameStr,
+        protocol,
+        server: serverStr,
+        port: portNum,
+        rawConfig,
+        parsedConfig: buildParsedConfig(protocol, serverStr, portNum, rawConfig),
+      });
+    }
+  } catch (err) {
+    console.error('YAML parse error:', err);
+    // Return empty array on parse error
   }
 
   return nodes;
-}
-
-function parseEntryToObject(entry: string): Record<string, unknown> {
-  const obj: Record<string, unknown> = {};
-  const lines = entry.split('\n');
-  for (const line of lines) {
-    const match = line.match(/^\s+(\w[\w-]*):\s*(.+)$/);
-    if (match) {
-      const key = match[1];
-      const rawValue = match[2];
-      if (!key || !rawValue) continue;
-      const val = rawValue.trim().replace(/^["']|["']$/g, '');
-      // Try numeric
-      if (/^\d+$/.test(val)) {
-        obj[key] = parseInt(val, 10);
-      } else if (val === 'true') {
-        obj[key] = true;
-      } else if (val === 'false') {
-        obj[key] = false;
-      } else {
-        obj[key] = val;
-      }
-    }
-  }
-  return obj;
 }
 
 function clashTypeToProtocol(type: string): ProxyProtocol {
@@ -452,6 +483,7 @@ function clashTypeToProtocol(type: string): ProxyProtocol {
     http: 'http',
     https: 'https',
     reality: 'reality',
+    anytls: 'anytls',
   };
   return map[type] ?? 'unknown';
 }

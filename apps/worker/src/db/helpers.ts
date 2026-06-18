@@ -47,6 +47,10 @@ export function mapSource(row: Record<string, unknown>): ProxySource {
     userAgent: (row.user_agent as string | null) ?? undefined,
     notes: (row.notes as string | null) ?? undefined,
     tags: jsonParse<string[]>(row.tags as string | null) ?? [],
+    uploadBytes: (row.upload_bytes as number | null) ?? undefined,
+    downloadBytes: (row.download_bytes as number | null) ?? undefined,
+    totalBytes: (row.total_bytes as number | null) ?? undefined,
+    expireTime: (row.expire_time as number | null) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

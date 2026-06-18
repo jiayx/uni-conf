@@ -19,6 +19,7 @@ export type ProxyProtocol =
   | 'ssh'
   | 'reality'
   | 'shadowtls'
+  | 'anytls'
   | 'direct'
   | 'reject'
   | 'unknown';
@@ -99,6 +100,11 @@ export interface ProxySource {
   userAgent?: string;
   notes?: string;
   tags: string[];
+  // Subscription info (from subscription-userinfo header)
+  uploadBytes?: number;
+  downloadBytes?: number;
+  totalBytes?: number;
+  expireTime?: number; // Unix timestamp
   createdAt: string;
   updatedAt: string;
 }

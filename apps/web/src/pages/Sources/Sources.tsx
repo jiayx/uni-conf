@@ -20,6 +20,30 @@ const FORMAT_OPTIONS: { value: SourceFormat; label: string }[] = [
   { value: 'loon', label: 'Loon' },
 ]
 
+const USER_AGENT_OPTIONS = [
+  { value: '', label: 'Default (clash.meta)' },
+  { value: 'clash.meta/v1.19.23', label: 'Clash Meta (Recommended)' },
+  { value: 'Quantumult%20X/1.4.1', label: 'Quantumult X' },
+  { value: 'Surge/5.9.0', label: 'Surge' },
+  { value: 'Shadowrocket/1850', label: 'Shadowrocket' },
+  { value: 'Loon/308', label: 'Loon' },
+  { value: 'Stash/2.4.3', label: 'Stash' },
+  { value: 'clash-verge/v1.3.8', label: 'Clash Verge' },
+  { value: 'ClashX/1.95.1', label: 'ClashX' },
+  { value: 'ClashForWindows/0.20.39', label: 'Clash for Windows' },
+  { value: 'ClashForAndroid/2.5.12', label: 'Clash for Android' },
+  { value: 'v2rayNG/1.8.5', label: 'v2rayNG' },
+  { value: 'custom', label: 'Custom...' },
+]
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+}
+
 export function Sources() {
   const { t } = useTranslation()
   const {
@@ -34,8 +58,19 @@ export function Sources() {
     refreshSource,
   } = useSourcesStore()
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingSource, setEditingSource] = useState<ProxySource | null>(null)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', url: '', format: 'auto' as SourceFormat, updateInterval: 0, notes: '', refreshAfterCreate: true })
+  const [form, setForm] = useState({
+    name: '',
+    url: '',
+    format: 'auto' as SourceFormat,
+    updateInterval: 0,
+    userAgent: '',
+    customUserAgent: '',
+    notes: '',
+    refreshAfterCreate: true
+  })
   const [formError, setFormError] = useState('')
 
   useEffect(() => { void fetchSources() }, [fetchSources])
@@ -44,6 +79,12 @@ export function Sources() {
     if (!form.name) { setFormError(t('sources.name_required')); return }
     if (!form.url) { setFormError(t('sources.url_required')); return }
     setFormError('')
+    // When userAgent is empty string (Default), send undefined to use backend default
+    // When userAgent is 'custom', use customUserAgent
+    // Otherwise use the selected preset
+    const finalUserAgent = form.userAgent === 'custom'
+      ? form.customUserAgent
+      : (form.userAgent || undefined)
     const source = await addSource({
       name: form.name,
       type: 'url',
@@ -52,10 +93,11 @@ export function Sources() {
       enabled: true,
       tags: [],
       updateInterval: form.updateInterval,
+      userAgent: finalUserAgent,
       notes: form.notes,
     })
     setShowAddModal(false)
-    setForm({ name: '', url: '', format: 'auto', updateInterval: 0, notes: '', refreshAfterCreate: true })
+    setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })
     if (form.refreshAfterCreate) void handleRefresh(source.id)
   }
 
@@ -72,6 +114,47 @@ export function Sources() {
 
   const handleToggle = (source: ProxySource) => {
     void updateSource(source.id, { enabled: !source.enabled })
+  }
+
+  const handleEdit = (source: ProxySource) => {
+    setEditingSource(source)
+    // Parse userAgent to determine if it's custom
+    const isPreset = USER_AGENT_OPTIONS.some(opt => opt.value === source.userAgent)
+    setForm({
+      name: source.name,
+      url: source.url || '',
+      format: source.format,
+      updateInterval: source.updateInterval || 0,
+      userAgent: isPreset ? (source.userAgent || '') : (source.userAgent ? 'custom' : ''),
+      customUserAgent: isPreset ? '' : (source.userAgent || ''),
+      notes: source.notes || '',
+      refreshAfterCreate: false,
+    })
+    setShowEditModal(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!editingSource) return
+    if (!form.name) { setFormError(t('sources.name_required')); return }
+    if (!form.url) { setFormError(t('sources.url_required')); return }
+    setFormError('')
+    // When userAgent is empty string (Default), explicitly pass empty string to clear it
+    // When userAgent is 'custom', use customUserAgent
+    // Otherwise use the selected preset
+    const finalUserAgent = form.userAgent === 'custom'
+      ? form.customUserAgent
+      : form.userAgent
+    await updateSource(editingSource.id, {
+      name: form.name,
+      url: form.url,
+      format: form.format,
+      updateInterval: form.updateInterval,
+      userAgent: finalUserAgent || undefined,
+      notes: form.notes,
+    })
+    setShowEditModal(false)
+    setEditingSource(null)
+    setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })
   }
 
   return (
@@ -99,13 +182,22 @@ export function Sources() {
           {sources.map(source => (
             <Card key={source.id} className={styles.sourceCard}>
               <div className={styles.cardHeader}>
-                <div className={styles.cardTitle}>{source.name}</div>
-                <div className={styles.cardActions}>
+                <div className={styles.titleRow}>
                   <button
                     className={`${styles.toggleBtn} ${source.enabled ? styles.enabled : styles.disabled}`}
                     onClick={() => handleToggle(source)}
                     title={source.enabled ? t('common.disable') : t('common.enable')}
                   />
+                  <div className={styles.cardTitle}>{source.name}</div>
+                </div>
+                <div className={styles.cardActions}>
+                  <Button
+                    variant="ghost" size="sm"
+                    onClick={() => handleEdit(source)}
+                    title={t('common.edit')}
+                  >
+                    <EditIcon />
+                  </Button>
                   <Button
                     variant="ghost" size="sm"
                     loading={refreshingId === source.id}
@@ -135,6 +227,20 @@ export function Sources() {
                   <span>{t('sources.last_updated')}: {new Date(source.lastUpdated).toLocaleString()}</span>
                 )}
               </div>
+              {(source.totalBytes !== undefined || source.expireTime !== undefined) && (
+                <div className={styles.subscriptionInfo}>
+                  {source.totalBytes !== undefined && (
+                    <span>
+                      流量: <strong>{formatBytes((source.downloadBytes || 0) + (source.uploadBytes || 0))} / {formatBytes(source.totalBytes)}</strong>
+                    </span>
+                  )}
+                  {source.expireTime !== undefined && (
+                    <span>
+                      到期: <strong>{new Date(source.expireTime * 1000).toLocaleDateString()}</strong>
+                    </span>
+                  )}
+                </div>
+              )}
               {refreshResults[source.id] && (
                 <div className={styles.refreshStatus}>
                   {t('sources.refresh_success', { count: refreshResults[source.id].nodeCount })}
@@ -192,10 +298,34 @@ export function Sources() {
         <Input
           label={t('sources.update_interval')}
           type="number"
+          min="0"
           value={form.updateInterval}
           onChange={e => setForm(f => ({ ...f, updateInterval: Number(e.target.value) }))}
           helperText={t('sources.update_interval_hint')}
         />
+        <div>
+          <label className={styles.selectLabel}>User-Agent</label>
+          <select
+            className={styles.select}
+            value={form.userAgent}
+            onChange={e => setForm(f => ({ ...f, userAgent: e.target.value }))}
+          >
+            {USER_AGENT_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <div className={styles.helperText}>
+            Some airports check User-Agent. Recommended: clash.meta (works with most airports).
+          </div>
+        </div>
+        {form.userAgent === 'custom' && (
+          <Input
+            label="Custom User-Agent"
+            value={form.customUserAgent}
+            onChange={e => setForm(f => ({ ...f, customUserAgent: e.target.value }))}
+            placeholder="YourClient/1.0.0"
+          />
+        )}
         <Input
           label={t('common.notes')}
           value={form.notes}
@@ -211,12 +341,90 @@ export function Sources() {
           <span>{t('sources.refresh_now')}</span>
         </label>
       </Modal>
+
+      <Modal
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        title={t('common.edit') + ' - ' + editingSource?.name}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowEditModal(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void handleUpdate()}>{t('common.save')}</Button>
+          </>
+        }
+      >
+        {formError && <div className={styles.formError}>{formError}</div>}
+        <Input
+          label={t('common.name')}
+          value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="My Airport"
+        />
+        <Input
+          label={t('sources.url')}
+          value={form.url}
+          onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+          placeholder="https://example.com/sub?token=..."
+        />
+        <div>
+          <label className={styles.selectLabel}>{t('sources.format')}</label>
+          <select
+            className={styles.select}
+            value={form.format}
+            onChange={e => setForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
+          >
+            {FORMAT_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <Input
+          label={t('sources.update_interval')}
+          type="number"
+          min="0"
+          value={form.updateInterval}
+          onChange={e => setForm(f => ({ ...f, updateInterval: Number(e.target.value) }))}
+          helperText={t('sources.update_interval_hint')}
+        />
+        <div>
+          <label className={styles.selectLabel}>User-Agent</label>
+          <select
+            className={styles.select}
+            value={form.userAgent}
+            onChange={e => setForm(f => ({ ...f, userAgent: e.target.value }))}
+          >
+            {USER_AGENT_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <div className={styles.helperText}>
+            Some airports check User-Agent. Recommended: clash.meta (works with most airports).
+          </div>
+        </div>
+        {form.userAgent === 'custom' && (
+          <Input
+            label="Custom User-Agent"
+            value={form.customUserAgent}
+            onChange={e => setForm(f => ({ ...f, customUserAgent: e.target.value }))}
+            placeholder="YourClient/1.0.0"
+          />
+        )}
+        <Input
+          label={t('common.notes')}
+          value={form.notes}
+          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+          placeholder={t('common.notes')}
+        />
+      </Modal>
     </div>
   )
 }
 
 function PlusIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+}
+function EditIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
 }
 function RefreshIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
