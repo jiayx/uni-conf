@@ -513,6 +513,7 @@ function parseVmessUri(uri: string): ParsedNodeRaw | null {
       sni: data.sni as string | undefined,
       network: (data.net as string | undefined) as NormalizedProxyConfig['network'],
       wsPath: data.path as string | undefined,
+      wsHeaders: getVmessWsHeaders(data),
       extra: data,
     },
   };
@@ -636,6 +637,9 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
     security: url.searchParams.get('security') ?? undefined,
     sni: url.searchParams.get('sni') ?? undefined,
     network: url.searchParams.get('type') ?? 'tcp',
+    wsPath: url.searchParams.get('path') ?? undefined,
+    skipCertVerify: url.searchParams.get('allowInsecure') === '1' ||
+      url.searchParams.get('skip-cert-verify') === 'true',
   };
 
   return {
@@ -651,7 +655,9 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
       uuid,
       tls: rawConfig.security === 'tls' || rawConfig.security === 'reality',
       sni: rawConfig.sni as string | undefined,
+      skipCertVerify: rawConfig.skipCertVerify as boolean,
       network: (rawConfig.network as NormalizedProxyConfig['network']) ?? 'tcp',
+      wsPath: rawConfig.wsPath as string | undefined,
       extra: rawConfig,
     },
   };
@@ -712,8 +718,16 @@ function buildParsedConfig(
     network: (raw.network as NormalizedProxyConfig['network']) ??
       (raw.net as NormalizedProxyConfig['network']),
     wsPath: (raw['ws-path'] as string | undefined) ?? (raw.path as string | undefined),
+    wsHeaders: (raw['ws-headers'] as Record<string, string> | undefined) ??
+      (raw.wsHeaders as Record<string, string> | undefined) ??
+      (raw.headers as Record<string, string> | undefined),
     extra: raw,
   };
+}
+
+function getVmessWsHeaders(data: Record<string, unknown>): Record<string, string> | undefined {
+  const host = (data.host as string | undefined) ?? (data.sni as string | undefined)
+  return host ? { Host: host } : undefined
 }
 
 export default app;
