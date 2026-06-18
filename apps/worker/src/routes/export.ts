@@ -118,15 +118,15 @@ exportRouter.get('/preview/:format', async (c) => {
   const format = c.req.param('format')
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows } = await buildExportData(c.env.DB, config)
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = await buildExportData(c.env.DB, config)
   let content: string
   let contentType: string
 
   if (format === 'mihomo' || format === 'clash') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets)
+    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
   } else if (format === 'singbox') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets)
+    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames)
     contentType = 'application/json; charset=utf-8'
   } else if (format === 'loon') {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
@@ -149,17 +149,17 @@ exportRouter.get('/download/:format', async (c) => {
   const format = c.req.param('format')
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows } = await buildExportData(c.env.DB, config)
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = await buildExportData(c.env.DB, config)
   let content: string
   let contentType: string
   let filename: string
 
   if (format === 'mihomo' || format === 'clash') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets)
+    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
     filename = 'mihomo.yaml'
   } else if (format === 'singbox') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets)
+    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames)
     contentType = 'application/json; charset=utf-8'
     filename = 'singbox.json'
   } else if (format === 'loon') {

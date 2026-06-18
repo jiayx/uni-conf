@@ -5,6 +5,7 @@ export interface ExportInput {
   groups: ProxyGroup[]
   rules: ProxyRule[]
   remoteSets: RemoteRuleSet[]
+  collectionNodeNames?: Record<string, string[]>
 }
 
 export interface IExporter {

@@ -33,6 +33,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     groups,
     rules,
     remoteSets,
+    collectionNodeNames,
   } = await buildExportData(c.env.DB, config)
 
   let content: string
@@ -40,10 +41,10 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
 
   // Determine format from filename
   if (filename === 'mihomo.yaml' || filename === 'clash.yaml') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets)
+    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
   } else if (filename === 'singbox.json') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets)
+    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames)
     contentType = 'application/json; charset=utf-8'
   } else if (filename === 'loon.conf') {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)

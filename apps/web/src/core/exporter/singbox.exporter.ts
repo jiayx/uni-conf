@@ -47,7 +47,7 @@ export class SingboxExporter implements IExporter {
   readonly contentType = 'application/json'
 
   generate(input: ExportInput): string {
-    const { nodes, groups, rules, remoteSets } = input
+    const { nodes, groups, rules, remoteSets, collectionNodeNames = {} } = input
 
     // Outbounds: proxy nodes
     const proxyOutbounds = nodes.map(nodeToSingboxOutbound)
@@ -68,7 +68,10 @@ export class SingboxExporter implements IExporter {
           if (nested) outboundRefs.push(nested.name)
         }
 
-        if (group.collectionIds.length === 0 || group.collectionIds.includes('*')) {
+        const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? [])
+        if (collectionNames.length > 0) {
+          outboundRefs.push(...collectionNames)
+        } else if (group.collectionIds.length === 0 || group.collectionIds.includes('*')) {
           for (const node of nodes) {
             outboundRefs.push(node.name)
           }
@@ -79,7 +82,7 @@ export class SingboxExporter implements IExporter {
         const ob: Record<string, unknown> = {
           type: gType,
           tag: group.name,
-          outbounds: outboundRefs,
+          outbounds: [...new Set(outboundRefs)],
         }
 
         if (gType === 'urltest') {
@@ -111,14 +114,15 @@ export class SingboxExporter implements IExporter {
 
     for (const rule of enabledRules) {
       if (UNSUPPORTED_RULE_TYPES.has(rule.type)) continue
+      const targetGroup = groups.find((g) => g.id === rule.targetGroupId)?.name ?? rule.targetGroupId
       if (rule.type === 'MATCH') {
-        finalOutbound = rule.targetGroupId
+        finalOutbound = targetGroup
         continue
       }
       const ruleType = mapRuleType(rule.type)
       const ruleObj: Record<string, unknown> = {
         [ruleType]: rule.payload,
-        outbound: rule.targetGroupId,
+        outbound: targetGroup,
       }
       routeRules.push(ruleObj)
     }
@@ -135,7 +139,8 @@ export class SingboxExporter implements IExporter {
         download_detour: 'direct',
         update_interval: `${rs.updateInterval ?? 24}h`,
       })
-      routeRules.push({ rule_set: tag, outbound: rs.targetGroupId })
+      const targetGroup = groups.find((g) => g.id === rs.targetGroupId)?.name ?? rs.targetGroupId
+      routeRules.push({ rule_set: tag, outbound: targetGroup })
     }
 
     // Determine primary proxy group name

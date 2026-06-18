@@ -27,6 +27,7 @@ export interface ExportData {
   groups: ProxyGroup[]
   rules: ProxyRule[]
   remoteSets: RemoteRuleSet[]
+  collectionNodeNames: Record<string, string[]>
 }
 
 export async function getExportConfigById(
@@ -56,8 +57,9 @@ export async function buildExportData(
   config?: ExportConfig
 ): Promise<ExportData> {
   const allNodeRows = await selectRows(db, 'SELECT * FROM nodes WHERE enabled = 1')
+  const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
   const nodeRows = config?.includeCollectionIds.length
-    ? await buildCollectionNodeRows(db, allNodeRows, config.includeCollectionIds)
+    ? mergeCollectionRows(collectionRows, config.includeCollectionIds)
     : allNodeRows
 
   const groupRows = await selectRows(
@@ -86,6 +88,7 @@ export async function buildExportData(
     groups: groupRows.map(mapGroup),
     rules: ruleRows.map(mapRule),
     remoteSets: remoteSetRows.map(mapRemoteRuleSet),
+    collectionNodeNames: buildCollectionNodeNames(collectionRows, nodeRows),
   }
 }
 
@@ -109,18 +112,15 @@ async function selectRows(
 
 async function buildCollectionNodeRows(
   db: D1Database,
-  allNodeRows: Record<string, unknown>[],
-  collectionIds: string[]
-): Promise<Record<string, unknown>[]> {
-  const placeholders = collectionIds.map(() => '?').join(',')
+  allNodeRows: Record<string, unknown>[]
+): Promise<Map<string, Record<string, unknown>[]>> {
   const { results } = await db
-    .prepare(`SELECT * FROM collections WHERE enabled = 1 AND id IN (${placeholders})`)
-    .bind(...collectionIds)
+    .prepare('SELECT * FROM collections WHERE enabled = 1')
     .all<Record<string, unknown>>()
 
   const collections = results.map(mapCollection)
   const rowsById = new Map(allNodeRows.map((row) => [String(row.id), row]))
-  const selected = new Map<string, Record<string, unknown>>()
+  const collectionRows = new Map<string, Record<string, unknown>[]>()
 
   for (const collection of collections) {
     const scopedRows = scopeRowsForCollection(allNodeRows, collection)
@@ -131,14 +131,47 @@ async function buildCollectionNodeRows(
       collection.sortCountryOrder
     )
     const renamedNodes = applyRenames(filteredNodes, collection.renames)
+    const rows: Record<string, unknown>[] = []
 
     for (const node of renamedNodes) {
       const row = rowsById.get(node.id)
-      if (row) selected.set(node.id, { ...row, name: node.name })
+      if (row) rows.push({ ...row, name: node.name })
     }
+    collectionRows.set(collection.id, rows)
   }
 
+  return collectionRows
+}
+
+function mergeCollectionRows(
+  collectionRows: Map<string, Record<string, unknown>[]>,
+  collectionIds: string[]
+): Record<string, unknown>[] {
+  const selected = new Map<string, Record<string, unknown>>()
+  for (const id of collectionIds) {
+    const rows = collectionRows.get(id) ?? []
+    for (const row of rows) {
+      selected.set(String(row.id), row)
+    }
+  }
   return [...selected.values()]
+}
+
+function buildCollectionNodeNames(
+  collectionRows: Map<string, Record<string, unknown>[]>,
+  exportedRows: Record<string, unknown>[]
+): Record<string, string[]> {
+  const exportedIds = new Set(exportedRows.map((row) => String(row.id)))
+  const result: Record<string, string[]> = {}
+
+  for (const [collectionId, rows] of collectionRows) {
+    result[collectionId] = rows
+      .filter((row) => exportedIds.has(String(row.id)))
+      .map((row) => String(row.name ?? ''))
+      .filter(Boolean)
+  }
+
+  return result
 }
 
 function scopeRowsForCollection(

@@ -22,7 +22,7 @@ export class MihomoExporter implements IExporter {
   readonly contentType = 'text/yaml'
 
   generate(input: ExportInput): string {
-    const { nodes, groups, rules, remoteSets } = input
+    const { nodes, groups, rules, remoteSets, collectionNodeNames = {} } = input
 
     // Base config
     const config: Record<string, unknown> = {
@@ -62,10 +62,10 @@ export class MihomoExporter implements IExporter {
           if (nested) proxies.push(nested.name)
         }
 
-        // Add node names from collections (simplified: use all node names)
-        // In practice, caller resolves collections -> node names
-        // Here we include all node names for groups that reference all collections
-        if (group.collectionIds.length === 0 || group.collectionIds.includes('*')) {
+        const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? [])
+        if (collectionNames.length > 0) {
+          proxies.push(...collectionNames)
+        } else if (group.collectionIds.length === 0 || group.collectionIds.includes('*')) {
           for (const node of nodes) {
             proxies.push(node.name)
           }
@@ -74,7 +74,7 @@ export class MihomoExporter implements IExporter {
         const g: Record<string, unknown> = {
           name: group.name,
           type: mapGroupType(group.type),
-          proxies,
+          proxies: [...new Set(proxies)],
         }
 
         if (group.type === 'url-test' || group.type === 'fallback') {
@@ -117,7 +117,7 @@ export class MihomoExporter implements IExporter {
     const enabledRules = rules.filter((r) => r.enabled).sort((a, b) => a.order - b.order)
 
     for (const rule of enabledRules) {
-      const targetGroup = rule.targetGroupId // caller should resolve to group name; use id as fallback
+      const targetGroup = groups.find((g) => g.id === rule.targetGroupId)?.name ?? rule.targetGroupId
       let line: string
       if (rule.type === 'MATCH') {
         line = `MATCH,${targetGroup}`
@@ -132,7 +132,8 @@ export class MihomoExporter implements IExporter {
     // Add remote rule-set rules
     for (const rs of enabledSets) {
       const providerName = rs.name.replace(/\s+/g, '-').toLowerCase()
-      ruleLines.push(`RULE-SET,${providerName},${rs.targetGroupId}`)
+      const targetGroup = groups.find((g) => g.id === rs.targetGroupId)?.name ?? rs.targetGroupId
+      ruleLines.push(`RULE-SET,${providerName},${targetGroup}`)
     }
 
     // Ensure MATCH at end

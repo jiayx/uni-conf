@@ -6,7 +6,8 @@ export function generateMihomoYaml(
   nodes: ProxyNode[],
   groups: ProxyGroup[],
   rules: ProxyRule[],
-  remoteSets: RemoteRuleSet[]
+  remoteSets: RemoteRuleSet[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const lines: string[] = [];
 
@@ -70,7 +71,7 @@ export function generateMihomoYaml(
   } else {
     lines.push('proxy-groups:');
     for (const group of groups) {
-      lines.push(...groupToMihomo(group, nodes));
+      lines.push(...groupToMihomo(group, nodes, groups, collectionNodeNames));
     }
   }
   lines.push('');
@@ -224,14 +225,18 @@ function nodeToMihomo(node: ProxyNode): string | null {
 
 // ─── Group serialization ──────────────────────────────────────────────────────
 
-function groupToMihomo(group: ProxyGroup, allNodes: ProxyNode[]): string[] {
+function groupToMihomo(
+  group: ProxyGroup,
+  allNodes: ProxyNode[],
+  allGroups: ProxyGroup[],
+  collectionNodeNames: Record<string, string[]>
+): string[] {
   const lines: string[] = [];
   const name = escapeName(group.name);
 
   lines.push(`  - name: "${name}"`);
   lines.push(`    type: ${group.type}`);
 
-  // Build proxies list: builtins + group references + node names from collection (simplified)
   const proxies: string[] = [];
 
   for (const b of group.builtins) {
@@ -239,24 +244,22 @@ function groupToMihomo(group: ProxyGroup, allNodes: ProxyNode[]): string[] {
   }
 
   for (const gid of group.groupIds) {
-    // Reference by id; ideally we'd resolve to name — store name in groupIds not possible here
-    // We'll use the id as placeholder; actual resolution happens at runtime via name lookup
-    proxies.push(gid);
+    const nestedGroup = allGroups.find((item) => item.id === gid);
+    if (nestedGroup) proxies.push(escapeName(nestedGroup.name));
   }
 
-  // Add nodes (simplified: all nodes if no collectionIds; real implementation would filter)
-  if (group.collectionIds.length === 0 && group.groupIds.length === 0 && group.builtins.length === 0) {
-    for (const node of allNodes.slice(0, 50)) {
-      proxies.push(escapeName(node.name));
-    }
+  const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? []);
+  if (collectionNames.length > 0) {
+    for (const nodeName of collectionNames) proxies.push(escapeName(nodeName));
+  } else if (group.collectionIds.length === 0 && group.groupIds.length === 0 && group.builtins.length === 0) {
+    for (const node of allNodes) proxies.push(escapeName(node.name));
   }
 
-  if (proxies.length === 0) {
-    proxies.push('DIRECT');
-  }
+  const dedupedProxies = [...new Set(proxies)];
+  if (dedupedProxies.length === 0) dedupedProxies.push('DIRECT');
 
   lines.push(`    proxies:`);
-  for (const p of proxies) {
+  for (const p of dedupedProxies) {
     lines.push(`      - "${p}"`);
   }
 

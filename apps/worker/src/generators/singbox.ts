@@ -6,7 +6,8 @@ export function generateSingboxJson(
   nodes: ProxyNode[],
   groups: ProxyGroup[],
   rules: ProxyRule[],
-  remoteSets: RemoteRuleSet[]
+  remoteSets: RemoteRuleSet[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const config = {
     log: {
@@ -15,7 +16,7 @@ export function generateSingboxJson(
     },
     dns: buildDns(),
     inbounds: buildInbounds(),
-    outbounds: buildOutbounds(nodes, groups),
+    outbounds: buildOutbounds(nodes, groups, collectionNodeNames),
     route: buildRoute(rules, groups, remoteSets),
     experimental: {
       cache_file: {
@@ -103,7 +104,11 @@ function buildInbounds(): object[] {
 
 // ─── Outbounds ────────────────────────────────────────────────────────────────
 
-function buildOutbounds(nodes: ProxyNode[], groups: ProxyGroup[]): object[] {
+function buildOutbounds(
+  nodes: ProxyNode[],
+  groups: ProxyGroup[],
+  collectionNodeNames: Record<string, string[]>
+): object[] {
   const outbounds: object[] = [];
 
   // Convert proxy nodes
@@ -114,7 +119,7 @@ function buildOutbounds(nodes: ProxyNode[], groups: ProxyGroup[]): object[] {
 
   // Convert groups (selectors/url-tests)
   for (const group of groups) {
-    const ob = groupToSingbox(group, nodes);
+    const ob = groupToSingbox(group, nodes, groups, collectionNodeNames);
     if (ob) outbounds.push(ob);
   }
 
@@ -316,7 +321,12 @@ function nodeToSingbox(node: ProxyNode): object | null {
 
 // ─── Group serialization ──────────────────────────────────────────────────────
 
-function groupToSingbox(group: ProxyGroup, allNodes: ProxyNode[]): object | null {
+function groupToSingbox(
+  group: ProxyGroup,
+  allNodes: ProxyNode[],
+  allGroups: ProxyGroup[],
+  collectionNodeNames: Record<string, string[]>
+): object | null {
   const tag = group.name;
   const outbounds: string[] = [];
 
@@ -325,31 +335,33 @@ function groupToSingbox(group: ProxyGroup, allNodes: ProxyNode[]): object | null
   }
 
   for (const gid of group.groupIds) {
-    outbounds.push(gid);
+    const nestedGroup = allGroups.find((item) => item.id === gid);
+    if (nestedGroup) outbounds.push(nestedGroup.name);
   }
 
-  // Simplified: add node names from all nodes if no specific collections
-  if (group.collectionIds.length === 0 && group.groupIds.length === 0 && group.builtins.length === 0) {
-    for (const node of allNodes.slice(0, 50)) {
-      outbounds.push(node.name);
-    }
+  const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? []);
+  if (collectionNames.length > 0) {
+    outbounds.push(...collectionNames);
+  } else if (group.collectionIds.length === 0 && group.groupIds.length === 0 && group.builtins.length === 0) {
+    outbounds.push(...allNodes.map((node) => node.name));
   }
 
-  if (outbounds.length === 0) outbounds.push('direct');
+  const dedupedOutbounds = [...new Set(outbounds)];
+  if (dedupedOutbounds.length === 0) dedupedOutbounds.push('direct');
 
   switch (group.type) {
     case 'select':
       return {
         type: 'selector',
         tag,
-        outbounds,
-        default: outbounds[0],
+        outbounds: dedupedOutbounds,
+        default: dedupedOutbounds[0],
       };
     case 'url-test':
       return {
         type: 'urltest',
         tag,
-        outbounds,
+        outbounds: dedupedOutbounds,
         url: group.testUrl ?? 'http://www.gstatic.com/generate_204',
         interval: `${group.interval ?? 300}s`,
         tolerance: group.tolerance ?? 50,
@@ -358,15 +370,15 @@ function groupToSingbox(group: ProxyGroup, allNodes: ProxyNode[]): object | null
       return {
         type: 'selector',
         tag,
-        outbounds,
-        default: outbounds[0],
+        outbounds: dedupedOutbounds,
+        default: dedupedOutbounds[0],
       };
     case 'load-balance':
       return {
         type: 'selector',
         tag,
-        outbounds,
-        default: outbounds[0],
+        outbounds: dedupedOutbounds,
+        default: dedupedOutbounds[0],
       };
     case 'direct':
       return { type: 'direct', tag };
