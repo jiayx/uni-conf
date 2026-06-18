@@ -1,10 +1,50 @@
-.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeIn var(--transition-normal) ease; }
+.page { display: flex; flex-direction: column; gap: 1.25rem; animation: fadeIn var(--transition-normal) ease; }
 .loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
-.list { display: flex; flex-direction: column; gap: 0.5rem; }
-.groupCard { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; }
-.cardLeft { display: flex; flex-direction: column; gap: 0.5rem; }
-.groupName { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
-.groupMeta { display: flex; gap: 0.5rem; }
+.list { display: flex; flex-direction: column; gap: 0.75rem; }
+.groupCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: 1rem 1.25rem; }
+.orderControls { display: flex; flex-direction: column; gap: 0.25rem; }
+.cardMain { min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.cardTop { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.groupName { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.groupMeta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.summary { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardActions { display: flex; align-items: center; justify-content: flex-end; gap: 0.375rem; flex-wrap: wrap; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.toggleGrid { display: flex; gap: 1rem; flex-wrap: wrap; }
 .selectLabel { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
-.select { width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-primary); font-family: inherit; font-size: 0.875rem; outline: none; }
-.select:focus { border-color: var(--color-accent); }
+.select {
+  width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  color: var(--color-text-primary); font-family: inherit; font-size: 0.875rem; outline: none;
+}
+.select:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+.checkboxRow { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-primary); font-size: 0.875rem; }
+.selector { display: flex; flex-direction: column; gap: 0.625rem; }
+.selectorHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.clearButton {
+  border: none; background: transparent; color: var(--color-accent); cursor: pointer;
+  font: inherit; font-size: 0.8125rem; padding: 0.125rem 0;
+}
+.optionList, .optionListCompact {
+  display: grid; gap: 0.5rem; padding: 0.625rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface2);
+}
+.optionList { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 10rem; overflow: auto; }
+.optionListCompact { grid-template-columns: repeat(2, minmax(0, 10rem)); }
+.optionItem {
+  display: flex; align-items: center; gap: 0.5rem; min-width: 0;
+  color: var(--color-text-primary); font-size: 0.8125rem; line-height: 1.4;
+}
+.optionItem span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selectorEmpty {
+  padding: 0.75rem; border: 1px dashed var(--color-border); border-radius: var(--radius-md);
+  color: var(--color-text-secondary); font-size: 0.8125rem;
+}
+.formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
+@media (max-width: 760px) {
+  .groupCard { grid-template-columns: 1fr; align-items: stretch; }
+  .orderControls { flex-direction: row; }
+  .cardActions { justify-content: flex-start; }
+  .formGrid, .optionList { grid-template-columns: 1fr; }
+  .summary { white-space: normal; }
+}
