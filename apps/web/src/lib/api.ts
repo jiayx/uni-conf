@@ -11,6 +11,7 @@ import type {
   ExportResult,
   DashboardStats,
   AppSettings,
+  PaginatedResponse,
 } from '@uni-conf/types'
 
 export interface RuleTemplateSummary {
@@ -78,23 +79,37 @@ export interface NodeListParams {
   sourceId?: string
   protocol?: string
   country?: string
+  countryCode?: string
   enabled?: boolean
   search?: string
   page?: number
   pageSize?: number
 }
 
+function buildNodeListQuery(params?: NodeListParams): string {
+  if (!params) return ''
+
+  const normalized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null || key === 'country') continue
+    normalized[key] = String(value)
+  }
+
+  if (params.country && !params.countryCode) {
+    normalized['countryCode'] = params.country
+  }
+
+  const search = new URLSearchParams(normalized).toString()
+  return search ? `?${search}` : ''
+}
+
 const nodes = {
-  list: (params?: NodeListParams): Promise<ProxyNode[]> => {
-    const query = params ? '?' + new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(params)
-          .filter(([, v]) => v != null)
-          .map(([k, v]) => [k, String(v)])
-      )
-    ).toString() : ''
-    return get(`/nodes${query}`)
+  list: async (params?: NodeListParams): Promise<ProxyNode[]> => {
+    const result = await get<PaginatedResponse<ProxyNode>>(`/nodes${buildNodeListQuery(params)}`)
+    return result.items
   },
+  listPage: (params?: NodeListParams): Promise<PaginatedResponse<ProxyNode>> =>
+    get(`/nodes${buildNodeListQuery(params)}`),
   get: (id: string): Promise<ProxyNode> => get(`/nodes/${id}`),
   create: (data: Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProxyNode> =>
     post('/nodes', data),
