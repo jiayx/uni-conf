@@ -6,6 +6,7 @@ import { Nodes } from '@/pages/Nodes/Nodes'
 import { Collections } from '@/pages/Collections/Collections'
 import { Groups } from '@/pages/Groups/Groups'
 import { Rules } from '@/pages/Rules/Rules'
+import { RemoteRuleSets } from '@/pages/RemoteRuleSets/RemoteRuleSets'
 import { Templates } from '@/pages/Templates/Templates'
 import { Export } from '@/pages/Export/Export'
 import { Preview } from '@/pages/Preview/Preview'
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: 'collections', element: <Collections /> },
       { path: 'groups', element: <Groups /> },
       { path: 'rules', element: <Rules /> },
+      { path: 'remote-rule-sets', element: <RemoteRuleSets /> },
       { path: 'templates', element: <Templates /> },
       { path: 'export', element: <Export /> },
       { path: 'preview', element: <Preview /> },

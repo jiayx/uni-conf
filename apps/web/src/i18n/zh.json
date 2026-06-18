@@ -10,6 +10,7 @@
     "collections": "节点组合",
     "groups": "策略组",
     "rules": "分流规则",
+    "remote_rule_sets": "远程规则集",
     "templates": "规则模板",
     "export": "配置导出",
     "preview": "配置预览",
