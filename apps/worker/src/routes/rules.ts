@@ -60,7 +60,7 @@ app.post('/batch', async (c) => {
   let nextOrder = (maxRow?.max_order ?? -1) + 1;
 
   for (const rule of body.rules) {
-    if (!rule.type || !rule.payload || !rule.targetGroupId) continue;
+    if (!rule.type || !hasRequiredPayload(rule) || !rule.targetGroupId) continue;
 
     const id = newId();
     await c.env.DB.prepare(
@@ -71,7 +71,7 @@ app.post('/batch', async (c) => {
         id,
         rule.name ?? null,
         rule.type,
-        rule.payload,
+        rule.payload ?? '',
         rule.noResolve ? 1 : 0,
         rule.targetGroupId,
         rule.enabled !== false ? 1 : 0,
@@ -98,7 +98,7 @@ app.post('/batch', async (c) => {
 
 app.post('/', async (c) => {
   const body = await c.req.json<Partial<ProxyRule>>();
-  if (!body.type || !body.payload || !body.targetGroupId) {
+  if (!body.type || !hasRequiredPayload(body) || !body.targetGroupId) {
     return c.json(
       { success: false, error: 'type, payload, and targetGroupId are required' },
       400
@@ -121,7 +121,7 @@ app.post('/', async (c) => {
       id,
       body.name ?? null,
       body.type,
-      body.payload,
+      body.payload ?? '',
       body.noResolve ? 1 : 0,
       body.targetGroupId,
       body.enabled !== false ? 1 : 0,
@@ -207,3 +207,7 @@ app.delete('/:id', async (c) => {
 });
 
 export default app;
+
+function hasRequiredPayload(rule: Pick<Partial<ProxyRule>, 'type' | 'payload'>): boolean {
+  return rule.type === 'MATCH' || Boolean(rule.payload);
+}
