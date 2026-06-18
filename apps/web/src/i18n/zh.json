@@ -88,6 +88,7 @@
   },
   "nodes": {
     "title": "节点列表",
+    "add_manual": "手动录入节点",
     "server": "服务器",
     "port": "端口",
     "protocol": "协议",

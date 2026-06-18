@@ -1,19 +1,84 @@
 .page { display: flex; flex-direction: column; gap: 1.25rem; animation: fadeIn var(--transition-normal) ease; }
 .loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
 .headerActions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.tableWrapper { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-.table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-.table th { padding: 0.75rem 1rem; text-align: left; font-weight: 500; color: var(--color-text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--color-border); background: var(--color-surface2); }
-.row { border-bottom: 1px solid var(--color-border); transition: background var(--transition-fast); }
+
+/* Table styles */
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  table-layout: fixed;
+  min-width: 900px;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table th {
+  padding: 0.875rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--color-border);
+  background: var(--color-surface2);
+  white-space: nowrap;
+}
+
+.row {
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition-fast);
+}
+
 .row:last-child { border-bottom: none; }
 .row:hover { background: var(--color-surface2); }
-.table td { padding: 0.625rem 1rem; vertical-align: top; }
-.orderNum { color: var(--color-text-secondary); font-size: 0.75rem; width: 5rem; }
+
+.row:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.row:nth-child(even):hover {
+  background: var(--color-surface2);
+}
+
+.table td {
+  padding: 0.875rem 1rem;
+  vertical-align: middle;
+  color: var(--color-text-primary);
+}
+
+/* Column widths */
+.table th:nth-child(1),
+.table td:nth-child(1) { width: 8%; } /* Order # */
+.table th:nth-child(2),
+.table td:nth-child(2) { width: 14%; } /* Type */
+.table th:nth-child(3),
+.table td:nth-child(3) { width: 38%; } /* Payload */
+.table th:nth-child(4),
+.table td:nth-child(4) { width: 14%; } /* Target */
+.table th:nth-child(5),
+.table td:nth-child(5) { width: 10%; } /* Status */
+.table th:nth-child(6),
+.table td:nth-child(6) { width: 16%; text-align: right; } /* Actions */
+
+.orderNum { color: var(--color-text-secondary); font-size: 0.75rem; }
 .orderCell { display: flex; align-items: center; gap: 0.375rem; }
 .orderControls { display: flex; align-items: center; gap: 0.125rem; }
-.payload { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--color-text-primary); max-width: 32rem; overflow-wrap: anywhere; }
+.payload { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; color: var(--color-text-primary); overflow-wrap: anywhere; }
 .ruleName, .ruleNotes { margin-top: 0.25rem; font-family: inherit; color: var(--color-text-secondary); font-size: 0.75rem; }
-.rowActions { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; min-width: 11rem; }
+.rowActions { display: flex; align-items: center; gap: 0.375rem; justify-content: flex-end; flex-wrap: nowrap; }
 .label { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
 .select, .textarea {
   width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2);
@@ -25,6 +90,13 @@
 .checkLabel { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--color-text-primary); cursor: pointer; }
 .formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
 .helpText { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
+
+@media (prefers-color-scheme: dark) {
+  .row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
 @media (max-width: 760px) {
   .table th:nth-child(4), .table td:nth-child(4) { display: none; }
   .rowActions { min-width: 0; }

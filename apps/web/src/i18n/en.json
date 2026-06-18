@@ -88,6 +88,7 @@
   },
   "nodes": {
     "title": "Node List",
+    "add_manual": "Manual Entry",
     "server": "Server",
     "port": "Port",
     "protocol": "Protocol",

@@ -1,0 +1,68 @@
+/* Shared table styles */
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-surface2);
+}
+
+.table th {
+  padding: 0.875rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--color-border);
+  white-space: nowrap;
+  background: var(--color-surface2);
+}
+
+.table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition-fast);
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--color-surface2);
+}
+
+.table td {
+  padding: 0.875rem 1rem;
+  color: var(--color-text-primary);
+  vertical-align: middle;
+}
+
+/* Alternating rows for better readability */
+.table tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.table tbody tr:nth-child(even):hover {
+  background: var(--color-surface2);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
