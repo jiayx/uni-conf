@@ -98,20 +98,28 @@ export function generateMihomoYaml(
   const enabledRules = rules
     .filter((r) => r.enabled)
     .sort((a, b) => a.order - b.order);
+  const matchRule = enabledRules.find((r) => r.type === 'MATCH');
 
   lines.push('rules:');
   for (const rule of enabledRules) {
+    if (rule.type === 'MATCH') continue;
     lines.push(`  - ${ruleToMihomo(rule, groups)}`);
   }
-  // Fallback MATCH rule
-  const hasMatch = enabledRules.some((r) => r.type === 'MATCH');
-  if (!hasMatch) {
-    const proxyGroup = groups.find((g) => g.name === 'PROXY') ?? groups[0];
-    if (proxyGroup) {
-      lines.push(`  - MATCH,${proxyGroup.name}`);
-    } else {
-      lines.push('  - MATCH,DIRECT');
-    }
+
+  for (const rs of enabledRemoteSets) {
+    const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const group = groups.find((g) => g.id === rs.targetGroupId);
+    const targetGroup = group ? escapeName(group.name) : rs.targetGroupId;
+    lines.push(`  - RULE-SET,${safeName},${targetGroup}`);
+  }
+
+  const proxyGroup = groups.find((g) => g.name === 'PROXY') ?? groups[0];
+  if (matchRule) {
+    lines.push(`  - ${ruleToMihomo(matchRule, groups)}`);
+  } else if (proxyGroup) {
+    lines.push(`  - MATCH,${proxyGroup.name}`);
+  } else {
+    lines.push('  - MATCH,DIRECT');
   }
 
   return lines.join('\n');

@@ -408,8 +408,10 @@ function buildRoute(
   const enabledRules = rules
     .filter((r) => r.enabled)
     .sort((a, b) => a.order - b.order);
+  const matchRule = enabledRules.find((r) => r.type === 'MATCH');
 
   for (const rule of enabledRules) {
+    if (rule.type === 'MATCH') continue;
     const outbound = resolveGroupName(rule.targetGroupId, groups);
     const singboxRule = ruleToSingbox(rule, outbound);
     if (singboxRule) routeRules.push(singboxRule);
@@ -445,10 +447,16 @@ function buildRoute(
       download_detour: 'proxy',
       update_interval: `${rs.updateInterval}h`,
     });
+    routeRules.push({
+      rule_set: [safeName],
+      outbound: resolveGroupName(rs.targetGroupId, groups),
+    });
   }
 
   const proxyGroup = groups.find((g) => g.name === 'PROXY') ?? groups[0];
-  const finalOutbound = proxyGroup ? proxyGroup.name : 'direct';
+  const finalOutbound = matchRule
+    ? resolveGroupName(matchRule.targetGroupId, groups)
+    : proxyGroup ? proxyGroup.name : 'direct';
 
   return {
     rules: routeRules,
