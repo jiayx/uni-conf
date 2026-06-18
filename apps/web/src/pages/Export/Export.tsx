@@ -8,28 +8,71 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
-import type { ExportConfig, ExportFormat } from '@uni-conf/types'
+import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import styles from './Export.module.css'
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
   { value: 'mihomo', label: 'Mihomo / Clash YAML' },
+  { value: 'clash', label: 'Clash YAML' },
   { value: 'singbox', label: 'sing-box JSON' },
   { value: 'loon', label: 'Loon CONF' },
+  { value: 'nodes_base64', label: 'Node Subscription (Base64)' },
+  { value: 'nodes_raw', label: 'Node Subscription (Raw)' },
 ]
 
 const BASE_URL = window.location.origin
 
+interface ExportForm {
+  name: string
+  format: ExportFormat
+  enabled: boolean
+  includeCollectionIds: string[]
+  includeGroupIds: string[]
+  includeRuleIds: string[]
+  includeRemoteSetIds: string[]
+}
+
+const EMPTY_FORM: ExportForm = {
+  name: '',
+  format: 'mihomo',
+  enabled: true,
+  includeCollectionIds: [],
+  includeGroupIds: [],
+  includeRuleIds: [],
+  includeRemoteSetIds: [],
+}
+
 export function Export() {
   const { t } = useTranslation()
   const [configs, setConfigs] = useState<ExportConfig[]>([])
+  const [collections, setCollections] = useState<NodeCollection[]>([])
+  const [groups, setGroups] = useState<ProxyGroup[]>([])
+  const [rules, setRules] = useState<ProxyRule[]>([])
+  const [remoteSets, setRemoteSets] = useState<RemoteRuleSet[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ name: '', format: 'mihomo' as ExportFormat })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<ExportForm>(EMPTY_FORM)
   const [copied, setCopied] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { setConfigs(await api.export.listConfigs()) } finally { setLoading(false) }
+    try {
+      const [nextConfigs, nextCollections, nextGroups, nextRules, nextRemoteSets] = await Promise.all([
+        api.export.listConfigs(),
+        api.collections.list(),
+        api.groups.list(),
+        api.rules.list(),
+        api.remoteRuleSets.list(),
+      ])
+      setConfigs(nextConfigs)
+      setCollections(nextCollections)
+      setGroups(nextGroups)
+      setRules(nextRules)
+      setRemoteSets(nextRemoteSets)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -38,9 +81,44 @@ export function Export() {
     })
   }, [load])
 
-  const handleAdd = async () => {
-    await api.export.createConfig({ name: form.name, format: form.format, enabled: true, includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [] })
-    setShowModal(false); setForm({ name: '', format: 'mihomo' })
+  const openCreate = () => {
+    setEditingId(null)
+    setForm(EMPTY_FORM)
+    setShowModal(true)
+  }
+
+  const openEdit = (config: ExportConfig) => {
+    setEditingId(config.id)
+    setForm({
+      name: config.name,
+      format: config.format,
+      enabled: config.enabled,
+      includeCollectionIds: config.includeCollectionIds,
+      includeGroupIds: config.includeGroupIds,
+      includeRuleIds: config.includeRuleIds,
+      includeRemoteSetIds: config.includeRemoteSetIds,
+    })
+    setShowModal(true)
+  }
+
+  const handleSave = async () => {
+    const payload = {
+      name: form.name || 'Default Export',
+      format: form.format,
+      enabled: form.enabled,
+      includeCollectionIds: form.includeCollectionIds,
+      includeGroupIds: form.includeGroupIds,
+      includeRuleIds: form.includeRuleIds,
+      includeRemoteSetIds: form.includeRemoteSetIds,
+    }
+    if (editingId) {
+      await api.export.updateConfig(editingId, payload)
+    } else {
+      await api.export.createConfig(payload)
+    }
+    setShowModal(false)
+    setEditingId(null)
+    setForm(EMPTY_FORM)
     await load()
   }
 
@@ -56,13 +134,11 @@ export function Export() {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const extMap: Record<string, string> = { mihomo: 'yaml', singbox: 'json', loon: 'conf' }
-
   return (
     <div className={styles.page}>
       <PageHeader
         title={t('export.title')}
-        actions={<Button onClick={() => setShowModal(true)} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}>{t('export.new_config')}</Button>}
+        actions={<Button onClick={openCreate} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}>{t('export.new_config')}</Button>}
       />
       {loading ? (
         <div className={styles.loading}>{t('common.loading')}</div>
@@ -71,19 +147,27 @@ export function Export() {
       ) : (
         <div className={styles.list}>
           {configs.map(cfg => {
-            const ext = extMap[cfg.format] ?? 'txt'
-            const subUrl = `${BASE_URL}/sub/${cfg.token}/${cfg.format}.${ext}`
+            const filename = getSubscriptionFilename(cfg.format)
+            const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
+            const scopeText = scopeSummary(cfg, collections, groups, rules, remoteSets)
             return (
               <Card key={cfg.id} className={styles.configCard}>
                 <div className={styles.configHeader}>
                   <div>
                     <div className={styles.configName}>{cfg.name}</div>
-                    <Badge variant="purple">{cfg.format.toUpperCase()}</Badge>
+                    <div className={styles.badges}>
+                      <Badge variant="purple">{cfg.format.toUpperCase()}</Badge>
+                      <Badge variant={cfg.enabled ? 'success' : 'default'}>{cfg.enabled ? '启用' : '停用'}</Badge>
+                    </div>
+                    <div className={styles.scopeText}>{scopeText}</div>
                   </div>
                   <div className={styles.configActions}>
+                    <Button variant="secondary" size="sm" onClick={() => openEdit(cfg)}>
+                      编辑
+                    </Button>
                     <Button
                       variant="secondary" size="sm"
-                      onClick={() => window.open(`/api/export/download/${cfg.format}`, '_blank')}
+                      onClick={() => window.open(`/api/export/download/${cfg.format}?configId=${cfg.id}`, '_blank')}
                     >{t('common.download')}</Button>
                     <Button variant="danger" size="sm" onClick={() => void handleDelete(cfg.id)}>
                       {t('common.delete')}
@@ -105,8 +189,12 @@ export function Export() {
           })}
         </div>
       )}
-      <Modal open={showModal} onOpenChange={setShowModal} title={t('export.new_config')}
-        footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleAdd()}>{t('common.save')}</Button></>}>
+      <Modal
+        open={showModal}
+        onOpenChange={setShowModal}
+        title={editingId ? '编辑导出配置' : t('export.new_config')}
+        footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleSave()}>{t('common.save')}</Button></>}
+      >
         <Input label={t('common.name')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="My Export" />
         <div>
           <label className={styles.selectLabel}>{t('export.format')}</label>
@@ -114,7 +202,126 @@ export function Export() {
             {FORMAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
+        <label className={styles.checkboxRow}>
+          <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
+          <span>启用此配置</span>
+        </label>
+        <MultiSelect
+          label="节点集合"
+          emptyText="未选择时导出所有启用节点"
+          options={collections.map(item => ({ id: item.id, label: item.name }))}
+          value={form.includeCollectionIds}
+          onChange={includeCollectionIds => setForm(f => ({ ...f, includeCollectionIds }))}
+        />
+        <MultiSelect
+          label="策略组"
+          emptyText="未选择时导出所有启用策略组"
+          options={groups.map(item => ({ id: item.id, label: item.name }))}
+          value={form.includeGroupIds}
+          onChange={includeGroupIds => setForm(f => ({ ...f, includeGroupIds }))}
+        />
+        <MultiSelect
+          label="规则"
+          emptyText="未选择时导出所有启用规则"
+          options={rules.map(item => ({ id: item.id, label: `${item.type}, ${item.payload}` }))}
+          value={form.includeRuleIds}
+          onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
+        />
+        <MultiSelect
+          label="远程规则集"
+          emptyText="未选择时导出所有启用远程规则集"
+          options={remoteSets.map(item => ({ id: item.id, label: item.name }))}
+          value={form.includeRemoteSetIds}
+          onChange={includeRemoteSetIds => setForm(f => ({ ...f, includeRemoteSetIds }))}
+        />
       </Modal>
     </div>
   )
+}
+
+function getSubscriptionFilename(format: ExportFormat): string {
+  switch (format) {
+    case 'mihomo':
+      return 'mihomo.yaml'
+    case 'clash':
+      return 'clash.yaml'
+    case 'singbox':
+      return 'singbox.json'
+    case 'loon':
+      return 'loon.conf'
+    case 'nodes_base64':
+      return 'nodes.txt'
+    case 'nodes_raw':
+      return 'nodes-raw.txt'
+    default:
+      return `${format}.txt`
+  }
+}
+
+interface MultiSelectOption {
+  id: string
+  label: string
+}
+
+interface MultiSelectProps {
+  label: string
+  emptyText: string
+  options: MultiSelectOption[]
+  value: string[]
+  onChange: (value: string[]) => void
+}
+
+function MultiSelect({ label, emptyText, options, value, onChange }: MultiSelectProps) {
+  const selected = new Set(value)
+  const toggle = (id: string) => {
+    onChange(selected.has(id) ? value.filter(item => item !== id) : [...value, id])
+  }
+
+  return (
+    <div className={styles.selector}>
+      <div className={styles.selectorHeader}>
+        <span className={styles.selectLabel}>{label}</span>
+        {value.length > 0 && (
+          <button className={styles.clearButton} type="button" onClick={() => onChange([])}>
+            全部
+          </button>
+        )}
+      </div>
+      {options.length === 0 ? (
+        <div className={styles.selectorEmpty}>暂无可选项</div>
+      ) : (
+        <div className={styles.optionList}>
+          <label className={styles.optionItem}>
+            <input type="checkbox" checked={value.length === 0} onChange={() => onChange([])} />
+            <span>{emptyText}</span>
+          </label>
+          {options.map(option => (
+            <label key={option.id} className={styles.optionItem}>
+              <input type="checkbox" checked={selected.has(option.id)} onChange={() => toggle(option.id)} />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function scopeSummary(
+  config: ExportConfig,
+  collections: NodeCollection[],
+  groups: ProxyGroup[],
+  rules: ProxyRule[],
+  remoteSets: RemoteRuleSet[]
+): string {
+  return [
+    summaryPart('集合', config.includeCollectionIds, collections.length),
+    summaryPart('组', config.includeGroupIds, groups.length),
+    summaryPart('规则', config.includeRuleIds, rules.length),
+    summaryPart('远程集', config.includeRemoteSetIds, remoteSets.length),
+  ].join(' / ')
+}
+
+function summaryPart(label: string, ids: string[], total: number): string {
+  return ids.length === 0 ? `${label}: 全部 ${total}` : `${label}: ${ids.length}/${total}`
 }

@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
+import { Button } from '@/components/ui/Button/Button'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { Modal } from '@/components/ui/Modal/Modal'
+import { Input } from '@/components/ui/Input/Input'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
+import type { ProxyNode, ProxyProtocol } from '@uni-conf/types'
 import styles from './Nodes.module.css'
 
 const PROTOCOL_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning' | 'default'> = {
@@ -12,13 +16,29 @@ const PROTOCOL_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning' 
   hy2: 'purple', tuic: 'purple', socks5: 'default', http: 'default',
 }
 
+const PROTOCOL_OPTIONS: ProxyProtocol[] = ['ss', 'vmess', 'vless', 'trojan', 'hysteria2', 'socks5', 'http']
+const EMPTY_FORM = {
+  name: '',
+  protocol: 'ss' as ProxyProtocol,
+  server: '',
+  port: 443,
+  country: '',
+  countryCode: '',
+  enabled: true,
+  notes: '',
+}
+
 export function Nodes() {
   const { t } = useTranslation()
-  const { nodes, loading, fetchNodes } = useNodesStore()
+  const { nodes, loading, fetchNodes, addNode, updateNode, deleteNode } = useNodesStore()
   const { sources, fetchSources } = useSourcesStore()
   const [search, setSearch] = useState('')
   const [filterProtocol, setFilterProtocol] = useState('')
   const [filterCountry, setFilterCountry] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingNode, setEditingNode] = useState<ProxyNode | null>(null)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => { void fetchNodes(); void fetchSources() }, [fetchNodes, fetchSources])
 
@@ -34,9 +54,79 @@ export function Nodes() {
 
   const getSourceName = (id: string) => sources.find(s => s.id === id)?.name ?? id
 
+  const openCreate = () => {
+    setEditingNode(null)
+    setForm(EMPTY_FORM)
+    setFormError('')
+    setShowModal(true)
+  }
+
+  const openEdit = (node: ProxyNode) => {
+    setEditingNode(node)
+    setForm({
+      name: node.name,
+      protocol: node.protocol,
+      server: node.server,
+      port: node.port,
+      country: node.country ?? '',
+      countryCode: node.countryCode ?? '',
+      enabled: node.enabled,
+      notes: node.notes ?? '',
+    })
+    setFormError('')
+    setShowModal(true)
+  }
+
+  const handleSave = async () => {
+    if (!form.name || !form.server || !form.port) {
+      setFormError('name, server, and port are required')
+      return
+    }
+
+    const payload = {
+      sourceId: editingNode?.sourceId ?? 'manual',
+      name: form.name,
+      protocol: form.protocol,
+      server: form.server,
+      port: form.port,
+      country: form.country || undefined,
+      countryCode: form.countryCode || undefined,
+      enabled: form.enabled,
+      tags: editingNode?.tags ?? [],
+      notes: form.notes || undefined,
+      rawConfig: editingNode?.rawConfig ?? {},
+      parsedConfig: {
+        ...(editingNode?.parsedConfig ?? { extra: {} }),
+        protocol: form.protocol,
+        server: form.server,
+        port: form.port,
+      },
+      isManual: true,
+    }
+
+    if (editingNode) {
+      await updateNode(editingNode.id, payload)
+    } else {
+      await addNode(payload)
+    }
+    setShowModal(false)
+    setEditingNode(null)
+    setForm(EMPTY_FORM)
+  }
+
+  const handleDelete = async (node: ProxyNode) => {
+    if (!node.isManual) return
+    if (!confirm(`${t('common.delete')} ${node.name}?`)) return
+    await deleteNode(node.id)
+  }
+
   return (
     <div className={styles.page}>
-      <PageHeader title={t('nodes.title')} description={`${t('common.total', { count: filtered.length })}`} />
+      <PageHeader
+        title={t('nodes.title')}
+        description={`${t('common.total', { count: filtered.length })}`}
+        actions={<Button onClick={openCreate}>{t('nodes.add_manual')}</Button>}
+      />
 
       {/* Filters */}
       <div className={styles.filters}>
@@ -71,6 +161,7 @@ export function Nodes() {
                 <th>{t('nodes.country')}</th>
                 <th>{t('nodes.source')}</th>
                 <th>{t('common.status')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -90,12 +181,52 @@ export function Nodes() {
                       {node.enabled ? t('common.enabled') : t('common.disabled')}
                     </Badge>
                   </td>
+                  <td>
+                    <div className={styles.rowActions}>
+                      <Button variant="ghost" size="sm" onClick={() => void updateNode(node.id, { enabled: !node.enabled })}>
+                        {node.enabled ? t('common.disable') : t('common.enable')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(node)}>
+                        {t('common.edit')}
+                      </Button>
+                      {node.isManual && (
+                        <Button variant="ghost" size="sm" onClick={() => void handleDelete(node)}>
+                          {t('common.delete')}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <Modal
+        open={showModal}
+        onOpenChange={setShowModal}
+        title={editingNode ? t('common.edit') : t('nodes.add_manual')}
+        footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleSave()}>{t('common.save')}</Button></>}
+      >
+        {formError && <div className={styles.formError}>{formError}</div>}
+        <Input label={t('common.name')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        <div>
+          <label className={styles.selectLabel}>{t('nodes.protocol')}</label>
+          <select className={styles.filterSelect} value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value as ProxyProtocol }))}>
+            {PROTOCOL_OPTIONS.map(protocol => <option key={protocol} value={protocol}>{protocol.toUpperCase()}</option>)}
+          </select>
+        </div>
+        <Input label={t('nodes.server')} value={form.server} onChange={e => setForm(f => ({ ...f, server: e.target.value }))} />
+        <Input label="Port" type="number" min="1" max="65535" value={form.port} onChange={e => setForm(f => ({ ...f, port: Number(e.target.value) }))} />
+        <Input label={t('nodes.country')} value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} />
+        <Input label="Country Code" value={form.countryCode} onChange={e => setForm(f => ({ ...f, countryCode: e.target.value.toUpperCase() }))} />
+        <Input label={t('common.notes')} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        <label className={styles.checkboxRow}>
+          <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
+          <span>{t('common.enabled')}</span>
+        </label>
+      </Modal>
     </div>
   )
 }

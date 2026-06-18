@@ -15,9 +15,12 @@
   gap: 0.5rem;
 }
 
+.statCard.wide { grid-column: span 2; }
 .statIcon { font-size: 2rem; line-height: 1; }
-.statValue { font-size: 2rem; font-weight: 700; color: var(--color-text-primary); line-height: 1; }
+.statValue { font-size: 2rem; font-weight: 700; color: var(--color-text-primary); line-height: 1.2; max-width: 100%; overflow-wrap: anywhere; }
+.wide .statValue { font-size: 1rem; }
 .statLabel { font-size: 0.8125rem; color: var(--color-text-secondary); }
+.error { padding: 0.75rem 1rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.875rem; }
 
 .sectionTitle {
   font-size: 1rem;
@@ -64,3 +67,7 @@
 .exportButtons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
 .gettingStarted, .quickExport { padding: 1.5rem; }
+
+@media (max-width: 640px) {
+  .statCard.wide { grid-column: auto; }
+}

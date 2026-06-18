@@ -6,6 +6,10 @@ import collectionsRouter from './routes/collections'
 import groupsRouter from './routes/groups'
 import rulesRouter from './routes/rules'
 import templatesRouter from './routes/templates'
+import remoteRuleSetsRouter from './routes/remote-rule-sets'
+import dashboardRouter from './routes/dashboard'
+import settingsRouter from './routes/settings'
+import dataRouter from './routes/data'
 import { exportRouter } from './routes/export'
 import { subscriptionRouter } from './routes/subscription'
 import type { Env } from './types'
@@ -25,7 +29,11 @@ app.route('/api/collections', collectionsRouter)
 app.route('/api/groups', groupsRouter)
 app.route('/api/rules', rulesRouter)
 app.route('/api/templates', templatesRouter)
+app.route('/api/remote-rule-sets', remoteRuleSetsRouter)
 app.route('/api/export', exportRouter)
+app.route('/api/dashboard', dashboardRouter)
+app.route('/api/settings', settingsRouter)
+app.route('/api/data', dataRouter)
 
 // Public subscription endpoint (no /api prefix)
 app.route('/', subscriptionRouter)

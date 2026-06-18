@@ -1,30 +1,46 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { api } from '@/lib/api'
+import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import styles from './Preview.module.css'
 
-const FORMATS = [
-  { value: 'mihomo', label: 'Mihomo YAML' },
-  { value: 'singbox', label: 'sing-box JSON' },
-  { value: 'loon', label: 'Loon CONF' },
-]
+const FORMATS: ExportFormat[] = ['mihomo', 'clash', 'singbox', 'loon', 'nodes_base64', 'nodes_raw']
 
 export function Preview() {
   const { t } = useTranslation()
-  const [format, setFormat] = useState('mihomo')
+  const [format, setFormat] = useState<ExportFormat>('mihomo')
+  const [configs, setConfigs] = useState<ExportConfig[]>([])
+  const [configId, setConfigId] = useState('')
   const [content, setContent] = useState('')
+  const [contentType, setContentType] = useState('')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  const loadConfigs = useCallback(async () => {
+    try {
+      setConfigs(await api.export.listConfigs())
+    } catch {
+      setConfigs([])
+    }
+  }, [])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadConfigs()
+    })
+  }, [loadConfigs])
 
   const handlePreview = async () => {
     setLoading(true)
     try {
-      const result = await api.export.previewFormat(format)
+      const result = await api.export.previewFormat(format, configId || undefined)
       setContent(result.content)
+      setContentType(result.contentType)
     } catch (e) {
       setContent(`# Error: ${(e as Error).message}`)
+      setContentType('text/plain')
     } finally { setLoading(false) }
   }
 
@@ -40,11 +56,19 @@ export function Preview() {
       <div className={styles.toolbar}>
         <div className={styles.tabs}>
           {FORMATS.map(f => (
-            <button key={f.value} className={`${styles.tab} ${format === f.value ? styles.active : ''}`} onClick={() => setFormat(f.value)}>
-              {f.label}
+            <button key={f} className={`${styles.tab} ${format === f ? styles.active : ''}`} onClick={() => setFormat(f)}>
+              {t(`export.formats.${f}`)}
             </button>
           ))}
         </div>
+        <select className={styles.select} value={configId} onChange={e => setConfigId(e.target.value)}>
+          <option value="">全部数据 / All data</option>
+          {configs.map(config => (
+            <option key={config.id} value={config.id}>
+              {config.name} ({config.format})
+            </option>
+          ))}
+        </select>
         <div className={styles.actions}>
           <Button variant="secondary" size="sm" loading={loading} onClick={() => void handlePreview()}>
             {t('common.preview')}
@@ -57,7 +81,13 @@ export function Preview() {
         </div>
       </div>
       {content ? (
-        <pre className={styles.code}>{content}</pre>
+        <>
+          <div className={styles.meta}>
+            <span>{contentType}</span>
+            <span>{t('preview.line_count', { count: content.split('\n').length })}</span>
+          </div>
+          <pre className={styles.code}>{content}</pre>
+        </>
       ) : (
         <div className={styles.empty}>
           <div className={styles.emptyText}>点击「预览」生成配置 / Click Preview to generate config</div>

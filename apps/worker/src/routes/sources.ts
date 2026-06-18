@@ -171,6 +171,12 @@ app.post('/:id/refresh', async (c) => {
 
   // Detect format and parse nodes
   const { nodes: parsedNodes, format } = detectAndParse(rawContent);
+  if (parsedNodes.length === 0) {
+    return c.json(
+      { success: false, error: `No proxy nodes parsed from source content (detected format: ${format})` },
+      422
+    );
+  }
 
   // Load existing nodes for this source to compute diff
   const { results: existingRows } = await c.env.DB.prepare(

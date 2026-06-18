@@ -147,6 +147,8 @@ app.post('/', async (c) => {
     )
     .run();
 
+  await updateSourceNodeCount(c.env.DB, sourceId, ts);
+
   const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
@@ -212,9 +214,9 @@ app.put('/:id', async (c) => {
 
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT id, is_manual FROM nodes WHERE id = ?')
+  const row = await c.env.DB.prepare('SELECT id, source_id, is_manual FROM nodes WHERE id = ?')
     .bind(id)
-    .first<{ id: string; is_manual: number }>();
+    .first<{ id: string; source_id: string; is_manual: number }>();
 
   if (!row) return c.json({ success: false, error: 'Node not found' }, 404);
   if (!row.is_manual) {
@@ -225,7 +227,17 @@ app.delete('/:id', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(id).run();
+  await updateSourceNodeCount(c.env.DB, row.source_id, now());
   return c.json({ success: true, data: { id } });
 });
+
+async function updateSourceNodeCount(db: D1Database, sourceId: string, ts: string): Promise<void> {
+  const row = await db.prepare('SELECT COUNT(*) as count FROM nodes WHERE source_id = ?')
+    .bind(sourceId)
+    .first<{ count: number }>();
+  await db.prepare('UPDATE sources SET node_count = ?, updated_at = ? WHERE id = ?')
+    .bind(row?.count ?? 0, ts, sourceId)
+    .run();
+}
 
 export default app;

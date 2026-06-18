@@ -6,8 +6,10 @@ interface SourcesState {
   sources: ProxySource[]
   loading: boolean
   error: string | null
+  refreshResults: Record<string, SourceRefreshResult>
+  refreshErrors: Record<string, string>
   fetchSources: () => Promise<void>
-  addSource: (data: Omit<ProxySource, 'id' | 'nodeCount' | 'createdAt' | 'updatedAt'>) => Promise<void>
+  addSource: (data: Omit<ProxySource, 'id' | 'nodeCount' | 'createdAt' | 'updatedAt'>) => Promise<ProxySource>
   updateSource: (id: string, data: Partial<ProxySource>) => Promise<void>
   deleteSource: (id: string) => Promise<void>
   refreshSource: (id: string) => Promise<SourceRefreshResult>
@@ -17,6 +19,8 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
   sources: [],
   loading: false,
   error: null,
+  refreshResults: {},
+  refreshErrors: {},
 
   fetchSources: async () => {
     set({ loading: true, error: null })
@@ -31,6 +35,7 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
   addSource: async (data) => {
     const source = await api.sources.create(data)
     set(s => ({ sources: [...s.sources, source] }))
+    return source
   },
 
   updateSource: async (id, data) => {
@@ -44,11 +49,22 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
   },
 
   refreshSource: async (id) => {
-    const result = await api.sources.refresh(id)
-    if (result.success) {
-      // Update node count
-      await get().fetchSources()
+    try {
+      const result = await api.sources.refresh(id)
+      set(s => ({
+        refreshResults: { ...s.refreshResults, [id]: result },
+        refreshErrors: { ...s.refreshErrors, [id]: '' },
+      }))
+      if (result.success) {
+        await get().fetchSources()
+      }
+      return result
+    } catch (e) {
+      const message = (e as Error).message
+      set(s => ({
+        refreshErrors: { ...s.refreshErrors, [id]: message },
+      }))
+      throw e
     }
-    return result
   },
 }))

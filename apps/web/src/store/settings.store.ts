@@ -5,6 +5,10 @@ import type { AppSettings, Language, ThemePreference } from '@uni-conf/types'
 interface SettingsState extends AppSettings {
   setLanguage: (lang: Language) => void
   setTheme: (theme: ThemePreference) => void
+  setShowCompatibilityWarnings: (showCompatibilityWarnings: boolean) => void
+  setEnableAutoRefresh: (enableAutoRefresh: boolean) => void
+  setAutoRefreshInterval: (autoRefreshInterval: number) => void
+  applySettings: (settings: AppSettings) => void
   applyTheme: (theme: ThemePreference) => void
 }
 
@@ -25,6 +29,23 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (theme) => {
         set({ theme })
         get().applyTheme(theme)
+      },
+
+      setShowCompatibilityWarnings: (showCompatibilityWarnings) => {
+        set({ showCompatibilityWarnings })
+      },
+
+      setEnableAutoRefresh: (enableAutoRefresh) => {
+        set({ enableAutoRefresh })
+      },
+
+      setAutoRefreshInterval: (autoRefreshInterval) => {
+        set({ autoRefreshInterval })
+      },
+
+      applySettings: (settings) => {
+        set(settings)
+        get().applyTheme(settings.theme)
       },
 
       applyTheme: (theme) => {

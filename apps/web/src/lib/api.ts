@@ -4,6 +4,7 @@ import type {
   NodeCollection,
   ProxyGroup,
   ProxyRule,
+  RemoteRuleSet,
   RuleTemplate,
   ExportConfig,
   SourceRefreshResult,
@@ -32,7 +33,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 const get = <T>(path: string) => request<T>('GET', path)
 const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body)
 const put = <T>(path: string, body?: unknown) => request<T>('PUT', path, body)
-const patch = <T>(path: string, body?: unknown) => request<T>('PATCH', path, body)
 const del = <T>(path: string) => request<T>('DELETE', path)
 
 // ============================================================
@@ -107,7 +107,7 @@ const groups = {
     post('/groups', data),
   update: (id: string, data: Partial<ProxyGroup>): Promise<ProxyGroup> => put(`/groups/${id}`, data),
   remove: (id: string): Promise<void> => del(`/groups/${id}`),
-  reorder: (orderedIds: string[]): Promise<void> => patch('/groups/reorder', { orderedIds }),
+  reorder: (orderedIds: string[]): Promise<ProxyGroup[]> => post('/groups/reorder', { ids: orderedIds }),
 }
 
 // ============================================================
@@ -121,9 +121,23 @@ const rules = {
     post('/rules', data),
   update: (id: string, data: Partial<ProxyRule>): Promise<ProxyRule> => put(`/rules/${id}`, data),
   remove: (id: string): Promise<void> => del(`/rules/${id}`),
-  reorder: (orderedIds: string[]): Promise<void> => patch('/rules/reorder', { orderedIds }),
+  reorder: (orderedIds: string[]): Promise<ProxyRule[]> => post('/rules/reorder', { ids: orderedIds }),
   batchCreate: (data: Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<ProxyRule[]> =>
     post('/rules/batch', data),
+}
+
+// ============================================================
+// Remote Rule Sets API
+// ============================================================
+
+const remoteRuleSets = {
+  list: (): Promise<RemoteRuleSet[]> => get('/remote-rule-sets'),
+  get: (id: string): Promise<RemoteRuleSet> => get(`/remote-rule-sets/${id}`),
+  create: (data: Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>): Promise<RemoteRuleSet> =>
+    post('/remote-rule-sets', data),
+  update: (id: string, data: Partial<RemoteRuleSet>): Promise<RemoteRuleSet> =>
+    put(`/remote-rule-sets/${id}`, data),
+  remove: (id: string): Promise<void> => del(`/remote-rule-sets/${id}`),
 }
 
 // ============================================================
@@ -190,6 +204,7 @@ export const api = {
   collections,
   groups,
   rules,
+  remoteRuleSets,
   templates,
   export: exportApi,
   dashboard,

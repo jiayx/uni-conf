@@ -1,12 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
-import { useSourcesStore } from '@/store/sources.store'
-import { useNodesStore } from '@/store/nodes.store'
-import { useRulesStore } from '@/store/rules.store'
+import { api } from '@/lib/api'
+import type { DashboardStats } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3', 'dashboard.step4', 'dashboard.step5']
@@ -14,33 +13,50 @@ const STEP_PATHS = ['/sources', '/collections', '/groups', '/rules', '/export']
 
 export function Dashboard() {
   const { t } = useTranslation()
-  const { sources, fetchSources } = useSourcesStore()
-  const { nodes, fetchNodes } = useNodesStore()
-  const { rules, fetchRules } = useRulesStore()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void fetchSources()
-    void fetchNodes()
-    void fetchRules()
-  }, [fetchSources, fetchNodes, fetchRules])
+    queueMicrotask(() => {
+      void api.dashboard.stats()
+        .then(nextStats => {
+          setStats(nextStats)
+          setError(null)
+        })
+        .catch(e => setError((e as Error).message))
+        .finally(() => setLoading(false))
+    })
+  }, [])
 
-  const stats = [
-    { label: t('dashboard.sources'), value: sources.length, icon: '📦', color: 'purple' },
-    { label: t('dashboard.nodes'), value: nodes.length, icon: '🔗', color: 'blue' },
-    { label: t('dashboard.enabled_nodes'), value: nodes.filter(n => n.enabled).length, icon: '✅', color: 'green' },
-    { label: t('dashboard.rules'), value: rules.length, icon: '📋', color: 'orange' },
+  const statCards = [
+    { label: t('dashboard.sources'), value: stats?.sourceCount ?? 0, icon: '📦' },
+    { label: t('dashboard.nodes'), value: stats?.nodeCount ?? 0, icon: '🔗' },
+    { label: t('dashboard.enabled_nodes'), value: stats?.enabledNodeCount ?? 0, icon: '✅' },
+    { label: t('dashboard.collections'), value: stats?.collectionCount ?? 0, icon: '🧩' },
+    { label: t('dashboard.groups'), value: stats?.groupCount ?? 0, icon: '🎛' },
+    { label: t('dashboard.rules'), value: stats?.ruleCount ?? 0, icon: '📋' },
+    { label: t('dashboard.export_configs'), value: stats?.exportConfigCount ?? 0, icon: '🚀' },
+    {
+      label: t('dashboard.last_refreshed'),
+      value: stats?.lastRefreshedAt ? new Date(stats.lastRefreshedAt).toLocaleString() : t('dashboard.never'),
+      icon: '🕒',
+      wide: true,
+    },
   ]
 
-  const isEmpty = sources.length === 0
+  const isEmpty = !loading && (stats?.sourceCount ?? 0) === 0
 
   return (
     <div className={styles.page}>
       <PageHeader title={t('dashboard.title')} description="UniConf — Manage once, export everywhere." />
 
+      {error && <div className={styles.error}>{error}</div>}
+
       {/* Stats */}
       <div className={styles.statsGrid}>
-        {stats.map(stat => (
-          <Card key={stat.label} className={styles.statCard}>
+        {statCards.map(stat => (
+          <Card key={stat.label} className={`${styles.statCard} ${stat.wide ? styles.wide : ''}`}>
             <div className={styles.statIcon}>{stat.icon}</div>
             <div className={styles.statValue}>{stat.value}</div>
             <div className={styles.statLabel}>{stat.label}</div>

@@ -22,26 +22,52 @@ const FORMAT_OPTIONS: { value: SourceFormat; label: string }[] = [
 
 export function Sources() {
   const { t } = useTranslation()
-  const { sources, loading, fetchSources, addSource, updateSource, deleteSource, refreshSource } = useSourcesStore()
+  const {
+    sources,
+    loading,
+    refreshResults,
+    refreshErrors,
+    fetchSources,
+    addSource,
+    updateSource,
+    deleteSource,
+    refreshSource,
+  } = useSourcesStore()
   const [showAddModal, setShowAddModal] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', url: '', format: 'auto' as SourceFormat, updateInterval: 0, notes: '' })
+  const [form, setForm] = useState({ name: '', url: '', format: 'auto' as SourceFormat, updateInterval: 0, notes: '', refreshAfterCreate: true })
+  const [formError, setFormError] = useState('')
 
   useEffect(() => { void fetchSources() }, [fetchSources])
 
   const handleAdd = async () => {
-    if (!form.name || !form.url) return
-    await addSource({
-      name: form.name, type: 'url', url: form.url, format: form.format,
-      enabled: true, tags: [], updateInterval: form.updateInterval, notes: form.notes,
+    if (!form.name) { setFormError(t('sources.name_required')); return }
+    if (!form.url) { setFormError(t('sources.url_required')); return }
+    setFormError('')
+    const source = await addSource({
+      name: form.name,
+      type: 'url',
+      url: form.url,
+      format: form.format,
+      enabled: true,
+      tags: [],
+      updateInterval: form.updateInterval,
+      notes: form.notes,
     })
     setShowAddModal(false)
-    setForm({ name: '', url: '', format: 'auto', updateInterval: 0, notes: '' })
+    setForm({ name: '', url: '', format: 'auto', updateInterval: 0, notes: '', refreshAfterCreate: true })
+    if (form.refreshAfterCreate) void handleRefresh(source.id)
   }
 
   const handleRefresh = async (id: string) => {
     setRefreshingId(id)
-    try { await refreshSource(id) } finally { setRefreshingId(null) }
+    try {
+      await refreshSource(id)
+    } catch {
+      // Error is stored and displayed on the source card.
+    } finally {
+      setRefreshingId(null)
+    }
   }
 
   const handleToggle = (source: ProxySource) => {
@@ -109,6 +135,19 @@ export function Sources() {
                   <span>{t('sources.last_updated')}: {new Date(source.lastUpdated).toLocaleString()}</span>
                 )}
               </div>
+              {refreshResults[source.id] && (
+                <div className={styles.refreshStatus}>
+                  {t('sources.refresh_success', { count: refreshResults[source.id].nodeCount })}
+                  <span>
+                    +{refreshResults[source.id].addedCount} / -{refreshResults[source.id].removedCount}
+                  </span>
+                </div>
+              )}
+              {refreshErrors[source.id] && (
+                <div className={styles.refreshError}>
+                  {t('sources.refresh_failed')}: {refreshErrors[source.id]}
+                </div>
+              )}
             </Card>
           ))}
         </div>
@@ -125,6 +164,7 @@ export function Sources() {
           </>
         }
       >
+        {formError && <div className={styles.formError}>{formError}</div>}
         <Input
           label={t('common.name')}
           value={form.name}
@@ -162,6 +202,14 @@ export function Sources() {
           onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
           placeholder={t('common.notes')}
         />
+        <label className={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={form.refreshAfterCreate}
+            onChange={e => setForm(f => ({ ...f, refreshAfterCreate: e.target.checked }))}
+          />
+          <span>{t('sources.refresh_now')}</span>
+        </label>
       </Modal>
     </div>
   )

@@ -1,8 +1,10 @@
-import { Hono } from 'hono'
-import { mapExportConfig, mapGroup, mapNode, mapRemoteRuleSet, mapRule, newId, now } from '../db/helpers'
+import { Hono, type Context } from 'hono'
+import { mapExportConfig, newId, now } from '../db/helpers'
+import { buildExportData, getExportConfigById } from '../export-data'
 import { generateMihomoYaml } from '../generators/mihomo'
 import { generateSingboxJson } from '../generators/singbox'
 import { generateLoon } from '../generators/loon'
+import { generateNodeSubscriptionBase64, generateNodeSubscriptionRaw } from '../generators/node-subscription'
 import type { Env } from '../types'
 import type { ExportConfig } from '@uni-conf/types'
 
@@ -98,29 +100,25 @@ exportRouter.delete('/configs/:id', async (c) => {
   return c.json({ success: true, data: null })
 })
 
-// Shared helper: build export data from DB
-async function buildExportData(db: D1Database) {
-  const nodeRows = ((await db.prepare('SELECT * FROM nodes WHERE enabled = 1').all()).results ?? []) as Record<string, unknown>[]
-  const groupRows = ((await db.prepare('SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC').all()).results ?? []) as Record<string, unknown>[]
-  const ruleRows = ((await db.prepare('SELECT * FROM rules WHERE enabled = 1 ORDER BY sort_order ASC').all()).results ?? []) as Record<string, unknown>[]
-  const remoteSetRows = ((await db.prepare('SELECT * FROM remote_rule_sets WHERE enabled = 1').all()).results ?? []) as Record<string, unknown>[]
+// POST /api/export/configs/:id/reset-token
+exportRouter.post('/configs/:id/reset-token', async (c) => {
+  const id = c.req.param('id')
+  const existing = await c.env.DB.prepare('SELECT id FROM export_configs WHERE id = ?').bind(id).first()
+  if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
 
-  return {
-    nodeRows,
-    groupRows,
-    ruleRows,
-    remoteSetRows,
-    nodes: nodeRows.map(mapNode),
-    groups: groupRows.map(mapGroup),
-    rules: ruleRows.map(mapRule),
-    remoteSets: remoteSetRows.map(mapRemoteRuleSet),
-  }
-}
+  await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ?')
+    .bind(generateToken(), now(), id)
+    .run()
+  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
+  return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
+})
 
 // GET /api/export/preview/:format
 exportRouter.get('/preview/:format', async (c) => {
   const format = c.req.param('format')
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows } = await buildExportData(c.env.DB)
+  const config = await resolveConfig(c)
+  if (config instanceof Response) return config
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows } = await buildExportData(c.env.DB, config)
   let content: string
   let contentType: string
 
@@ -133,6 +131,12 @@ exportRouter.get('/preview/:format', async (c) => {
   } else if (format === 'loon') {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
     contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'nodes_base64') {
+    content = generateNodeSubscriptionBase64(nodeRows)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'nodes_raw') {
+    content = generateNodeSubscriptionRaw(nodeRows)
+    contentType = 'text/plain; charset=utf-8'
   } else {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
@@ -143,7 +147,9 @@ exportRouter.get('/preview/:format', async (c) => {
 // GET /api/export/download/:format
 exportRouter.get('/download/:format', async (c) => {
   const format = c.req.param('format')
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows } = await buildExportData(c.env.DB)
+  const config = await resolveConfig(c)
+  if (config instanceof Response) return config
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows } = await buildExportData(c.env.DB, config)
   let content: string
   let contentType: string
   let filename: string
@@ -160,6 +166,14 @@ exportRouter.get('/download/:format', async (c) => {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
     contentType = 'text/plain; charset=utf-8'
     filename = 'loon.conf'
+  } else if (format === 'nodes_base64') {
+    content = generateNodeSubscriptionBase64(nodeRows)
+    contentType = 'text/plain; charset=utf-8'
+    filename = 'nodes.txt'
+  } else if (format === 'nodes_raw') {
+    content = generateNodeSubscriptionRaw(nodeRows)
+    contentType = 'text/plain; charset=utf-8'
+    filename = 'nodes-raw.txt'
   } else {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
@@ -171,3 +185,13 @@ exportRouter.get('/download/:format', async (c) => {
     },
   })
 })
+
+async function resolveConfig(c: Context<{ Bindings: Env }>) {
+  const configId = c.req.query('configId')
+  if (!configId) return undefined
+
+  const config = await getExportConfigById(c.env.DB, configId)
+  if (!config) return c.json({ success: false, error: 'Export config not found' }, 404)
+  if (!config.enabled) return c.json({ success: false, error: 'Export config is disabled' }, 403)
+  return config
+}
