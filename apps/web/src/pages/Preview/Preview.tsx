@@ -6,7 +6,19 @@ import { api } from '@/lib/api'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import styles from './Preview.module.css'
 
-const FORMATS: ExportFormat[] = ['mihomo', 'clash', 'singbox', 'loon', 'nodes_base64', 'nodes_raw']
+const FORMATS: ExportFormat[] = [
+  'mihomo',
+  'clash',
+  'singbox',
+  'loon',
+  'surge',
+  'shadowrocket',
+  'quantumultx',
+  'stash',
+  'egern',
+  'nodes_base64',
+  'nodes_raw',
+]
 
 export function Preview() {
   const { t } = useTranslation()

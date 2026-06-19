@@ -3,6 +3,13 @@ import { generateMihomoYaml } from '../generators/mihomo'
 import { generateSingboxJson } from '../generators/singbox'
 import { generateLoon } from '../generators/loon'
 import { generateNodeSubscriptionBase64, generateNodeSubscriptionRaw } from '../generators/node-subscription'
+import {
+  generateEgern,
+  generateQuantumultX,
+  generateShadowrocket,
+  generateStashYaml,
+  generateSurge,
+} from '../generators/client-configs'
 import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
 import type { Env } from '../types'
 
@@ -49,6 +56,21 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
   } else if (filename === 'loon.conf') {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
     contentType = 'text/plain; charset=utf-8'
+  } else if (filename === 'surge.conf') {
+    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (filename === 'shadowrocket.conf') {
+    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (filename === 'quantumultx.conf') {
+    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (filename === 'stash.yaml') {
+    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+    contentType = 'text/yaml; charset=utf-8'
+  } else if (filename === 'egern.yaml') {
+    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows)
+    contentType = 'text/yaml; charset=utf-8'
   } else if (filename === 'nodes.txt') {
     content = generateNodeSubscriptionBase64(nodeRows)
     contentType = 'text/plain; charset=utf-8'

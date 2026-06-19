@@ -1,0 +1,402 @@
+import yaml from 'js-yaml'
+import { generateMihomoYaml } from './mihomo'
+import { generateNodeSubscriptionRaw } from './node-subscription'
+import type { ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
+
+type Row = Record<string, unknown>
+
+export function generateStashYaml(
+  nodes: ProxyNode[],
+  groups: ProxyGroup[],
+  rules: ProxyRule[],
+  remoteSets: RemoteRuleSet[],
+  collectionNodeNames: Record<string, string[]> = {}
+): string {
+  return generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+}
+
+export function generateSurge(
+  nodes: Row[],
+  groups: Row[],
+  rules: Row[],
+  remoteSets: Row[]
+): string {
+  const lines = buildIniConfig({
+    client: 'surge',
+    nodes,
+    groups,
+    rules,
+    remoteSets,
+    general: [
+      '[General]',
+      'loglevel = notify',
+      'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
+      'proxy-test-url = http://www.gstatic.com/generate_204',
+      'test-timeout = 5',
+      '',
+    ],
+    remoteSection: '[Rule Set]',
+  })
+  return lines.join('\n')
+}
+
+export function generateShadowrocket(
+  nodes: Row[],
+  groups: Row[],
+  rules: Row[],
+  remoteSets: Row[]
+): string {
+  const lines = buildIniConfig({
+    client: 'shadowrocket',
+    nodes,
+    groups,
+    rules,
+    remoteSets,
+    general: [
+      '[General]',
+      'bypass-system = true',
+      'dns-server = system, 223.5.5.5, 8.8.8.8',
+      'skip-proxy = 127.0.0.1, localhost, *.local',
+      '',
+    ],
+    remoteSection: '[Remote Rule]',
+  })
+  return lines.join('\n')
+}
+
+export function generateQuantumultX(
+  nodes: Row[],
+  groups: Row[],
+  rules: Row[],
+  remoteSets: Row[]
+): string {
+  const nodeUris = generateNodeSubscriptionRaw(nodes).split('\n').filter(Boolean)
+  const nodeNames = nodes.map((node) => String(node['name'] ?? '')).filter(Boolean)
+  const lines: string[] = [
+    '[general]',
+    'server_check_url=http://www.gstatic.com/generate_204',
+    'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
+    '',
+    '[server_local]',
+    ...nodeUris,
+    '',
+    '[policy]',
+  ]
+
+  for (const group of groups) {
+    lines.push(groupToQuantumultX(group, groups, nodeNames))
+  }
+
+  lines.push('', '[filter_remote]')
+  for (const rs of remoteSets) {
+    if (!isCompatibleRemoteSet('quantumultx', String(rs['format'] ?? '')) || !rs['enabled']) continue
+    const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
+    lines.push(`${rs['url']}, tag=${rs['name']}, force-policy=${target}, enabled=true`)
+  }
+
+  lines.push('', '[filter_local]')
+  for (const rule of rules) {
+    if (!rule['enabled']) continue
+    const line = ruleToQuantumultX(rule, groups)
+    if (line) lines.push(line)
+  }
+  if (!rules.some((rule) => String(rule['type']) === 'MATCH')) {
+    lines.push(`FINAL,${defaultPolicy(groups)}`)
+  }
+  lines.push('')
+
+  return lines.join('\n')
+}
+
+export function generateEgern(
+  nodes: Row[],
+  groups: Row[],
+  rules: Row[],
+  remoteSets: Row[]
+): string {
+  const nodeNames = nodes.map((node) => String(node['name'] ?? '')).filter(Boolean)
+  const ruleSets = remoteSets
+    .filter((rs) => rs['enabled'] && isCompatibleRemoteSet('egern', String(rs['format'] ?? '')))
+    .map((rs) => ({
+      tag: safeTag(String(rs['name'] ?? 'remote')),
+      type: 'remote',
+      url: String(rs['url'] ?? ''),
+      format: String(rs['format'] ?? 'text') === 'egern' ? 'yaml' : 'source',
+      update_interval: Number(rs['update_interval'] ?? 24) * 3600,
+    }))
+
+  const config = {
+    auto_update: { interval: 86400 },
+    ipv6: false,
+    http_port: 3080,
+    socks_port: 3081,
+    proxies: nodes.map(nodeToEgernProxy).filter(Boolean),
+    policy_groups: groups.map((group) => groupToEgern(group, groups, nodeNames)),
+    rule_sets: ruleSets,
+    rules: [
+      ...remoteSets
+        .filter((rs) => rs['enabled'] && isCompatibleRemoteSet('egern', String(rs['format'] ?? '')))
+        .map((rs) => ({
+          rule_set: safeTag(String(rs['name'] ?? 'remote')),
+          policy: resolveGroupName(String(rs['target_group_id'] ?? ''), groups),
+        })),
+      ...rules
+        .filter((rule) => rule['enabled'])
+        .map((rule) => ruleToEgern(rule, groups))
+        .filter(Boolean),
+    ],
+  }
+
+  return yaml.dump(config, { lineWidth: -1, noRefs: true })
+}
+
+function buildIniConfig({
+  client,
+  nodes,
+  groups,
+  rules,
+  remoteSets,
+  general,
+  remoteSection,
+}: {
+  client: 'surge' | 'shadowrocket'
+  nodes: Row[]
+  groups: Row[]
+  rules: Row[]
+  remoteSets: Row[]
+  general: string[]
+  remoteSection: string
+}): string[] {
+  const validNodes: string[] = []
+  const lines: string[] = [...general, '[Proxy]']
+  for (const node of nodes) {
+    const line = nodeToIniProxy(node)
+    if (line) {
+      lines.push(line)
+      validNodes.push(String(node['name'] ?? ''))
+    }
+  }
+
+  lines.push('', '[Proxy Group]')
+  for (const group of groups) {
+    lines.push(groupToIni(group, groups, validNodes))
+  }
+
+  lines.push('', remoteSection)
+  for (const rs of remoteSets) {
+    if (!rs['enabled'] || !isCompatibleRemoteSet(client, String(rs['format'] ?? ''))) continue
+    const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
+    lines.push(`${safeTag(String(rs['name'] ?? 'remote'))} = ${rs['url']}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`)
+  }
+
+  lines.push('', '[Rule]')
+  for (const rs of remoteSets) {
+    if (!rs['enabled'] || !isCompatibleRemoteSet(client, String(rs['format'] ?? ''))) continue
+    const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
+    lines.push(`RULE-SET,${safeTag(String(rs['name'] ?? 'remote'))},${target}`)
+  }
+  for (const rule of rules) {
+    if (!rule['enabled']) continue
+    const line = ruleToIni(rule, groups)
+    if (line) lines.push(line)
+  }
+  if (!rules.some((rule) => String(rule['type']) === 'MATCH')) {
+    lines.push(`FINAL,${defaultPolicy(groups)}`)
+  }
+  lines.push('')
+
+  return lines
+}
+
+function nodeToIniProxy(node: Row): string | null {
+  const name = String(node['name'] ?? '')
+  const server = String(node['server'] ?? '')
+  const port = Number(node['port'] ?? 0)
+  const protocol = String(node['protocol'] ?? '')
+  const parsed = safeJson(node['parsed_config'])
+  const extra = asRecord(parsed['extra'])
+  if (!name || !server || !port) return null
+
+  if (protocol === 'ss') {
+    const method = String(extra['cipher'] ?? extra['method'] ?? 'aes-256-gcm')
+    return `${name} = ss, ${server}, ${port}, encrypt-method=${method}, password=${parsed['password'] ?? ''}`
+  }
+  if (protocol === 'vmess') {
+    const tls = parsed['tls'] ? ', tls=true' : ''
+    const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
+    return `${name} = vmess, ${server}, ${port}, username=${parsed['uuid'] ?? ''}${tls}${sni}`
+  }
+  if (protocol === 'trojan') {
+    const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
+    return `${name} = trojan, ${server}, ${port}, password=${parsed['password'] ?? ''}${sni}`
+  }
+  if (protocol === 'http' || protocol === 'https') {
+    const tls = protocol === 'https' || parsed['tls'] ? ', tls=true' : ''
+    return `${name} = http, ${server}, ${port}${tls}`
+  }
+  if (protocol === 'socks5') {
+    return `${name} = socks5, ${server}, ${port}`
+  }
+  return null
+}
+
+function groupToIni(group: Row, groups: Row[], nodeNames: string[]): string {
+  const name = String(group['name'] ?? '')
+  const type = String(group['type'] ?? 'select')
+  const members = collectMembers(group, groups, nodeNames)
+  if (type === 'url-test') return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
+  if (type === 'fallback') return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
+  if (type === 'load-balance') return `${name} = load-balance, ${members.join(', ')}`
+  if (type === 'direct') return `${name} = select, DIRECT`
+  if (type === 'reject') return `${name} = select, REJECT`
+  return `${name} = select, ${members.join(', ')}`
+}
+
+function groupToQuantumultX(group: Row, groups: Row[], nodeNames: string[]): string {
+  const name = String(group['name'] ?? '')
+  const type = String(group['type'] ?? 'select')
+  const members = collectMembers(group, groups, nodeNames).join(',')
+  if (type === 'url-test') return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
+  if (type === 'fallback') return `fallback=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
+  if (type === 'direct') return `static=${name}, DIRECT`
+  if (type === 'reject') return `static=${name}, REJECT`
+  return `static=${name}, ${members}`
+}
+
+function groupToEgern(group: Row, groups: Row[], nodeNames: string[]): Record<string, unknown> {
+  const type = String(group['type'] ?? 'select')
+  return {
+    name: String(group['name'] ?? ''),
+    type: type === 'url-test' ? 'url_test' : type === 'load-balance' ? 'load_balance' : type,
+    policies: collectMembers(group, groups, nodeNames),
+    url: group['test_url'] ?? 'http://www.gstatic.com/generate_204',
+    interval: Number(group['interval'] ?? 300),
+  }
+}
+
+function collectMembers(group: Row, groups: Row[], nodeNames: string[]): string[] {
+  const groupIds = safeJsonArray(group['group_ids'])
+  const builtins = safeJsonArray(group['builtins'])
+  const nested = groupIds
+    .map((id) => groups.find((item) => String(item['id']) === id))
+    .filter((item): item is Row => Boolean(item))
+    .map((item) => String(item['name'] ?? ''))
+  const members = [...nodeNames, ...nested, ...builtins].filter(Boolean)
+  return [...new Set(members.length > 0 ? members : ['DIRECT'])]
+}
+
+function ruleToIni(rule: Row, groups: Row[]): string | null {
+  const type = String(rule['type'] ?? '')
+  const payload = String(rule['payload'] ?? '')
+  const target = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
+  const noResolve = rule['no_resolve'] ? ',no-resolve' : ''
+  if (type === 'MATCH') return `FINAL,${target}`
+  if (['SCRIPT', 'IN-TYPE'].includes(type)) return null
+  return `${type},${payload},${target}${noResolve}`
+}
+
+function ruleToQuantumultX(rule: Row, groups: Row[]): string | null {
+  const type = String(rule['type'] ?? '')
+  const payload = String(rule['payload'] ?? '')
+  const target = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
+  const map: Record<string, string> = {
+    DOMAIN: 'HOST',
+    'DOMAIN-SUFFIX': 'HOST-SUFFIX',
+    'DOMAIN-KEYWORD': 'HOST-KEYWORD',
+    'IP-CIDR': 'IP-CIDR',
+    'IP-CIDR6': 'IP6-CIDR',
+    GEOIP: 'GEOIP',
+    MATCH: 'FINAL',
+  }
+  if (!map[type]) return null
+  if (type === 'MATCH') return `FINAL,${target}`
+  return `${map[type]},${payload},${target}`
+}
+
+function ruleToEgern(rule: Row, groups: Row[]): Record<string, unknown> | null {
+  const type = String(rule['type'] ?? '')
+  const payload = String(rule['payload'] ?? '')
+  const policy = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
+  const map: Record<string, string> = {
+    DOMAIN: 'domain',
+    'DOMAIN-SUFFIX': 'domain_suffix',
+    'DOMAIN-KEYWORD': 'domain_keyword',
+    'DOMAIN-REGEX': 'domain_regex',
+    'IP-CIDR': 'ip_cidr',
+    'IP-CIDR6': 'ip_cidr',
+    GEOIP: 'geoip',
+    GEOSITE: 'geosite',
+    MATCH: 'default',
+  }
+  const key = map[type]
+  if (!key) return null
+  if (type === 'MATCH') return { default: policy }
+  return { [key]: payload, policy }
+}
+
+function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
+  const name = String(node['name'] ?? '')
+  const server = String(node['server'] ?? '')
+  const port = Number(node['port'] ?? 0)
+  const protocol = String(node['protocol'] ?? '')
+  const parsed = safeJson(node['parsed_config'])
+  const extra = asRecord(parsed['extra'])
+  if (!name || !server || !port) return null
+  if (protocol === 'ss') {
+    return { name, type: 'ss', server, port, cipher: extra['cipher'] ?? extra['method'] ?? 'aes-256-gcm', password: parsed['password'] ?? '' }
+  }
+  if (protocol === 'vmess') {
+    return { name, type: 'vmess', server, port, uuid: parsed['uuid'] ?? '', tls: Boolean(parsed['tls']), sni: parsed['sni'] }
+  }
+  if (protocol === 'trojan') {
+    return { name, type: 'trojan', server, port, password: parsed['password'] ?? '', sni: parsed['sni'] }
+  }
+  if (protocol === 'http' || protocol === 'https') {
+    return { name, type: 'http', server, port, tls: protocol === 'https' || Boolean(parsed['tls']) }
+  }
+  if (protocol === 'socks5') {
+    return { name, type: 'socks5', server, port }
+  }
+  return null
+}
+
+function isCompatibleRemoteSet(client: string, format: string): boolean {
+  const matrix: Record<string, string[]> = {
+    surge: ['surge', 'text'],
+    shadowrocket: ['shadowrocket', 'surge', 'text'],
+    quantumultx: ['quantumultx', 'text'],
+    egern: ['egern', 'text'],
+  }
+  return matrix[client]?.includes(format) ?? false
+}
+
+function resolveGroupName(groupId: string, groups: Row[]): string {
+  return String(groups.find((group) => String(group['id']) === groupId)?.['name'] ?? (groupId || defaultPolicy(groups)))
+}
+
+function defaultPolicy(groups: Row[]): string {
+  return String(groups.find((group) => String(group['name']) === 'PROXY')?.['name'] ?? groups[0]?.['name'] ?? 'DIRECT')
+}
+
+function safeJson(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string') return {}
+  try { return JSON.parse(value) as Record<string, unknown> } catch { return {} }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+}
+
+function safeJsonArray(value: unknown): string[] {
+  if (typeof value !== 'string') return []
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch {
+    return []
+  }
+}
+
+function safeTag(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, '_')
+}

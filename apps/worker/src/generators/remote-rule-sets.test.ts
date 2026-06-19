@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { generateMihomoYaml } from './mihomo';
 import { generateSingboxJson } from './singbox';
+import { generateEgern, generateQuantumultX, generateStashYaml, generateSurge } from './client-configs';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -59,6 +60,40 @@ const singboxRemoteSet: RemoteRuleSet = {
   format: 'singbox',
 };
 
+const groupRows: Record<string, unknown>[] = [
+  {
+    id: proxyGroup.id,
+    name: proxyGroup.name,
+    type: proxyGroup.type,
+    group_ids: '[]',
+    builtins: '["DIRECT"]',
+    enabled: 1,
+    test_url: 'http://www.gstatic.com/generate_204',
+    interval: 300,
+  },
+  {
+    id: directGroup.id,
+    name: directGroup.name,
+    type: directGroup.type,
+    group_ids: '[]',
+    builtins: '[]',
+    enabled: 1,
+    test_url: 'http://www.gstatic.com/generate_204',
+    interval: 300,
+  },
+];
+
+const ruleRows: Record<string, unknown>[] = [
+  {
+    id: matchRule.id,
+    type: matchRule.type,
+    payload: matchRule.payload,
+    target_group_id: matchRule.targetGroupId,
+    enabled: 1,
+    no_resolve: 0,
+  },
+];
+
 describe('remote rule set generators', () => {
   it('routes Mihomo remote rule sets before MATCH', () => {
     const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
@@ -102,5 +137,42 @@ describe('remote rule set generators', () => {
     const singbox = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
     const config = JSON.parse(singbox) as { route: { rule_set: Array<Record<string, unknown>> } };
     expect(config.route.rule_set.some(item => item['url'] === remoteSet.url)).toBe(false);
+  });
+
+  it('exports Stash as Mihomo-compatible YAML', () => {
+    const content = generateStashYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
+    expect(content).toContain('rule-providers:');
+    expect(content).toContain('Ads_List:');
+  });
+
+  it('routes Surge remote rule sets and skips incompatible ones', () => {
+    const content = generateSurge([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'surge', target_group_id: directGroup.id },
+      { ...singboxRemoteSet, target_group_id: directGroup.id },
+    ]);
+
+    expect(content).toContain('[Rule Set]');
+    expect(content).toContain('Ads_List = https://example.com/ads.yaml');
+    expect(content).toContain('RULE-SET,Ads_List,DIRECT-GROUP');
+    expect(content).not.toContain('ai.srs');
+  });
+
+  it('routes Quantumult X remote rule sets through filter_remote', () => {
+    const content = generateQuantumultX([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'quantumultx', target_group_id: directGroup.id },
+    ]);
+
+    expect(content).toContain('[filter_remote]');
+    expect(content).toContain('https://example.com/ads.yaml, tag=Ads List, force-policy=DIRECT-GROUP, enabled=true');
+  });
+
+  it('routes Egern remote rule sets in YAML', () => {
+    const content = generateEgern([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'egern', target_group_id: directGroup.id },
+    ]);
+
+    expect(content).toContain('rule_sets:');
+    expect(content).toContain('url: https://example.com/ads.yaml');
+    expect(content).toContain('rule_set: Ads_List');
   });
 });

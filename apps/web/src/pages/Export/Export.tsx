@@ -17,6 +17,11 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
   { value: 'clash', label: 'Clash YAML' },
   { value: 'singbox', label: 'sing-box JSON' },
   { value: 'loon', label: 'Loon CONF' },
+  { value: 'surge', label: 'Surge CONF' },
+  { value: 'shadowrocket', label: 'Shadowrocket CONF' },
+  { value: 'quantumultx', label: 'Quantumult X CONF' },
+  { value: 'stash', label: 'Stash YAML' },
+  { value: 'egern', label: 'Egern YAML' },
   { value: 'nodes_base64', label: 'Node Subscription (Base64)' },
   { value: 'nodes_raw', label: 'Node Subscription (Raw)' },
 ]
@@ -272,6 +277,16 @@ function getSubscriptionFilename(format: ExportFormat): string {
       return 'singbox.json'
     case 'loon':
       return 'loon.conf'
+    case 'surge':
+      return 'surge.conf'
+    case 'shadowrocket':
+      return 'shadowrocket.conf'
+    case 'quantumultx':
+      return 'quantumultx.conf'
+    case 'stash':
+      return 'stash.yaml'
+    case 'egern':
+      return 'egern.yaml'
     case 'nodes_base64':
       return 'nodes.txt'
     case 'nodes_raw':
