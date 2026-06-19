@@ -26,14 +26,16 @@ app.post('/', async (c) => {
   const ts = now()
   await c.env.DB.prepare(
     `INSERT INTO remote_rule_sets
-      (id, name, url, format, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
       body.name,
       body.url,
       body.format,
+      body.presetSource ?? null,
+      body.presetId ?? null,
       body.targetGroupId,
       body.updateInterval ?? 24,
       body.enabled !== false ? 1 : 0,
@@ -66,14 +68,16 @@ app.post('/batch', async (c) => {
     createdIds.push(id)
     await c.env.DB.prepare(
       `INSERT INTO remote_rule_sets
-        (id, name, url, format, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
         set.name,
         set.url,
         set.format,
+        set.presetSource ?? null,
+        set.presetId ?? null,
         set.targetGroupId,
         set.updateInterval ?? 24,
         set.enabled !== false ? 1 : 0,
@@ -119,7 +123,7 @@ app.put('/:id', async (c) => {
   const ts = now()
   await c.env.DB.prepare(
     `UPDATE remote_rule_sets SET
-      name = ?, url = ?, format = ?, target_group_id = ?, update_interval = ?,
+      name = ?, url = ?, format = ?, preset_source = ?, preset_id = ?, target_group_id = ?, update_interval = ?,
       enabled = ?, last_updated = ?, notes = ?, updated_at = ?
      WHERE id = ?`
   )
@@ -127,6 +131,8 @@ app.put('/:id', async (c) => {
       body.name ?? existing.name,
       body.url ?? existing.url,
       body.format ?? existing.format,
+      body.presetSource !== undefined ? body.presetSource : existing.preset_source,
+      body.presetId !== undefined ? body.presetId : existing.preset_id,
       body.targetGroupId ?? existing.target_group_id,
       body.updateInterval ?? existing.update_interval,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,

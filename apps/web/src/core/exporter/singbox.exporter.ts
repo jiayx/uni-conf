@@ -1,7 +1,7 @@
-import type { CompatibilityWarning, ProxyGroup, RuleType } from '@uni-conf/types'
+import type { CompatibilityWarning, ProxyGroup, RemoteRuleSet, RuleSetFormat, RuleType } from '@uni-conf/types'
 import type { ExportInput, IExporter } from './exporter.interface'
 import { nodeToSingboxOutbound } from './node-serializer'
-import { isRuleSetFormatCompatible } from '../remote-rules/compatibility'
+import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '../remote-rules/compatibility'
 
 // Rule types not supported in sing-box
 const UNSUPPORTED_RULE_TYPES: Set<RuleType> = new Set(['PROCESS-PATH', 'IN-TYPE', 'SCRIPT'])
@@ -130,13 +130,20 @@ export class SingboxExporter implements IExporter {
 
     // Remote rule sets
     const ruleSets: Record<string, unknown>[] = []
-    for (const rs of remoteSets.filter((s) => s.enabled && isRuleSetFormatCompatible('singbox', s.format))) {
+    const enabledRemoteSets = remoteSets
+      .filter((s) => s.enabled)
+      .map((s) => ({ source: s, resolved: resolveRemoteRuleSetForExport(s, 'singbox') }))
+      .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RuleSetFormat } } =>
+        Boolean(item.resolved) && isRuleSetFormatCompatible('singbox', item.resolved!.format)
+      )
+
+    for (const { source: rs, resolved } of enabledRemoteSets) {
       const tag = rs.name.replace(/\s+/g, '-').toLowerCase()
       ruleSets.push({
         tag,
         type: 'remote',
         format: 'binary',
-        url: rs.url,
+        url: resolved.url,
         download_detour: 'direct',
         update_interval: `${rs.updateInterval ?? 24}h`,
       })

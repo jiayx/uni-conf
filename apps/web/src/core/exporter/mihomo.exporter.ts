@@ -1,8 +1,8 @@
-import type { CompatibilityWarning, ProxyGroup } from '@uni-conf/types'
+import type { CompatibilityWarning, ProxyGroup, RemoteRuleSet, RuleSetFormat } from '@uni-conf/types'
 import yaml from 'js-yaml'
 import type { ExportInput, IExporter } from './exporter.interface'
 import { nodeToClash } from './node-serializer'
-import { isRuleSetFormatCompatible } from '../remote-rules/compatibility'
+import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '../remote-rules/compatibility'
 
 function mapGroupType(type: ProxyGroup['type']): string {
   const map: Record<string, string> = {
@@ -97,15 +97,20 @@ export class MihomoExporter implements IExporter {
     config['proxy-groups'] = proxyGroups
 
     // rule-providers
-    const enabledSets = remoteSets.filter((s) => s.enabled && isRuleSetFormatCompatible('mihomo', s.format))
+    const enabledSets = remoteSets
+      .filter((s) => s.enabled)
+      .map((s) => ({ source: s, resolved: resolveRemoteRuleSetForExport(s, 'mihomo') }))
+      .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RuleSetFormat } } =>
+        Boolean(item.resolved) && isRuleSetFormatCompatible('mihomo', item.resolved!.format)
+      )
     if (enabledSets.length > 0) {
       const ruleProviders: Record<string, unknown> = {}
-      for (const rs of enabledSets) {
+      for (const { source: rs, resolved } of enabledSets) {
         const providerName = rs.name.replace(/\s+/g, '-').toLowerCase()
         ruleProviders[providerName] = {
           type: 'http',
           behavior: 'domain',
-          url: rs.url,
+          url: resolved.url,
           path: `./ruleset/${providerName}.yaml`,
           interval: (rs.updateInterval ?? 24) * 3600,
         }
@@ -131,7 +136,7 @@ export class MihomoExporter implements IExporter {
     }
 
     // Add remote rule-set rules
-    for (const rs of enabledSets) {
+    for (const { source: rs } of enabledSets) {
       const providerName = rs.name.replace(/\s+/g, '-').toLowerCase()
       const targetGroup = groups.find((g) => g.id === rs.targetGroupId)?.name ?? rs.targetGroupId
       ruleLines.push(`RULE-SET,${providerName},${targetGroup}`)

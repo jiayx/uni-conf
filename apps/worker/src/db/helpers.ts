@@ -145,6 +145,8 @@ export function mapRemoteRuleSet(row: Record<string, unknown>): RemoteRuleSet {
     name: row.name as string,
     url: row.url as string,
     format: row.format as RemoteRuleSet['format'],
+    presetSource: (row.preset_source as RemoteRuleSet['presetSource'] | null) ?? undefined,
+    presetId: (row.preset_id as string | null) ?? undefined,
     targetGroupId: row.target_group_id as string,
     updateInterval: row.update_interval as number,
     enabled: Boolean(row.enabled),

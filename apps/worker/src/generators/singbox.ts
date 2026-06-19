@@ -1,4 +1,5 @@
 import type { ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── sing-box JSON generator ──────────────────────────────────────────────────
 
@@ -476,13 +477,20 @@ function buildRoute(
     },
   ];
 
-  for (const rs of remoteSets.filter((r) => r.enabled && r.format === 'singbox')) {
+  const enabledRemoteSets = remoteSets
+    .filter((rs) => rs.enabled)
+    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'singbox') }))
+    .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
+      Boolean(item.resolved) && item.resolved!.format === 'singbox'
+    );
+
+  for (const { source: rs, resolved } of enabledRemoteSets) {
     const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     ruleSets.push({
       tag: safeName,
       type: 'remote',
-      format: rs.format === 'singbox' ? 'binary' : 'source',
-      url: rs.url,
+      format: resolved.format === 'singbox' ? 'binary' : 'source',
+      url: resolved.url,
       download_detour: 'proxy',
       update_interval: `${rs.updateInterval}h`,
     });

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { Modal } from '@/components/ui/Modal/Modal'
 import {
   buildQuixoticRuleSetUrl,
+  inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
   RULE_SET_FORMAT_OPTIONS,
   type QuixoticRuleSetPreset,
@@ -108,14 +109,16 @@ export function RemoteRuleSets() {
       enabled: set.enabled,
       lastUpdated: set.lastUpdated,
       notes: set.notes ?? '',
+      presetSource: set.presetSource,
+      presetId: set.presetId,
     })
-    setSelectedPresetId('')
+    setSelectedPresetId(set.presetSource === 'quixotic' ? set.presetId ?? '' : '')
     setFormError('')
     setShowModal(true)
   }
 
   const findSuggestedGroupId = (preset: QuixoticRuleSetPreset): string => {
-    const wanted = preset.suggestedGroup.toUpperCase()
+    const wanted = inferQuixoticTargetGroup(preset).toUpperCase()
     return groups.find(group => group.name.toUpperCase() === wanted)?.id ?? defaultTargetGroupId
   }
 
@@ -129,30 +132,34 @@ export function RemoteRuleSets() {
       name: preset.name,
       url: buildQuixoticRuleSetUrl(preset.id, format),
       format,
+      presetSource: 'quixotic',
+      presetId: preset.id,
       targetGroupId: findSuggestedGroupId(preset),
       updateInterval: 24,
       enabled: true,
-      notes: `QuixoticHeart/rule-set: ${preset.description}`,
+      notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
     }))
   }
 
-  const buildPresetPayload = (preset: QuixoticRuleSetPreset, format: RuleSetFormat): RemoteSetForm => ({
+  const buildPresetPayload = (preset: QuixoticRuleSetPreset): RemoteSetForm => ({
     name: preset.name,
-    url: buildQuixoticRuleSetUrl(preset.id, format),
-    format,
+    url: buildQuixoticRuleSetUrl(preset.id, 'mihomo'),
+    format: 'mihomo',
+    presetSource: 'quixotic',
+    presetId: preset.id,
     targetGroupId: findSuggestedGroupId(preset),
     updateInterval: 24,
     enabled: true,
     notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
   })
 
-  const importAllPresets = async (format: RuleSetFormat = 'mihomo') => {
+  const importAllPresets = async () => {
     setImportingPresets(true)
     setError('')
     try {
       const existingKeys = new Set(sets.map(set => presetKey(set)))
       const payloads = QUIXOTIC_RULE_SET_PRESETS
-        .map(preset => buildPresetPayload(preset, format))
+        .map(preset => buildPresetPayload(preset))
         .filter(payload => !existingKeys.has(presetKey(payload)))
 
       if (payloads.length === 0) return
@@ -263,7 +270,7 @@ export function RemoteRuleSets() {
                       <div className={styles.cardTitle}>{set.name}</div>
                     </div>
                     <div className={styles.meta}>
-                      <Badge variant="info">{set.format}</Badge>
+                      <Badge variant="info">{set.presetSource === 'quixotic' ? '预置' : set.format}</Badge>
                       <Badge variant="purple">{getGroupName(set.targetGroupId)}</Badge>
                       <Badge variant="default">{set.updateInterval}h</Badge>
                     </div>
@@ -311,7 +318,7 @@ export function RemoteRuleSets() {
               ))}
             </select>
             <div className={styles.helperText}>
-              来自 QuixoticHeart/rule-set，按所选格式自动生成规则集 URL。
+              来自 QuixoticHeart/rule-set。预置规则会在导出时按目标平台动态生成规则集 URL。
             </div>
           </div>
         )}
@@ -323,7 +330,11 @@ export function RemoteRuleSets() {
             {RULE_SET_FORMAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           {selectedFormatOption && (
-            <div className={styles.helperText}>适用导出目标：{selectedFormatOption.exportTargets}</div>
+            <div className={styles.helperText}>
+              {form.presetSource === 'quixotic'
+                ? '当前 URL 作为预览和兜底保存；导出时会按目标平台动态替换。'
+                : `适用导出目标：${selectedFormatOption.exportTargets}`}
+            </div>
           )}
         </div>
         <div>
@@ -359,7 +370,8 @@ function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
   }, {} as Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>)
 }
 
-function presetKey(set: Pick<RemoteRuleSet, 'name' | 'format'>): string {
+function presetKey(set: Pick<RemoteRuleSet, 'name' | 'format' | 'presetSource' | 'presetId'>): string {
+  if (set.presetSource === 'quixotic' && set.presetId) return `quixotic:${set.presetId}`
   return `${set.name}:${set.format}`
 }
 

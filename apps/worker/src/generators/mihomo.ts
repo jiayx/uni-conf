@@ -1,4 +1,5 @@
 import type { ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
 
@@ -77,17 +78,22 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Rule providers ────────────────────────────────────────────────────────────
-  const enabledRemoteSets = remoteSets.filter((rs) => rs.enabled && isMihomoCompatibleRemoteSet(rs.format));
+  const enabledRemoteSets = remoteSets
+    .filter((rs) => rs.enabled)
+    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'mihomo') }))
+    .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
+      Boolean(item.resolved) && isMihomoCompatibleRemoteSet(item.resolved!.format)
+    );
   if (enabledRemoteSets.length === 0) {
     lines.push('rule-providers: {}');
   } else {
     lines.push('rule-providers:');
-    for (const rs of enabledRemoteSets) {
+    for (const { source: rs, resolved } of enabledRemoteSets) {
       const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
       lines.push(`  ${safeName}:`);
       lines.push(`    type: http`);
-      lines.push(`    behavior: ${detectBehavior(rs.format)}`);
-      lines.push(`    url: "${rs.url}"`);
+      lines.push(`    behavior: ${detectBehavior(resolved.format)}`);
+      lines.push(`    url: "${resolved.url}"`);
       lines.push(`    path: ./ruleset/${safeName}.yaml`);
       lines.push(`    interval: ${rs.updateInterval * 3600}`);
     }
@@ -106,7 +112,7 @@ export function generateMihomoYaml(
     lines.push(`  - ${ruleToMihomo(rule, groups)}`);
   }
 
-  for (const rs of enabledRemoteSets) {
+  for (const { source: rs } of enabledRemoteSets) {
     const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     const group = groups.find((g) => g.id === rs.targetGroupId);
     const targetGroup = group ? escapeName(group.name) : rs.targetGroupId;

@@ -3,6 +3,8 @@
  * Generates a complete Loon .conf file
  */
 
+import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
+
 function safeJson(text: unknown): Record<string, unknown> {
   if (typeof text !== 'string') return {}
   try { return JSON.parse(text) as Record<string, unknown> } catch { return {} }
@@ -184,13 +186,14 @@ export function generateLoon(
   // [Remote Rule]
   lines.push('[Remote Rule]')
   for (const rs of remoteSets) {
-    if (!rs['enabled'] || !isLoonCompatibleRemoteSet(String(rs['format'] ?? ''))) continue
-    const url = String(rs['url'] ?? '')
+    if (!rs['enabled']) continue
+    const resolved = resolveRemoteRuleSetRowForExport(rs, 'loon')
+    if (!resolved || !isLoonCompatibleRemoteSet(resolved.format)) continue
     const name = String(rs['name'] ?? '')
     const targetGroupId = String(rs['target_group_id'] ?? '')
     const targetGroup = groups.find(g => String(g['id']) === targetGroupId)
     const target = targetGroup ? String(targetGroup['name']) : 'PROXY'
-    lines.push(`${url}, policy=${target}, tag=${name}, enabled=true`)
+    lines.push(`${resolved.url}, policy=${target}, tag=${name}, enabled=true`)
   }
   lines.push('')
 

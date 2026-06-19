@@ -60,6 +60,16 @@ const singboxRemoteSet: RemoteRuleSet = {
   format: 'singbox',
 };
 
+const quixoticPresetSet: RemoteRuleSet = {
+  ...remoteSet,
+  id: 'remote-quixotic-ai',
+  name: 'AI',
+  url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/ai.list',
+  format: 'mihomo',
+  presetSource: 'quixotic',
+  presetId: 'ai',
+};
+
 const groupRows: Record<string, unknown>[] = [
   {
     id: proxyGroup.id,
@@ -137,6 +147,24 @@ describe('remote rule set generators', () => {
     const singbox = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
     const config = JSON.parse(singbox) as { route: { rule_set: Array<Record<string, unknown>> } };
     expect(config.route.rule_set.some(item => item['url'] === remoteSet.url)).toBe(false);
+  });
+
+  it('resolves Quixotic presets to the current export format', () => {
+    const singbox = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet]);
+    const config = JSON.parse(singbox) as { route: { rule_set: Array<Record<string, unknown>> } };
+
+    expect(config.route.rule_set).toContainEqual(
+      expect.objectContaining({
+        tag: 'AI',
+        format: 'binary',
+        url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/singbox/version5/ai.srs',
+      })
+    );
+
+    const surge = generateSurge([], groupRows, ruleRows, [
+      { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id },
+    ]);
+    expect(surge).toContain('AI = https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/surge/ai.list');
   });
 
   it('exports Stash as Mihomo-compatible YAML', () => {

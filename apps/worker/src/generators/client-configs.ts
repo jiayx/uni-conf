@@ -1,6 +1,7 @@
 import yaml from 'js-yaml'
 import { generateMihomoYaml } from './mihomo'
 import { generateNodeSubscriptionRaw } from './node-subscription'
+import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 
 type Row = Record<string, unknown>
@@ -89,9 +90,11 @@ export function generateQuantumultX(
 
   lines.push('', '[filter_remote]')
   for (const rs of remoteSets) {
-    if (!isCompatibleRemoteSet('quantumultx', String(rs['format'] ?? '')) || !rs['enabled']) continue
+    if (!rs['enabled']) continue
+    const resolved = resolveRemoteRuleSetRowForExport(rs, 'quantumultx')
+    if (!resolved || !isCompatibleRemoteSet('quantumultx', resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
-    lines.push(`${rs['url']}, tag=${rs['name']}, force-policy=${target}, enabled=true`)
+    lines.push(`${resolved.url}, tag=${rs['name']}, force-policy=${target}, enabled=true`)
   }
 
   lines.push('', '[filter_local]')
@@ -116,12 +119,16 @@ export function generateEgern(
 ): string {
   const nodeNames = nodes.map((node) => String(node['name'] ?? '')).filter(Boolean)
   const ruleSets = remoteSets
-    .filter((rs) => rs['enabled'] && isCompatibleRemoteSet('egern', String(rs['format'] ?? '')))
-    .map((rs) => ({
+    .filter((rs) => rs['enabled'])
+    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetRowForExport(rs, 'egern') }))
+    .filter((item): item is { source: Row; resolved: { url: string; format: string } } =>
+      Boolean(item.resolved) && isCompatibleRemoteSet('egern', item.resolved!.format)
+    )
+    .map(({ source: rs, resolved }) => ({
       tag: safeTag(String(rs['name'] ?? 'remote')),
       type: 'remote',
-      url: String(rs['url'] ?? ''),
-      format: String(rs['format'] ?? 'text') === 'egern' ? 'yaml' : 'source',
+      url: resolved.url,
+      format: resolved.format === 'egern' ? 'yaml' : 'source',
       update_interval: Number(rs['update_interval'] ?? 24) * 3600,
     }))
 
@@ -135,7 +142,11 @@ export function generateEgern(
     rule_sets: ruleSets,
     rules: [
       ...remoteSets
-        .filter((rs) => rs['enabled'] && isCompatibleRemoteSet('egern', String(rs['format'] ?? '')))
+        .filter((rs) => {
+          if (!rs['enabled']) return false
+          const resolved = resolveRemoteRuleSetRowForExport(rs, 'egern')
+          return Boolean(resolved && isCompatibleRemoteSet('egern', resolved.format))
+        })
         .map((rs) => ({
           rule_set: safeTag(String(rs['name'] ?? 'remote')),
           policy: resolveGroupName(String(rs['target_group_id'] ?? ''), groups),
@@ -184,14 +195,18 @@ function buildIniConfig({
 
   lines.push('', remoteSection)
   for (const rs of remoteSets) {
-    if (!rs['enabled'] || !isCompatibleRemoteSet(client, String(rs['format'] ?? ''))) continue
+    if (!rs['enabled']) continue
+    const resolved = resolveRemoteRuleSetRowForExport(rs, client)
+    if (!resolved || !isCompatibleRemoteSet(client, resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
-    lines.push(`${safeTag(String(rs['name'] ?? 'remote'))} = ${rs['url']}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`)
+    lines.push(`${safeTag(String(rs['name'] ?? 'remote'))} = ${resolved.url}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`)
   }
 
   lines.push('', '[Rule]')
   for (const rs of remoteSets) {
-    if (!rs['enabled'] || !isCompatibleRemoteSet(client, String(rs['format'] ?? ''))) continue
+    if (!rs['enabled']) continue
+    const resolved = resolveRemoteRuleSetRowForExport(rs, client)
+    if (!resolved || !isCompatibleRemoteSet(client, resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
     lines.push(`RULE-SET,${safeTag(String(rs['name'] ?? 'remote'))},${target}`)
   }

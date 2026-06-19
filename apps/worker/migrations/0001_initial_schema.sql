@@ -112,6 +112,8 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   format TEXT NOT NULL,
+  preset_source TEXT,
+  preset_id TEXT,
   target_group_id TEXT NOT NULL,
   update_interval INTEGER NOT NULL DEFAULT 24,
   enabled INTEGER NOT NULL DEFAULT 1,

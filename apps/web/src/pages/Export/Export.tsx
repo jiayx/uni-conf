@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
-import { describeCompatibleRuleSetFormats, isRuleSetFormatCompatible } from '@/core/remote-rules/compatibility'
+import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import styles from './Export.module.css'
 
@@ -146,7 +146,7 @@ export function Export() {
       format,
       includeRemoteSetIds: f.includeRemoteSetIds.filter(id => {
         const remoteSet = remoteSets.find(item => item.id === id)
-        return remoteSet ? isRuleSetFormatCompatible(format, remoteSet.format) : false
+        return remoteSet ? isRemoteRuleSetCompatible(format, remoteSet) : false
       }),
     }))
   }
@@ -249,13 +249,14 @@ export function Export() {
           emptyText="未选择时导出所有兼容远程规则集"
           hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
           options={remoteSets.map(item => {
-            const compatible = isRuleSetFormatCompatible(form.format, item.format)
+            const compatible = isRemoteRuleSetCompatible(form.format, item)
+            const formatLabel = item.presetSource === 'quixotic' ? '预置 · 动态格式' : item.format
             return {
               id: item.id,
               label: item.name,
               description: compatible
-                ? `${item.format} · 会用于 ${form.format} 导出`
-                : `${item.format} · 不兼容 ${form.format}，导出时会跳过`,
+                ? `${formatLabel} · 会用于 ${form.format} 导出`
+                : `${formatLabel} · 不兼容 ${form.format}，导出时会跳过`,
               disabled: !compatible,
             }
           })}

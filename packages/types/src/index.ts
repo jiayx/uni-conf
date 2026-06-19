@@ -263,6 +263,8 @@ export interface RemoteRuleSet {
   name: string;
   url: string;
   format: RuleSetFormat;
+  presetSource?: 'quixotic';
+  presetId?: string;
   targetGroupId: string;
   updateInterval: number; // hours
   enabled: boolean;

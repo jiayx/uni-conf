@@ -82,3 +82,36 @@ export function countryCodeToFlag(countryCode: string): string | undefined {
   const normalizedCode = countryCode.trim().toUpperCase();
   return COUNTRY_FLAG_MAP.find(([, , code]) => code === normalizedCode)?.[0];
 }
+
+const QUIXOTIC_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset';
+
+const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; ruleSetFormat: string }> = {
+  mihomo: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
+  clash: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
+  stash: { path: 'stash', extension: 'list', ruleSetFormat: 'stash' },
+  singbox: { path: 'singbox/version5', extension: 'srs', ruleSetFormat: 'singbox' },
+  surge: { path: 'surge', extension: 'list', ruleSetFormat: 'surge' },
+  loon: { path: 'loon', extension: 'list', ruleSetFormat: 'loon' },
+  shadowrocket: { path: 'shadowrocket', extension: 'list', ruleSetFormat: 'shadowrocket' },
+  quantumultx: { path: 'quantumultx', extension: 'list', ruleSetFormat: 'quantumultx' },
+  egern: { path: 'egern', extension: 'yaml', ruleSetFormat: 'egern' },
+};
+
+const QUIXOTIC_DEFAULT_FORMAT = QUIXOTIC_FORMAT_PATHS.mihomo!;
+
+export function supportsQuixoticRuleSetExport(format: string): boolean {
+  return format in QUIXOTIC_FORMAT_PATHS;
+}
+
+export function buildQuixoticRuleSetUrl(id: string, format: string): string {
+  const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
+  return `${QUIXOTIC_RAW_BASE}/${target.path}/${id}.${target.extension}`;
+}
+
+export function resolveQuixoticRuleSetForExport(id: string, format: string): { url: string; format: string } {
+  const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
+  return {
+    url: buildQuixoticRuleSetUrl(id, format),
+    format: target.ruleSetFormat,
+  };
+}
