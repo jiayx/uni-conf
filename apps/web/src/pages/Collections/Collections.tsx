@@ -103,6 +103,7 @@ export function Collections() {
   const [form, setForm] = useState<CollectionForm>(createEmptyForm)
   const [formError, setFormError] = useState('')
   const [previewingId, setPreviewingId] = useState<string | null>(null)
+  const [expandedPreviewIds, setExpandedPreviewIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     void fetchCollections()
@@ -117,6 +118,10 @@ export function Collections() {
   const nodeOptions = useMemo(
     () => nodes.map(node => ({ id: node.id, label: `${node.name} · ${node.protocol.toUpperCase()}` })),
     [nodes]
+  )
+  const sourceNameById = useMemo(
+    () => Object.fromEntries(sources.map(source => [source.id, source.name])),
+    [sources]
   )
 
   const openCreate = () => {
@@ -175,9 +180,26 @@ export function Collections() {
     setPreviewingId(id)
     try {
       await previewCollection(id)
+      setExpandedPreviewIds(current => {
+        const next = new Set(current)
+        next.add(id)
+        return next
+      })
     } finally {
       setPreviewingId(null)
     }
+  }
+
+  const togglePreviewExpanded = (id: string) => {
+    setExpandedPreviewIds(current => {
+      const next = new Set(current)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
   }
 
   const addFilter = () => {
@@ -237,7 +259,14 @@ export function Collections() {
                 {collection.renames.length > 0 && <Badge variant="purple">{collection.renames.length} 重命名</Badge>}
               </div>
 
-              {previews[collection.id] && <PreviewList nodes={previews[collection.id]} />}
+              {previews[collection.id] && (
+                <PreviewList
+                  nodes={previews[collection.id]}
+                  expanded={expandedPreviewIds.has(collection.id)}
+                  sourceNameById={sourceNameById}
+                  onToggleExpanded={() => togglePreviewExpanded(collection.id)}
+                />
+              )}
 
               <div className={styles.cardActions}>
                 <Button
@@ -463,16 +492,66 @@ function MultiSelect({ label, emptyText, options, value, onChange }: {
   )
 }
 
-function PreviewList({ nodes }: { nodes: ProxyNode[] }) {
+function PreviewList({
+  nodes,
+  expanded,
+  sourceNameById,
+  onToggleExpanded,
+}: {
+  nodes: ProxyNode[]
+  expanded: boolean
+  sourceNameById: Record<string, string>
+  onToggleExpanded: () => void
+}) {
+  const compactNodes = nodes.slice(0, 8)
+
   return (
     <div className={styles.preview}>
-      <div className={styles.previewHeader}>预览：{nodes.length} 个节点</div>
-      <div className={styles.previewList}>
-        {nodes.slice(0, 8).map(node => (
-          <span key={node.id} className={styles.previewNode}>{node.name}</span>
-        ))}
-        {nodes.length > 8 && <span className={styles.previewMore}>+{nodes.length - 8}</span>}
+      <div className={styles.previewHeader}>
+        <span>预览：{nodes.length} 个节点</span>
+        {nodes.length > 0 && (
+          <button type="button" className={styles.previewToggle} onClick={onToggleExpanded}>
+            {expanded ? '收起' : '查看全部'}
+          </button>
+        )}
       </div>
+      {nodes.length === 0 ? (
+        <div className={styles.previewEmpty}>当前组合没有匹配节点</div>
+      ) : expanded ? (
+        <div className={styles.previewTableWrap}>
+          <table className={styles.previewTable}>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>节点</th>
+                <th>协议</th>
+                <th>地址</th>
+                <th>来源</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nodes.map((node, index) => (
+                <tr key={node.id}>
+                  <td>{index + 1}</td>
+                  <td title={node.name}>{node.name}</td>
+                  <td>{node.protocol.toUpperCase()}</td>
+                  <td title={`${node.server}:${node.port}`}>{node.server}:{node.port}</td>
+                  <td title={sourceNameById[node.sourceId] ?? node.sourceId}>
+                    {sourceNameById[node.sourceId] ?? node.sourceId}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className={styles.previewList}>
+          {compactNodes.map(node => (
+            <span key={node.id} className={styles.previewNode}>{node.name}</span>
+          ))}
+          {nodes.length > compactNodes.length && <span className={styles.previewMore}>+{nodes.length - compactNodes.length}</span>}
+        </div>
+      )}
     </div>
   )
 }
