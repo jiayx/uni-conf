@@ -245,8 +245,8 @@ export function Export() {
           onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
         />
         <MultiSelect
-          label="远程规则集"
-          emptyText="未选择时导出所有兼容远程规则集"
+          label="分流策略规则集"
+          emptyText="未选择时导出所有兼容规则集"
           hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
           options={remoteSets.map(item => {
             const compatible = isRemoteRuleSetCompatible(form.format, item)
@@ -371,7 +371,7 @@ function scopeSummary(
     summaryPart('节点组', config.includeCollectionIds, collections.length),
     summaryPart('组', config.includeGroupIds, groups.length),
     summaryPart('规则', config.includeRuleIds, rules.length),
-    summaryPart('远程集', config.includeRemoteSetIds, remoteSets.length),
+    summaryPart('分流规则集', config.includeRemoteSetIds, remoteSets.length),
   ].join(' / ')
 }
 

@@ -92,9 +92,9 @@ export function RemoteRuleSets() {
     }
   }
 
-  const openCreate = () => {
+  const openCreate = (targetGroupId = defaultTargetGroupId) => {
     setEditingSet(null)
-    setForm(createEmptyForm(defaultTargetGroupId))
+    setForm(createEmptyForm(targetGroupId))
     setSelectedPresetId('')
     setFormError('')
     setShowModal(true)
@@ -201,7 +201,7 @@ export function RemoteRuleSets() {
     }
 
     if (!payload.name || !payload.url || !payload.targetGroupId) {
-      setFormError('name, url, and target group are required')
+      setFormError('名称、规则集来源和匹配后使用的策略组必填')
       return
     }
 
@@ -223,23 +223,21 @@ export function RemoteRuleSets() {
   }
 
   const handleDelete = async (set: RemoteRuleSet) => {
-    if (!confirm(`删除远程规则集 ${set.name}?`)) return
+    if (!confirm(`删除规则集 ${set.name}?`)) return
     await api.remoteRuleSets.remove(set.id)
     setSets(current => current.filter(item => item.id !== set.id))
   }
 
-  const getGroupName = (id: string) => groups.find(group => group.id === id)?.name ?? id
-
   return (
     <div className={styles.page}>
       <PageHeader
-        title="远程规则集"
-        description={`${t('common.total', { count: sets.length })}`}
+        title="分流策略"
+        description={`${setsByTargetGroup.length} 个策略，${sets.length} 个规则集`}
         actions={
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
             <Button variant="secondary" onClick={() => void importAllPresets()} loading={importingPresets}>加载全部预置</Button>
-            <Button onClick={openCreate} icon={<PlusIcon />}>新增远程集</Button>
+            <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加规则集</Button>
           </div>
         }
       />
@@ -249,17 +247,23 @@ export function RemoteRuleSets() {
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
-        <EmptyState title="暂无远程规则集" description="远程规则集会在导出配置中生成 rule-provider 或 rule_set 引用" action={{ label: '加载全部预置', onClick: () => void importAllPresets() }} />
+        <EmptyState title="暂无分流策略" description="添加规则集后，系统会按“匹配后使用”的策略组生成分流配置" action={{ label: '加载全部预置', onClick: () => void importAllPresets() }} />
       ) : (
         <div className={styles.groupedList}>
           {setsByTargetGroup.map(section => (
             <section key={section.groupId} className={styles.ruleSetSection}>
               <div className={styles.sectionHeader}>
                 <div>
+                  <div className={styles.sectionKicker}>匹配后使用</div>
                   <div className={styles.sectionTitle}>{section.groupName}</div>
-                  <div className={styles.sectionMeta}>{section.sets.length} 个规则集，{section.sets.filter(set => set.enabled).length} 个启用</div>
+                  <div className={styles.sectionMeta}>
+                    {section.sets.length} 个匹配规则集，{section.sets.filter(set => set.enabled).length} 个启用
+                  </div>
                 </div>
-                <Badge variant="purple">目标策略组</Badge>
+                <div className={styles.sectionActions}>
+                  <Badge variant="purple">策略组</Badge>
+                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加规则集</Button>
+                </div>
               </div>
               <div className={styles.grid}>
                 {section.sets.map(set => (
@@ -273,7 +277,6 @@ export function RemoteRuleSets() {
                     </div>
                     <div className={styles.meta}>
                       <Badge variant="info">{set.presetSource === 'quixotic' ? '预置' : set.format}</Badge>
-                      <Badge variant="purple">{getGroupName(set.targetGroupId)}</Badge>
                       <Badge variant="default">{set.updateInterval}h</Badge>
                     </div>
                     <div className={styles.url}>{set.url}</div>
@@ -297,7 +300,7 @@ export function RemoteRuleSets() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingSet ? t('common.edit') : '新增远程规则集'}
+        title={editingSet ? '编辑匹配规则集' : '添加匹配规则集'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
@@ -308,9 +311,9 @@ export function RemoteRuleSets() {
         {formError && <div className={styles.formError}>{formError}</div>}
         {!editingSet && (
           <div className={styles.presetSection}>
-            <label className={styles.label}>预置规则集</label>
+            <label className={styles.label}>从规则集资源库添加</label>
             <select className={styles.select} value={selectedPresetId} onChange={e => applyPreset(e.target.value)}>
-              <option value="">自定义远程规则集</option>
+              <option value="">自定义规则集</option>
               {Object.entries(presetsByCategory).map(([category, presets]) => (
                 <optgroup key={category} label={PRESET_CATEGORY_LABELS[category as QuixoticRuleSetPreset['category']] ?? category}>
                   {presets.map(preset => (
@@ -320,7 +323,7 @@ export function RemoteRuleSets() {
               ))}
             </select>
             <div className={styles.helperText}>
-              来自 QuixoticHeart/rule-set。预置规则会在导出时按目标平台动态生成规则集 URL。
+              选择预置后会自动填充匹配规则，并建议“匹配后使用”的策略组。
             </div>
           </div>
         )}
@@ -334,7 +337,7 @@ export function RemoteRuleSets() {
           <>
             <Input label="URL" value={form.url} onChange={e => setFormValue('url', e.target.value, setForm)} />
             <div>
-              <label className={styles.label}>{t('common.type')}</label>
+              <label className={styles.label}>规则集格式</label>
               <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as RuleSetFormat)}>
                 {RULE_SET_FORMAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
@@ -346,9 +349,9 @@ export function RemoteRuleSets() {
         )}
 
         <div>
-          <label className={styles.label}>{t('rules.target')}</label>
+          <label className={styles.label}>匹配后使用</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
-            <option value="">-- {t('rules.target')} --</option>
+            <option value="">-- 选择策略组 --</option>
             {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </div>
