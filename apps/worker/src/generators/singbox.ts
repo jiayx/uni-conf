@@ -111,16 +111,24 @@ function buildOutbounds(
   collectionNodeNames: Record<string, string[]>
 ): object[] {
   const outbounds: object[] = [];
+  const serializedNodes = nodes
+    .map((node) => ({ node, outbound: nodeToSingbox(node) }))
+    .filter((item): item is { node: ProxyNode; outbound: object } => item.outbound !== null);
+  const serializableNodes = serializedNodes.map((item) => item.node);
+  const serializableNodeNames = new Set(serializableNodes.map((node) => node.name));
+  const serializableCollectionNodeNames = filterCollectionNodeNames(
+    collectionNodeNames,
+    serializableNodeNames
+  );
 
   // Convert proxy nodes
-  for (const node of nodes) {
-    const ob = nodeToSingbox(node);
-    if (ob) outbounds.push(ob);
+  for (const { outbound } of serializedNodes) {
+    outbounds.push(outbound);
   }
 
   // Convert groups (selectors/url-tests)
   for (const group of groups) {
-    const ob = groupToSingbox(group, nodes, groups, collectionNodeNames);
+    const ob = groupToSingbox(group, serializableNodes, groups, serializableCollectionNodeNames);
     if (ob) outbounds.push(ob);
   }
 
@@ -512,6 +520,18 @@ function buildRoute(
     auto_detect_interface: true,
     override_android_vpn: true,
   };
+}
+
+function filterCollectionNodeNames(
+  collectionNodeNames: Record<string, string[]>,
+  allowedNames: Set<string>
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(collectionNodeNames).map(([collectionId, names]) => [
+      collectionId,
+      names.filter((name) => allowedNames.has(name)),
+    ])
+  );
 }
 
 function resolveGroupName(groupId: string, groups: ProxyGroup[]): string {
