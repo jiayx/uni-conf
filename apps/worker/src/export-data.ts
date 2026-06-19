@@ -9,6 +9,7 @@ import type {
   RemoteRuleSet,
 } from '@uni-conf/types'
 import {
+  jsonParse,
   mapCollection,
   mapExportConfig,
   mapGroup,
@@ -58,15 +59,13 @@ export async function buildExportData(
 ): Promise<ExportData> {
   const allNodeRows = await selectRows(db, 'SELECT * FROM nodes WHERE enabled = 1')
   const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
-  const nodeRows = config?.includeCollectionIds.length
-    ? mergeCollectionRows(collectionRows, config.includeCollectionIds)
+  const allGroupRows = await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC')
+  const groupRows = expandReferencedGroupRows(allGroupRows, config?.includeGroupIds)
+  const collectionScopeIds = resolveCollectionScopeIds(config, groupRows)
+  const nodeRows = collectionScopeIds.length
+    ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
 
-  const groupRows = await selectRows(
-    db,
-    'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC',
-    config?.includeGroupIds
-  )
   const ruleRows = await selectRows(
     db,
     'SELECT * FROM rules WHERE enabled = 1 ORDER BY sort_order ASC',
@@ -108,6 +107,63 @@ async function selectRows(
     : `${baseSql} AND id IN (${placeholders})`
   const { results } = await db.prepare(clause).bind(...includeIds).all<Record<string, unknown>>()
   return results
+}
+
+export function expandReferencedGroupRows(
+  groupRows: Record<string, unknown>[],
+  includeGroupIds?: string[]
+): Record<string, unknown>[] {
+  if (!includeGroupIds?.length) return groupRows
+
+  const rowsById = new Map(groupRows.map((row) => [String(row.id), row]))
+  const selected = new Set<string>()
+  const pending = [...includeGroupIds]
+
+  while (pending.length > 0) {
+    const id = pending.shift()
+    if (!id || selected.has(id)) continue
+    const row = rowsById.get(id)
+    if (!row) continue
+
+    selected.add(id)
+    for (const childId of parseStringArray(row.group_ids)) {
+      if (!selected.has(childId)) pending.push(childId)
+    }
+  }
+
+  return groupRows.filter((row) => selected.has(String(row.id)))
+}
+
+export function resolveCollectionScopeIds(
+  config: ExportConfig | undefined,
+  groupRows: Record<string, unknown>[]
+): string[] {
+  if (config && isNodeOnlyExport(config)) return config.includeCollectionIds
+
+  const groupCollectionIds = collectGroupCollectionIds(groupRows)
+  if (groupCollectionIds.length > 0) return groupCollectionIds
+
+  return config?.includeCollectionIds ?? []
+}
+
+function isNodeOnlyExport(config: ExportConfig | undefined): boolean {
+  return config?.format === 'nodes_base64' || config?.format === 'nodes_raw'
+}
+
+function collectGroupCollectionIds(groupRows: Record<string, unknown>[]): string[] {
+  const ids = new Set<string>()
+  for (const row of groupRows) {
+    for (const id of parseStringArray(row.collection_ids)) {
+      ids.add(id)
+    }
+  }
+  return [...ids]
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value !== 'string') return []
+  return jsonParse<string[]>(value) ?? []
 }
 
 async function buildCollectionNodeRows(
