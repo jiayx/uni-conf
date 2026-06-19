@@ -1,3 +1,4 @@
+import { detectCountry } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 // ============================================================
@@ -7,73 +8,6 @@ import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
 }
-
-// ============================================================
-// Country Detection
-// ============================================================
-
-interface CountryInfo {
-  country: string
-  countryCode: string
-}
-
-const FLAG_MAP: Array<[string, string, string]> = [
-  ['🇭🇰', 'Hong Kong', 'HK'],
-  ['🇯🇵', 'Japan', 'JP'],
-  ['🇺🇸', 'United States', 'US'],
-  ['🇸🇬', 'Singapore', 'SG'],
-  ['🇹🇼', 'Taiwan', 'TW'],
-  ['🇰🇷', 'Korea', 'KR'],
-  ['🇬🇧', 'United Kingdom', 'GB'],
-  ['🇩🇪', 'Germany', 'DE'],
-  ['🇫🇷', 'France', 'FR'],
-  ['🇳🇱', 'Netherlands', 'NL'],
-  ['🇦🇺', 'Australia', 'AU'],
-  ['🇨🇦', 'Canada', 'CA'],
-  ['🇮🇳', 'India', 'IN'],
-  ['🇧🇷', 'Brazil', 'BR'],
-  ['🇷🇺', 'Russia', 'RU'],
-  ['🇹🇷', 'Turkey', 'TR'],
-  ['🇦🇷', 'Argentina', 'AR'],
-  ['🇲🇾', 'Malaysia', 'MY'],
-  ['🇹🇭', 'Thailand', 'TH'],
-  ['🇻🇳', 'Vietnam', 'VN'],
-  ['🇮🇩', 'Indonesia', 'ID'],
-  ['🇵🇭', 'Philippines', 'PH'],
-  ['🇿🇦', 'South Africa', 'ZA'],
-  ['🇮🇱', 'Israel', 'IL'],
-  ['🇸🇦', 'Saudi Arabia', 'SA'],
-  ['🇦🇪', 'United Arab Emirates', 'AE'],
-  ['🇮🇷', 'Iran', 'IR'],
-  ['🇵🇱', 'Poland', 'PL'],
-  ['🇮🇹', 'Italy', 'IT'],
-  ['🇪🇸', 'Spain', 'ES'],
-  ['🇵🇹', 'Portugal', 'PT'],
-  ['🇨🇿', 'Czech Republic', 'CZ'],
-  ['🇸🇪', 'Sweden', 'SE'],
-  ['🇳🇴', 'Norway', 'NO'],
-  ['🇩🇰', 'Denmark', 'DK'],
-  ['🇫🇮', 'Finland', 'FI'],
-  ['🇨🇭', 'Switzerland', 'CH'],
-  ['🇦🇹', 'Austria', 'AT'],
-  ['🇧🇪', 'Belgium', 'BE'],
-]
-
-const KEYWORD_MAP: Array<[RegExp, string, string]> = [
-  [/\b(hong\s*kong|hongkong|hk)\b/i, 'Hong Kong', 'HK'],
-  [/\b(japan|jp|tokyo)\b/i, 'Japan', 'JP'],
-  [/\b(usa|united\s+states|america)\b/i, 'United States', 'US'],
-  // "us" is intentionally NOT matched by keyword alone (too ambiguous like "us" in words)
-  [/\b(singapore|sg)\b/i, 'Singapore', 'SG'],
-  [/\b(taiwan|tw)\b/i, 'Taiwan', 'TW'],
-  [/\b(korea|kr)\b/i, 'Korea', 'KR'],
-  [/\b(uk|britain|england|london)\b/i, 'United Kingdom', 'GB'],
-  [/\b(germany|german|de)\b/i, 'Germany', 'DE'],
-  [/\b(france|fr)\b/i, 'France', 'FR'],
-  [/\b(netherlands|nl|dutch)\b/i, 'Netherlands', 'NL'],
-  [/\b(australia|au)\b/i, 'Australia', 'AU'],
-  [/\b(canada|ca)\b/i, 'Canada', 'CA'],
-]
 
 const DEFAULT_PORTS: Partial<Record<ProxyProtocol, number>> = {
   anytls: 443,
@@ -89,22 +23,6 @@ const DEFAULT_PORTS: Partial<Record<ProxyProtocol, number>> = {
   ssh: 22,
   shadowtls: 443,
   wireguard: 51820,
-}
-
-export function detectCountry(name: string): CountryInfo | null {
-  // 1. Check flag emojis first
-  for (const [flag, country, code] of FLAG_MAP) {
-    if (name.includes(flag)) {
-      return { country, countryCode: code }
-    }
-  }
-  // 2. Check text keywords
-  for (const [pattern, country, code] of KEYWORD_MAP) {
-    if (pattern.test(name)) {
-      return { country, countryCode: code }
-    }
-  }
-  return null
 }
 
 // ============================================================

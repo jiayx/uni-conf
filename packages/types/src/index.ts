@@ -22,6 +22,12 @@ export type {
   ProxyProtocol,
   SingboxNativeOutbound,
 } from './protocols';
+export {
+  COUNTRY_FLAG_MAP,
+  COUNTRY_KEYWORD_MAP,
+  detectCountry,
+} from './country';
+export type { CountryInfo } from './country';
 import type { NativeProxyConfig, ProxyProtocol } from './protocols';
 
 export type SourceFormat =

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { detectCountry, parseClashYaml } from './sources'
+import { detectCountry } from '@uni-conf/types'
+import { parseClashYaml } from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
