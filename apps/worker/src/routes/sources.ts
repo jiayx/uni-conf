@@ -365,6 +365,92 @@ interface ParsedNodeRaw {
   parsedConfig: NormalizedProxyConfig;
 }
 
+interface CountryInfo {
+  country: string;
+  countryCode: string;
+}
+
+const FLAG_MAP: Array<[string, string, string]> = [
+  ['🇭🇰', 'Hong Kong', 'HK'],
+  ['🇯🇵', 'Japan', 'JP'],
+  ['🇺🇸', 'United States', 'US'],
+  ['🇸🇬', 'Singapore', 'SG'],
+  ['🇹🇼', 'Taiwan', 'TW'],
+  ['🇰🇷', 'Korea', 'KR'],
+  ['🇬🇧', 'United Kingdom', 'GB'],
+  ['🇩🇪', 'Germany', 'DE'],
+  ['🇫🇷', 'France', 'FR'],
+  ['🇳🇱', 'Netherlands', 'NL'],
+  ['🇦🇺', 'Australia', 'AU'],
+  ['🇨🇦', 'Canada', 'CA'],
+  ['🇮🇳', 'India', 'IN'],
+  ['🇧🇷', 'Brazil', 'BR'],
+  ['🇷🇺', 'Russia', 'RU'],
+  ['🇹🇷', 'Turkey', 'TR'],
+  ['🇦🇷', 'Argentina', 'AR'],
+  ['🇲🇾', 'Malaysia', 'MY'],
+  ['🇹🇭', 'Thailand', 'TH'],
+  ['🇻🇳', 'Vietnam', 'VN'],
+  ['🇮🇩', 'Indonesia', 'ID'],
+  ['🇵🇭', 'Philippines', 'PH'],
+  ['🇿🇦', 'South Africa', 'ZA'],
+  ['🇮🇱', 'Israel', 'IL'],
+  ['🇸🇦', 'Saudi Arabia', 'SA'],
+  ['🇦🇪', 'United Arab Emirates', 'AE'],
+  ['🇮🇷', 'Iran', 'IR'],
+  ['🇵🇱', 'Poland', 'PL'],
+  ['🇮🇹', 'Italy', 'IT'],
+  ['🇪🇸', 'Spain', 'ES'],
+  ['🇵🇹', 'Portugal', 'PT'],
+  ['🇨🇿', 'Czech Republic', 'CZ'],
+  ['🇸🇪', 'Sweden', 'SE'],
+  ['🇳🇴', 'Norway', 'NO'],
+  ['🇩🇰', 'Denmark', 'DK'],
+  ['🇫🇮', 'Finland', 'FI'],
+  ['🇨🇭', 'Switzerland', 'CH'],
+  ['🇦🇹', 'Austria', 'AT'],
+  ['🇧🇪', 'Belgium', 'BE'],
+];
+
+const KEYWORD_MAP: Array<[RegExp, string, string]> = [
+  [/\b(hong\s*kong|hongkong|hk)\b/i, 'Hong Kong', 'HK'],
+  [/\b(japan|jp|tokyo)\b/i, 'Japan', 'JP'],
+  [/\b(usa|united\s+states|america)\b/i, 'United States', 'US'],
+  [/\b(singapore|sg)\b/i, 'Singapore', 'SG'],
+  [/\b(taiwan|tw)\b/i, 'Taiwan', 'TW'],
+  [/\b(korea|kr)\b/i, 'Korea', 'KR'],
+  [/\b(uk|britain|england|london)\b/i, 'United Kingdom', 'GB'],
+  [/\b(germany|german|de)\b/i, 'Germany', 'DE'],
+  [/\b(france|fr)\b/i, 'France', 'FR'],
+  [/\b(netherlands|nl|dutch)\b/i, 'Netherlands', 'NL'],
+  [/\b(australia|au)\b/i, 'Australia', 'AU'],
+  [/\b(canada|ca)\b/i, 'Canada', 'CA'],
+];
+
+export function detectCountry(name: string): CountryInfo | null {
+  for (const [flag, country, code] of FLAG_MAP) {
+    if (name.includes(flag)) {
+      return { country, countryCode: code };
+    }
+  }
+
+  for (const [pattern, country, code] of KEYWORD_MAP) {
+    if (pattern.test(name)) {
+      return { country, countryCode: code };
+    }
+  }
+
+  return null;
+}
+
+function countryFields(name: string): Pick<ParsedNodeRaw, 'country' | 'countryCode'> {
+  const countryInfo = detectCountry(name);
+  return {
+    country: countryInfo?.country,
+    countryCode: countryInfo?.countryCode,
+  };
+}
+
 function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string } {
   const trimmed = raw.trim();
 
@@ -418,7 +504,7 @@ function shouldUpdateNode(
     existing.parsed_config !== jsonStringify(next.parsedConfig);
 }
 
-function parseClashYaml(content: string): ParsedNodeRaw[] {
+export function parseClashYaml(content: string): ParsedNodeRaw[] {
   // Use full YAML parser for robust handling of all edge cases
   const nodes: ParsedNodeRaw[] = [];
 
@@ -456,6 +542,7 @@ function parseClashYaml(content: string): ParsedNodeRaw[] {
         protocol,
         server: serverStr,
         port: portNum,
+        ...countryFields(nameStr),
         rawConfig,
         parsedConfig: buildParsedConfig(protocol, serverStr, portNum, rawConfig),
       });
@@ -497,6 +584,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
       protocol,
       server,
       port,
+      ...countryFields(name),
       rawConfig: ob,
       parsedConfig: buildParsedConfig(protocol, server, port, ob),
     });
@@ -578,6 +666,7 @@ function parseVmessUri(uri: string): ParsedNodeRaw | null {
     protocol: 'vmess',
     server,
     port,
+    ...countryFields(name),
     rawConfig: data,
     parsedConfig: {
       protocol: 'vmess',
@@ -652,6 +741,7 @@ function parseSsUri(uri: string): ParsedNodeRaw | null {
     protocol: 'ss',
     server,
     port,
+    ...countryFields(name),
     rawConfig,
     parsedConfig: {
       protocol: 'ss',
@@ -683,6 +773,7 @@ function parseTrojanUri(uri: string): ParsedNodeRaw | null {
     protocol: 'trojan',
     server,
     port,
+    ...countryFields(name),
     rawConfig,
     parsedConfig: {
       protocol: 'trojan',
@@ -722,6 +813,7 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
     protocol: 'vless',
     server,
     port,
+    ...countryFields(name),
     rawConfig,
     parsedConfig: {
       protocol: 'vless',
@@ -759,6 +851,7 @@ function parseHysteria2Uri(uri: string): ParsedNodeRaw | null {
     protocol: 'hysteria2',
     server,
     port,
+    ...countryFields(name),
     rawConfig,
     parsedConfig: {
       protocol: 'hysteria2',
@@ -891,6 +984,7 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
     protocol,
     server,
     port,
+    ...countryFields(name),
     rawConfig,
     parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),
   };

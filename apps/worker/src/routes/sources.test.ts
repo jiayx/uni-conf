@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { load as parseYAML } from 'js-yaml'
+import { detectCountry, parseClashYaml } from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -87,6 +87,29 @@ proxies:
     expect(anytlsNodes.length).toBeGreaterThan(0)
   })
 
+  it('should detect countries from flags and region codes in subscription node names', () => {
+    const regionalYaml = `
+proxies:
+    - { name: '🇩🇪 [三网]DE 02', type: trojan, server: de.example.com, port: 443, password: pwd }
+    - { name: '🇨🇦 [三网]CA 01', type: trojan, server: ca.example.com, port: 443, password: pwd }
+    - { name: '🇭🇰 [三网]HK 01', type: anytls, server: hk.example.com, port: 443, password: pwd }
+`
+    const nodes = parseClashYaml(regionalYaml)
+
+    expect(nodes).toHaveLength(3)
+    expect(nodes.map(node => [node.name, node.countryCode, node.country])).toEqual([
+      ['🇩🇪 [三网]DE 02', 'DE', 'Germany'],
+      ['🇨🇦 [三网]CA 01', 'CA', 'Canada'],
+      ['🇭🇰 [三网]HK 01', 'HK', 'Hong Kong'],
+    ])
+  })
+
+  it('should detect countries from standalone region codes without flags', () => {
+    expect(detectCountry('[三网]DE 02')).toEqual({ country: 'Germany', countryCode: 'DE' })
+    expect(detectCountry('[三网]CA 01')).toEqual({ country: 'Canada', countryCode: 'CA' })
+    expect(detectCountry('[三网]HK 01')).toEqual({ country: 'Hong Kong', countryCode: 'HK' })
+  })
+
   it('should handle edge cases with YAML parser', () => {
     const edgeCasesYaml = `
 proxies:
@@ -115,46 +138,3 @@ proxies:
     expect(Array.isArray(nodes)).toBe(true)
   })
 })
-
-// Implementation using YAML parser
-function parseClashYaml(content: string): Array<{name: string, protocol: string, server: string, port: number}> {
-  const nodes: Array<{name: string, protocol: string, server: string, port: number}> = []
-
-  try {
-    const doc = parseYAML(content)
-    if (!doc || typeof doc !== 'object') return nodes
-
-    const proxies = (doc as Record<string, unknown>).proxies
-    if (!Array.isArray(proxies)) return nodes
-
-    for (const proxy of proxies) {
-      if (!proxy || typeof proxy !== 'object') continue
-
-      const proxyObj = proxy as Record<string, unknown>
-      const name = proxyObj.name
-      const type = proxyObj.type
-      const server = proxyObj.server
-      const port = proxyObj.port
-
-      if (!name || !type || !server || !port) continue
-
-      const nameStr = String(name).trim()
-      const typeStr = String(type).trim().toLowerCase()
-      const serverStr = String(server).trim()
-      const portNum = typeof port === 'number' ? port : parseInt(String(port), 10)
-
-      if (!nameStr || !serverStr || isNaN(portNum)) continue
-
-      nodes.push({
-        name: nameStr,
-        protocol: typeStr,
-        server: serverStr,
-        port: portNum
-      })
-    }
-  } catch (err) {
-    // Return empty array on parse error
-  }
-
-  return nodes
-}
