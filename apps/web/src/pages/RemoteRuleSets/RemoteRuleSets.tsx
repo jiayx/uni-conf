@@ -77,6 +77,8 @@ export function RemoteRuleSets() {
   const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)
+  const editingPresetId = editingSet?.presetSource === 'quixotic' ? editingSet.presetId : undefined
+  const formPresetId = (form.presetId ?? selectedPresetId) || editingPresetId
 
   const loadSets = async () => {
     setLoading(true)
@@ -323,20 +325,26 @@ export function RemoteRuleSets() {
           </div>
         )}
         <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} />
-        <Input label="URL" value={form.url} onChange={e => setFormValue('url', e.target.value, setForm)} />
-        <div>
-          <label className={styles.label}>{t('common.type')}</label>
-          <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as RuleSetFormat)}>
-            {RULE_SET_FORMAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-          {selectedFormatOption && (
-            <div className={styles.helperText}>
-              {form.presetSource === 'quixotic'
-                ? '当前 URL 作为预览和兜底保存；导出时会按目标平台动态替换。'
-                : `适用导出目标：${selectedFormatOption.exportTargets}`}
+        {formPresetId ? (
+          <div>
+            <label className={styles.label}>规则集来源</label>
+            <div className={styles.helperText}>QuixoticHeart/rule-set:{formPresetId}，导出时按目标平台动态生成 URL。</div>
+          </div>
+        ) : (
+          <>
+            <Input label="URL" value={form.url} onChange={e => setFormValue('url', e.target.value, setForm)} />
+            <div>
+              <label className={styles.label}>{t('common.type')}</label>
+              <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as RuleSetFormat)}>
+                {RULE_SET_FORMAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              {selectedFormatOption && (
+                <div className={styles.helperText}>适用导出目标：{selectedFormatOption.exportTargets}</div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
+
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
