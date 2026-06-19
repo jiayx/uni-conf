@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import type { ProxyProtocol } from '@uni-conf/types';
+import { syncAutoNodeGroups } from '../services/auto-node-groups';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -148,6 +149,7 @@ app.post('/', async (c) => {
     .run();
 
   await updateSourceNodeCount(c.env.DB, sourceId, ts);
+  await syncAutoNodeGroups(c.env.DB, ts);
 
   const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(id)
@@ -203,6 +205,8 @@ app.put('/:id', async (c) => {
     )
     .run();
 
+  await syncAutoNodeGroups(c.env.DB, ts);
+
   const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
@@ -227,7 +231,9 @@ app.delete('/:id', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(id).run();
-  await updateSourceNodeCount(c.env.DB, row.source_id, now());
+  const ts = now();
+  await updateSourceNodeCount(c.env.DB, row.source_id, ts);
+  await syncAutoNodeGroups(c.env.DB, ts);
   return c.json({ success: true, data: { id } });
 });
 

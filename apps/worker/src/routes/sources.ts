@@ -10,6 +10,7 @@ import {
 import { detectCountry } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup } from '@uni-conf/types';
+import { syncAutoNodeGroups } from '../services/auto-node-groups';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -140,6 +141,7 @@ app.delete('/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Source not found' }, 404);
 
   await c.env.DB.prepare('DELETE FROM sources WHERE id = ?').bind(id).run();
+  await syncAutoNodeGroups(c.env.DB, now());
   return c.json({ success: true, data: { id } });
 });
 
@@ -346,6 +348,8 @@ app.post('/:id/refresh', async (c) => {
       id
     )
     .run();
+
+  await syncAutoNodeGroups(c.env.DB, ts);
 
   return c.json({
     success: true,
