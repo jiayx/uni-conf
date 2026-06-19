@@ -56,6 +56,12 @@ export function nodeToClash(node: ProxyNode): Record<string, unknown> {
       if (congestion) base['congestion-controller'] = congestion
       break
     }
+    case 'anytls': {
+      base['type'] = 'anytls'
+      base['password'] = cfg.password ?? ''
+      if (cfg.sni) base['sni'] = cfg.sni
+      break
+    }
   }
 
   return base
@@ -71,8 +77,14 @@ function protocolToClashType(protocol: NormalizedProxyConfig['protocol']): strin
     hysteria: 'hysteria',
     hysteria2: 'hysteria2',
     tuic: 'tuic',
+    anytls: 'anytls',
+    shadowtls: 'shadow-tls',
+    wireguard: 'wireguard',
+    ssh: 'ssh',
+    naive: 'naive',
     socks5: 'socks5',
     http: 'http',
+    https: 'http',
     unknown: 'ss',
   }
   return map[protocol] ?? protocol
@@ -82,10 +94,12 @@ function protocolToClashType(protocol: NormalizedProxyConfig['protocol']): strin
 // sing-box Serializer
 // ============================================================
 
-export function nodeToSingboxOutbound(node: ProxyNode): Record<string, unknown> {
+export function nodeToSingboxOutbound(node: ProxyNode): Record<string, unknown> | null {
   const cfg = node.parsedConfig
+  const type = protocolToSingboxType(cfg.protocol)
+  if (!type) return null
   const base: Record<string, unknown> = {
-    type: protocolToSingboxType(cfg.protocol),
+    type,
     tag: node.name,
     server: cfg.server,
     server_port: cfg.port,
@@ -138,6 +152,21 @@ export function nodeToSingboxOutbound(node: ProxyNode): Record<string, unknown> 
       }
       break
     }
+    case 'anytls': {
+      base['password'] = cfg.password ?? ''
+      base['tls'] = {
+        enabled: true,
+        server_name: cfg.sni ?? cfg.server,
+        insecure: cfg.skipCertVerify ?? false,
+      }
+      break
+    }
+    case 'ssh': {
+      const username = cfg.extra['username'] as string | undefined
+      if (username) base['user'] = username
+      if (cfg.password) base['password'] = cfg.password
+      break
+    }
   }
 
   return base
@@ -152,10 +181,15 @@ function protocolToSingboxType(protocol: NormalizedProxyConfig['protocol']): str
     hysteria: 'hysteria',
     hysteria2: 'hysteria2',
     tuic: 'tuic',
+    anytls: 'anytls',
+    shadowtls: 'shadowtls',
+    wireguard: 'wireguard',
+    ssh: 'ssh',
     socks5: 'socks',
     http: 'http',
+    https: 'http',
   }
-  return map[protocol] ?? protocol
+  return map[protocol] ?? null
 }
 
 // ============================================================
@@ -202,9 +236,37 @@ export function nodeToUri(node: ProxyNode): string | null {
       const params = buildParams(cfg)
       return `hysteria2://${encodeURIComponent(cfg.password ?? '')}@${cfg.server}:${cfg.port}?${params}#${encodedName}`
     }
+    case 'hysteria': {
+      const params = buildParams(cfg)
+      return `hysteria://${encodeURIComponent(cfg.password ?? '')}@${cfg.server}:${cfg.port}?${params}#${encodedName}`
+    }
     case 'tuic': {
       const params = buildParams(cfg)
       return `tuic://${cfg.uuid ?? ''}:${encodeURIComponent(cfg.password ?? '')}@${cfg.server}:${cfg.port}?${params}#${encodedName}`
+    }
+    case 'anytls': {
+      const params = buildParams(cfg)
+      return `anytls://${encodeURIComponent(cfg.password ?? '')}@${cfg.server}:${cfg.port}?${params}#${encodedName}`
+    }
+    case 'shadowtls': {
+      const params = buildParams(cfg)
+      return `shadowtls://${encodeURIComponent(cfg.password ?? '')}@${cfg.server}:${cfg.port}?${params}#${encodedName}`
+    }
+    case 'wireguard': {
+      const params = buildParams(cfg)
+      return `wireguard://${encodeURIComponent((cfg.extra['privateKey'] as string | undefined) ?? cfg.password ?? '')}@${cfg.server}:${cfg.port}?${params}#${encodedName}`
+    }
+    case 'ssh': {
+      const username = encodeURIComponent((cfg.extra['username'] as string | undefined) ?? '')
+      const password = encodeURIComponent(cfg.password ?? '')
+      const auth = username || password ? `${username}${password ? `:${password}` : ''}@` : ''
+      return `ssh://${auth}${cfg.server}:${cfg.port}#${encodedName}`
+    }
+    case 'naive': {
+      const username = encodeURIComponent((cfg.extra['username'] as string | undefined) ?? '')
+      const password = encodeURIComponent(cfg.password ?? '')
+      const auth = username || password ? `${username}${password ? `:${password}` : ''}@` : ''
+      return `naive+https://${auth}${cfg.server}:${cfg.port}#${encodedName}`
     }
     case 'socks5': {
       const userPart =

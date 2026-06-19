@@ -1,3 +1,4 @@
+import { MIHOMO_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 import yaml from 'js-yaml'
 import { detectCountry } from './proxy-link.parser'
@@ -9,20 +10,7 @@ function generateId(): string {
 type ClashProxy = Record<string, unknown>
 
 function mapClashProtocol(type: string): ProxyProtocol {
-  const map: Record<string, ProxyProtocol> = {
-    ss: 'ss',
-    ssr: 'ssr',
-    vmess: 'vmess',
-    vless: 'vless',
-    trojan: 'trojan',
-    hysteria: 'hysteria',
-    hysteria2: 'hysteria2',
-    tuic: 'tuic',
-    socks5: 'socks5',
-    http: 'http',
-    'naiveproxy': 'naive',
-  }
-  return map[type.toLowerCase()] ?? 'unknown'
+  return MIHOMO_TYPE_TO_PROTOCOL[type.toLowerCase()] ?? (type.toLowerCase() === 'naiveproxy' ? 'naive' : 'unknown')
 }
 
 function clashProxyToNode(proxy: ClashProxy, sourceId: string): ProxyNode | null {

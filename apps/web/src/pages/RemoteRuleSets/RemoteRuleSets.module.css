@@ -11,6 +11,8 @@
 .notes { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
 .cardActions { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
 .label { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
+.presetSection { display: flex; flex-direction: column; gap: 0.5rem; }
+.helperText { color: var(--color-text-secondary); font-size: 0.75rem; line-height: 1.4; }
 .select {
   width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2);
   border: 1px solid var(--color-border); border-radius: var(--radius-md);

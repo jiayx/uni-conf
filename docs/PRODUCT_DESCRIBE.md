@@ -1,0 +1,1113 @@
+# UniConf 产品需求说明
+
+## 一、产品定位
+
+**UniConf 是一个一站式代理配置管理工具。**
+
+它帮助用户在一个 Web 页面中完成：
+
+```text
+订阅管理
+节点录入
+节点组合
+节点清洗
+策略组配置
+分流规则编辑
+规则模板引用
+多端配置导出
+```
+
+最终目标是：
+
+```text
+用户只维护一份订阅、节点和规则配置
+UniConf 自动生成不同代理软件可用的完整配置文件
+```
+
+一句话：
+
+```text
+管理一次，导出多端。
+```
+
+英文 slogan：
+
+```text
+Manage once, export everywhere.
+```
+
+## 二、要解决的问题
+
+现在很多用户会同时使用多个代理客户端，例如电脑上用 Mihomo/Clash Verge，手机上用 Loon、Shadowrocket、Stash 或 sing-box。
+
+这些软件的配置格式不同，用户通常需要分别维护：
+
+```text
+一套节点订阅
+一套策略组
+一套分流规则
+一套客户端配置
+```
+
+这会带来几个问题：
+
+```text
+1. 多端规则不同步
+2. 节点订阅需要重复管理
+3. 手动节点难以统一维护
+4. 客户端格式不同，迁移成本高
+5. 规则集、策略组、节点组合容易混乱
+6. 新增一个代理软件时，需要重新写配置
+```
+
+UniConf 要解决的是：
+
+```text
+把“节点来源、节点组合、策略组、分流规则”抽象成一份统一配置，再根据目标软件导出不同格式。
+```
+
+## 三、目标用户
+
+### 1. 多设备代理用户
+
+这类用户可能同时使用：
+
+```text
+Mac / Windows / Linux
+iPhone / iPad
+Android
+路由器 / 软路由 / OpenWrt
+服务器
+```
+
+他们需要一份配置同步到多个客户端。
+
+### 2. 高级代理用户
+
+这类用户会维护多个订阅源、多个机场、自建节点、备用节点，并希望进行节点筛选、重命名、分组、排序和组合。
+
+### 3. 规则重度用户
+
+这类用户对分流规则有较高要求，例如：
+
+```text
+AI 服务走指定节点
+流媒体走解锁节点
+国内服务直连
+广告拦截
+下载走特定节点
+游戏平台走低延迟节点
+公司服务走专用节点
+```
+
+### 4. 想替代 Sub-Store 部分能力的用户
+
+这类用户希望不再依赖其他订阅管理工具，而是在 UniConf 里直接完成订阅管理和配置生成。
+
+## 四、产品核心能力
+
+UniConf 的核心能力分为六层：
+
+```text
+1. 订阅源管理
+2. 节点管理
+3. 节点组合
+4. 策略组管理
+5. 分流规则管理
+6. 多端配置导出
+```
+
+## 五、订阅源管理
+
+用户可以在 UniConf 中保存多个订阅来源。
+
+### 支持的来源类型
+
+```text
+远程订阅链接
+手动录入节点
+批量导入节点链接
+从现有配置文件导入
+从剪贴板导入
+```
+
+### 远程订阅链接
+
+用户可以添加：
+
+```text
+机场订阅链接
+Clash / Mihomo 订阅
+Base64 普通节点订阅
+sing-box 配置订阅
+Surge / Loon / Quantumult X / Shadowrocket 类型订阅
+```
+
+### 手动节点
+
+用户可以自己录入节点信息，例如：
+
+```text
+节点名称
+协议类型
+服务器地址
+端口
+密码 / UUID / 密钥
+TLS 设置
+SNI
+传输方式
+备注
+标签
+```
+
+### 订阅源操作
+
+每个订阅源需要支持：
+
+```text
+启用 / 禁用
+手动刷新
+自动更新
+查看节点数量
+查看更新时间
+查看订阅状态
+编辑备注
+删除订阅
+```
+
+## 六、节点管理
+
+UniConf 需要把不同订阅来源里的节点统一解析为内部节点列表。
+
+### 节点协议覆盖
+
+应优先覆盖常见协议：
+
+```text
+Shadowsocks / SS
+VMess
+VLESS
+Trojan
+Hysteria / Hysteria2
+TUIC
+NaiveProxy
+WireGuard
+Socks5
+HTTP / HTTPS
+SSH Tunnel
+Reality
+ShadowTLS
+```
+
+### 节点信息字段
+
+每个节点应至少包含：
+
+```text
+节点名称
+协议类型
+服务器地址
+端口
+来源订阅
+国家 / 地区
+标签
+是否启用
+备注
+原始配置
+解析后的标准配置
+```
+
+### 节点操作
+
+用户需要可以：
+
+```text
+查看所有节点
+按订阅源查看节点
+搜索节点
+启用 / 禁用节点
+删除手动节点
+复制节点
+编辑手动节点
+查看节点详情
+```
+
+## 七、节点组合功能
+
+这是类似 Sub-Store 的核心能力。
+
+用户可以创建一个或多个“节点组合”。
+
+例如：
+
+```text
+Main
+流媒体节点
+AI 节点
+低倍率节点
+香港节点
+日本节点
+美国节点
+自建节点
+备用节点
+```
+
+每个节点组合可以从多个订阅源中选择节点。
+
+### 节点组合需要支持
+
+```text
+选择来源订阅
+选择手动节点
+节点过滤
+节点重命名
+节点去重
+节点排序
+节点标签
+节点预览
+```
+
+### 节点过滤
+
+支持按照以下条件过滤：
+
+```text
+节点名称包含
+节点名称不包含
+正则表达式
+协议类型
+国家 / 地区
+来源订阅
+倍率
+标签
+是否可用
+是否手动节点
+```
+
+常见过滤场景：
+
+```text
+删除“官网”
+删除“剩余流量”
+删除“过期”
+删除“套餐”
+删除“流量”
+只保留香港 / 日本 / 新加坡 / 美国节点
+排除高倍率节点
+只保留自建节点
+```
+
+### 节点重命名
+
+支持：
+
+```text
+关键词替换
+正则替换
+地区标准化
+去除 emoji
+去除多余符号
+添加前缀
+添加来源名
+自动编号
+```
+
+例如：
+
+```text
+🇭🇰 HK Hong Kong 01 → 香港 01
+JP 日本 Tokyo 02 → 日本 02
+SG 新加坡 03 → 新加坡 03
+```
+
+### 节点去重
+
+支持按以下维度去重：
+
+```text
+节点名称
+服务器地址 + 端口
+协议 + 服务器地址 + 端口
+完整节点配置
+```
+
+### 节点排序
+
+支持：
+
+```text
+按地区排序
+按名称排序
+按来源排序
+按协议排序
+按延迟排序
+按手动顺序排序
+```
+
+## 八、策略组管理
+
+策略组用于决定规则命中后流量走哪里。
+
+常见策略组：
+
+```text
+PROXY
+AI
+Streaming
+Social
+Apple
+Microsoft
+Google
+Telegram
+YouTube
+Netflix
+Game
+Download
+Domestic
+Global
+DIRECT
+REJECT
+```
+
+### 策略组类型
+
+应支持常见类型：
+
+```text
+手动选择
+自动测速
+故障转移
+负载均衡
+直连
+拒绝
+嵌套策略组
+```
+
+### 策略组内容
+
+每个策略组可以引用：
+
+```text
+节点组合
+单个节点
+其他策略组
+内置出口，如 DIRECT / REJECT
+```
+
+例如：
+
+```text
+PROXY 使用 Main 节点组合
+AI 使用 AI 节点组合
+Streaming 使用流媒体节点组合
+Social 使用 PROXY
+DIRECT 使用直连
+REJECT 使用拒绝
+```
+
+## 九、分流规则管理
+
+用户可以用友好的方式编辑规则，而不是直接写 YAML、JSON 或 INI。
+
+### 规则类型
+
+应覆盖常见规则类型：
+
+```text
+完整域名
+域名后缀
+域名关键词
+IP-CIDR
+IP-CIDR6
+GeoIP
+GeoSite
+进程名
+端口
+协议
+入站类型
+源 IP
+目标端口
+规则集
+最终兜底规则
+```
+
+不同客户端支持的规则类型不同，UniConf 应该在产品层提示兼容性。
+
+### 规则字段
+
+每条规则包含：
+
+```text
+规则名称
+匹配类型
+匹配内容
+目标策略组
+是否启用
+优先级 / 排序
+备注
+适用客户端
+```
+
+### 规则顺序
+
+规则顺序非常重要，需要支持拖拽排序。
+
+典型顺序：
+
+```text
+广告拦截
+隐私拦截
+私有网络直连
+AI
+流媒体
+社交媒体
+Apple
+Microsoft
+Google
+国内域名直连
+国内 IP 直连
+兜底代理
+```
+
+## 十、内置规则模板
+
+UniConf 应内置常用规则模板，让用户不用从零开始写规则。
+
+### 推荐内置模板分类
+
+```text
+AI
+Streaming
+Social
+Apple
+Microsoft
+Google
+Telegram
+YouTube
+Netflix
+Disney+
+Prime Video
+Spotify
+TikTok
+Game
+Download
+Developer
+Crypto
+PayPal
+Banking
+China Direct
+China IP
+Private Network
+Advertising
+Privacy
+Reject
+Proxy
+Global
+```
+
+### 规则模板来源
+
+可以参考和兼容常见规则集生态，例如：
+
+```text
+QuixoticHeart/rule-set
+MetaCubeX/meta-rules-dat
+blackmatrix7/ios_rule_script
+SukkaW/Surge
+ACL4SSR
+Loyalsoldier/v2ray-rules-dat
+ConnersHua/RuleGo
+Cats-Team/AdRules
+```
+
+例如 QuixoticHeart/rule-set 明确面向 mihomo/clash.meta、Surge、Loon、Stash、Shadowrocket、Quantumult X、Egern 和 sing-box 等多个代理工具提供规则集；其 README 也提到该项目会每天自动构建，并包含不同客户端的规则集目录。([GitHub][1])
+
+## 十一、远程规则集引用
+
+除了内置模板，用户还应该能引用远程规则集。
+
+用户可以添加：
+
+```text
+规则集名称
+规则集 URL
+规则集类型
+目标策略组
+更新周期
+是否启用
+```
+
+远程规则集可以用于：
+
+```text
+广告拦截
+AI 服务
+流媒体
+国内直连
+国外代理
+社交媒体
+游戏平台
+```
+
+## 十二、配置导出
+
+UniConf 最终要导出完整配置文件，而不是只导出规则片段。
+
+完整配置应包含：
+
+```text
+节点
+策略组
+分流规则
+远程规则集
+基础网络配置
+DNS 配置
+日志等级
+客户端特定选项
+```
+
+## 十三、需要覆盖的常用代理软件
+
+UniConf 应按优先级覆盖以下代理软件和配置生态。
+
+### 第一优先级：主流核心与通用格式
+
+```text
+Mihomo / Clash.Meta
+Clash Premium / Clash 格式
+sing-box
+Surge
+Loon
+Shadowrocket
+Quantumult X
+Stash
+Egern
+```
+
+QuixoticHeart/rule-set 和 Sub-Store 这类生态项目通常都围绕这些客户端提供规则集或订阅管理能力，说明它们是当前代理配置生态中的常见目标格式。([GitHub][1])
+
+### 第二优先级：桌面端常用软件
+
+```text
+Clash Verge Rev
+Clash Nyanpasu
+Clash for Windows 兼容配置
+ClashX / ClashX Pro 兼容配置
+Mihomo Party / Clash Party
+FlClash
+GUI.for.Clash
+ClashN
+V2rayN
+NekoRay
+Hiddify
+```
+
+Mihomo 官方文档列出了多个第三方客户端，如 Clash Verge Rev、Clash Nyanpasu、FlClash、GUI.for.Clash、ClashN、OpenWrt Nikki 等，用于不同平台的 Mihomo / Clash 生态使用。([虚空终端][2])
+
+### 第三优先级：移动端常用软件
+
+iOS / iPadOS：
+
+```text
+Surge
+Loon
+Shadowrocket
+Quantumult X
+Stash
+Egern
+sing-box for Apple / SFI / SFM
+Clash Mi
+Nextin
+sing-box VT
+```
+
+App Store 相关页面中，Quantumult X、Stash、Shadowrocket、Loon、Egern、Clash Mi、Nextin、sing-box VT 等经常互相出现在同类推荐中，可作为 iOS 代理客户端生态的常见覆盖对象。([App Store][3])
+
+Android：
+
+```text
+sing-box for Android / SFA
+Clash Meta for Android
+FlClash
+V2rayNG
+NekoBox for Android
+Hiddify
+Surfboard
+Matsuri
+SagerNet
+```
+
+sing-box 官方文档说明 SFA 可以在 Android 上管理和运行本地或远程 sing-box 配置文件，并提供 TUN 等平台功能。([Sing Box][4])
+
+### 第四优先级：路由器 / OpenWrt / 网关场景
+
+```text
+OpenClash
+Nikki / OpenWrt Nikki
+PassWall
+PassWall2
+SSR Plus+
+ShellCrash
+HomeProxy
+Mihomo TProxy
+sing-box on OpenWrt
+```
+
+这些场景通常更关注：
+
+```text
+规则集性能
+二进制规则集
+DNS 分流
+透明代理
+旁路由
+TUN / TProxy
+自动更新
+低内存占用
+```
+
+Mihomo 文档中也列出了 OpenWrt Nikki、FullCombo Shark、OpenWrt NekoBox 等第三方客户端/前端。([虚空终端][2])
+
+### 第五优先级：协议型客户端
+
+```text
+V2Ray
+Xray
+v2ray-core
+sing-box core
+Shadowsocks-libev
+Shadowsocks-rust
+Trojan-Go
+Hysteria
+Hysteria2
+TUIC
+NaiveProxy
+Brook
+```
+
+这些更偏底层核心或单协议客户端。UniConf 可以优先把它们作为节点协议支持，而不是优先作为完整配置导出目标。
+
+## 十四、不同软件的导出目标
+
+UniConf 需要区分“完整配置导出”和“兼容格式导出”。
+
+### 完整配置导出
+
+优先支持：
+
+```text
+Mihomo / Clash.Meta
+sing-box
+Surge
+Loon
+Stash
+Quantumult X
+Shadowrocket
+Egern
+```
+
+### 兼容订阅导出
+
+面向：
+
+```text
+Clash Verge Rev
+Clash Nyanpasu
+FlClash
+ClashX
+ClashN
+OpenClash
+Nikki
+Mihomo Party
+```
+
+这些通常可以消费 Mihomo / Clash 格式配置。
+
+### 节点订阅导出
+
+面向：
+
+```text
+V2rayN
+V2rayNG
+NekoBox
+Hiddify
+SagerNet
+Matsuri
+Surfboard
+```
+
+这些更适合导出节点链接集合，例如：
+
+```text
+ss://
+vmess://
+vless://
+trojan://
+hysteria2://
+tuic://
+```
+
+## 十五、用户界面结构
+
+产品页面建议分为几个主要模块：
+
+```text
+1. Dashboard
+2. Sources
+3. Nodes
+4. Collections
+5. Groups
+6. Rules
+7. Templates
+8. Export
+9. Preview
+10. Settings
+```
+
+### Dashboard
+
+显示整体状态：
+
+```text
+订阅源数量
+节点数量
+启用节点数量
+规则数量
+上次更新时间
+导出链接
+最近错误
+```
+
+### Sources
+
+管理订阅源：
+
+```text
+添加订阅链接
+添加手动节点
+批量导入
+刷新订阅
+查看订阅状态
+```
+
+### Nodes
+
+查看所有节点：
+
+```text
+搜索
+过滤
+启用 / 禁用
+按地区查看
+按来源查看
+查看协议
+查看延迟
+```
+
+### Collections
+
+创建节点组合：
+
+```text
+选择订阅源
+过滤节点
+重命名节点
+排序节点
+预览结果
+```
+
+### Groups
+
+管理策略组：
+
+```text
+创建策略组
+选择策略组类型
+绑定节点组合
+嵌套策略组
+设置默认策略
+```
+
+### Rules
+
+编辑分流规则：
+
+```text
+添加规则
+选择匹配类型
+选择目标策略组
+调整规则顺序
+启用 / 禁用规则
+```
+
+### Templates
+
+选择内置模板：
+
+```text
+AI
+Streaming
+Social
+Apple
+Google
+Microsoft
+Netflix
+YouTube
+Telegram
+China Direct
+Advertising
+Privacy
+```
+
+### Export
+
+生成导出链接：
+
+```text
+Mihomo YAML
+Clash YAML
+sing-box JSON
+Surge CONF
+Loon CONF
+Shadowrocket CONF
+Quantumult X CONF
+Stash YAML
+Egern YAML
+节点订阅
+```
+
+### Preview
+
+预览生成结果：
+
+```text
+查看完整配置
+查看不同客户端差异
+检查规则顺序
+检查策略组引用
+检查不兼容规则
+```
+
+## 十六、兼容性检查
+
+UniConf 需要告诉用户：
+
+```text
+这条规则哪些客户端支持
+哪些客户端不支持
+是否需要降级转换
+是否会丢失信息
+是否需要改写为其他规则
+```
+
+例如：
+
+```text
+PROCESS-NAME 可能在部分客户端不兼容
+GeoSite 在不同客户端支持方式不同
+sing-box route rule 和 Clash rules 表达方式不同
+Loon / Surge / Quantumult X 的脚本能力不同
+Shadowrocket 对复杂策略组能力有限
+```
+
+产品层需要给用户明确提示：
+
+```text
+完全兼容
+部分兼容
+需要转换
+不支持
+```
+
+## 十七、导入能力
+
+为了降低迁移成本，UniConf 应支持从已有配置导入。
+
+### 支持导入
+
+```text
+Clash / Mihomo YAML
+sing-box JSON
+Surge CONF
+Loon CONF
+Shadowrocket CONF
+Quantumult X 配置
+Stash 配置
+普通节点订阅
+Base64 节点订阅
+```
+
+导入后尽量拆分为：
+
+```text
+订阅源
+节点
+策略组
+规则
+远程规则集
+```
+
+如果无法完整解析，至少保留原始配置。
+
+## 十八、分享与协作
+
+用户应可以生成分享链接。
+
+### 分享类型
+
+```text
+只读分享
+可编辑分享
+导出订阅链接
+公开模板
+私有模板
+```
+
+### 导出链接示例
+
+```text
+/sub/abc123/mihomo.yaml
+/sub/abc123/clash.yaml
+/sub/abc123/sing-box.json
+/sub/abc123/surge.conf
+/sub/abc123/loon.conf
+/sub/abc123/shadowrocket.conf
+/sub/abc123/quantumultx.conf
+/sub/abc123/stash.yaml
+/sub/abc123/egern.yaml
+/sub/abc123/nodes.txt
+```
+
+## 十九、权限与安全需求
+
+因为用户会保存订阅链接和节点密码，产品必须重视隐私。
+
+需要支持：
+
+```text
+私有配置
+编辑权限控制
+导出链接密钥
+导出链接重置
+敏感信息隐藏
+敏感信息确认后显示
+配置备份
+配置删除
+```
+
+用户应该能随时：
+
+```text
+删除项目
+删除订阅
+重置分享链接
+停用导出链接
+导出自己的完整数据
+```
+
+## 二十、MVP 范围
+
+第一版建议做小而完整。
+
+### MVP 必须有
+
+```text
+1. 添加远程订阅链接
+2. 添加手动节点
+3. 查看节点列表
+4. 创建一个默认节点组合 Main
+5. 简单节点过滤
+6. 简单节点重命名
+7. 固定策略组：
+   - PROXY
+   - AI
+   - Streaming
+   - Social
+   - Direct
+   - Reject
+8. 内置规则模板：
+   - AI
+   - Streaming
+   - Social
+   - China Direct
+   - Reject
+9. 导出完整 Mihomo / Clash 配置
+10. 导出 Loon 配置
+11. 导出 sing-box 配置
+12. 生成固定订阅链接
+```
+
+### MVP 可以暂缓
+
+```text
+账号系统
+多人协作
+节点测速
+复杂 DNS
+复杂 TUN
+高级脚本
+规则市场
+完整反向导入
+所有客户端全量兼容
+```
+
+## 二十一、后续版本规划
+
+### V1：完整可用
+
+```text
+订阅源管理
+节点组合
+固定策略组
+内置规则模板
+Mihomo / Loon / sing-box 导出
+```
+
+### V2：增强兼容
+
+```text
+Surge
+Shadowrocket
+Quantumult X
+Stash
+Egern
+节点订阅导出
+远程规则集引用
+兼容性检查
+```
+
+### V3：高级能力
+
+```text
+自定义策略组
+自定义模板
+配置导入
+规则 Diff
+节点测速
+订阅自动刷新
+分享模板
+```
+
+### V4：产品化
+
+```text
+账号系统
+团队协作
+配置版本历史
+模板市场
+公开配置库
+高级权限
+付费功能
+```
+
+## 二十二、最终完整需求一句话
+
+```text
+UniConf 是一个运行在 Web 上的一站式代理配置管理工具，用户可以保存远程订阅链接、手动录入节点、创建节点组合、清洗和重命名节点、编辑策略组与分流规则，并将同一份配置导出为 Mihomo/Clash、sing-box、Surge、Loon、Shadowrocket、Quantumult X、Stash、Egern 等常用代理软件可用的完整配置文件或节点订阅。
+```
+
+[1]: https://github.com/QuixoticHeart/rule-set?utm_source=chatgpt.com "rule-set - 面向mihomo/clash.meta、surge、loon、stash"
+[2]: https://wiki.metacubex.one/en/startup/client/client/?utm_source=chatgpt.com "Third-party tools/client - mihomo docs"
+[3]: https://apps.apple.com/id/app/quantumult-x/id1443988620?platform=iphone&see-all=customers-also-bought-apps&utm_source=chatgpt.com "Quantumult X - You Might Also Like - App Store - Apple"
+[4]: https://sing-box.sagernet.org/clients/android/?utm_source=chatgpt.com "sing-box for Android"

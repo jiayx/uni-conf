@@ -1,3 +1,4 @@
+import { SINGBOX_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 import { detectCountry } from './proxy-link.parser'
 
@@ -26,27 +27,16 @@ const PROXY_TYPES = new Set([
   'hysteria',
   'hysteria2',
   'tuic',
+  'anytls',
   'socks',
   'http',
+  'ssh',
   'shadowtls',
   'wireguard',
 ])
 
 function mapSingboxProtocol(type: string): ProxyProtocol {
-  const map: Record<string, ProxyProtocol> = {
-    shadowsocks: 'ss',
-    vmess: 'vmess',
-    vless: 'vless',
-    trojan: 'trojan',
-    hysteria: 'hysteria',
-    hysteria2: 'hysteria2',
-    tuic: 'tuic',
-    socks: 'socks5',
-    http: 'http',
-    shadowtls: 'shadowtls',
-    wireguard: 'wireguard',
-  }
-  return map[type.toLowerCase()] ?? 'unknown'
+  return SINGBOX_TYPE_TO_PROTOCOL[type.toLowerCase()] ?? 'unknown'
 }
 
 function singboxOutboundToNode(outbound: SingboxOutbound, sourceId: string): ProxyNode | null {

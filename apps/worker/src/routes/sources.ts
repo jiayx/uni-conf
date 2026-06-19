@@ -7,6 +7,7 @@ import {
   newId,
   now,
 } from '../db/helpers';
+import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -468,24 +469,7 @@ function parseClashYaml(content: string): ParsedNodeRaw[] {
 }
 
 function clashTypeToProtocol(type: string): ProxyProtocol {
-  const map: Record<string, ProxyProtocol> = {
-    ss: 'ss',
-    ssr: 'ssr',
-    vmess: 'vmess',
-    vless: 'vless',
-    trojan: 'trojan',
-    hysteria: 'hysteria',
-    hysteria2: 'hysteria2',
-    hy2: 'hysteria2',
-    tuic: 'tuic',
-    wireguard: 'wireguard',
-    socks5: 'socks5',
-    http: 'http',
-    https: 'https',
-    reality: 'reality',
-    anytls: 'anytls',
-  };
-  return map[type] ?? 'unknown';
+  return MIHOMO_TYPE_TO_PROTOCOL[type] ?? (type === 'hy2' ? 'hysteria2' : 'unknown');
 }
 
 function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
@@ -495,7 +479,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
 
   const proxyTypes = new Set([
     'shadowsocks', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2', 'tuic',
-    'wireguard', 'socks', 'http', 'ssh', 'shadowtls',
+    'anytls', 'wireguard', 'socks', 'http', 'ssh', 'shadowtls',
   ]);
 
   for (const ob of outbounds) {
@@ -522,21 +506,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
 }
 
 function singboxTypeToProtocol(type: string): ProxyProtocol {
-  const map: Record<string, ProxyProtocol> = {
-    shadowsocks: 'ss',
-    vmess: 'vmess',
-    vless: 'vless',
-    trojan: 'trojan',
-    hysteria: 'hysteria',
-    hysteria2: 'hysteria2',
-    tuic: 'tuic',
-    wireguard: 'wireguard',
-    socks: 'socks5',
-    http: 'http',
-    ssh: 'ssh',
-    shadowtls: 'shadowtls',
-  };
-  return map[type] ?? 'unknown';
+  return SINGBOX_TYPE_TO_PROTOCOL[type] ?? 'unknown';
 }
 
 function parseRawLines(lines: string[]): ParsedNodeRaw[] {
@@ -561,6 +531,24 @@ function parseRawLines(lines: string[]): ParsedNodeRaw[] {
         if (node) nodes.push(node);
       } else if (trimmed.startsWith('hysteria2://') || trimmed.startsWith('hy2://')) {
         const node = parseHysteria2Uri(trimmed);
+        if (node) nodes.push(node);
+      } else if (
+        trimmed.startsWith('hysteria://') ||
+        trimmed.startsWith('hy://') ||
+        trimmed.startsWith('tuic://') ||
+        trimmed.startsWith('anytls://') ||
+        trimmed.startsWith('shadowtls://') ||
+        trimmed.startsWith('wireguard://') ||
+        trimmed.startsWith('wg://') ||
+        trimmed.startsWith('ssh://') ||
+        trimmed.startsWith('naive://') ||
+        trimmed.startsWith('naive+https://') ||
+        trimmed.startsWith('socks://') ||
+        trimmed.startsWith('socks5://') ||
+        trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://')
+      ) {
+        const node = parseGenericUrlUri(trimmed);
         if (node) nodes.push(node);
       }
     } catch {
@@ -785,6 +773,133 @@ function parseHysteria2Uri(uri: string): ParsedNodeRaw | null {
   };
 }
 
+const DEFAULT_PORTS: Partial<Record<ProxyProtocol, number>> = {
+  anytls: 443,
+  trojan: 443,
+  vless: 443,
+  hysteria: 443,
+  hysteria2: 443,
+  tuic: 443,
+  naive: 443,
+  https: 443,
+  http: 80,
+  socks5: 1080,
+  ssh: 22,
+  shadowtls: 443,
+  wireguard: 51820,
+};
+
+function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
+  const scheme = uri.slice(0, uri.indexOf('://'));
+  const protocol = schemeToProtocol(scheme);
+  if (!protocol) return null;
+
+  const withoutScheme = uri.slice(scheme.length + 3);
+  const hashIdx = withoutScheme.indexOf('#');
+  const name = hashIdx >= 0 ? decodeURIComponent(withoutScheme.slice(hashIdx + 1)) : protocol.toUpperCase();
+  const beforeHash = hashIdx >= 0 ? withoutScheme.slice(0, hashIdx) : withoutScheme;
+  const qIdx = beforeHash.indexOf('?');
+  const hostAndPath = qIdx >= 0 ? beforeHash.slice(0, qIdx) : beforeHash;
+  const slashIdx = hostAndPath.indexOf('/');
+  const hostPart = slashIdx >= 0 ? hostAndPath.slice(0, slashIdx) : hostAndPath;
+  const uriPath = slashIdx >= 0 ? hostAndPath.slice(slashIdx) : '';
+  const query = qIdx >= 0 ? beforeHash.slice(qIdx + 1) : '';
+  const params = new URLSearchParams(query);
+
+  const atIdx = hostPart.lastIndexOf('@');
+  const userinfo = atIdx >= 0 ? hostPart.slice(0, atIdx) : '';
+  const hostPort = atIdx >= 0 ? hostPart.slice(atIdx + 1) : hostPart;
+
+  let server = '';
+  let port = DEFAULT_PORTS[protocol] ?? 0;
+  if (hostPort.startsWith('[')) {
+    const closeBracket = hostPort.indexOf(']');
+    server = hostPort.slice(1, closeBracket);
+    if (hostPort.length > closeBracket + 1) port = parseInt(hostPort.slice(closeBracket + 2), 10);
+  } else {
+    const colonIdx = hostPort.lastIndexOf(':');
+    if (colonIdx >= 0) {
+      server = hostPort.slice(0, colonIdx);
+      port = parseInt(hostPort.slice(colonIdx + 1), 10);
+    } else {
+      server = hostPort;
+    }
+  }
+
+  if (!server || !port) return null;
+
+  let username: string | undefined;
+  let password: string | undefined;
+  let uuid: string | undefined;
+
+  if (protocol === 'vless') {
+    uuid = decodeURIComponent(userinfo);
+  } else if (protocol === 'tuic') {
+    const colonIdx = userinfo.indexOf(':');
+    uuid = decodeURIComponent(userinfo.slice(0, colonIdx));
+    password = decodeURIComponent(userinfo.slice(colonIdx + 1));
+  } else if (protocol === 'socks5' || protocol === 'http' || protocol === 'https' || protocol === 'ssh' || protocol === 'naive') {
+    if (userinfo.includes(':')) {
+      const colonIdx = userinfo.indexOf(':');
+      username = decodeURIComponent(userinfo.slice(0, colonIdx));
+      password = decodeURIComponent(userinfo.slice(colonIdx + 1));
+    } else if (userinfo) {
+      username = decodeURIComponent(userinfo);
+    }
+  } else if (userinfo) {
+    password = decodeURIComponent(userinfo);
+  }
+
+  const tls =
+    protocol === 'https' ||
+    protocol === 'anytls' ||
+    protocol === 'shadowtls' ||
+    protocol === 'naive' ||
+    params.get('security') === 'tls' ||
+    params.get('security') === 'reality' ||
+    params.get('tls') === '1';
+  const skipCertVerify =
+    params.get('allowInsecure') === '1' ||
+    params.get('allowInsecure') === 'true' ||
+    params.get('insecure') === '1' ||
+    params.get('insecure') === 'true' ||
+    params.get('skip-cert-verify') === 'true';
+
+  const rawConfig: Record<string, unknown> = {};
+  params.forEach((value, key) => {
+    rawConfig[key] = value;
+  });
+  Object.assign(rawConfig, {
+    username,
+    password,
+    uuid,
+    tls,
+    sni: params.get('sni') ?? params.get('peer') ?? params.get('host') ?? undefined,
+    skipCertVerify,
+    network: params.get('type') ?? params.get('network') ?? 'tcp',
+    wsPath: params.get('path') ?? (uriPath && uriPath !== '/' ? uriPath : undefined),
+    privateKey: params.get('private-key') ?? params.get('privateKey') ?? password,
+    publicKey: params.get('public-key') ?? params.get('publicKey') ?? params.get('peer-public-key') ?? undefined,
+    presharedKey: params.get('pre-shared-key') ?? params.get('presharedKey') ?? undefined,
+    ip: params.get('address') ?? params.get('ip') ?? undefined,
+    alpn: params.get('alpn') ?? undefined,
+    fingerprint: params.get('fp') ?? params.get('fingerprint') ?? undefined,
+  });
+
+  return {
+    name,
+    protocol,
+    server,
+    port,
+    rawConfig,
+    parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),
+  };
+}
+
+function schemeToProtocol(scheme: string): ProxyProtocol | null {
+  return URI_SCHEME_TO_PROTOCOL[scheme] ?? null;
+}
+
 function buildParsedConfig(
   protocol: ProxyProtocol,
   server: string,
@@ -797,11 +912,9 @@ function buildParsedConfig(
     port,
     password: (raw.password as string | undefined) ?? (raw.pass as string | undefined),
     uuid: (raw.uuid as string | undefined) ?? (raw.id as string | undefined),
-    tls: raw.tls === true || raw.tls === 'tls',
-    sni: (raw.sni as string | undefined) ?? (raw['servername'] as string | undefined),
-    skipCertVerify: Boolean(
-      raw['skip-cert-verify'] ?? raw.skipCertVerify ?? raw.allowInsecure
-    ),
+    tls: raw.tls === true || raw.tls === 'true' || raw.tls === 'tls' || raw.security === 'tls' || raw.security === 'reality',
+    sni: (raw.sni as string | undefined) ?? (raw['servername'] as string | undefined) ?? (raw.host as string | undefined),
+    skipCertVerify: parseBoolean(raw['skip-cert-verify'] ?? raw.skipCertVerify ?? raw.allowInsecure ?? raw.insecure),
     network: (raw.network as NormalizedProxyConfig['network']) ??
       (raw.net as NormalizedProxyConfig['network']),
     wsPath: (raw['ws-path'] as string | undefined) ?? (raw.path as string | undefined),
@@ -810,6 +923,10 @@ function buildParsedConfig(
       (raw.headers as Record<string, string> | undefined),
     extra: raw,
   };
+}
+
+function parseBoolean(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true';
 }
 
 function getVmessWsHeaders(data: Record<string, unknown>): Record<string, string> | undefined {

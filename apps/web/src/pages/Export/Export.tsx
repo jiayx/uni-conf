@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
+import { describeCompatibleRuleSetFormats, isRuleSetFormatCompatible } from '@/core/remote-rules/compatibility'
 import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import styles from './Export.module.css'
 
@@ -134,6 +135,17 @@ export function Export() {
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const handleFormatChange = (format: ExportFormat) => {
+    setForm(f => ({
+      ...f,
+      format,
+      includeRemoteSetIds: f.includeRemoteSetIds.filter(id => {
+        const remoteSet = remoteSets.find(item => item.id === id)
+        return remoteSet ? isRuleSetFormatCompatible(format, remoteSet.format) : false
+      }),
+    }))
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
@@ -198,7 +210,7 @@ export function Export() {
         <Input label={t('common.name')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="My Export" />
         <div>
           <label className={styles.selectLabel}>{t('export.format')}</label>
-          <select className={styles.select} value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value as ExportFormat }))}>
+          <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as ExportFormat)}>
             {FORMAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
@@ -229,8 +241,19 @@ export function Export() {
         />
         <MultiSelect
           label="远程规则集"
-          emptyText="未选择时导出所有启用远程规则集"
-          options={remoteSets.map(item => ({ id: item.id, label: item.name }))}
+          emptyText="未选择时导出所有兼容远程规则集"
+          hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
+          options={remoteSets.map(item => {
+            const compatible = isRuleSetFormatCompatible(form.format, item.format)
+            return {
+              id: item.id,
+              label: item.name,
+              description: compatible
+                ? `${item.format} · 会用于 ${form.format} 导出`
+                : `${item.format} · 不兼容 ${form.format}，导出时会跳过`,
+              disabled: !compatible,
+            }
+          })}
           value={form.includeRemoteSetIds}
           onChange={includeRemoteSetIds => setForm(f => ({ ...f, includeRemoteSetIds }))}
         />
@@ -261,19 +284,24 @@ function getSubscriptionFilename(format: ExportFormat): string {
 interface MultiSelectOption {
   id: string
   label: string
+  description?: string
+  disabled?: boolean
 }
 
 interface MultiSelectProps {
   label: string
   emptyText: string
+  hint?: string
   options: MultiSelectOption[]
   value: string[]
   onChange: (value: string[]) => void
 }
 
-function MultiSelect({ label, emptyText, options, value, onChange }: MultiSelectProps) {
+function MultiSelect({ label, emptyText, hint, options, value, onChange }: MultiSelectProps) {
   const selected = new Set(value)
-  const toggle = (id: string) => {
+  const toggle = (option: MultiSelectOption) => {
+    if (option.disabled) return
+    const id = option.id
     onChange(selected.has(id) ? value.filter(item => item !== id) : [...value, id])
   }
 
@@ -287,6 +315,7 @@ function MultiSelect({ label, emptyText, options, value, onChange }: MultiSelect
           </button>
         )}
       </div>
+      {hint && <div className={styles.selectorHint}>{hint}</div>}
       {options.length === 0 ? (
         <div className={styles.selectorEmpty}>暂无可选项</div>
       ) : (
@@ -296,9 +325,17 @@ function MultiSelect({ label, emptyText, options, value, onChange }: MultiSelect
             <span>{emptyText}</span>
           </label>
           {options.map(option => (
-            <label key={option.id} className={styles.optionItem}>
-              <input type="checkbox" checked={selected.has(option.id)} onChange={() => toggle(option.id)} />
-              <span>{option.label}</span>
+            <label key={option.id} className={`${styles.optionItem} ${option.disabled ? styles.optionDisabled : ''}`}>
+              <input
+                type="checkbox"
+                checked={selected.has(option.id)}
+                disabled={option.disabled}
+                onChange={() => toggle(option)}
+              />
+              <span className={styles.optionContent}>
+                <span className={styles.optionLabel}>{option.label}</span>
+                {option.description && <span className={styles.optionDescription}>{option.description}</span>}
+              </span>
             </label>
           ))}
         </div>

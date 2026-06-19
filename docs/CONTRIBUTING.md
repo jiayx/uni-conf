@@ -102,10 +102,17 @@ Frontend env (set in Cloudflare Pages settings):
 ## Adding Features
 
 ### New Proxy Protocol Support
-1. Add protocol to `ProxyProtocol` in `packages/types/src/index.ts`
-2. Add parsing logic in `apps/web/src/core/parser/proxy-link.parser.ts`
-3. Add Clash format mapping in `apps/web/src/core/parser/clash.parser.ts`
-4. Add node-to-client serializers in `apps/web/src/core/exporter/node-serializer.ts`
+1. Sync protocol metadata in `packages/types/src/protocols.ts` from the upstream sing-box/mihomo schema sources.
+2. Add URI compatibility parsing in `apps/web/src/core/parser/proxy-link.parser.ts` only when the protocol has a share-link format.
+3. Prefer native mihomo/sing-box config objects in `rawConfig`; keep `parsedConfig` limited to searchable/display fields.
+4. Add explicit client conversion only when a lossless or well-understood mapping exists.
+
+After changing protocol metadata or upgrading schema packages, run:
+
+```bash
+pnpm --filter @uni-conf/types generate:protocols
+pnpm --filter @uni-conf/types check:protocols
+```
 
 ### New Export Format
 See [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md).

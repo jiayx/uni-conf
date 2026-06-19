@@ -270,6 +270,45 @@ function nodeToSingbox(node: ProxyNode): object | null {
         },
       };
     }
+    case 'anytls': {
+      return {
+        type: 'anytls',
+        tag,
+        server: node.server,
+        server_port: node.port,
+        password: cfg.password ?? '',
+        tls: {
+          enabled: true,
+          server_name: cfg.sni ?? node.server,
+          insecure: cfg.skipCertVerify ?? false,
+        },
+      };
+    }
+    case 'shadowtls': {
+      return {
+        type: 'shadowtls',
+        tag,
+        server: node.server,
+        server_port: node.port,
+        password: cfg.password ?? '',
+        tls: {
+          enabled: true,
+          server_name: cfg.sni ?? node.server,
+          insecure: cfg.skipCertVerify ?? false,
+        },
+      };
+    }
+    case 'ssh': {
+      const ob: Record<string, unknown> = {
+        type: 'ssh',
+        tag,
+        server: node.server,
+        server_port: node.port,
+        user: (cfg.extra?.username as string) ?? 'root',
+      };
+      if (cfg.password) ob.password = cfg.password;
+      return ob;
+    }
     case 'socks5': {
       const ob: Record<string, unknown> = {
         type: 'socks',
@@ -437,7 +476,7 @@ function buildRoute(
     },
   ];
 
-  for (const rs of remoteSets.filter((r) => r.enabled)) {
+  for (const rs of remoteSets.filter((r) => r.enabled && r.format === 'singbox')) {
     const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     ruleSets.push({
       tag: safeName,

@@ -38,12 +38,12 @@ proxies:
 `
     const nodes = parseClashYaml(inlineYaml)
     expect(nodes.length).toBe(3)
-    expect(nodes[0].name).toBe('Node 1')
-    expect(nodes[0].protocol).toBe('trojan')
-    expect(nodes[1].name).toBe('Node 2')
-    expect(nodes[1].protocol).toBe('anytls')
-    expect(nodes[2].name).toBe('Node 3')
-    expect(nodes[2].protocol).toBe('vmess')
+    expect(nodes[0]!.name).toBe('Node 1')
+    expect(nodes[0]!.protocol).toBe('trojan')
+    expect(nodes[1]!.name).toBe('Node 2')
+    expect(nodes[1]!.protocol).toBe('anytls')
+    expect(nodes[2]!.name).toBe('Node 3')
+    expect(nodes[2]!.protocol).toBe('vmess')
   })
 
   it('should parse block format nodes (multi-line)', () => {
@@ -62,10 +62,10 @@ proxies:
 `
     const nodes = parseClashYaml(blockYaml)
     expect(nodes.length).toBe(2)
-    expect(nodes[0].name).toBe('US Server 01')
-    expect(nodes[0].protocol).toBe('vmess')
-    expect(nodes[1].name).toBe('SG Server 01')
-    expect(nodes[1].protocol).toBe('trojan')
+    expect(nodes[0]!.name).toBe('US Server 01')
+    expect(nodes[0]!.protocol).toBe('vmess')
+    expect(nodes[1]!.name).toBe('SG Server 01')
+    expect(nodes[1]!.protocol).toBe('trojan')
   })
 
   it('should parse mixed format (inline + block)', () => {
@@ -100,9 +100,9 @@ proxies:
 `
     const nodes = parseClashYaml(edgeCasesYaml)
     expect(nodes.length).toBe(3)
-    expect(nodes[0].name).toBe("Node's Name")
-    expect(nodes[1].name).toBe("Name: with: colons")
-    expect(nodes[2].name).toBe('包含{括号}的')
+    expect(nodes[0]!.name).toBe("Node's Name")
+    expect(nodes[1]!.name).toBe("Name: with: colons")
+    expect(nodes[2]!.name).toBe('包含{括号}的')
   })
 
   it('should handle invalid YAML gracefully', () => {

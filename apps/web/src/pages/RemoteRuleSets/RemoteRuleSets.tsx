@@ -7,6 +7,12 @@ import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { Input } from '@/components/ui/Input/Input'
 import { Modal } from '@/components/ui/Modal/Modal'
+import {
+  buildQuixoticRuleSetUrl,
+  QUIXOTIC_RULE_SET_PRESETS,
+  RULE_SET_FORMAT_OPTIONS,
+  type QuixoticRuleSetPreset,
+} from '@/core/remote-rules/quixotic-presets'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
 import type { RemoteRuleSet, RuleSetFormat } from '@uni-conf/types'
@@ -14,7 +20,19 @@ import styles from './RemoteRuleSets.module.css'
 
 type RemoteSetForm = Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>
 
-const FORMATS: RuleSetFormat[] = ['mihomo', 'clash', 'singbox', 'surge', 'text']
+const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> = {
+  ai: 'AI',
+  streaming: 'Streaming',
+  social: 'Social',
+  china: 'China',
+  apple: 'Apple',
+  microsoft: 'Microsoft',
+  google: 'Google',
+  privacy: 'Privacy',
+  gaming: 'Gaming',
+  developer: 'Developer',
+  general: 'General',
+}
 
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
   return {
@@ -37,6 +55,7 @@ export function RemoteRuleSets() {
   const [showModal, setShowModal] = useState(false)
   const [editingSet, setEditingSet] = useState<RemoteRuleSet | null>(null)
   const [form, setForm] = useState<RemoteSetForm>(() => createEmptyForm())
+  const [selectedPresetId, setSelectedPresetId] = useState('')
   const [formError, setFormError] = useState('')
 
   useEffect(() => {
@@ -50,6 +69,8 @@ export function RemoteRuleSets() {
   }, [fetchGroups])
 
   const defaultTargetGroupId = groups.find(group => group.name === 'PROXY')?.id ?? groups[0]?.id ?? ''
+  const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
+  const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)
 
   const loadSets = async () => {
     setLoading(true)
@@ -66,6 +87,7 @@ export function RemoteRuleSets() {
   const openCreate = () => {
     setEditingSet(null)
     setForm(createEmptyForm(defaultTargetGroupId))
+    setSelectedPresetId('')
     setFormError('')
     setShowModal(true)
   }
@@ -82,8 +104,39 @@ export function RemoteRuleSets() {
       lastUpdated: set.lastUpdated,
       notes: set.notes ?? '',
     })
+    setSelectedPresetId('')
     setFormError('')
     setShowModal(true)
+  }
+
+  const findSuggestedGroupId = (preset: QuixoticRuleSetPreset): string => {
+    const wanted = preset.suggestedGroup.toUpperCase()
+    return groups.find(group => group.name.toUpperCase() === wanted)?.id ?? defaultTargetGroupId
+  }
+
+  const applyPreset = (presetId: string, format = form.format) => {
+    setSelectedPresetId(presetId)
+    const preset = QUIXOTIC_RULE_SET_PRESETS.find(item => item.id === presetId)
+    if (!preset) return
+
+    setForm(current => ({
+      ...current,
+      name: preset.name,
+      url: buildQuixoticRuleSetUrl(preset.id, format),
+      format,
+      targetGroupId: findSuggestedGroupId(preset),
+      updateInterval: 24,
+      enabled: true,
+      notes: `QuixoticHeart/rule-set: ${preset.description}`,
+    }))
+  }
+
+  const handleFormatChange = (format: RuleSetFormat) => {
+    if (selectedPresetId) {
+      applyPreset(selectedPresetId, format)
+      return
+    }
+    setFormValue('format', format, setForm)
   }
 
   const handleSave = async () => {
@@ -187,13 +240,34 @@ export function RemoteRuleSets() {
         }
       >
         {formError && <div className={styles.formError}>{formError}</div>}
+        {!editingSet && (
+          <div className={styles.presetSection}>
+            <label className={styles.label}>预置规则集</label>
+            <select className={styles.select} value={selectedPresetId} onChange={e => applyPreset(e.target.value)}>
+              <option value="">自定义远程规则集</option>
+              {Object.entries(presetsByCategory).map(([category, presets]) => (
+                <optgroup key={category} label={PRESET_CATEGORY_LABELS[category as QuixoticRuleSetPreset['category']] ?? category}>
+                  {presets.map(preset => (
+                    <option key={preset.id} value={preset.id}>{preset.name} - {preset.description}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <div className={styles.helperText}>
+              来自 QuixoticHeart/rule-set，按所选格式自动生成规则集 URL。
+            </div>
+          </div>
+        )}
         <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} />
         <Input label="URL" value={form.url} onChange={e => setFormValue('url', e.target.value, setForm)} />
         <div>
           <label className={styles.label}>{t('common.type')}</label>
-          <select className={styles.select} value={form.format} onChange={e => setFormValue('format', e.target.value as RuleSetFormat, setForm)}>
-            {FORMATS.map(format => <option key={format} value={format}>{format}</option>)}
+          <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as RuleSetFormat)}>
+            {RULE_SET_FORMAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          {selectedFormatOption && (
+            <div className={styles.helperText}>适用导出目标：{selectedFormatOption.exportTargets}</div>
+          )}
         </div>
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
@@ -219,6 +293,13 @@ function setFormValue<K extends keyof RemoteSetForm>(
   setForm: React.Dispatch<React.SetStateAction<RemoteSetForm>>
 ) {
   setForm(current => ({ ...current, [key]: value }))
+}
+
+function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
+  return presets.reduce<Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>>((acc, preset) => {
+    acc[preset.category] = [...(acc[preset.category] ?? []), preset]
+    return acc
+  }, {} as Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>)
 }
 
 function PlusIcon() {

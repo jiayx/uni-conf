@@ -75,6 +75,22 @@ const KEYWORD_MAP: Array<[RegExp, string, string]> = [
   [/\b(canada|ca)\b/i, 'Canada', 'CA'],
 ]
 
+const DEFAULT_PORTS: Partial<Record<ProxyProtocol, number>> = {
+  anytls: 443,
+  trojan: 443,
+  vless: 443,
+  hysteria: 443,
+  hysteria2: 443,
+  tuic: 443,
+  naive: 443,
+  https: 443,
+  http: 80,
+  socks5: 1080,
+  ssh: 22,
+  shadowtls: 443,
+  wireguard: 51820,
+}
+
 export function detectCountry(name: string): CountryInfo | null {
   // 1. Check flag emojis first
   for (const [flag, country, code] of FLAG_MAP) {
@@ -176,8 +192,7 @@ function parseSS(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' |
     if (!server || isNaN(port)) return null
 
     const rawConfig: Record<string, unknown> = { method, password, server, port }
-    const parsedConfig = makeParsedConfig('ss', server, port, { password, extra: {} })
-    parsedConfig.extra = { method }
+    const parsedConfig = makeParsedConfig('ss', server, port, { method, password })
 
     const countryInfo = detectCountry(name)
     return {
@@ -221,14 +236,7 @@ function parseVMess(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt
       sni: config.sni || config.host,
     }
 
-    const parsedConfig = makeParsedConfig('vmess', server, port, {
-      uuid: config.id as string,
-      tls: config.tls === 'tls',
-      sni: (config.sni || config.host) as string | undefined,
-      network: (config.net as NormalizedProxyConfig['network']) || 'tcp',
-      wsPath: config.path as string | undefined,
-      extra,
-    })
+    const parsedConfig = makeParsedConfig('vmess', server, port, extra)
 
     const countryInfo = detectCountry(name)
     return {
@@ -262,7 +270,10 @@ function parseURLStyle(
     const beforeHash = hashIdx >= 0 ? withoutScheme.slice(0, hashIdx) : withoutScheme
 
     const qIdx = beforeHash.indexOf('?')
-    const hostPart = qIdx >= 0 ? beforeHash.slice(0, qIdx) : beforeHash
+    const hostAndPath = qIdx >= 0 ? beforeHash.slice(0, qIdx) : beforeHash
+    const slashIdx = hostAndPath.indexOf('/')
+    const hostPart = slashIdx >= 0 ? hostAndPath.slice(0, slashIdx) : hostAndPath
+    const uriPath = slashIdx >= 0 ? hostAndPath.slice(slashIdx) : ''
     const queryStr = qIdx >= 0 ? beforeHash.slice(qIdx + 1) : ''
     const params = new URLSearchParams(queryStr)
 
@@ -278,11 +289,18 @@ function parseURLStyle(
       // IPv6
       const closeBracket = hostPort.indexOf(']')
       server = hostPort.slice(1, closeBracket)
-      port = parseInt(hostPort.slice(closeBracket + 2), 10)
+      port = hostPort.length > closeBracket + 1
+        ? parseInt(hostPort.slice(closeBracket + 2), 10)
+        : (DEFAULT_PORTS[protocol] ?? 0)
     } else {
       const portColon = hostPort.lastIndexOf(':')
-      server = hostPort.slice(0, portColon)
-      port = parseInt(hostPort.slice(portColon + 1), 10)
+      if (portColon >= 0) {
+        server = hostPort.slice(0, portColon)
+        port = parseInt(hostPort.slice(portColon + 1), 10)
+      } else {
+        server = hostPort
+        port = DEFAULT_PORTS[protocol] ?? 0
+      }
     }
 
     if (!server || isNaN(port)) return null
@@ -290,8 +308,9 @@ function parseURLStyle(
     // Parse userinfo
     let password: string | undefined
     let uuid: string | undefined
+    let username: string | undefined
 
-    if (protocol === 'vless' || protocol === 'trojan' || protocol === 'hysteria2') {
+    if (protocol === 'vless' || protocol === 'trojan' || protocol === 'hysteria' || protocol === 'hysteria2' || protocol === 'anytls' || protocol === 'shadowtls') {
       // userinfo is password or uuid (no colon separator for trojan/vless)
       if (userinfo.includes(':')) {
         // tuic: uuid:password
@@ -306,22 +325,44 @@ function parseURLStyle(
       const colonIdx = userinfo.indexOf(':')
       uuid = decodeURIComponent(userinfo.slice(0, colonIdx))
       password = decodeURIComponent(userinfo.slice(colonIdx + 1))
-    } else {
-      // socks5: user:pass
+    } else if (protocol === 'wireguard') {
+      password = decodeURIComponent(userinfo)
+    } else if (protocol === 'ssh') {
       if (userinfo.includes(':')) {
         const colonIdx = userinfo.indexOf(':')
-        uuid = decodeURIComponent(userinfo.slice(0, colonIdx))
+        username = decodeURIComponent(userinfo.slice(0, colonIdx))
         password = decodeURIComponent(userinfo.slice(colonIdx + 1))
       } else {
-        password = decodeURIComponent(userinfo)
+        username = decodeURIComponent(userinfo)
+      }
+    } else {
+      // socks5/http: user:pass
+      if (userinfo.includes(':')) {
+        const colonIdx = userinfo.indexOf(':')
+        username = decodeURIComponent(userinfo.slice(0, colonIdx))
+        password = decodeURIComponent(userinfo.slice(colonIdx + 1))
+      } else {
+        username = decodeURIComponent(userinfo)
       }
     }
 
-    const tls = params.get('security') === 'tls' || params.get('tls') === '1' || params.get('security') === 'reality'
-    const sni = params.get('sni') || params.get('peer') || undefined
-    const skipCertVerify = params.get('allowInsecure') === '1' || params.get('skip-cert-verify') === 'true'
+    const tls =
+      protocol === 'https' ||
+      protocol === 'anytls' ||
+      protocol === 'shadowtls' ||
+      protocol === 'naive' ||
+      params.get('security') === 'tls' ||
+      params.get('tls') === '1' ||
+      params.get('security') === 'reality'
+    const sni = params.get('sni') || params.get('peer') || params.get('host') || undefined
+    const skipCertVerify =
+      params.get('allowInsecure') === '1' ||
+      params.get('allowInsecure') === 'true' ||
+      params.get('insecure') === '1' ||
+      params.get('insecure') === 'true' ||
+      params.get('skip-cert-verify') === 'true'
     const network = (params.get('type') || params.get('network') || 'tcp') as NormalizedProxyConfig['network']
-    const wsPath = params.get('path') || undefined
+    const wsPath = params.get('path') || (uriPath && uriPath !== '/' ? uriPath : undefined)
 
     const extra: Record<string, unknown> = {}
     params.forEach((value, key) => {
@@ -329,23 +370,27 @@ function parseURLStyle(
     })
     extra.uuid = uuid
     extra.password = password
+    extra.username = username
+    extra.privateKey = params.get('private-key') || params.get('privateKey') || password
+    extra.publicKey = params.get('public-key') || params.get('publicKey') || params.get('peer-public-key') || undefined
+    extra.presharedKey = params.get('pre-shared-key') || params.get('presharedKey') || undefined
+    extra.ip = params.get('address') || params.get('ip') || undefined
+    extra.alpn = params.get('alpn') || undefined
+    extra.fingerprint = params.get('fp') || params.get('fingerprint') || undefined
+    extra.tls = tls
+    extra.sni = sni
+    extra.skipCertVerify = skipCertVerify
+    extra.network = network
+    extra.wsPath = wsPath
 
-    const parsedConfig = makeParsedConfig(protocol, server, port, {
-      password,
-      uuid,
-      tls,
-      sni,
-      skipCertVerify,
-      network,
-      wsPath,
-      extra,
-    })
+    const parsedConfig = makeParsedConfig(protocol, server, port, extra)
 
     const rawConfig: Record<string, unknown> = {
       server,
       port,
       password,
       uuid,
+      username,
       ...extra,
     }
 
@@ -389,10 +434,33 @@ export function parseProxyLink(uri: string, sourceId: string): ProxyNode | null 
   } else if (trimmed.startsWith('hysteria2://') || trimmed.startsWith('hy2://')) {
     const scheme = trimmed.startsWith('hy2://') ? 'hy2' : 'hysteria2'
     partial = parseURLStyle(trimmed, scheme, 'hysteria2')
+  } else if (trimmed.startsWith('hysteria://') || trimmed.startsWith('hy://')) {
+    const scheme = trimmed.startsWith('hy://') ? 'hy' : 'hysteria'
+    partial = parseURLStyle(trimmed, scheme, 'hysteria')
   } else if (trimmed.startsWith('tuic://')) {
     partial = parseURLStyle(trimmed, 'tuic', 'tuic')
+  } else if (trimmed.startsWith('anytls://')) {
+    partial = parseURLStyle(trimmed, 'anytls', 'anytls')
+  } else if (trimmed.startsWith('shadowtls://')) {
+    partial = parseURLStyle(trimmed, 'shadowtls', 'shadowtls')
+  } else if (trimmed.startsWith('wireguard://')) {
+    partial = parseURLStyle(trimmed, 'wireguard', 'wireguard')
+  } else if (trimmed.startsWith('wg://')) {
+    partial = parseURLStyle(trimmed, 'wg', 'wireguard')
+  } else if (trimmed.startsWith('ssh://')) {
+    partial = parseURLStyle(trimmed, 'ssh', 'ssh')
+  } else if (trimmed.startsWith('naive+https://')) {
+    partial = parseURLStyle(trimmed, 'naive+https', 'naive')
+  } else if (trimmed.startsWith('naive://')) {
+    partial = parseURLStyle(trimmed, 'naive', 'naive')
   } else if (trimmed.startsWith('socks5://')) {
     partial = parseURLStyle(trimmed, 'socks5', 'socks5')
+  } else if (trimmed.startsWith('socks://')) {
+    partial = parseURLStyle(trimmed, 'socks', 'socks5')
+  } else if (trimmed.startsWith('http://')) {
+    partial = parseURLStyle(trimmed, 'http', 'http')
+  } else if (trimmed.startsWith('https://')) {
+    partial = parseURLStyle(trimmed, 'https', 'https')
   }
 
   if (!partial) return null

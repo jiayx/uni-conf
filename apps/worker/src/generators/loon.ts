@@ -184,6 +184,7 @@ export function generateLoon(
   // [Remote Rule]
   lines.push('[Remote Rule]')
   for (const rs of remoteSets) {
+    if (!rs['enabled'] || !isLoonCompatibleRemoteSet(String(rs['format'] ?? ''))) continue
     const url = String(rs['url'] ?? '')
     const name = String(rs['name'] ?? '')
     const targetGroupId = String(rs['target_group_id'] ?? '')
@@ -203,4 +204,8 @@ export function generateLoon(
   lines.push('')
 
   return lines.join('\n')
+}
+
+function isLoonCompatibleRemoteSet(format: string): boolean {
+  return ['loon', 'surge', 'shadowrocket', 'text'].includes(format)
 }

@@ -1,6 +1,7 @@
 import type { CompatibilityWarning, ProxyProtocol, RuleType } from '@uni-conf/types'
 import type { ExportInput, IExporter } from './exporter.interface'
 import { nodeToLoon } from './node-serializer'
+import { isRuleSetFormatCompatible } from '../remote-rules/compatibility'
 
 // Protocols with limited Loon support
 const LIMITED_PROTOCOLS: Set<ProxyProtocol> = new Set(['vless', 'hysteria2', 'tuic'])
@@ -107,7 +108,7 @@ export class LoonExporter implements IExporter {
 
     // [Remote Rule]
     lines.push('[Remote Rule]')
-    for (const rs of remoteSets.filter((s) => s.enabled)) {
+    for (const rs of remoteSets.filter((s) => s.enabled && isRuleSetFormatCompatible('loon', s.format))) {
       const targetGroup = resolveGroupName(rs.targetGroupId, groups)
       lines.push(`${rs.url}, policy=${targetGroup}, tag=${rs.name}, enabled=true`)
     }

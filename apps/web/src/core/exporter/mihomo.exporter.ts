@@ -2,6 +2,7 @@ import type { CompatibilityWarning, ProxyGroup } from '@uni-conf/types'
 import yaml from 'js-yaml'
 import type { ExportInput, IExporter } from './exporter.interface'
 import { nodeToClash } from './node-serializer'
+import { isRuleSetFormatCompatible } from '../remote-rules/compatibility'
 
 function mapGroupType(type: ProxyGroup['type']): string {
   const map: Record<string, string> = {
@@ -96,7 +97,7 @@ export class MihomoExporter implements IExporter {
     config['proxy-groups'] = proxyGroups
 
     // rule-providers
-    const enabledSets = remoteSets.filter((s) => s.enabled)
+    const enabledSets = remoteSets.filter((s) => s.enabled && isRuleSetFormatCompatible('mihomo', s.format))
     if (enabledSets.length > 0) {
       const ruleProviders: Record<string, unknown> = {}
       for (const rs of enabledSets) {

@@ -1,6 +1,7 @@
 import type { CompatibilityWarning, ProxyGroup, RuleType } from '@uni-conf/types'
 import type { ExportInput, IExporter } from './exporter.interface'
 import { nodeToSingboxOutbound } from './node-serializer'
+import { isRuleSetFormatCompatible } from '../remote-rules/compatibility'
 
 // Rule types not supported in sing-box
 const UNSUPPORTED_RULE_TYPES: Set<RuleType> = new Set(['PROCESS-PATH', 'IN-TYPE', 'SCRIPT'])
@@ -129,7 +130,7 @@ export class SingboxExporter implements IExporter {
 
     // Remote rule sets
     const ruleSets: Record<string, unknown>[] = []
-    for (const rs of remoteSets.filter((s) => s.enabled)) {
+    for (const rs of remoteSets.filter((s) => s.enabled && isRuleSetFormatCompatible('singbox', s.format))) {
       const tag = rs.name.replace(/\s+/g, '-').toLowerCase()
       ruleSets.push({
         tag,

@@ -2,27 +2,27 @@
 // Proxy Protocol Types
 // ============================================================
 
-export type ProxyProtocol =
-  | 'ss'
-  | 'ssr'
-  | 'vmess'
-  | 'vless'
-  | 'trojan'
-  | 'hysteria'
-  | 'hysteria2'
-  | 'tuic'
-  | 'naive'
-  | 'wireguard'
-  | 'socks5'
-  | 'http'
-  | 'https'
-  | 'ssh'
-  | 'reality'
-  | 'shadowtls'
-  | 'anytls'
-  | 'direct'
-  | 'reject'
-  | 'unknown';
+export {
+  GENERATED_PROTOCOL_SCHEMA_METADATA,
+  MAINSTREAM_PROXY_PROTOCOLS,
+  MIHOMO_TYPE_TO_PROTOCOL,
+  PROXY_PROTOCOL_REGISTRY,
+  PROTOCOL_FORM_FIELDS,
+  SINGBOX_TYPE_TO_PROTOCOL,
+  URI_SCHEME_TO_PROTOCOL,
+} from './protocols';
+export type {
+  MainstreamProxyProtocol,
+  MihomoNativeProxy,
+  NativeProxyConfig,
+  NodeConfigSourceFormat,
+  ProtocolFieldDefinition,
+  ProtocolFieldOption,
+  ProtocolFieldType,
+  ProxyProtocol,
+  SingboxNativeOutbound,
+} from './protocols';
+import type { NativeProxyConfig, ProxyProtocol } from './protocols';
 
 export type SourceFormat =
   | 'clash'
@@ -140,7 +140,7 @@ export interface ProxyNode {
   enabled: boolean;
   tags: string[];
   notes?: string;
-  rawConfig: Record<string, unknown>;
+  rawConfig: Record<string, unknown> & Partial<NativeProxyConfig>;
   parsedConfig: NormalizedProxyConfig;
   isManual: boolean;
   createdAt: string;
@@ -238,7 +238,17 @@ export interface ProxyRule {
   updatedAt: string;
 }
 
-export type RuleSetFormat = 'clash' | 'mihomo' | 'singbox' | 'surge' | 'text';
+export type RuleSetFormat =
+  | 'clash'
+  | 'mihomo'
+  | 'singbox'
+  | 'surge'
+  | 'loon'
+  | 'shadowrocket'
+  | 'quantumultx'
+  | 'egern'
+  | 'stash'
+  | 'text';
 
 export interface RemoteRuleSet {
   id: string;

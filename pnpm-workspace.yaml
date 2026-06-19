@@ -4,6 +4,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+  meta-json-schema: false
   sharp: true
   workerd: true
 

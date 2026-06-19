@@ -77,7 +77,7 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Rule providers ────────────────────────────────────────────────────────────
-  const enabledRemoteSets = remoteSets.filter((rs) => rs.enabled);
+  const enabledRemoteSets = remoteSets.filter((rs) => rs.enabled && isMihomoCompatibleRemoteSet(rs.format));
   if (enabledRemoteSets.length === 0) {
     lines.push('rule-providers: {}');
   } else {
@@ -308,4 +308,8 @@ function escapeName(name: string): string {
 function detectBehavior(format: string): string {
   if (format === 'text') return 'domain';
   return 'classical';
+}
+
+function isMihomoCompatibleRemoteSet(format: string): boolean {
+  return ['mihomo', 'clash', 'stash', 'text'].includes(format);
 }

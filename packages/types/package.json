@@ -8,10 +8,16 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "generate:protocols": "node scripts/generate-protocol-metadata.mjs",
+    "check:protocols": "node scripts/check-protocol-metadata.mjs",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@black-duty/sing-box-schema": "1.13.0",
+    "meta-json-schema": "1.19.27"
   }
 }

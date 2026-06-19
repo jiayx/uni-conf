@@ -51,6 +51,14 @@ const remoteSet: RemoteRuleSet = {
   updatedAt: createdAt,
 };
 
+const singboxRemoteSet: RemoteRuleSet = {
+  ...remoteSet,
+  id: 'remote-singbox',
+  name: 'AI SRS',
+  url: 'https://example.com/ai.srs',
+  format: 'singbox',
+};
+
 describe('remote rule set generators', () => {
   it('routes Mihomo remote rule sets before MATCH', () => {
     const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
@@ -61,10 +69,11 @@ describe('remote rule set generators', () => {
     expect(content.indexOf('  - RULE-SET,Ads_List,DIRECT-GROUP')).toBeLessThan(
       content.indexOf('  - MATCH,PROXY')
     );
+    expect(content).not.toContain('ai.srs');
   });
 
   it('routes sing-box remote rule sets and uses MATCH as final outbound', () => {
-    const content = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
+    const content = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet]);
     const config = JSON.parse(content) as {
       route: {
         rules: Array<Record<string, unknown>>;
@@ -75,14 +84,23 @@ describe('remote rule set generators', () => {
 
     expect(config.route.rule_set).toContainEqual(
       expect.objectContaining({
-        tag: 'Ads_List',
-        url: 'https://example.com/ads.yaml',
+        tag: 'AI_SRS',
+        url: 'https://example.com/ai.srs',
       })
     );
     expect(config.route.rules).toContainEqual({
-      rule_set: ['Ads_List'],
+      rule_set: ['AI_SRS'],
       outbound: 'DIRECT-GROUP',
     });
     expect(config.route.final).toBe('PROXY');
+  });
+
+  it('skips incompatible remote rule set formats per exporter', () => {
+    const mihomo = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet]);
+    expect(mihomo).not.toContain('ai.srs');
+
+    const singbox = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
+    const config = JSON.parse(singbox) as { route: { rule_set: Array<Record<string, unknown>> } };
+    expect(config.route.rule_set.some(item => item['url'] === remoteSet.url)).toBe(false);
   });
 });
