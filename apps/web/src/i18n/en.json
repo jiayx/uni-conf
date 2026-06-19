@@ -9,7 +9,7 @@
     "nodes": "Nodes",
     "collections": "Node Groups",
     "groups": "Groups",
-    "rules": "Special Rules",
+    "rules": "Custom Rules",
     "remote_rule_sets": "Routing Policies",
     "templates": "Templates",
     "export": "Export",
@@ -165,8 +165,8 @@
     "reorder_hint": "Drag to reorder groups"
   },
   "rules": {
-    "title": "Special Traffic Rules",
-    "new": "Add Special Rule",
+    "title": "Custom Traffic Rules",
+    "new": "Add Custom Rule",
     "type": "Rule Type",
     "payload": "Match Value",
     "target": "Use Policy",
@@ -176,7 +176,7 @@
     "compat_partial": "Partial",
     "compat_convert": "Convert",
     "compat_unsupported": "Unsupported",
-    "reorder_hint": "Default routing comes from routing policies; keep only special overrides here, ordered by priority",
+    "reorder_hint": "Default routing comes from routing policies; keep only custom rules here, ordered by priority",
     "order": "Order",
     "payload_placeholder": "Enter match value",
     "name_optional": "Rule name (optional)"
@@ -280,7 +280,7 @@
     "step1_desc": "Subscribe via URL or add proxy nodes manually",
     "step2_desc": "Generate outbound node groups by region and other filters",
     "step3_desc": "Define url-test, fallback, and other proxy groups",
-    "step4_desc": "Use preset routing policies by default; add rules only for special cases",
+    "step4_desc": "Use preset routing policies by default; add custom rules only when needed",
     "step5_desc": "Export to Mihomo, sing-box, and more formats",
     "never": "Never",
     "go": "Go"

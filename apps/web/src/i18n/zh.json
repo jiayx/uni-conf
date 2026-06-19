@@ -9,7 +9,7 @@
     "nodes": "节点",
     "collections": "节点组",
     "groups": "策略组",
-    "rules": "特殊规则",
+    "rules": "自定义规则",
     "remote_rule_sets": "分流策略",
     "templates": "规则模板",
     "export": "配置导出",
@@ -165,8 +165,8 @@
     "reorder_hint": "拖拽调整策略组顺序"
   },
   "rules": {
-    "title": "特殊分流规则",
-    "new": "添加特殊规则",
+    "title": "自定义分流规则",
+    "new": "添加自定义规则",
     "type": "规则类型",
     "payload": "匹配内容",
     "target": "匹配后使用",
@@ -176,7 +176,7 @@
     "compat_partial": "部分兼容",
     "compat_convert": "需转换",
     "compat_unsupported": "不支持",
-    "reorder_hint": "默认分流来自分流策略；这里只维护少量特殊规则，按列表顺序优先生效",
+    "reorder_hint": "默认分流来自分流策略；这里只维护用户自定义补充的规则，按列表顺序优先生效",
     "order": "序号",
     "payload_placeholder": "输入匹配内容",
     "name_optional": "规则名称（可选）"
@@ -280,7 +280,7 @@
     "step1_desc": "从 URL 订阅或手动添加代理节点",
     "step2_desc": "按国家/地区等条件生成可用出口节点组",
     "step3_desc": "定义自动测速、故障转移等策略组",
-    "step4_desc": "默认使用预置分流策略，特殊需求再添加规则",
+    "step4_desc": "默认使用预置分流策略，需要补充时再添加自定义规则",
     "step5_desc": "一键导出 Mihomo、sing-box 等格式配置",
     "never": "从未",
     "go": "前往"
