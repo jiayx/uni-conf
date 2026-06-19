@@ -8,6 +8,19 @@
 .cardMeta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .cardActions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.autoPanel { display: flex; flex-direction: column; gap: 1rem; }
+.autoSection { display: flex; flex-direction: column; gap: 0.625rem; }
+.autoSuggestionList {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem;
+  max-height: 18rem; overflow: auto; padding: 0.625rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface2);
+}
+.autoSuggestion {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.5rem;
+  min-width: 0; color: var(--color-text-primary); font-size: 0.8125rem; line-height: 1.4;
+}
+.autoSuggestionMain { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.autoSuggestionMeta { color: var(--color-text-secondary); font-size: 0.75rem; white-space: nowrap; }
 .selectLabel { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
 .select, .textInput {
   width: 100%; min-width: 0; padding: 0.5rem 0.75rem; background: var(--color-surface2);
@@ -68,7 +81,7 @@
 .formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
 @media (max-width: 720px) {
   .grid { grid-template-columns: 1fr; }
-  .formGrid, .optionList { grid-template-columns: 1fr; }
+  .formGrid, .optionList, .autoSuggestionList { grid-template-columns: 1fr; }
   .ruleRow { grid-template-columns: 1.5rem 1fr; }
   .ruleRow .select, .ruleRow .textInput, .ruleRow button { grid-column: 2; }
 }

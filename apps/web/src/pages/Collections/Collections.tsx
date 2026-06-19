@@ -8,11 +8,14 @@ import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { useCollectionsStore } from '@/store/collections.store'
+import { useGroupsStore } from '@/store/groups.store'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
+import { api } from '@/lib/api'
 import type {
   DedupStrategy,
   FilterOperator,
+  GroupType,
   NodeCollection,
   NodeFilter,
   NodeRename,
@@ -22,6 +25,14 @@ import type {
 import styles from './Collections.module.css'
 
 type CollectionForm = Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>
+type GeneratedGroupType = Extract<GroupType, 'select' | 'url-test' | 'fallback'>
+
+const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]'
+const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; label: string; suffix: string }> = [
+  { value: 'select', label: '手动选择', suffix: 'Select' },
+  { value: 'url-test', label: '自动测速', suffix: 'Auto' },
+  { value: 'fallback', label: '故障转移', suffix: 'Fallback' },
+]
 
 const FILTER_FIELDS: Array<{ value: NodeFilter['field']; label: string }> = [
   { value: 'name', label: '名称' },
@@ -91,11 +102,10 @@ export function Collections() {
     previews,
     loading,
     fetchCollections,
-    addCollection,
-    updateCollection,
     deleteCollection,
     previewCollection,
   } = useCollectionsStore()
+  const { groups, fetchGroups } = useGroupsStore()
   const { nodes, fetchNodes } = useNodesStore()
   const { sources, fetchSources } = useSourcesStore()
   const [showModal, setShowModal] = useState(false)
@@ -104,12 +114,18 @@ export function Collections() {
   const [formError, setFormError] = useState('')
   const [previewingId, setPreviewingId] = useState<string | null>(null)
   const [expandedPreviewIds, setExpandedPreviewIds] = useState<Set<string>>(() => new Set())
+  const [showAutoModal, setShowAutoModal] = useState(false)
+  const [selectedAutoKeys, setSelectedAutoKeys] = useState<Set<string>>(() => new Set())
+  const [selectedAutoTypes, setSelectedAutoTypes] = useState<Set<GeneratedGroupType>>(() => new Set(['url-test']))
+  const [autoApplying, setAutoApplying] = useState(false)
+  const [manualGroupType, setManualGroupType] = useState<GeneratedGroupType>('url-test')
 
   useEffect(() => {
     void fetchCollections()
+    void fetchGroups()
     void fetchSources()
     void fetchNodes()
-  }, [fetchCollections, fetchNodes, fetchSources])
+  }, [fetchCollections, fetchGroups, fetchNodes, fetchSources])
 
   const sourceOptions = useMemo(
     () => sources.map(source => ({ id: source.id, label: `${source.name} (${source.nodeCount})` })),
@@ -123,16 +139,43 @@ export function Collections() {
     () => Object.fromEntries(sources.map(source => [source.id, source.name])),
     [sources]
   )
+  const countrySuggestions = useMemo(() => buildCountrySuggestions(nodes), [nodes])
+  const selectedAutoCountries = useMemo(
+    () => new Set([...selectedAutoKeys].map(key => key.split(':')[0]).filter(Boolean)),
+    [selectedAutoKeys]
+  )
 
   const openCreate = () => {
     setEditingCollection(null)
     setForm(createEmptyForm())
+    setManualGroupType('url-test')
     setFormError('')
     setShowModal(true)
   }
 
+  const openAutoGenerate = () => {
+    const existingKeys = new Set(
+      collections
+        .map(collection => parseAutoNodeGroupMarker(collection.notes)?.key)
+        .filter((key): key is string => Boolean(key))
+    )
+    const defaultKeys = existingKeys.size > 0
+      ? existingKeys
+      : new Set(countrySuggestions.map(item => makeAutoNodeGroupKey(item.countryCode, 'url-test')))
+    const defaultTypes = new Set<GeneratedGroupType>()
+    for (const key of defaultKeys) {
+      const marker = parseAutoNodeGroupKey(key)
+      if (marker) defaultTypes.add(marker.type)
+    }
+    setSelectedAutoKeys(defaultKeys)
+    setSelectedAutoTypes(defaultTypes.size > 0 ? defaultTypes : new Set(['url-test']))
+    setShowAutoModal(true)
+  }
+
   const openEdit = (collection: NodeCollection) => {
     setEditingCollection(collection)
+    const linkedGroup = groups.find(group => group.collectionIds.includes(collection.id) && isGeneratedGroupType(group.type))
+    setManualGroupType(linkedGroup && isGeneratedGroupType(linkedGroup.type) ? linkedGroup.type : 'url-test')
     setForm({
       name: collection.name,
       sourceIds: collection.sourceIds,
@@ -166,14 +209,27 @@ export function Collections() {
     }
 
     if (editingCollection) {
-      await updateCollection(editingCollection.id, payload)
+      const updated = await api.collections.update(editingCollection.id, payload)
+      const linkedGroup = groups.find(group => group.collectionIds.includes(editingCollection.id) && !group.isBuiltin)
+      if (linkedGroup) {
+        await api.groups.update(linkedGroup.id, {
+          name: updated.name,
+          type: manualGroupType,
+          collectionIds: [updated.id],
+        })
+      } else {
+        await createLinkedGroup(updated, manualGroupType, groups.length)
+      }
     } else {
-      await addCollection(payload)
+      const created = await api.collections.create(payload)
+      await createLinkedGroup(created, manualGroupType, groups.length)
     }
 
+    await Promise.all([fetchCollections(), fetchGroups()])
     setShowModal(false)
     setEditingCollection(null)
     setForm(createEmptyForm())
+    setManualGroupType('url-test')
   }
 
   const handlePreview = async (id: string) => {
@@ -222,19 +278,82 @@ export function Collections() {
     }))
   }
 
+  const toggleAutoType = (type: GeneratedGroupType) => {
+    setSelectedAutoTypes(currentTypes => {
+      const nextTypes = toggleSet(currentTypes, type)
+      setSelectedAutoKeys(currentKeys => rebuildAutoKeysForTypes(currentKeys, nextTypes))
+      return nextTypes
+    })
+  }
+
+  const applyAutoGenerate = async () => {
+    setAutoApplying(true)
+    try {
+      const existingAutoCollections = collections
+        .map(collection => ({ collection, marker: parseAutoNodeGroupMarker(collection.notes) }))
+        .filter((item): item is { collection: NodeCollection; marker: AutoNodeGroupMarker } => Boolean(item.marker))
+      const existingByKey = new Map(existingAutoCollections.map(item => [item.marker.key, item.collection]))
+      const groups = await api.groups.list()
+
+      for (const item of existingAutoCollections) {
+        if (selectedAutoKeys.has(item.marker.key)) continue
+        const groupName = makeAutoGroupName(item.marker.countryCode, item.marker.type)
+        const linkedGroups = groups.filter(group => group.name === groupName || group.collectionIds.includes(item.collection.id))
+        for (const group of linkedGroups) {
+          if (!group.isBuiltin) await api.groups.remove(group.id)
+        }
+        await deleteCollection(item.collection.id)
+      }
+
+      for (const key of selectedAutoKeys) {
+        if (existingByKey.has(key)) continue
+        const marker = parseAutoNodeGroupKey(key)
+        if (!marker) continue
+        const suggestion = countrySuggestions.find(item => item.countryCode === marker.countryCode)
+        if (!suggestion) continue
+
+        const collection = await api.collections.create({
+          name: makeAutoGroupName(marker.countryCode, marker.type),
+          sourceIds: [],
+          nodeIds: [],
+          filters: [{
+            id: `auto-country-${marker.countryCode.toLowerCase()}`,
+            field: 'countryCode',
+            operator: 'equals',
+            value: marker.countryCode,
+            enabled: true,
+          }],
+          renames: [],
+          dedup: 'server_port',
+          sort: 'name',
+          sortCountryOrder: [],
+          enabled: true,
+          notes: makeAutoNodeGroupMarker(marker.countryCode, marker.type),
+        })
+
+        await createLinkedGroup(collection, marker.type, groups.length + 1)
+      }
+
+      await Promise.all([fetchCollections(), fetchGroups()])
+      setShowAutoModal(false)
+    } finally {
+      setAutoApplying(false)
+    }
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
         title={t('collections.title')}
-        description={`通过过滤、重命名、去重和排序生成可复用节点池，共 ${collections.length} 个`}
-        actions={<Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button>}
+        description={`按国家/地区等条件生成出口节点组，共 ${collections.length} 个`}
+        actions={<><Button variant="secondary" onClick={openAutoGenerate}>自动生成</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
       />
       {loading && collections.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : collections.length === 0 ? (
         <EmptyState
-          title="暂无节点池"
-          description="节点池用于保存一组过滤条件，生成可供策略组使用的候选节点结果"
+          title="暂无节点组"
+          description="节点组用于定义一组节点过滤条件和选择方式，自动生成的节点组会同步创建对应策略组"
           action={{ label: t('collections.new'), onClick: openCreate }}
         />
       ) : (
@@ -244,7 +363,7 @@ export function Collections() {
               <div className={styles.cardHeader}>
                 <div>
                   <div className={styles.cardTitle}>{collection.name}</div>
-                  {collection.notes && <div className={styles.cardNotes}>{collection.notes}</div>}
+                  {collection.notes && !isAutoNodeGroup(collection) && <div className={styles.cardNotes}>{collection.notes}</div>}
                 </div>
                 <Badge variant={collection.enabled ? 'success' : 'default'}>
                   {collection.enabled ? t('common.enabled') : t('common.disabled')}
@@ -253,6 +372,7 @@ export function Collections() {
 
               <div className={styles.cardMeta}>
                 <Badge variant="info">{scopeText(collection)}</Badge>
+                <Badge variant={isAutoNodeGroup(collection) ? 'success' : 'default'}>{isAutoNodeGroup(collection) ? '自动' : '手动'}</Badge>
                 <Badge variant="default">{sortLabel(collection.sort)}</Badge>
                 <Badge variant="default">{dedupLabel(collection.dedup)}</Badge>
                 {collection.filters.length > 0 && <Badge variant="warning">{collection.filters.length} 过滤</Badge>}
@@ -277,16 +397,24 @@ export function Collections() {
                 >
                   {t('collections.preview')}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => openEdit(collection)}>
-                  {t('common.edit')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { if (confirm('删除此节点池？')) void deleteCollection(collection.id) }}
-                >
-                  {t('common.delete')}
-                </Button>
+                {isAutoNodeGroup(collection) ? (
+                  <Button variant="ghost" size="sm" disabled title="自动生成的节点组请在自动生成面板中取消选择">
+                    自动生成
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(collection)}>
+                      {t('common.edit')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { if (confirm('删除此节点组？')) void deleteCollection(collection.id) }}
+                    >
+                      {t('common.delete')}
+                    </Button>
+                  </>
+                )}
               </div>
             </Card>
           ))}
@@ -309,6 +437,12 @@ export function Collections() {
 
         <div className={styles.formGrid}>
           <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} />
+          <div>
+            <label className={styles.selectLabel}>节点组类型</label>
+            <select className={styles.select} value={manualGroupType} onChange={e => setManualGroupType(e.target.value as GeneratedGroupType)}>
+              {GENERATED_GROUP_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+            </select>
+          </div>
           <div>
             <label className={styles.selectLabel}>{t('collections.dedup')}</label>
             <select className={styles.select} value={form.dedup} onChange={e => setFormValue('dedup', e.target.value as DedupStrategy, setForm)}>
@@ -389,6 +523,59 @@ export function Collections() {
               }))}
             />
           ))}
+        </div>
+      </Modal>
+      <Modal
+        open={showAutoModal}
+        onOpenChange={setShowAutoModal}
+        title="按国家/地区自动生成节点组"
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowAutoModal(false)}>{t('common.cancel')}</Button>
+            <Button loading={autoApplying} onClick={() => void applyAutoGenerate()}>应用</Button>
+          </>
+        }
+      >
+        <div className={styles.autoPanel}>
+          <div className={styles.autoSection}>
+            <div className={styles.sectionHeader}>节点组类型</div>
+            <div className={styles.optionListCompact}>
+              {GENERATED_GROUP_TYPES.map(type => (
+                <label key={type.value} className={styles.optionItem}>
+                  <input
+                    type="checkbox"
+                    checked={selectedAutoTypes.has(type.value)}
+                    onChange={() => toggleAutoType(type.value)}
+                  />
+                  <span>{type.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className={styles.autoSection}>
+            <div className={styles.sectionHeader}>可识别国家/地区</div>
+            {countrySuggestions.length === 0 ? (
+              <div className={styles.inlineEmpty}>当前没有可按国家/地区识别的节点</div>
+            ) : (
+              <div className={styles.autoSuggestionList}>
+                {countrySuggestions.map(item => (
+                  <label key={item.countryCode} className={styles.autoSuggestion}>
+                    <input
+                      type="checkbox"
+                      checked={selectedAutoCountries.has(item.countryCode)}
+                      onChange={() => setSelectedAutoKeys(current => toggleCountryKeys(current, item.countryCode, selectedAutoTypes))}
+                    />
+                    <span className={styles.autoSuggestionMain}>{item.label}</span>
+                    <span className={styles.autoSuggestionMeta}>{item.count} 个节点</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className={styles.inlineEmpty}>
+            默认只生成自动测速节点组。取消某个国家/地区后，已自动生成的对应节点组和策略组会被移除；手动节点组不会受影响。
+          </div>
         </div>
       </Modal>
     </div>
@@ -581,6 +768,119 @@ function sortLabel(sort: SortStrategy): string {
 
 function dedupLabel(dedup: DedupStrategy): string {
   return `去重: ${dedup}`
+}
+
+async function createLinkedGroup(
+  collection: NodeCollection,
+  type: GeneratedGroupType,
+  order: number,
+) {
+  await api.groups.create({
+    name: collection.name,
+    type,
+    collectionIds: [collection.id],
+    groupIds: [],
+    builtins: [],
+    testUrl: 'http://www.gstatic.com/generate_204',
+    interval: 300,
+    tolerance: 150,
+    lazy: true,
+    enabled: true,
+    order,
+    isBuiltin: false,
+  })
+}
+
+interface AutoNodeGroupMarker {
+  countryCode: string
+  type: GeneratedGroupType
+  key: string
+}
+
+function buildCountrySuggestions(nodes: ProxyNode[]): Array<{ countryCode: string; label: string; count: number }> {
+  const countries = new Map<string, { label: string; count: number }>()
+  for (const node of nodes) {
+    const countryCode = node.countryCode?.trim().toUpperCase()
+    if (!countryCode) continue
+    const current = countries.get(countryCode)
+    countries.set(countryCode, {
+      label: node.country || countryCode,
+      count: (current?.count ?? 0) + 1,
+    })
+  }
+  return [...countries.entries()]
+    .map(([countryCode, item]) => ({ countryCode, label: `${item.label} (${countryCode})`, count: item.count }))
+    .sort((a, b) => b.count - a.count || a.countryCode.localeCompare(b.countryCode))
+}
+
+function makeAutoNodeGroupKey(countryCode: string, type: GeneratedGroupType): string {
+  return `${countryCode}:${type}`
+}
+
+function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
+  const [countryCode, type] = key.split(':')
+  if (!countryCode || !isGeneratedGroupType(type)) return null
+  return { countryCode, type, key }
+}
+
+function makeAutoNodeGroupMarker(countryCode: string, type: GeneratedGroupType): string {
+  return `${AUTO_NODE_GROUP_PREFIX} ${makeAutoNodeGroupKey(countryCode, type)}`
+}
+
+function parseAutoNodeGroupMarker(notes?: string): AutoNodeGroupMarker | null {
+  if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null
+  return parseAutoNodeGroupKey(notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim())
+}
+
+function isAutoNodeGroup(collection: NodeCollection): boolean {
+  return parseAutoNodeGroupMarker(collection.notes) !== null
+}
+
+function isGeneratedGroupType(value: string | undefined): value is GeneratedGroupType {
+  return value === 'select' || value === 'url-test' || value === 'fallback'
+}
+
+function makeAutoGroupName(countryCode: string, type: GeneratedGroupType): string {
+  const suffix = GENERATED_GROUP_TYPES.find(item => item.value === type)?.suffix ?? type
+  return `${countryCode} ${suffix}`
+}
+
+function toggleSet<T>(source: Set<T>, value: T): Set<T> {
+  const next = new Set(source)
+  if (next.has(value)) {
+    next.delete(value)
+  } else {
+    next.add(value)
+  }
+  return next
+}
+
+function toggleCountryKeys(
+  source: Set<string>,
+  countryCode: string,
+  types: Set<GeneratedGroupType>
+): Set<string> {
+  const next = new Set(source)
+  const countryKeys = GENERATED_GROUP_TYPES.map(type => makeAutoNodeGroupKey(countryCode, type.value))
+  const hasCountry = countryKeys.some(key => next.has(key))
+  for (const key of countryKeys) next.delete(key)
+  if (!hasCountry && types.size > 0) {
+    for (const type of types) {
+      next.add(makeAutoNodeGroupKey(countryCode, type))
+    }
+  }
+  return next
+}
+
+function rebuildAutoKeysForTypes(source: Set<string>, types: Set<GeneratedGroupType>): Set<string> {
+  const countries = new Set([...source].map(key => parseAutoNodeGroupKey(key)?.countryCode).filter((value): value is string => Boolean(value)))
+  const next = new Set<string>()
+  for (const countryCode of countries) {
+    for (const type of types) {
+      next.add(makeAutoNodeGroupKey(countryCode, type))
+    }
+  }
+  return next
 }
 
 function PlusIcon() {
