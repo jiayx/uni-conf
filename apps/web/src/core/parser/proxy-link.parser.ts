@@ -1,4 +1,4 @@
-import { detectCountry } from '@uni-conf/types'
+import { detectCountry } from '@uni-conf/shared'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 // ============================================================

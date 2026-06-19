@@ -1,4 +1,5 @@
-import { detectCountry, SINGBOX_TYPE_TO_PROTOCOL } from '@uni-conf/types'
+import { detectCountry } from '@uni-conf/shared'
+import { SINGBOX_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 function generateId(): string {

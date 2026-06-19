@@ -1,4 +1,5 @@
-import { detectCountry, MIHOMO_TYPE_TO_PROTOCOL } from '@uni-conf/types'
+import { detectCountry } from '@uni-conf/shared'
+import { MIHOMO_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 import yaml from 'js-yaml'
 

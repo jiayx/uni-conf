@@ -95,6 +95,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.10
         version: 1.2.10(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@uni-conf/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@uni-conf/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -186,6 +189,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@uni-conf/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@uni-conf/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -232,6 +238,12 @@ importers:
       wrangler:
         specifier: ^4.101.0
         version: 4.101.0(@cloudflare/workers-types@4.20260617.1)
+
+  packages/shared:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/types:
     dependencies:

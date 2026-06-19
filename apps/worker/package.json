@@ -16,6 +16,7 @@
     "db:studio": "wrangler d1 studio DB"
   },
   "dependencies": {
+    "@uni-conf/shared": "workspace:*",
     "@uni-conf/types": "workspace:*",
     "hono": "^4.12.26",
     "js-yaml": "catalog:"

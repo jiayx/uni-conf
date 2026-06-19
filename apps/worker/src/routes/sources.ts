@@ -7,7 +7,8 @@ import {
   newId,
   now,
 } from '../db/helpers';
-import { detectCountry, MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
+import { detectCountry } from '@uni-conf/shared';
+import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();

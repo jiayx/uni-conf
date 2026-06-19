@@ -75,3 +75,8 @@ export function detectCountry(name: string): CountryInfo | null {
 
   return null;
 }
+
+export function countryCodeToFlag(countryCode: string): string | undefined {
+  const normalizedCode = countryCode.trim().toUpperCase();
+  return COUNTRY_FLAG_MAP.find(([, , code]) => code === normalizedCode)?.[0];
+}

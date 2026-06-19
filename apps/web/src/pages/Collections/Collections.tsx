@@ -12,6 +12,7 @@ import { useGroupsStore } from '@/store/groups.store'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { api } from '@/lib/api'
+import { countryCodeToFlag } from '@uni-conf/shared'
 import type {
   DedupStrategy,
   FilterOperator,
@@ -117,6 +118,7 @@ export function Collections() {
   const [showAutoModal, setShowAutoModal] = useState(false)
   const [selectedAutoKeys, setSelectedAutoKeys] = useState<Set<string>>(() => new Set())
   const [selectedAutoTypes, setSelectedAutoTypes] = useState<Set<GeneratedGroupType>>(() => new Set(['url-test']))
+  const [autoNamesIncludeFlag, setAutoNamesIncludeFlag] = useState(true)
   const [autoApplying, setAutoApplying] = useState(false)
   const [manualGroupType, setManualGroupType] = useState<GeneratedGroupType>('url-test')
 
@@ -169,6 +171,7 @@ export function Collections() {
     }
     setSelectedAutoKeys(defaultKeys)
     setSelectedAutoTypes(defaultTypes.size > 0 ? defaultTypes : new Set(['url-test']))
+    setAutoNamesIncludeFlag(true)
     setShowAutoModal(true)
   }
 
@@ -297,8 +300,7 @@ export function Collections() {
 
       for (const item of existingAutoCollections) {
         if (selectedAutoKeys.has(item.marker.key)) continue
-        const groupName = makeAutoGroupName(item.marker.countryCode, item.marker.type)
-        const linkedGroups = groups.filter(group => group.name === groupName || group.collectionIds.includes(item.collection.id))
+        const linkedGroups = groups.filter(group => group.collectionIds.includes(item.collection.id))
         for (const group of linkedGroups) {
           if (!group.isBuiltin) await api.groups.remove(group.id)
         }
@@ -306,14 +308,24 @@ export function Collections() {
       }
 
       for (const key of selectedAutoKeys) {
-        if (existingByKey.has(key)) continue
         const marker = parseAutoNodeGroupKey(key)
         if (!marker) continue
         const suggestion = countrySuggestions.find(item => item.countryCode === marker.countryCode)
         if (!suggestion) continue
+        const name = makeAutoGroupName(marker.countryCode, marker.type, autoNamesIncludeFlag)
+        const existingCollection = existingByKey.get(key)
+
+        if (existingCollection) {
+          if (existingCollection.name !== name) {
+            await api.collections.update(existingCollection.id, { name })
+          }
+          const linkedGroups = groups.filter(group => group.collectionIds.includes(existingCollection.id) && !group.isBuiltin)
+          await Promise.all(linkedGroups.map(group => group.name === name ? Promise.resolve() : api.groups.update(group.id, { name })))
+          continue
+        }
 
         const collection = await api.collections.create({
-          name: makeAutoGroupName(marker.countryCode, marker.type),
+          name,
           sourceIds: [],
           nodeIds: [],
           filters: [{
@@ -552,6 +564,14 @@ export function Collections() {
                 </label>
               ))}
             </div>
+            <label className={styles.optionItem}>
+              <input
+                type="checkbox"
+                checked={autoNamesIncludeFlag}
+                onChange={e => setAutoNamesIncludeFlag(e.target.checked)}
+              />
+              <span>名称包含旗帜 Emoji</span>
+            </label>
           </div>
           <div className={styles.autoSection}>
             <div className={styles.sectionHeader}>可识别国家/地区</div>
@@ -840,9 +860,11 @@ function isGeneratedGroupType(value: string | undefined): value is GeneratedGrou
   return value === 'select' || value === 'url-test' || value === 'fallback'
 }
 
-function makeAutoGroupName(countryCode: string, type: GeneratedGroupType): string {
+function makeAutoGroupName(countryCode: string, type: GeneratedGroupType, includeFlag = false): string {
   const suffix = GENERATED_GROUP_TYPES.find(item => item.value === type)?.suffix ?? type
-  return `${countryCode} ${suffix}`
+  const normalizedCode = countryCode.trim().toUpperCase()
+  const flag = includeFlag ? countryCodeToFlag(normalizedCode) : undefined
+  return [flag, normalizedCode, suffix].filter(Boolean).join(' ')
 }
 
 function toggleSet<T>(source: Set<T>, value: T): Set<T> {
