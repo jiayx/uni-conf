@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Badge } from '@/components/ui/Badge/Badge'
@@ -34,6 +34,8 @@ const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> 
   general: 'General',
 }
 
+const PRESET_AUTO_IMPORT_KEY = 'uni-conf:remote-rule-presets-auto-imported'
+
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
   return {
     name: '',
@@ -57,6 +59,8 @@ export function RemoteRuleSets() {
   const [form, setForm] = useState<RemoteSetForm>(() => createEmptyForm())
   const [selectedPresetId, setSelectedPresetId] = useState('')
   const [formError, setFormError] = useState('')
+  const [importingPresets, setImportingPresets] = useState(false)
+  const autoImportStarted = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -70,6 +74,7 @@ export function RemoteRuleSets() {
 
   const defaultTargetGroupId = groups.find(group => group.name === 'PROXY')?.id ?? groups[0]?.id ?? ''
   const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
+  const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)
 
   const loadSets = async () => {
@@ -131,6 +136,44 @@ export function RemoteRuleSets() {
     }))
   }
 
+  const buildPresetPayload = (preset: QuixoticRuleSetPreset, format: RuleSetFormat): RemoteSetForm => ({
+    name: preset.name,
+    url: buildQuixoticRuleSetUrl(preset.id, format),
+    format,
+    targetGroupId: findSuggestedGroupId(preset),
+    updateInterval: 24,
+    enabled: true,
+    notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
+  })
+
+  const importAllPresets = async (format: RuleSetFormat = 'mihomo') => {
+    setImportingPresets(true)
+    setError('')
+    try {
+      const existingKeys = new Set(sets.map(set => presetKey(set)))
+      const payloads = QUIXOTIC_RULE_SET_PRESETS
+        .map(preset => buildPresetPayload(preset, format))
+        .filter(payload => !existingKeys.has(presetKey(payload)))
+
+      if (payloads.length === 0) return
+
+      const created = await api.remoteRuleSets.batchCreate(payloads)
+      setSets(current => [...created, ...current])
+      window.localStorage.setItem(PRESET_AUTO_IMPORT_KEY, '1')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setImportingPresets(false)
+    }
+  }
+
+  useEffect(() => {
+    if (loading || importingPresets || autoImportStarted.current || groups.length === 0 || sets.length > 0) return
+    if (window.localStorage.getItem(PRESET_AUTO_IMPORT_KEY) === '1') return
+    autoImportStarted.current = true
+    void importAllPresets()
+  }, [groups.length, importingPresets, loading, sets.length])
+
   const handleFormatChange = (format: RuleSetFormat) => {
     if (selectedPresetId) {
       applyPreset(selectedPresetId, format)
@@ -186,6 +229,7 @@ export function RemoteRuleSets() {
         actions={
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
+            <Button variant="secondary" onClick={() => void importAllPresets()} loading={importingPresets}>加载全部预置</Button>
             <Button onClick={openCreate} icon={<PlusIcon />}>新增远程集</Button>
           </div>
         }
@@ -196,34 +240,47 @@ export function RemoteRuleSets() {
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
-        <EmptyState title="暂无远程规则集" description="远程规则集会在导出配置中生成 rule-provider 或 rule_set 引用" action={{ label: '新增远程集', onClick: openCreate }} />
+        <EmptyState title="暂无远程规则集" description="远程规则集会在导出配置中生成 rule-provider 或 rule_set 引用" action={{ label: '加载全部预置', onClick: () => void importAllPresets() }} />
       ) : (
-        <div className={styles.grid}>
-          {sets.map(set => (
-            <Card key={set.id} className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardTitle}>{set.name}</div>
-                <Badge variant={set.enabled ? 'success' : 'default'}>{set.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
+        <div className={styles.groupedList}>
+          {setsByTargetGroup.map(section => (
+            <section key={section.groupId} className={styles.ruleSetSection}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <div className={styles.sectionTitle}>{section.groupName}</div>
+                  <div className={styles.sectionMeta}>{section.sets.length} 个规则集，{section.sets.filter(set => set.enabled).length} 个启用</div>
+                </div>
+                <Badge variant="purple">目标策略组</Badge>
               </div>
-              <div className={styles.meta}>
-                <Badge variant="info">{set.format}</Badge>
-                <Badge variant="purple">{getGroupName(set.targetGroupId)}</Badge>
-                <Badge variant="default">{set.updateInterval}h</Badge>
+              <div className={styles.grid}>
+                {section.sets.map(set => (
+                  <Card key={set.id} className={styles.card}>
+                    <div className={styles.cardHeader}>
+                      <label className={styles.enableSwitch}>
+                        <input type="checkbox" checked={set.enabled} onChange={() => void handleToggle(set)} />
+                        <span>{set.enabled ? t('common.enabled') : t('common.disabled')}</span>
+                      </label>
+                      <div className={styles.cardTitle}>{set.name}</div>
+                    </div>
+                    <div className={styles.meta}>
+                      <Badge variant="info">{set.format}</Badge>
+                      <Badge variant="purple">{getGroupName(set.targetGroupId)}</Badge>
+                      <Badge variant="default">{set.updateInterval}h</Badge>
+                    </div>
+                    <div className={styles.url}>{set.url}</div>
+                    {set.notes && <div className={styles.notes}>{set.notes}</div>}
+                    <div className={styles.cardActions}>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
+                        {t('common.edit')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => void handleDelete(set)}>
+                        <TrashIcon />
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
               </div>
-              <div className={styles.url}>{set.url}</div>
-              {set.notes && <div className={styles.notes}>{set.notes}</div>}
-              <div className={styles.cardActions}>
-                <Button variant="ghost" size="sm" onClick={() => void handleToggle(set)}>
-                  {set.enabled ? t('common.disable') : t('common.enable')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
-                  {t('common.edit')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => void handleDelete(set)}>
-                  <TrashIcon />
-                </Button>
-              </div>
-            </Card>
+            </section>
           ))}
         </div>
       )}
@@ -300,6 +357,27 @@ function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
     acc[preset.category] = [...(acc[preset.category] ?? []), preset]
     return acc
   }, {} as Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>)
+}
+
+function presetKey(set: Pick<RemoteRuleSet, 'name' | 'format'>): string {
+  return `${set.name}:${set.format}`
+}
+
+function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string }>) {
+  const byId = new Map(groups.map(group => [group.id, group.name]))
+  const sections = new Map<string, { groupId: string; groupName: string; sets: RemoteRuleSet[] }>()
+
+  for (const set of sets) {
+    const groupId = set.targetGroupId
+    const groupName = byId.get(groupId) ?? groupId
+    const section = sections.get(groupId) ?? { groupId, groupName, sets: [] }
+    section.sets.push(set)
+    sections.set(groupId, section)
+  }
+
+  return [...sections.values()]
+    .map(section => ({ ...section, sets: section.sets.sort((a, b) => a.name.localeCompare(b.name)) }))
+    .sort((a, b) => a.groupName.localeCompare(b.groupName))
 }
 
 function PlusIcon() {

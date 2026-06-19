@@ -174,6 +174,8 @@ const remoteRuleSets = {
   get: (id: string): Promise<RemoteRuleSet> => get(`/remote-rule-sets/${id}`),
   create: (data: Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>): Promise<RemoteRuleSet> =>
     post('/remote-rule-sets', data),
+  batchCreate: (data: Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<RemoteRuleSet[]> =>
+    post('/remote-rule-sets/batch', { sets: data }),
   update: (id: string, data: Partial<RemoteRuleSet>): Promise<RemoteRuleSet> =>
     put(`/remote-rule-sets/${id}`, data),
   remove: (id: string): Promise<void> => del(`/remote-rule-sets/${id}`),

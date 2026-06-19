@@ -50,6 +50,55 @@ app.post('/', async (c) => {
   return c.json({ success: true, data: mapRemoteRuleSet(row!) }, 201)
 })
 
+app.post('/batch', async (c) => {
+  const body = await c.req.json<{ sets?: Array<Partial<RemoteRuleSet>> }>()
+  const sets = body.sets ?? []
+  if (!Array.isArray(sets) || sets.length === 0) {
+    return c.json({ success: false, error: 'sets are required' }, 400)
+  }
+
+  const ts = now()
+  const createdIds: string[] = []
+
+  for (const set of sets) {
+    if (!set.name || !set.url || !set.format || !set.targetGroupId) continue
+    const id = newId()
+    createdIds.push(id)
+    await c.env.DB.prepare(
+      `INSERT INTO remote_rule_sets
+        (id, name, url, format, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        id,
+        set.name,
+        set.url,
+        set.format,
+        set.targetGroupId,
+        set.updateInterval ?? 24,
+        set.enabled !== false ? 1 : 0,
+        set.lastUpdated ?? null,
+        set.notes ?? null,
+        ts,
+        ts
+      )
+      .run()
+  }
+
+  if (createdIds.length === 0) {
+    return c.json({ success: false, error: 'No valid remote rule sets to create' }, 400)
+  }
+
+  const placeholders = createdIds.map(() => '?').join(',')
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM remote_rule_sets WHERE id IN (${placeholders}) ORDER BY created_at DESC`
+  )
+    .bind(...createdIds)
+    .all<Record<string, unknown>>()
+
+  return c.json({ success: true, data: results.map(mapRemoteRuleSet) }, 201)
+})
+
 app.get('/:id', async (c) => {
   const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
     .bind(c.req.param('id'))
