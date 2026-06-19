@@ -294,7 +294,6 @@ export function Collections() {
         .filter((item): item is { collection: NodeCollection; marker: AutoNodeGroupMarker } => Boolean(item.marker))
       const existingByKey = new Map(existingAutoCollections.map(item => [item.marker.key, item.collection]))
       const groups = await api.groups.list()
-      const previewIdsToRefresh: string[] = []
 
       for (const item of existingAutoCollections) {
         if (selectedAutoKeys.has(item.marker.key)) continue
@@ -315,13 +314,10 @@ export function Collections() {
 
         if (existingCollection) {
           if (existingCollection.name !== name) {
-            await api.collections.update(existingCollection.id, { name, dedup: 'full_config' })
-          } else if (existingCollection.dedup !== 'full_config') {
-            await api.collections.update(existingCollection.id, { dedup: 'full_config' })
+            await api.collections.update(existingCollection.id, { name })
           }
           const linkedGroups = groups.filter(group => group.collectionIds.includes(existingCollection.id) && !group.isBuiltin)
           await Promise.all(linkedGroups.map(group => group.name === name ? Promise.resolve() : api.groups.update(group.id, { name })))
-          previewIdsToRefresh.push(existingCollection.id)
           continue
         }
 
@@ -345,11 +341,9 @@ export function Collections() {
         })
 
         await createLinkedGroup(collection, marker.type, groups.length + 1)
-        previewIdsToRefresh.push(collection.id)
       }
 
       await Promise.all([fetchCollections(), fetchGroups()])
-      await Promise.all(previewIdsToRefresh.map(id => previewCollection(id).catch(() => [])))
       setShowAutoModal(false)
     } finally {
       setAutoApplying(false)
