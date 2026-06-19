@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
-import { useCollectionsStore } from '@/store/collections.store'
 import { useGroupsStore } from '@/store/groups.store'
 import type { GroupType, ProxyGroup } from '@uni-conf/types'
 import styles from './Groups.module.css'
@@ -44,7 +43,6 @@ function createEmptyForm(order: number): GroupForm {
 export function Groups() {
   const { t } = useTranslation()
   const { groups, loading, fetchGroups, addGroup, updateGroup, deleteGroup, reorderGroups } = useGroupsStore()
-  const { collections, fetchCollections } = useCollectionsStore()
   const [showModal, setShowModal] = useState(false)
   const [editingGroup, setEditingGroup] = useState<ProxyGroup | null>(null)
   const [form, setForm] = useState<GroupForm>(() => createEmptyForm(0))
@@ -52,12 +50,11 @@ export function Groups() {
 
   useEffect(() => {
     void fetchGroups()
-    void fetchCollections()
-  }, [fetchCollections, fetchGroups])
+  }, [fetchGroups])
 
-  const collectionOptions = useMemo(
-    () => collections.map(collection => ({ id: collection.id, label: collection.name })),
-    [collections]
+  const visibleGroups = useMemo(
+    () => groups.filter(group => !isOutletGroup(group)),
+    [groups]
   )
   const groupOptions = useMemo(
     () => groups
@@ -68,7 +65,7 @@ export function Groups() {
 
   const openCreate = () => {
     setEditingGroup(null)
-    setForm(createEmptyForm(groups.length))
+    setForm(createEmptyForm(visibleGroups.length))
     setFormError('')
     setShowModal(true)
   }
@@ -115,15 +112,24 @@ export function Groups() {
 
     setShowModal(false)
     setEditingGroup(null)
-    setForm(createEmptyForm(groups.length))
+    setForm(createEmptyForm(visibleGroups.length))
   }
 
   const moveGroup = (index: number, direction: -1 | 1) => {
     const target = index + direction
-    if (target < 0 || target >= groups.length) return
-    const ordered = [...groups]
-    const [item] = ordered.splice(index, 1)
-    ordered.splice(target, 0, item)
+    if (target < 0 || target >= visibleGroups.length) return
+    const movedGroup = visibleGroups[index]
+    const targetGroup = visibleGroups[target]
+    if (!movedGroup || !targetGroup) return
+
+    const orderedVisible = [...visibleGroups]
+    const [item] = orderedVisible.splice(index, 1)
+    if (!item) return
+    orderedVisible.splice(target, 0, item)
+
+    const visibleIds = new Set(visibleGroups.map(group => group.id))
+    const visibleQueue = [...orderedVisible]
+    const ordered = groups.map(group => visibleIds.has(group.id) ? visibleQueue.shift()! : group)
     void reorderGroups(ordered.map(group => group.id))
   }
 
@@ -136,10 +142,6 @@ export function Groups() {
     reject: t('groups.type_reject'),
   }[type] ?? type)
 
-  const getCollectionNames = (ids: string[]) => ids
-    .map(id => collections.find(collection => collection.id === id)?.name ?? id)
-    .join(', ')
-
   const getGroupNames = (ids: string[]) => ids
     .map(id => groups.find(group => group.id === id)?.name ?? id)
     .join(', ')
@@ -151,15 +153,15 @@ export function Groups() {
         description={t('groups.reorder_hint')}
         actions={<Button onClick={openCreate} icon={<PlusIcon />}>{t('groups.new')}</Button>}
       />
-      {loading && groups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
+      {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
         <div className={styles.list}>
-          {groups.map((group, index) => (
+          {visibleGroups.map((group, index) => (
             <Card key={group.id} className={styles.groupCard}>
               <div className={styles.orderControls}>
                 <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => moveGroup(index, -1)} title="上移">
                   <ArrowUpIcon />
                 </Button>
-                <Button variant="ghost" size="sm" disabled={index === groups.length - 1} onClick={() => moveGroup(index, 1)} title="下移">
+                <Button variant="ghost" size="sm" disabled={index === visibleGroups.length - 1} onClick={() => moveGroup(index, 1)} title="下移">
                   <ArrowDownIcon />
                 </Button>
               </div>
@@ -173,13 +175,11 @@ export function Groups() {
                 <div className={styles.groupMeta}>
                   <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
                   {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
-                  {group.collectionIds.length > 0 && <Badge variant="info">{group.collectionIds.length} 节点组</Badge>}
                   {group.groupIds.length > 0 && <Badge variant="purple">{group.groupIds.length} 嵌套</Badge>}
                   {group.builtins.length > 0 && <Badge variant="warning">{group.builtins.join(' / ')}</Badge>}
                 </div>
                 <div className={styles.summary}>
-                  {group.collectionIds.length > 0 ? getCollectionNames(group.collectionIds) : t('groups.no_collections')}
-                  {group.groupIds.length > 0 && <span> · {getGroupNames(group.groupIds)}</span>}
+                  {group.groupIds.length > 0 ? getGroupNames(group.groupIds) : t('groups.no_collections')}
                 </div>
               </div>
               <div className={styles.cardActions}>
@@ -197,7 +197,7 @@ export function Groups() {
               </div>
             </Card>
           ))}
-          {groups.length === 0 && <EmptyState title="暂无策略组" action={{ label: t('groups.new'), onClick: openCreate }} />}
+          {visibleGroups.length === 0 && <EmptyState title="暂无策略组" action={{ label: t('groups.new'), onClick: openCreate }} />}
         </div>
       )}
 
@@ -237,14 +237,6 @@ export function Groups() {
             <span>{t('groups.lazy')}</span>
           </label>
         </div>
-
-        <MultiSelect
-          label={t('groups.collections')}
-          emptyText="不指定节点组，使用当前导出节点"
-          options={collectionOptions}
-          value={form.collectionIds}
-          onChange={collectionIds => setForm(current => ({ ...current, collectionIds }))}
-        />
 
         <MultiSelect
           label={t('groups.nested_groups')}
@@ -331,6 +323,10 @@ function setFormValue<K extends keyof GroupForm>(
   setForm: React.Dispatch<React.SetStateAction<GroupForm>>
 ) {
   setForm(current => ({ ...current, [key]: value }))
+}
+
+function isOutletGroup(group: ProxyGroup): boolean {
+  return !group.isBuiltin && group.collectionIds.length > 0
 }
 
 function PlusIcon() {

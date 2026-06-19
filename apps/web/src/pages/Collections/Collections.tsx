@@ -113,8 +113,8 @@ export function Collections() {
   const [editingCollection, setEditingCollection] = useState<NodeCollection | null>(null)
   const [form, setForm] = useState<CollectionForm>(createEmptyForm)
   const [formError, setFormError] = useState('')
-  const [previewingId, setPreviewingId] = useState<string | null>(null)
-  const [expandedPreviewIds, setExpandedPreviewIds] = useState<Set<string>>(() => new Set())
+  const [loadingPreviewIds, setLoadingPreviewIds] = useState<Set<string>>(() => new Set())
+  const [requestedPreviewIds, setRequestedPreviewIds] = useState<Set<string>>(() => new Set())
   const [showAutoModal, setShowAutoModal] = useState(false)
   const [selectedAutoKeys, setSelectedAutoKeys] = useState<Set<string>>(() => new Set())
   const [selectedAutoTypes, setSelectedAutoTypes] = useState<Set<GeneratedGroupType>>(() => new Set(['url-test']))
@@ -128,6 +128,25 @@ export function Collections() {
     void fetchSources()
     void fetchNodes()
   }, [fetchCollections, fetchGroups, fetchNodes, fetchSources])
+
+  useEffect(() => {
+    const missingIds = collections
+      .map(collection => collection.id)
+      .filter(id => previews[id] === undefined && !loadingPreviewIds.has(id) && !requestedPreviewIds.has(id))
+
+    if (missingIds.length === 0) return
+
+    setLoadingPreviewIds(current => new Set([...current, ...missingIds]))
+    setRequestedPreviewIds(current => new Set([...current, ...missingIds]))
+    void Promise.all(missingIds.map(id => previewCollection(id).catch(() => [])))
+      .finally(() => {
+        setLoadingPreviewIds(current => {
+          const next = new Set(current)
+          for (const id of missingIds) next.delete(id)
+          return next
+        })
+      })
+  }, [collections, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
 
   const sourceOptions = useMemo(
     () => sources.map(source => ({ id: source.id, label: `${source.name} (${source.nodeCount})` })),
@@ -211,8 +230,11 @@ export function Collections() {
       return
     }
 
+    let savedCollection: NodeCollection
+
     if (editingCollection) {
       const updated = await api.collections.update(editingCollection.id, payload)
+      savedCollection = updated
       const linkedGroup = groups.find(group => group.collectionIds.includes(editingCollection.id) && !group.isBuiltin)
       if (linkedGroup) {
         await api.groups.update(linkedGroup.id, {
@@ -225,40 +247,16 @@ export function Collections() {
       }
     } else {
       const created = await api.collections.create(payload)
+      savedCollection = created
       await createLinkedGroup(created, manualGroupType, groups.length)
     }
 
     await Promise.all([fetchCollections(), fetchGroups()])
+    void previewCollection(savedCollection.id)
     setShowModal(false)
     setEditingCollection(null)
     setForm(createEmptyForm())
     setManualGroupType('url-test')
-  }
-
-  const handlePreview = async (id: string) => {
-    setPreviewingId(id)
-    try {
-      await previewCollection(id)
-      setExpandedPreviewIds(current => {
-        const next = new Set(current)
-        next.add(id)
-        return next
-      })
-    } finally {
-      setPreviewingId(null)
-    }
-  }
-
-  const togglePreviewExpanded = (id: string) => {
-    setExpandedPreviewIds(current => {
-      const next = new Set(current)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
   }
 
   const addFilter = () => {
@@ -391,29 +389,14 @@ export function Collections() {
                 {collection.renames.length > 0 && <Badge variant="purple">{collection.renames.length} 重命名</Badge>}
               </div>
 
-              {previews[collection.id] && (
-                <PreviewList
-                  nodes={previews[collection.id]}
-                  expanded={expandedPreviewIds.has(collection.id)}
-                  sourceNameById={sourceNameById}
-                  onToggleExpanded={() => togglePreviewExpanded(collection.id)}
-                />
-              )}
+              <PreviewList
+                nodes={previews[collection.id] ?? []}
+                loading={loadingPreviewIds.has(collection.id) && previews[collection.id] === undefined}
+                sourceNameById={sourceNameById}
+              />
 
               <div className={styles.cardActions}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={previewingId === collection.id}
-                  onClick={() => void handlePreview(collection.id)}
-                >
-                  {t('collections.preview')}
-                </Button>
-                {isAutoNodeGroup(collection) ? (
-                  <Button variant="ghost" size="sm" disabled title="自动生成的节点组请在自动生成面板中取消选择">
-                    自动生成
-                  </Button>
-                ) : (
+                {!isAutoNodeGroup(collection) && (
                   <>
                     <Button variant="ghost" size="sm" onClick={() => openEdit(collection)}>
                       {t('common.edit')}
@@ -701,30 +684,23 @@ function MultiSelect({ label, emptyText, options, value, onChange }: {
 
 function PreviewList({
   nodes,
-  expanded,
+  loading,
   sourceNameById,
-  onToggleExpanded,
 }: {
   nodes: ProxyNode[]
-  expanded: boolean
+  loading: boolean
   sourceNameById: Record<string, string>
-  onToggleExpanded: () => void
 }) {
-  const compactNodes = nodes.slice(0, 8)
-
   return (
     <div className={styles.preview}>
       <div className={styles.previewHeader}>
-        <span>预览：{nodes.length} 个节点</span>
-        {nodes.length > 0 && (
-          <button type="button" className={styles.previewToggle} onClick={onToggleExpanded}>
-            {expanded ? '收起' : '查看全部'}
-          </button>
-        )}
+        <span>节点：{loading ? '加载中' : `${nodes.length} 个`}</span>
       </div>
-      {nodes.length === 0 ? (
+      {loading ? (
+        <div className={styles.previewEmpty}>正在加载节点...</div>
+      ) : nodes.length === 0 ? (
         <div className={styles.previewEmpty}>当前组合没有匹配节点</div>
-      ) : expanded ? (
+      ) : (
         <div className={styles.previewTableWrap}>
           <table className={styles.previewTable}>
             <thead>
@@ -750,13 +726,6 @@ function PreviewList({
               ))}
             </tbody>
           </table>
-        </div>
-      ) : (
-        <div className={styles.previewList}>
-          {compactNodes.map(node => (
-            <span key={node.id} className={styles.previewNode}>{node.name}</span>
-          ))}
-          {nodes.length > compactNodes.length && <span className={styles.previewMore}>+{nodes.length - compactNodes.length}</span>}
         </div>
       )}
     </div>

@@ -56,18 +56,7 @@
 .ruleToggle { display: flex; align-items: center; justify-content: center; }
 .preview { padding: 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
 .previewHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.8125rem; color: var(--color-text-secondary); margin-bottom: 0.5rem; }
-.previewToggle {
-  border: 0; background: transparent; color: var(--color-accent); cursor: pointer;
-  font: inherit; font-size: 0.8125rem; padding: 0; white-space: nowrap;
-}
 .previewEmpty { color: var(--color-text-tertiary); font-size: 0.8125rem; }
-.previewList { display: flex; flex-wrap: wrap; gap: 0.375rem; }
-.previewNode, .previewMore {
-  max-width: 100%; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm);
-  background: var(--color-surface); color: var(--color-text-primary); font-size: 0.75rem;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.previewMore { color: var(--color-text-secondary); }
 .previewTableWrap { max-height: 18rem; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
 .previewTable { width: 100%; min-width: 34rem; border-collapse: collapse; table-layout: fixed; font-size: 0.75rem; }
 .previewTable th, .previewTable td { padding: 0.5rem; border-bottom: 1px solid var(--color-border); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
