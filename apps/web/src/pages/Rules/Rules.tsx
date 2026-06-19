@@ -171,13 +171,17 @@ export function Rules() {
         description={t('rules.reorder_hint')}
         actions={
           <div className={styles.headerActions}>
-            <Button variant="secondary" onClick={openBatch}>{t('rules.import_batch', { defaultValue: '批量导入' })}</Button>
+            <Button variant="secondary" onClick={openBatch}>批量添加特殊规则</Button>
             <Button onClick={openCreate} icon={<PlusIcon />}>{t('rules.new')}</Button>
           </div>
         }
       />
       {loading && rules.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : rules.length === 0 ? (
-        <EmptyState title="暂无规则" description="添加规则或从模板导入" action={{ label: t('rules.new'), onClick: openCreate }} />
+        <EmptyState
+          title="暂无特殊分流规则"
+          description="通常不需要手动添加规则；默认分流由「分流策略」里的预置规则集生成。"
+          action={{ label: t('rules.new'), onClick: openCreate }}
+        />
       ) : (
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
@@ -236,7 +240,7 @@ export function Rules() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingRule ? t('common.edit') : t('rules.new')}
+        title={editingRule ? '编辑特殊规则' : t('rules.new')}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
@@ -284,7 +288,7 @@ export function Rules() {
       <Modal
         open={showBatchModal}
         onOpenChange={setShowBatchModal}
-        title={t('rules.import_batch', { defaultValue: '批量导入规则' })}
+        title="批量添加特殊规则"
         size="lg"
         footer={
           <>
@@ -311,7 +315,7 @@ export function Rules() {
           />
         </div>
         <div className={styles.helpText}>
-          支持 Clash 行格式；目标策略组可省略，省略时使用上方选择的策略组。
+          支持 Clash 行格式；匹配后使用的策略组可省略，省略时使用上方选择的策略组。普通分流优先使用「分流策略」里的预置规则集。
         </div>
       </Modal>
     </div>

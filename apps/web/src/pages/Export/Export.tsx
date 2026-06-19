@@ -238,8 +238,8 @@ export function Export() {
           onChange={includeGroupIds => setForm(f => ({ ...f, includeGroupIds }))}
         />
         <MultiSelect
-          label="规则"
-          emptyText="未选择时导出所有启用规则"
+          label="特殊分流规则"
+          emptyText="未选择时导出所有启用特殊规则"
           options={rules.map(item => ({ id: item.id, label: `${item.type}, ${item.payload}` }))}
           value={form.includeRuleIds}
           onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
@@ -370,7 +370,7 @@ function scopeSummary(
   return [
     summaryPart('节点组', config.includeCollectionIds, collections.length),
     summaryPart('组', config.includeGroupIds, groups.length),
-    summaryPart('规则', config.includeRuleIds, rules.length),
+    summaryPart('特殊规则', config.includeRuleIds, rules.length),
     summaryPart('分流规则集', config.includeRemoteSetIds, remoteSets.length),
   ].join(' / ')
 }
