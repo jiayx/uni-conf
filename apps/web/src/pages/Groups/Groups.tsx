@@ -173,7 +173,7 @@ export function Groups() {
                 <div className={styles.groupMeta}>
                   <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
                   {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
-                  {group.collectionIds.length > 0 && <Badge variant="info">{group.collectionIds.length} 集合</Badge>}
+                  {group.collectionIds.length > 0 && <Badge variant="info">{group.collectionIds.length} 节点池</Badge>}
                   {group.groupIds.length > 0 && <Badge variant="purple">{group.groupIds.length} 嵌套</Badge>}
                   {group.builtins.length > 0 && <Badge variant="warning">{group.builtins.join(' / ')}</Badge>}
                 </div>
@@ -240,7 +240,7 @@ export function Groups() {
 
         <MultiSelect
           label={t('groups.collections')}
-          emptyText="使用全部当前导出节点"
+          emptyText="不指定节点池，使用当前导出节点"
           options={collectionOptions}
           value={form.collectionIds}
           onChange={collectionIds => setForm(current => ({ ...current, collectionIds }))}

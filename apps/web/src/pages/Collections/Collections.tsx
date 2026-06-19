@@ -226,15 +226,15 @@ export function Collections() {
     <div className={styles.page}>
       <PageHeader
         title={t('collections.title')}
-        description={`${t('common.total', { count: collections.length })}`}
+        description={`通过过滤、重命名、去重和排序生成可复用节点池，共 ${collections.length} 个`}
         actions={<Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button>}
       />
       {loading && collections.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : collections.length === 0 ? (
         <EmptyState
-          title="暂无节点组合"
-          description="节点组合用于对订阅节点进行过滤、重命名、去重和排序"
+          title="暂无节点池"
+          description="节点池用于保存一组过滤条件，生成可供策略组使用的候选节点结果"
           action={{ label: t('collections.new'), onClick: openCreate }}
         />
       ) : (
@@ -283,7 +283,7 @@ export function Collections() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { if (confirm('删除此节点组合？')) void deleteCollection(collection.id) }}
+                  onClick={() => { if (confirm('删除此节点池？')) void deleteCollection(collection.id) }}
                 >
                   {t('common.delete')}
                 </Button>

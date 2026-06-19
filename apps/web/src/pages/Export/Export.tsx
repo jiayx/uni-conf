@@ -224,8 +224,8 @@ export function Export() {
           <span>启用此配置</span>
         </label>
         <MultiSelect
-          label="节点集合"
-          emptyText="未选择时导出所有启用节点"
+          label="节点池"
+          emptyText="未选择时导出所有启用节点池"
           options={collections.map(item => ({ id: item.id, label: item.name }))}
           value={form.includeCollectionIds}
           onChange={includeCollectionIds => setForm(f => ({ ...f, includeCollectionIds }))}
@@ -367,7 +367,7 @@ function scopeSummary(
   remoteSets: RemoteRuleSet[]
 ): string {
   return [
-    summaryPart('集合', config.includeCollectionIds, collections.length),
+    summaryPart('节点池', config.includeCollectionIds, collections.length),
     summaryPart('组', config.includeGroupIds, groups.length),
     summaryPart('规则', config.includeRuleIds, rules.length),
     summaryPart('远程集', config.includeRemoteSetIds, remoteSets.length),

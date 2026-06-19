@@ -48,7 +48,7 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | created_at | TEXT | ISO timestamp |
 | updated_at | TEXT | ISO timestamp |
 
-### `collections` — Node Grouping Config
+### `collections` — Node Pool Filter Config
 
 | Column | Type | Description |
 |--------|------|-------------|
