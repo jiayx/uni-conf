@@ -9,7 +9,7 @@ interface SourcesState {
   refreshResults: Record<string, SourceRefreshResult>
   refreshErrors: Record<string, string>
   fetchSources: () => Promise<void>
-  addSource: (data: Omit<ProxySource, 'id' | 'nodeCount' | 'createdAt' | 'updatedAt'>) => Promise<ProxySource>
+  addSource: (data: Omit<ProxySource, 'id' | 'nodeCount' | 'groups' | 'rawContent' | 'createdAt' | 'updatedAt'>) => Promise<ProxySource>
   updateSource: (id: string, data: Partial<ProxySource>) => Promise<void>
   deleteSource: (id: string) => Promise<void>
   refreshSource: (id: string) => Promise<SourceRefreshResult>

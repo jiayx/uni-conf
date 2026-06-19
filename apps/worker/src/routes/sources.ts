@@ -9,7 +9,7 @@ import {
 } from '../db/helpers';
 import { detectCountry } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { ProxyProtocol, NormalizedProxyConfig } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -17,7 +17,11 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM sources ORDER BY created_at DESC'
+    `SELECT id, name, type, url, format, enabled, node_count, last_updated,
+      update_interval, user_agent, notes, tags, source_groups,
+      upload_bytes, download_bytes, total_bytes, expire_time,
+      created_at, updated_at
+     FROM sources ORDER BY created_at DESC`
   ).all();
   const sources = (results as Record<string, unknown>[]).map(mapSource);
   return c.json({ success: true, data: sources });
@@ -205,7 +209,7 @@ app.post('/:id/refresh', async (c) => {
   }
 
   // Detect format and parse nodes
-  const { nodes: parsedNodes, format } = detectAndParse(rawContent);
+  const { nodes: parsedNodes, groups: parsedGroups, format } = detectAndParse(rawContent);
   if (parsedNodes.length === 0) {
     return c.json(
       { success: false, error: `No proxy nodes parsed from source content (detected format: ${format})` },
@@ -324,6 +328,8 @@ app.post('/:id/refresh', async (c) => {
       download_bytes = ?,
       total_bytes = ?,
       expire_time = ?,
+      source_groups = ?,
+      raw_content = ?,
       updated_at = ?
      WHERE id = ?`
   )
@@ -334,6 +340,8 @@ app.post('/:id/refresh', async (c) => {
       subscriptionInfo.downloadBytes ?? null,
       subscriptionInfo.totalBytes ?? null,
       subscriptionInfo.expireTime ?? null,
+      jsonStringify(parsedGroups),
+      rawContent,
       ts,
       id
     )
@@ -348,6 +356,7 @@ app.post('/:id/refresh', async (c) => {
       addedCount: addedNodes.length,
       updatedCount: updatedNodes.length,
       removedCount: toRemove.length,
+      sourceGroupCount: parsedGroups.length,
       format,
     },
   });
@@ -374,13 +383,14 @@ function countryFields(name: string): Pick<ParsedNodeRaw, 'country' | 'countryCo
   };
 }
 
-function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string } {
+function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; format: string } {
   const trimmed = raw.trim();
 
   // Try YAML (Clash/Mihomo format)
   if (trimmed.startsWith('proxies:') || trimmed.includes('\nproxies:')) {
     const nodes = parseClashYaml(trimmed);
-    return { nodes, format: 'mihomo' };
+    const groups = parseClashGroups(trimmed);
+    return { nodes, groups, format: 'mihomo' };
   }
 
   // Try JSON (sing-box format)
@@ -388,7 +398,8 @@ function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string }
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
       const nodes = parseSingboxJson(parsed);
-      return { nodes, format: 'singbox' };
+      const groups = parseSingboxGroups(parsed);
+      return { nodes, groups, format: 'singbox' };
     } catch {
       // Not valid JSON
     }
@@ -399,7 +410,7 @@ function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string }
     const decoded = atob(trimmed.replace(/\s/g, ''));
     const lines = decoded.split('\n').filter((l) => l.trim().length > 0);
     const nodes = parseRawLines(lines);
-    if (nodes.length > 0) return { nodes, format: 'base64' };
+    if (nodes.length > 0) return { nodes, groups: [], format: 'base64' };
   } catch {
     // Not base64
   }
@@ -407,7 +418,7 @@ function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; format: string }
   // Raw URI lines
   const lines = trimmed.split('\n').filter((l) => l.trim().length > 0);
   const nodes = parseRawLines(lines);
-  return { nodes, format: 'raw' };
+  return { nodes, groups: [], format: 'raw' };
 }
 
 function shouldUpdateNode(
@@ -478,6 +489,39 @@ export function parseClashYaml(content: string): ParsedNodeRaw[] {
   return nodes;
 }
 
+export function parseClashGroups(content: string): SourceNodeGroup[] {
+  try {
+    const doc = parseYAML(content);
+    if (!doc || typeof doc !== 'object') return [];
+
+    const groups = (doc as Record<string, unknown>)['proxy-groups'];
+    if (!Array.isArray(groups)) return [];
+
+    return groups
+      .map((group) => {
+        if (!group || typeof group !== 'object') return null;
+        const groupObj = group as Record<string, unknown>;
+        const name = String(groupObj.name ?? '').trim();
+        if (!name) return null;
+
+        const proxies = Array.isArray(groupObj.proxies) ? groupObj.proxies : [];
+        const memberNames = proxies
+          .map((item) => String(item ?? '').trim())
+          .filter((item) => item && item !== 'DIRECT' && item !== 'REJECT');
+
+        const result: SourceNodeGroup = {
+          name,
+          type: groupObj.type ? String(groupObj.type) : undefined,
+          memberNames,
+        };
+        return result;
+      })
+      .filter((group): group is SourceNodeGroup => group !== null && group.memberNames.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 function clashTypeToProtocol(type: string): ProxyProtocol {
   return MIHOMO_TYPE_TO_PROTOCOL[type] ?? (type === 'hy2' ? 'hysteria2' : 'unknown');
 }
@@ -514,6 +558,34 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
   }
 
   return nodes;
+}
+
+function parseSingboxGroups(data: Record<string, unknown>): SourceNodeGroup[] {
+  const outbounds = data.outbounds as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(outbounds)) return [];
+
+  const groupTypes = new Set(['selector', 'urltest', 'url-test', 'loadbalance', 'load-balance']);
+  return outbounds
+    .map((outbound) => {
+      const type = String(outbound.type ?? '').toLowerCase();
+      if (!groupTypes.has(type)) return null;
+
+      const name = String(outbound.tag ?? '').trim();
+      if (!name) return null;
+
+      const members = Array.isArray(outbound.outbounds) ? outbound.outbounds : [];
+      const memberNames = members
+        .map((item) => String(item ?? '').trim())
+        .filter((item) => item && item !== 'direct' && item !== 'block');
+
+      const result: SourceNodeGroup = {
+        name,
+        type,
+        memberNames,
+      };
+      return result;
+    })
+    .filter((group): group is SourceNodeGroup => group !== null && group.memberNames.length > 0);
 }
 
 function singboxTypeToProtocol(type: string): ProxyProtocol {

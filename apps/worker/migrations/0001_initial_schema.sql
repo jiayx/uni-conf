@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS sources (
   user_agent TEXT,
   notes TEXT,
   tags TEXT NOT NULL DEFAULT '[]',
+  source_groups TEXT NOT NULL DEFAULT '[]',
+  raw_content TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

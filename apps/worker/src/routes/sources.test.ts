@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { detectCountry } from '@uni-conf/shared'
-import { parseClashYaml } from './sources'
+import { parseClashGroups, parseClashYaml } from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -86,6 +86,29 @@ proxies:
     const nodes = parseClashYaml(MOCK_CLASH_YAML)
     const anytlsNodes = nodes.filter(n => n.protocol === 'anytls')
     expect(anytlsNodes.length).toBeGreaterThan(0)
+  })
+
+  it('should parse upstream proxy groups from Clash YAML', () => {
+    const groupsYaml = `
+proxies:
+    - { name: '🇺🇸 US 01', type: trojan, server: us1.example.com, port: 443, password: pwd }
+    - { name: '🇺🇸 US 02', type: trojan, server: us2.example.com, port: 443, password: pwd }
+    - { name: '🇯🇵 JP 01', type: trojan, server: jp1.example.com, port: 443, password: pwd }
+proxy-groups:
+    - { name: 'US Auto', type: url-test, proxies: ['🇺🇸 US 01', '🇺🇸 US 02', DIRECT] }
+    - name: Streaming
+      type: select
+      proxies:
+        - 🇺🇸 US 01
+        - 🇯🇵 JP 01
+        - REJECT
+`
+    const groups = parseClashGroups(groupsYaml)
+
+    expect(groups).toEqual([
+      { name: 'US Auto', type: 'url-test', memberNames: ['🇺🇸 US 01', '🇺🇸 US 02'] },
+      { name: 'Streaming', type: 'select', memberNames: ['🇺🇸 US 01', '🇯🇵 JP 01'] },
+    ])
   })
 
   it('should detect countries from flags and region codes in subscription node names', () => {

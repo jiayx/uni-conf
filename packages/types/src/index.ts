@@ -100,6 +100,8 @@ export interface ProxySource {
   userAgent?: string;
   notes?: string;
   tags: string[];
+  groups: SourceNodeGroup[];
+  rawContent?: string;
   // Subscription info (from subscription-userinfo header)
   uploadBytes?: number;
   downloadBytes?: number;
@@ -107,6 +109,12 @@ export interface ProxySource {
   expireTime?: number; // Unix timestamp
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SourceNodeGroup {
+  name: string;
+  type?: string;
+  memberNames: string[];
 }
 
 export interface NormalizedProxyConfig {
@@ -340,6 +348,8 @@ export interface SourceRefreshResult {
   addedCount: number;
   updatedCount?: number;
   removedCount: number;
+  sourceGroupCount?: number;
+  format?: string;
   error?: string;
 }
 
