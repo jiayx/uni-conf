@@ -12,7 +12,7 @@ import { useGroupsStore } from '@/store/groups.store'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { api } from '@/lib/api'
-import { countryCodeToFlag } from '@uni-conf/shared'
+import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag } from '@uni-conf/shared'
 import type {
   DedupStrategy,
   FilterOperator,
@@ -28,7 +28,6 @@ import styles from './Collections.module.css'
 type CollectionForm = Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>
 type GeneratedGroupType = Extract<GroupType, 'select' | 'url-test' | 'fallback'>
 
-const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]'
 const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; label: string; suffix: string }> = [
   { value: 'select', label: '手动选择', suffix: 'Select' },
   { value: 'url-test', label: '自动测速', suffix: 'Auto' },
@@ -295,6 +294,7 @@ export function Collections() {
         .filter((item): item is { collection: NodeCollection; marker: AutoNodeGroupMarker } => Boolean(item.marker))
       const existingByKey = new Map(existingAutoCollections.map(item => [item.marker.key, item.collection]))
       const groups = await api.groups.list()
+      const previewIdsToRefresh: string[] = []
 
       for (const item of existingAutoCollections) {
         if (selectedAutoKeys.has(item.marker.key)) continue
@@ -315,10 +315,13 @@ export function Collections() {
 
         if (existingCollection) {
           if (existingCollection.name !== name) {
-            await api.collections.update(existingCollection.id, { name })
+            await api.collections.update(existingCollection.id, { name, dedup: 'full_config' })
+          } else if (existingCollection.dedup !== 'full_config') {
+            await api.collections.update(existingCollection.id, { dedup: 'full_config' })
           }
           const linkedGroups = groups.filter(group => group.collectionIds.includes(existingCollection.id) && !group.isBuiltin)
           await Promise.all(linkedGroups.map(group => group.name === name ? Promise.resolve() : api.groups.update(group.id, { name })))
+          previewIdsToRefresh.push(existingCollection.id)
           continue
         }
 
@@ -334,7 +337,7 @@ export function Collections() {
             enabled: true,
           }],
           renames: [],
-          dedup: 'server_port',
+          dedup: 'full_config',
           sort: 'name',
           sortCountryOrder: [],
           enabled: true,
@@ -342,9 +345,11 @@ export function Collections() {
         })
 
         await createLinkedGroup(collection, marker.type, groups.length + 1)
+        previewIdsToRefresh.push(collection.id)
       }
 
       await Promise.all([fetchCollections(), fetchGroups()])
+      await Promise.all(previewIdsToRefresh.map(id => previewCollection(id).catch(() => [])))
       setShowAutoModal(false)
     } finally {
       setAutoApplying(false)

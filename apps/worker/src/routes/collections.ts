@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapNode, newId, now } from '../db/helpers';
+import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared';
 import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -171,7 +172,7 @@ app.get('/:id/preview', async (c) => {
   nodes = applyRenames(nodes, collection.renames);
 
   // Apply dedup
-  nodes = applyDedup(nodes, collection.dedup);
+  nodes = applyDedup(nodes, getEffectiveDedup(collection));
 
   // Apply sort
   nodes = applySort(nodes, collection.sort, collection.sortCountryOrder);
@@ -374,6 +375,13 @@ function applyDedup(
     seen.add(key);
     return true;
   });
+}
+
+function getEffectiveDedup(collection: NodeCollection): NodeCollection['dedup'] {
+  if (collection.notes?.startsWith(AUTO_NODE_GROUP_PREFIX) && collection.dedup === 'server_port') {
+    return 'full_config';
+  }
+  return collection.dedup;
 }
 
 function applySort(

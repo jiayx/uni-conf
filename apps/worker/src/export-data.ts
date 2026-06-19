@@ -8,6 +8,7 @@ import type {
   ProxyRule,
   RemoteRuleSet,
 } from '@uni-conf/types'
+import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared'
 import {
   mapCollection,
   mapExportConfig,
@@ -126,7 +127,7 @@ async function buildCollectionNodeRows(
     const scopedRows = scopeRowsForCollection(allNodeRows, collection)
     const scopedNodes = scopedRows.map(mapNode)
     const filteredNodes = applySort(
-      applyDedup(applyFilters(scopedNodes, collection.filters), collection.dedup),
+      applyDedup(applyFilters(scopedNodes, collection.filters), getEffectiveDedup(collection)),
       collection.sort,
       collection.sortCountryOrder
     )
@@ -270,6 +271,13 @@ function getDedupKey(node: ProxyNode, strategy: NodeCollection['dedup']): string
     default:
       return node.name
   }
+}
+
+function getEffectiveDedup(collection: NodeCollection): NodeCollection['dedup'] {
+  if (collection.notes?.startsWith(AUTO_NODE_GROUP_PREFIX) && collection.dedup === 'server_port') {
+    return 'full_config'
+  }
+  return collection.dedup
 }
 
 function applySort(

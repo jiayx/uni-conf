@@ -3,6 +3,8 @@ export interface CountryInfo {
   countryCode: string;
 }
 
+export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
+
 export const COUNTRY_FLAG_MAP: Array<[string, string, string]> = [
   ['🇭🇰', 'Hong Kong', 'HK'],
   ['🇯🇵', 'Japan', 'JP'],
