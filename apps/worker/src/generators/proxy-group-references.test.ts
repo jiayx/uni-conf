@@ -40,6 +40,28 @@ const mihomoUnsupportedNode: ProxyNode = {
   },
 }
 
+const anytlsNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-anytls',
+  name: 'HK AnyTLS',
+  protocol: 'anytls',
+  server: 'hk.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'anytls',
+    server: 'hk.example.com',
+    port: 443,
+    password: 'secret',
+    sni: 'hk.example.com',
+    skipCertVerify: false,
+    extra: {
+      'client-fingerprint': 'chrome',
+      alpn: ['h2', 'http/1.1'],
+      udp: true,
+    },
+  },
+}
+
 const singboxUnsupportedNode: ProxyNode = {
   ...ssNode,
   id: 'node-unknown',
@@ -68,6 +90,22 @@ const autoGroup: ProxyGroup = {
 }
 
 describe('proxy group references', () => {
+  it('exports AnyTLS nodes for Mihomo preview configs', () => {
+    const content = generateMihomoYaml(
+      [anytlsNode],
+      [autoGroup],
+      [],
+      [],
+      { 'collection-auto': [anytlsNode.name] }
+    )
+
+    expect(content).toContain('proxies:\n  - {name: "HK AnyTLS", type: anytls')
+    expect(content).toContain('password: "secret"')
+    expect(content).toContain('client-fingerprint: "chrome"')
+    expect(content).toContain('alpn: ["h2", "http/1.1"]')
+    expect(content).toContain('- "HK AnyTLS"')
+  })
+
   it('does not reference nodes missing from Mihomo proxies', () => {
     const content = generateMihomoYaml(
       [ssNode, mihomoUnsupportedNode],

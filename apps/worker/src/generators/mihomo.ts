@@ -219,6 +219,22 @@ function nodeToMihomo(node: ProxyNode): string | null {
       obj += '}';
       return obj;
     }
+    case 'anytls': {
+      const pass = cfg.password ?? '';
+      const fingerprint = (cfg.extra?.['client-fingerprint'] as string | undefined)
+        ?? (cfg.extra?.clientFingerprint as string | undefined);
+      const alpn = cfg.extra?.alpn;
+      let obj = `{name: "${name}", type: anytls, server: ${node.server}, port: ${node.port}, password: "${pass}"`;
+      if (fingerprint) obj += `, client-fingerprint: "${fingerprint}"`;
+      if (cfg.extra?.udp !== undefined) obj += `, udp: ${Boolean(cfg.extra.udp)}`;
+      if (cfg.sni) obj += `, sni: "${cfg.sni}"`;
+      if (Array.isArray(alpn) && alpn.length > 0) {
+        obj += `, alpn: [${alpn.map((item) => `"${String(item)}"`).join(', ')}]`;
+      }
+      if (cfg.skipCertVerify) obj += `, skip-cert-verify: true`;
+      obj += '}';
+      return obj;
+    }
     case 'socks5': {
       let obj = `{name: "${name}", type: socks5, server: ${node.server}, port: ${node.port}`;
       if (cfg.extra?.username) obj += `, username: "${cfg.extra.username}"`;
