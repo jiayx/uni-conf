@@ -13,22 +13,15 @@ import {
   generateSurge,
 } from '../generators/client-configs'
 import { getAppSettings } from '../services/app-settings'
+import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
 import type { Env } from '../types'
 import type { ExportConfig } from '@uni-conf/types'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
-function generateToken(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let token = ''
-  for (let i = 0; i < 24; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return token
-}
-
 // GET /api/export/configs - list export configs
 exportRouter.get('/configs', async (c) => {
+  await ensureDefaultExportConfig(c.env.DB, now())
   const rows = await c.env.DB.prepare('SELECT * FROM export_configs ORDER BY created_at DESC').all()
   return c.json({ success: true, data: (rows.results ?? []).map(mapExportConfig) })
 })
@@ -37,7 +30,7 @@ exportRouter.get('/configs', async (c) => {
 exportRouter.post('/configs', async (c) => {
   const body = await c.req.json<Partial<ExportConfig>>()
   const id = newId()
-  const token = generateToken()
+  const token = generateExportToken()
   const ts = now()
 
   await c.env.DB.prepare(
@@ -89,7 +82,7 @@ exportRouter.put('/configs/:id', async (c) => {
   if (body.extraConfig !== undefined) { fields.push('extra_config = ?'); values.push(JSON.stringify(body.extraConfig)) }
 
   // Reset token if requested
-  if (body.token === 'reset') { fields.push('token = ?'); values.push(generateToken()) }
+  if (body.token === 'reset') { fields.push('token = ?'); values.push(generateExportToken()) }
 
   if (fields.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400)
   fields.push('updated_at = ?'); values.push(ts); values.push(id)
@@ -115,7 +108,7 @@ exportRouter.post('/configs/:id/reset-token', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
 
   await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ?')
-    .bind(generateToken(), now(), id)
+    .bind(generateExportToken(), now(), id)
     .run()
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
@@ -233,7 +226,7 @@ exportRouter.get('/download/:format', async (c) => {
 
 async function resolveConfig(c: Context<{ Bindings: Env }>) {
   const configId = c.req.query('configId')
-  if (!configId) return undefined
+  if (!configId) return ensureDefaultExportConfig(c.env.DB, now())
 
   const config = await getExportConfigById(c.env.DB, configId)
   if (!config) return c.json({ success: false, error: 'Export config not found' }, 404)

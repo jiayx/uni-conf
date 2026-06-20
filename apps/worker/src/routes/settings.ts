@@ -5,10 +5,12 @@ import { now } from '../db/helpers'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { getAppSettings } from '../services/app-settings'
+import { ensureDefaultExportConfig } from '../services/default-export-config'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
+  await ensureDefaultExportConfig(c.env.DB, now())
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })
 })

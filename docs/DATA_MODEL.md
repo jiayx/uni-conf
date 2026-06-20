@@ -173,6 +173,17 @@ Built-in groups have two product roles:
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
+The system ensures a built-in default export config exists:
+
+| Field | Value |
+|-------|-------|
+| id | `default-mihomo` |
+| name | `默认 Mihomo 配置` |
+| format | `mihomo` |
+| include_*_ids | `[]` (export all enabled data) |
+
+`app_settings.default_export_token` points to this default config token unless the user explicitly changes it.
+
 ### `app_settings` — Application Settings (Singleton)
 
 | Column | Type | Description |
@@ -182,7 +193,7 @@ Built-in groups have two product roles:
 | theme | TEXT | `system` \| `light` \| `dark` |
 | routing_policy_template | TEXT | `empty` \| `common` \| `extended` |
 | dns_mode | TEXT | `compatible` \| `smart` \| `fake-ip` |
-| default_export_token | TEXT? | |
+| default_export_token | TEXT? | Token of the default export config |
 | show_compatibility_warnings | INTEGER | 1/0 |
 | enable_auto_refresh | INTEGER | 1/0 |
 | auto_refresh_interval | INTEGER | Minutes |
