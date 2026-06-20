@@ -23,6 +23,7 @@ import {
   applyRoutingPolicyGroupLinks,
   syncRoutingPolicyGroups,
 } from './services/routing-policy-groups'
+import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
 
 export interface ExportData {
   config?: ExportConfig
@@ -63,7 +64,9 @@ export async function buildExportData(
   db: D1Database,
   config?: ExportConfig
 ): Promise<ExportData> {
-  await syncRoutingPolicyGroups(db, now())
+  const ts = now()
+  await syncRoutingPolicyGroups(db, ts)
+  await ensureDefaultRemoteRuleSets(db, ts)
 
   const allNodeRows = await selectRows(db, 'SELECT * FROM nodes WHERE enabled = 1')
   const collectionRows = await buildCollectionNodeRows(db, allNodeRows)

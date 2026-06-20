@@ -16,9 +16,15 @@ const DEFAULT_MEMBER_GROUP_IDS = [
 ];
 
 const DEFAULT_GENERATED_GROUPS = [
-  { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 6 },
-  { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 7 },
-  { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 8 },
+  { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: ['DIRECT'] },
+  { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [] },
+  { id: 'builtin-streaming', name: 'Streaming', type: 'select', sortOrder: 2, builtins: [] },
+  { id: 'builtin-social', name: 'Social', type: 'select', sortOrder: 3, builtins: [] },
+  { id: 'builtin-direct', name: 'DIRECT', type: 'direct', sortOrder: 4, builtins: ['DIRECT'] },
+  { id: 'builtin-reject', name: 'REJECT', type: 'reject', sortOrder: 5, builtins: ['REJECT'] },
+  { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 6, builtins: [] },
+  { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 7, builtins: [] },
+  { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 8, builtins: [] },
 ];
 
 export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promise<void> {
@@ -85,8 +91,17 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
     db.prepare(
       `INSERT OR IGNORE INTO groups
         (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, '[]', '[]', '[]', ?, 300, 150, 1, 1, ?, 1, ?, ?)`
-    ).bind(group.id, group.name, group.type, 'http://www.gstatic.com/generate_204', group.sortOrder, ts, ts)
+       VALUES (?, ?, ?, '[]', '[]', ?, ?, 300, 150, 1, 1, ?, 1, ?, ?)`
+    ).bind(
+      group.id,
+      group.name,
+      group.type,
+      jsonStringify(group.builtins),
+      'http://www.gstatic.com/generate_204',
+      group.sortOrder,
+      ts,
+      ts
+    )
   );
 
   await db.batch(statements);

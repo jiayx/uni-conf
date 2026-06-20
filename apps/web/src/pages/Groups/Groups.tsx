@@ -23,6 +23,29 @@ const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning
   reject: 'error',
 }
 
+const ROUTING_GROUP_TEMPLATES = [
+  {
+    id: 'builtin-proxy',
+    name: 'PROXY',
+    description: '默认代理入口，汇总全部可用出口策略。',
+  },
+  {
+    id: 'builtin-ai',
+    name: 'AI',
+    description: 'AI 服务分流，默认关联 AI 规则集。',
+  },
+  {
+    id: 'builtin-streaming',
+    name: 'Streaming',
+    description: '流媒体分流，默认关联视频与音乐服务规则集。',
+  },
+  {
+    id: 'builtin-social',
+    name: 'Social',
+    description: '社交平台分流，默认关联社交媒体规则集。',
+  },
+]
+
 function createEmptyForm(order: number): GroupForm {
   return {
     name: '',
@@ -53,7 +76,14 @@ export function Groups() {
   }, [fetchGroups])
 
   const visibleGroups = useMemo(
-    () => groups.filter(group => !isOutletGroup(group)),
+    () => groups.filter(group => isRoutingPolicyGroup(group) || isCustomRoutingGroup(group)),
+    [groups]
+  )
+  const templateStatus = useMemo(
+    () => ROUTING_GROUP_TEMPLATES.map(template => ({
+      ...template,
+      group: groups.find(group => group.id === template.id || group.name === template.name),
+    })),
     [groups]
   )
   const groupOptions = useMemo(
@@ -150,9 +180,37 @@ export function Groups() {
     <div className={styles.page}>
       <PageHeader
         title={t('groups.title')}
-        description={t('groups.reorder_hint')}
-        actions={<Button onClick={openCreate} icon={<PlusIcon />}>{t('groups.new')}</Button>}
+        description="策略组建议从模板开始；默认规则会自动关联到对应策略组，只有特殊需求才需要手动补充。"
+        actions={<Button onClick={openCreate} icon={<PlusIcon />}>添加自定义策略组</Button>}
       />
+      <section className={styles.templatePanel}>
+        <div className={styles.templateHeader}>
+          <div>
+            <div className={styles.templateTitle}>常用策略模板</div>
+            <div className={styles.templateMeta}>系统默认维护这些分流策略组，并自动挂载出口策略和预置规则集。</div>
+          </div>
+          <Button variant="secondary" onClick={() => void fetchGroups()}>{t('common.refresh')}</Button>
+        </div>
+        <div className={styles.templateGrid}>
+          {templateStatus.map(template => (
+            <div key={template.id} className={styles.templateItem}>
+              <div className={styles.templateItemTop}>
+                <span className={styles.templateName}>{template.name}</span>
+                <Badge variant={template.group?.enabled ? 'success' : 'default'}>
+                  {template.group ? (template.group.enabled ? t('common.enabled') : t('common.disabled')) : '待生成'}
+                </Badge>
+              </div>
+              <div className={styles.templateDesc}>{template.description}</div>
+              {template.group && (
+                <div className={styles.templateMembers}>
+                  {template.group.groupIds.length} 个出口选项
+                  {template.group.builtins.length > 0 ? `，${template.group.builtins.join(' / ')}` : ''}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
       {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
         <div className={styles.list}>
           {visibleGroups.map((group, index) => (
@@ -197,7 +255,7 @@ export function Groups() {
               </div>
             </Card>
           ))}
-          {visibleGroups.length === 0 && <EmptyState title="暂无策略组" action={{ label: t('groups.new'), onClick: openCreate }} />}
+          {visibleGroups.length === 0 && <EmptyState title="暂无自定义策略组" description="默认策略模板会自动生成；这里只需要添加额外业务策略。" action={{ label: '添加自定义策略组', onClick: openCreate }} />}
         </div>
       )}
 
@@ -327,6 +385,18 @@ function setFormValue<K extends keyof GroupForm>(
 
 function isOutletGroup(group: ProxyGroup): boolean {
   return !group.isBuiltin && group.collectionIds.length > 0
+}
+
+function isDefaultOutletGroup(group: ProxyGroup): boolean {
+  return ['builtin-direct', 'builtin-reject', 'builtin-all-nodes', 'builtin-node-select', 'builtin-auto-select'].includes(group.id)
+}
+
+function isRoutingPolicyGroup(group: ProxyGroup): boolean {
+  return group.isBuiltin && !isDefaultOutletGroup(group) && !['direct', 'reject'].includes(group.type)
+}
+
+function isCustomRoutingGroup(group: ProxyGroup): boolean {
+  return !group.isBuiltin && !isOutletGroup(group)
 }
 
 function PlusIcon() {

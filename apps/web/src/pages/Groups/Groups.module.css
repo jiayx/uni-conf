@@ -1,5 +1,23 @@
 .page { display: flex; flex-direction: column; gap: 1.25rem; animation: fadeIn var(--transition-normal) ease; }
 .loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
+.templatePanel {
+  display: flex; flex-direction: column; gap: 0.875rem;
+  padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.templateHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.templateTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
+.templateMeta { margin-top: 0.25rem; font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
+.templateGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+.templateItem {
+  display: flex; flex-direction: column; gap: 0.5rem; min-width: 0;
+  padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface2);
+}
+.templateItemTop { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.templateName { font-size: 0.875rem; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.templateDesc { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.45; min-height: 2.3rem; }
+.templateMembers { color: var(--color-text-tertiary); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list { display: flex; flex-direction: column; gap: 0.75rem; }
 .groupCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: 1rem 1.25rem; }
 .orderControls { display: flex; flex-direction: column; gap: 0.25rem; }
@@ -45,6 +63,8 @@
   .groupCard { grid-template-columns: 1fr; align-items: stretch; }
   .orderControls { flex-direction: row; }
   .cardActions { justify-content: flex-start; }
+  .templateHeader { align-items: flex-start; flex-direction: column; }
+  .templateGrid { grid-template-columns: 1fr; }
   .formGrid, .optionList { grid-template-columns: 1fr; }
   .summary { white-space: normal; }
 }
