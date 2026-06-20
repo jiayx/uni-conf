@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
-import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import { ROUTING_POLICY_TEMPLATES, buildRoutingPolicyTemplateGroupNames } from '@uni-conf/shared'
 import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
@@ -62,17 +62,22 @@ export function Groups() {
     [groups]
   )
   const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate) ?? ROUTING_POLICY_TEMPLATES[1]
+  const activeTemplateGroupNames = useMemo(
+    () => buildRoutingPolicyTemplateGroupNames(activeTemplateConfig),
+    [activeTemplateConfig]
+  )
   const templateGroups = useMemo(
-    () => (activeTemplateConfig?.groupNames ?? []).map(name => ({
+    () => activeTemplateGroupNames.map(name => ({
       name,
       group: groups.find(group => group.name === name),
     })),
-    [activeTemplateConfig?.groupNames, groups]
+    [activeTemplateGroupNames, groups]
   )
   const templateOptions = useMemo(
     () => ROUTING_POLICY_TEMPLATES.map(template => ({
       ...template,
       active: template.id === activeTemplate,
+      displayGroupNames: buildRoutingPolicyTemplateGroupNames(template),
     })),
     [activeTemplate]
   )
@@ -203,10 +208,10 @@ export function Groups() {
             >
               <div className={styles.templateItemTop}>
                 <span className={styles.templateName}>{template.name}</span>
-                <Badge variant={template.active ? 'success' : 'default'}>{template.active ? '当前' : `${template.groupNames.length} 组`}</Badge>
+                <Badge variant={template.active ? 'success' : 'default'}>{template.active ? '当前' : `${template.displayGroupNames.length} 组`}</Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
-              <div className={styles.templateMembers}>{template.groupNames.join(' / ')}</div>
+              <div className={styles.templateMembers}>{template.displayGroupNames.join(' / ')}</div>
             </button>
           ))}
         </div>

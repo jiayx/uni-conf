@@ -143,6 +143,12 @@ export interface RoutingPolicyTemplate {
   groupNames: string[];
 }
 
+export const FOUNDATION_POLICY_GROUP_NAMES = ['PROXY', 'DIRECT', 'REJECT'] as const;
+
+export function buildRoutingPolicyTemplateGroupNames(template: RoutingPolicyTemplate): string[] {
+  return Array.from(new Set([...FOUNDATION_POLICY_GROUP_NAMES, ...template.groupNames]));
+}
+
 export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   {
     id: 'empty',
