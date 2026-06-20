@@ -31,6 +31,38 @@ const groupRows = [
     is_builtin: 1,
   },
   {
+    id: 'builtin-reject',
+    type: 'reject',
+    collection_ids: '[]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 1,
+  },
+  {
+    id: 'builtin-all-nodes',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 1,
+  },
+  {
+    id: 'builtin-node-select',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 1,
+  },
+  {
+    id: 'builtin-auto-select',
+    type: 'url-test',
+    collection_ids: '[]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 1,
+  },
+  {
     id: 'us-auto',
     type: 'url-test',
     collection_ids: '["collection-us"]',
@@ -57,8 +89,17 @@ const groupRows = [
 ];
 
 describe('routing policy group sync', () => {
-  it('resolves enabled node-backed groups as outlet groups', () => {
-    expect(resolveOutletGroupIds(groupRows)).toEqual(['us-auto', 'hk-auto']);
+  it('resolves default and node-backed groups as outlet groups', () => {
+    expect(resolveOutletGroupIds(groupRows)).toEqual([
+      'builtin-proxy',
+      'builtin-direct',
+      'builtin-reject',
+      'builtin-all-nodes',
+      'builtin-node-select',
+      'builtin-auto-select',
+      'us-auto',
+      'hk-auto',
+    ]);
   });
 
   it('resolves builtin non-node select groups as routing policy groups', () => {
@@ -68,9 +109,14 @@ describe('routing policy group sync', () => {
   it('links every routing policy group to all outlet groups for preview/export', () => {
     const rows = applyRoutingPolicyGroupLinks(groupRows);
 
-    expect(rows.find((row) => row.id === 'builtin-proxy')?.group_ids).toBe('["us-auto","hk-auto"]');
-    expect(rows.find((row) => row.id === 'builtin-ai')?.group_ids).toBe('["us-auto","hk-auto"]');
+    expect(rows.find((row) => row.id === 'builtin-proxy')?.group_ids).toBe(
+      '["builtin-direct","builtin-reject","builtin-all-nodes","builtin-node-select","builtin-auto-select","us-auto","hk-auto"]'
+    );
+    expect(rows.find((row) => row.id === 'builtin-ai')?.group_ids).toBe(
+      '["builtin-proxy","builtin-direct","builtin-reject","builtin-all-nodes","builtin-node-select","builtin-auto-select","us-auto","hk-auto"]'
+    );
     expect(rows.find((row) => row.id === 'builtin-direct')?.group_ids).toBe('[]');
+    expect(rows.find((row) => row.id === 'builtin-all-nodes')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'us-auto')?.group_ids).toBe('[]');
   });
 });

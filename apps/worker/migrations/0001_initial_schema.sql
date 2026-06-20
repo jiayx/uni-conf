@@ -164,5 +164,8 @@ INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtin
   ('builtin-ai',        'AI',        'select',   '[]', '["builtin-proxy"]', '[]', 1, 1,  1, datetime('now'), datetime('now')),
   ('builtin-streaming', 'Streaming', 'select',   '[]', '["builtin-proxy"]', '[]', 1, 2,  1, datetime('now'), datetime('now')),
   ('builtin-social',    'Social',    'select',   '[]', '["builtin-proxy"]', '[]', 1, 3,  1, datetime('now'), datetime('now')),
-  ('builtin-direct',    'DIRECT',    'direct',   '[]', '[]', '["DIRECT"]',  1, 10, 1, datetime('now'), datetime('now')),
-  ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 11, 1, datetime('now'), datetime('now'));
+  ('builtin-direct',    'DIRECT',    'direct',   '[]', '[]', '["DIRECT"]',  1, 4,  1, datetime('now'), datetime('now')),
+  ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 5,  1, datetime('now'), datetime('now')),
+  ('builtin-all-nodes', '全部节点',   'select',   '[]', '[]', '[]',          1, 6,  1, datetime('now'), datetime('now')),
+  ('builtin-node-select', '节点选择', 'select',   '[]', '[]', '[]',          1, 7,  1, datetime('now'), datetime('now')),
+  ('builtin-auto-select', '自动选择', 'url-test', '[]', '[]', '[]',          1, 8,  1, datetime('now'), datetime('now'));

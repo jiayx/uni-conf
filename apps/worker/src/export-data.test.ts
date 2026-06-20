@@ -62,6 +62,23 @@ describe('export data scoping', () => {
     expect(scopeIds).toEqual(['collection-us', 'collection-hk'])
   })
 
+  it('exports all nodes when full client configs include an all-node outlet group', () => {
+    const scopeIds = resolveCollectionScopeIds(
+      baseConfig,
+      [
+        ...groupRows,
+        {
+          id: 'builtin-all-nodes',
+          name: '全部节点',
+          collection_ids: '[]',
+          group_ids: '[]',
+        },
+      ]
+    )
+
+    expect(scopeIds).toEqual([])
+  })
+
   it('uses selected node groups for node subscription configs', () => {
     const scopeIds = resolveCollectionScopeIds(
       {
