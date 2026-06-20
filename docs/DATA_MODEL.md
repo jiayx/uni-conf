@@ -224,6 +224,21 @@ The system ensures a built-in default export config exists:
 }
 ```
 
+### SourceRefreshResult
+
+Subscription refresh returns counts for the default node cleanup pipeline:
+
+| Field | Description |
+|-------|-------------|
+| nodeCount | Persisted node count after refresh |
+| addedCount | New usable nodes inserted |
+| updatedCount | Existing usable nodes updated |
+| removedCount | Previously stored nodes removed because they disappeared or became unusable |
+| excludedCount | Parsed nodes skipped as subscription info entries or unsupported protocols |
+| sourceGroupCount | Upstream node groups retained after cleanup |
+
+Default cleanup excludes subscription info nodes such as traffic quota, expiry, package, official site, reset, and user-center entries. It also skips parsed nodes whose protocol maps to `unknown`.
+
 ### ClientCompatibility (stored in `rules.compatibility`)
 ```json
 [

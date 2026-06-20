@@ -354,6 +354,7 @@ export interface SourceRefreshResult {
   addedCount: number;
   updatedCount?: number;
   removedCount: number;
+  excludedCount?: number;
   sourceGroupCount?: number;
   format?: string;
   error?: string;

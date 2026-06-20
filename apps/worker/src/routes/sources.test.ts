@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { detectCountry } from '@uni-conf/shared'
-import { parseClashGroups, parseClashYaml } from './sources'
+import { detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import { filterUsableParsedContent, parseClashGroups, parseClashYaml } from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -108,6 +108,33 @@ proxy-groups:
     expect(groups).toEqual([
       { name: 'US Auto', type: 'url-test', memberNames: ['🇺🇸 US 01', '🇺🇸 US 02'] },
       { name: 'Streaming', type: 'select', memberNames: ['🇺🇸 US 01', '🇯🇵 JP 01'] },
+    ])
+  })
+
+  it('should identify subscription info node names without matching normal nodes', () => {
+    expect(isSubscriptionInfoNodeName('剩余流量：111 GB')).toBe(true)
+    expect(isSubscriptionInfoNodeName('套餐到期：2026-12-31')).toBe(true)
+    expect(isSubscriptionInfoNodeName('Traffic Used: 12 GB')).toBe(true)
+    expect(isSubscriptionInfoNodeName('🇭🇰 HK IEPL 2x')).toBe(false)
+    expect(isSubscriptionInfoNodeName('US｜Los Angeles｜x1')).toBe(false)
+  })
+
+  it('should filter subscription info nodes and unsupported protocols before refresh persistence', () => {
+    const yaml = `
+proxies:
+    - { name: '剩余流量：111 GB', type: trojan, server: info.example.com, port: 443, password: pwd }
+    - { name: '官网：https://example.com', type: trojan, server: info2.example.com, port: 443, password: pwd }
+    - { name: '🇭🇰 HK 01', type: trojan, server: hk.example.com, port: 443, password: pwd }
+    - { name: 'Unknown Protocol', type: unsupported-protocol, server: unknown.example.com, port: 443, password: pwd }
+proxy-groups:
+    - { name: 'Upstream Auto', type: select, proxies: ['剩余流量：111 GB', '🇭🇰 HK 01', 'Unknown Protocol'] }
+`
+    const result = filterUsableParsedContent(parseClashYaml(yaml), parseClashGroups(yaml))
+
+    expect(result.excludedCount).toBe(3)
+    expect(result.nodes.map(node => node.name)).toEqual(['🇭🇰 HK 01'])
+    expect(result.groups).toEqual([
+      { name: 'Upstream Auto', type: 'select', memberNames: ['🇭🇰 HK 01'] },
     ])
   })
 

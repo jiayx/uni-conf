@@ -7,7 +7,7 @@ import {
   newId,
   now,
 } from '../db/helpers';
-import { detectCountry } from '@uni-conf/shared';
+import { detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
@@ -211,10 +211,14 @@ app.post('/:id/refresh', async (c) => {
   }
 
   // Detect format and parse nodes
-  const { nodes: parsedNodes, groups: parsedGroups, format } = detectAndParse(rawContent);
+  const { nodes: rawParsedNodes, groups: rawParsedGroups, format } = detectAndParse(rawContent);
+  const { nodes: parsedNodes, groups: parsedGroups, excludedCount } = filterUsableParsedContent(
+    rawParsedNodes,
+    rawParsedGroups
+  );
   if (parsedNodes.length === 0) {
     return c.json(
-      { success: false, error: `No proxy nodes parsed from source content (detected format: ${format})` },
+      { success: false, error: `No usable proxy nodes parsed from source content (detected format: ${format}, excluded: ${excludedCount})` },
       422
     );
   }
@@ -360,6 +364,7 @@ app.post('/:id/refresh', async (c) => {
       addedCount: addedNodes.length,
       updatedCount: updatedNodes.length,
       removedCount: toRemove.length,
+      excludedCount,
       sourceGroupCount: parsedGroups.length,
       format,
     },
@@ -368,7 +373,7 @@ app.post('/:id/refresh', async (c) => {
 
 // ─── Format detection & parsing ───────────────────────────────────────────────
 
-interface ParsedNodeRaw {
+export interface ParsedNodeRaw {
   name: string;
   protocol: ProxyProtocol;
   server: string;
@@ -377,6 +382,30 @@ interface ParsedNodeRaw {
   countryCode?: string;
   rawConfig: Record<string, unknown>;
   parsedConfig: NormalizedProxyConfig;
+}
+
+function shouldKeepParsedNode(node: ParsedNodeRaw): boolean {
+  return node.protocol !== 'unknown' && !isSubscriptionInfoNodeName(node.name);
+}
+
+export function filterUsableParsedContent(
+  nodes: ParsedNodeRaw[],
+  groups: SourceNodeGroup[]
+): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; excludedCount: number } {
+  const usableNodes = nodes.filter(shouldKeepParsedNode);
+  const excludedNames = new Set(nodes.filter((node) => !shouldKeepParsedNode(node)).map((node) => node.name));
+  const usableGroups = groups
+    .map((group) => ({
+      ...group,
+      memberNames: group.memberNames.filter((name) => !excludedNames.has(name) && !isSubscriptionInfoNodeName(name)),
+    }))
+    .filter((group) => group.memberNames.length > 0);
+
+  return {
+    nodes: usableNodes,
+    groups: usableGroups,
+    excludedCount: nodes.length - usableNodes.length,
+  };
 }
 
 function countryFields(name: string): Pick<ParsedNodeRaw, 'country' | 'countryCode'> {

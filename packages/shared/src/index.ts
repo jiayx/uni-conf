@@ -5,6 +5,19 @@ export interface CountryInfo {
 
 export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
 
+export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
+  /官网|官方网站|用户中心|客户中心|订阅|更新订阅/,
+  /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|流量[:：]/,
+  /套餐|到期|过期|有效期|重置/,
+  /\b(expire|expired|traffic|remaining|used|total|reset|官网|subscription)\b/i,
+  /倍率.*(说明|规则|提示)|倍数.*(说明|规则|提示)/,
+];
+
+export function isSubscriptionInfoNodeName(name: string): boolean {
+  const normalized = name.trim();
+  return Boolean(normalized) && SUBSCRIPTION_INFO_NODE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export const COUNTRY_FLAG_MAP: Array<[string, string, string]> = [
   ['🇭🇰', 'Hong Kong', 'HK'],
   ['🇯🇵', 'Japan', 'JP'],
