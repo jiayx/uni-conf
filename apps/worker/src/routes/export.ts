@@ -14,8 +14,9 @@ import {
 } from '../generators/client-configs'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
+import { validateExportData } from '../services/export-validation'
 import type { Env } from '../types'
-import type { ExportConfig } from '@uni-conf/types'
+import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -120,7 +121,9 @@ exportRouter.get('/preview/:format', async (c) => {
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = await buildExportData(c.env.DB, config)
+  const exportData = await buildExportData(c.env.DB, config)
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = exportData
+  const warnings = validateExportData(exportData, format as ExportFormat)
   let content: string
   let contentType: string
 
@@ -158,7 +161,7 @@ exportRouter.get('/preview/:format', async (c) => {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
 
-  return c.json({ success: true, data: { content, contentType, format } })
+  return c.json({ success: true, data: { content, contentType, format, warnings } })
 })
 
 // GET /api/export/download/:format

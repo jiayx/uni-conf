@@ -247,6 +247,24 @@ Default cleanup excludes subscription info nodes such as traffic quota, expiry, 
 ]
 ```
 
+### Export Preview Warnings
+
+`GET /api/export/preview/:format` returns `warnings: CompatibilityWarning[]` alongside the generated content.
+
+The worker validates:
+
+| Check | Level |
+|-------|-------|
+| No exported nodes | `unsupported` |
+| Duplicate node names | `partial` |
+| Missing nested group target | `unsupported` |
+| Missing rule target group | `unsupported` |
+| Missing remote rule set target group | `unsupported` |
+| Missing MATCH fallback | `partial` |
+| MATCH not last | `partial` |
+
+`partial` warnings are still exported with an automatic fallback or compatibility caveat. `unsupported` warnings indicate a configuration problem that may break the target client.
+
 ---
 
 ## Migrations

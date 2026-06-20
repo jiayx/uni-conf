@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { api } from '@/lib/api'
-import type { ExportConfig, ExportFormat } from '@uni-conf/types'
+import type { CompatibilityWarning, ExportConfig, ExportFormat } from '@uni-conf/types'
 import styles from './Preview.module.css'
 
 const FORMATS: ExportFormat[] = [
@@ -27,6 +27,7 @@ export function Preview() {
   const [configId, setConfigId] = useState('')
   const [content, setContent] = useState('')
   const [contentType, setContentType] = useState('')
+  const [warnings, setWarnings] = useState<CompatibilityWarning[]>([])
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -50,9 +51,11 @@ export function Preview() {
       const result = await api.export.previewFormat(format, configId || undefined)
       setContent(result.content)
       setContentType(result.contentType)
+      setWarnings(result.warnings ?? [])
     } catch (e) {
       setContent(`# Error: ${(e as Error).message}`)
       setContentType('text/plain')
+      setWarnings([])
     } finally { setLoading(false) }
   }
 
@@ -98,6 +101,15 @@ export function Preview() {
             <span>{contentType}</span>
             <span>{t('preview.line_count', { count: content.split('\n').length })}</span>
           </div>
+          {warnings.length > 0 && (
+            <div className={styles.warnings}>
+              {warnings.map((warning, index) => (
+                <div key={`${warning.level}-${index}`} className={`${styles.warning} ${styles[warning.level]}`}>
+                  {warning.message}
+                </div>
+              ))}
+            </div>
+          )}
           <pre className={styles.code}>{content}</pre>
         </>
       ) : (
