@@ -128,6 +128,9 @@ export type InferredRuleSetTargetGroup =
   | 'AI'
   | 'Streaming'
   | 'Social'
+  | 'GitHub'
+  | 'Apple'
+  | 'Microsoft'
   | 'Crypto'
   | 'Gaming'
   | 'Developer'
@@ -158,15 +161,15 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   },
   {
     id: 'common',
-    name: '常用组合',
-    description: '适合大多数用户，包含 AI、流媒体和社交平台分流。',
-    groupNames: ['PROXY', 'AI', 'Streaming', 'Social'],
+    name: '默认智能模板',
+    description: '适合大多数用户，包含 AI、流媒体、社交、GitHub、Apple 和 Microsoft 分流。',
+    groupNames: ['PROXY', 'AI', 'Streaming', 'Social', 'GitHub', 'Apple', 'Microsoft'],
   },
   {
     id: 'extended',
     name: '扩展组合',
     description: '在常用组合基础上增加加密货币、游戏和开发服务。',
-    groupNames: ['PROXY', 'AI', 'Streaming', 'Social', 'Crypto', 'Gaming', 'Developer'],
+    groupNames: ['PROXY', 'AI', 'Streaming', 'Social', 'GitHub', 'Apple', 'Microsoft', 'Crypto', 'Gaming', 'Developer'],
   },
 ];
 
@@ -247,20 +250,22 @@ const DIRECT_PRESET_IDS = new Set([
 const REJECT_PRESET_IDS = new Set(['adrules', 'httpdns']);
 
 const PROXY_PRESET_IDS = new Set([
-  'apple',
-  'apple-proxy',
   'games',
   'iplocation-proxy',
-  'microsoft',
-  'onedrive',
   'talkatone',
 ]);
 
 const CRYPTO_PRESET_IDS = new Set(['crypto']);
+const GITHUB_PRESET_IDS = new Set(['gits']);
+const APPLE_PRESET_IDS = new Set(['apple', 'apple-proxy']);
+const MICROSOFT_PRESET_IDS = new Set(['microsoft', 'onedrive']);
 
 export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): InferredRuleSetTargetGroup {
   if (REJECT_PRESET_IDS.has(preset.id)) return 'REJECT';
   if (DIRECT_PRESET_IDS.has(preset.id)) return 'DIRECT';
+  if (GITHUB_PRESET_IDS.has(preset.id)) return 'GitHub';
+  if (APPLE_PRESET_IDS.has(preset.id)) return 'Apple';
+  if (MICROSOFT_PRESET_IDS.has(preset.id)) return 'Microsoft';
   if (CRYPTO_PRESET_IDS.has(preset.id)) return 'Crypto';
   if (PROXY_PRESET_IDS.has(preset.id)) return 'PROXY';
 
@@ -271,6 +276,10 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
       return 'Streaming';
     case 'social':
       return 'Social';
+    case 'apple':
+      return 'Apple';
+    case 'microsoft':
+      return 'Microsoft';
     case 'gaming':
       return 'Gaming';
     case 'developer':

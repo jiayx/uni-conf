@@ -12,6 +12,9 @@ describe('default remote rule sets', () => {
     expect(inserted).toHaveLength(QUIXOTIC_RULE_SET_PRESETS.length);
     expect(inserted.find((item) => item.presetId === 'ai')?.targetGroupId).toBe('builtin-ai');
     expect(inserted.find((item) => item.presetId === 'netflix')?.targetGroupId).toBe('builtin-streaming');
+    expect(inserted.find((item) => item.presetId === 'gits')?.targetGroupId).toBe('builtin-github');
+    expect(inserted.find((item) => item.presetId === 'apple')?.targetGroupId).toBe('builtin-apple');
+    expect(inserted.find((item) => item.presetId === 'microsoft')?.targetGroupId).toBe('builtin-microsoft');
     expect(inserted.find((item) => item.presetId === 'adrules')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'cn')?.targetGroupId).toBe('builtin-direct');
   });
@@ -118,6 +121,9 @@ function listGroups() {
     { id: 'builtin-ai', name: 'AI' },
     { id: 'builtin-streaming', name: 'Streaming' },
     { id: 'builtin-social', name: 'Social' },
+    { id: 'builtin-github', name: 'GitHub' },
+    { id: 'builtin-apple', name: 'Apple' },
+    { id: 'builtin-microsoft', name: 'Microsoft' },
     { id: 'builtin-crypto', name: 'Crypto' },
     { id: 'builtin-gaming', name: 'Gaming' },
     { id: 'builtin-developer', name: 'Developer' },
@@ -134,6 +140,9 @@ function expectedTargetGroupId(presetId: string): string {
     AI: 'builtin-ai',
     Streaming: 'builtin-streaming',
     Social: 'builtin-social',
+    GitHub: 'builtin-github',
+    Apple: 'builtin-apple',
+    Microsoft: 'builtin-microsoft',
     Crypto: 'builtin-crypto',
     Gaming: 'builtin-gaming',
     Developer: 'builtin-developer',

@@ -24,6 +24,8 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | user_agent | TEXT? | Custom UA for fetching |
 | notes | TEXT? | User notes |
 | tags | TEXT | JSON array of strings |
+| source_groups | TEXT | JSON array of node group names parsed from full subscription config |
+| raw_content | TEXT? | Last fetched raw subscription/config content cache |
 | created_at | TEXT | ISO timestamp |
 | updated_at | TEXT | ISO timestamp |
 
@@ -91,8 +93,33 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 - `builtin-ai` → AI (select)
 - `builtin-streaming` → Streaming (select)
 - `builtin-social` → Social (select)
+- `builtin-github` → GitHub (select)
+- `builtin-apple` → Apple (select)
+- `builtin-microsoft` → Microsoft (select)
+- `builtin-crypto` → Crypto (select, enabled by extended template)
+- `builtin-gaming` → Gaming (select, enabled by extended template)
+- `builtin-developer` → Developer (select, enabled by extended template)
 - `builtin-direct` → DIRECT (direct)
 - `builtin-reject` → REJECT (reject)
+- `builtin-all-nodes` → 全部节点 (select)
+- `builtin-node-select` → 节点选择 (select)
+- `builtin-auto-select` → 自动选择 (url-test)
+
+Built-in groups have two product roles:
+
+| Role | Groups | Behavior |
+|------|--------|----------|
+| Foundation policy groups | PROXY, DIRECT, REJECT | Always available as rule targets |
+| Outlet groups | 全部节点, 节点选择, 自动选择, country auto groups | Added as candidates inside business routing groups |
+| Business routing groups | AI, Streaming, Social, GitHub, Apple, Microsoft, Crypto, Gaming, Developer | Used by remote rule sets and manual rules |
+
+`routing_policy_template` controls which business routing groups are enabled:
+
+| Template | Enabled business groups |
+|----------|-------------------------|
+| `empty` | none, foundation groups only |
+| `common` | AI, Streaming, Social, GitHub, Apple, Microsoft |
+| `extended` | common + Crypto, Gaming, Developer |
 
 ### `rules` — Traffic Routing Rules
 
@@ -119,6 +146,8 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | name | TEXT | Display name |
 | url | TEXT | Remote URL |
 | format | TEXT | `clash` \| `mihomo` \| `singbox` \| `surge` \| `text` |
+| preset_source | TEXT? | Built-in preset provider, e.g. `quixotic` |
+| preset_id | TEXT? | Provider-specific preset id |
 | target_group_id | TEXT FK→groups | |
 | update_interval | INTEGER | Hours |
 | enabled | INTEGER | 1/0 |
@@ -151,6 +180,7 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | id | TEXT PK | Always `'singleton'` |
 | language | TEXT | `zh` \| `en` |
 | theme | TEXT | `system` \| `light` \| `dark` |
+| routing_policy_template | TEXT | `empty` \| `common` \| `extended` |
 | default_export_token | TEXT? | |
 | show_compatibility_warnings | INTEGER | 1/0 |
 | enable_auto_refresh | INTEGER | 1/0 |
