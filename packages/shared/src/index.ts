@@ -123,7 +123,46 @@ export interface QuixoticRuleSetPreset {
   category: 'ai' | 'streaming' | 'social' | 'china' | 'apple' | 'microsoft' | 'google' | 'privacy' | 'gaming' | 'developer' | 'general';
 }
 
-export type InferredRuleSetTargetGroup = 'PROXY' | 'AI' | 'Streaming' | 'Social' | 'DIRECT' | 'REJECT';
+export type InferredRuleSetTargetGroup =
+  | 'PROXY'
+  | 'AI'
+  | 'Streaming'
+  | 'Social'
+  | 'Crypto'
+  | 'Gaming'
+  | 'Developer'
+  | 'DIRECT'
+  | 'REJECT';
+
+export type RoutingPolicyTemplateId = 'empty' | 'common' | 'extended';
+
+export interface RoutingPolicyTemplate {
+  id: RoutingPolicyTemplateId;
+  name: string;
+  description: string;
+  groupNames: string[];
+}
+
+export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
+  {
+    id: 'empty',
+    name: '空组合',
+    description: '只保留基础出口，所有业务分流策略由用户自己添加。',
+    groupNames: ['PROXY'],
+  },
+  {
+    id: 'common',
+    name: '常用组合',
+    description: '适合大多数用户，包含 AI、流媒体和社交平台分流。',
+    groupNames: ['PROXY', 'AI', 'Streaming', 'Social'],
+  },
+  {
+    id: 'extended',
+    name: '扩展组合',
+    description: '在常用组合基础上增加加密货币、游戏和开发服务。',
+    groupNames: ['PROXY', 'AI', 'Streaming', 'Social', 'Crypto', 'Gaming', 'Developer'],
+  },
+];
 
 export const QUIXOTIC_RULE_SET_PRESETS: QuixoticRuleSetPreset[] = [
   { id: 'abema', name: 'Abema', description: 'abema 视频流媒体平台', category: 'streaming' },
@@ -211,9 +250,12 @@ const PROXY_PRESET_IDS = new Set([
   'talkatone',
 ]);
 
+const CRYPTO_PRESET_IDS = new Set(['crypto']);
+
 export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): InferredRuleSetTargetGroup {
   if (REJECT_PRESET_IDS.has(preset.id)) return 'REJECT';
   if (DIRECT_PRESET_IDS.has(preset.id)) return 'DIRECT';
+  if (CRYPTO_PRESET_IDS.has(preset.id)) return 'Crypto';
   if (PROXY_PRESET_IDS.has(preset.id)) return 'PROXY';
 
   switch (preset.category) {
@@ -223,6 +265,10 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
       return 'Streaming';
     case 'social':
       return 'Social';
+    case 'gaming':
+      return 'Gaming';
+    case 'developer':
+      return 'Developer';
     case 'china':
       return 'DIRECT';
     case 'privacy':

@@ -314,10 +314,12 @@ export interface ExportConfig {
 
 export type Language = 'zh' | 'en';
 export type ThemePreference = 'system' | 'light' | 'dark';
+export type RoutingPolicyTemplateId = 'empty' | 'common' | 'extended';
 
 export interface AppSettings {
   language: Language;
   theme: ThemePreference;
+  routingPolicyTemplate: RoutingPolicyTemplateId;
   defaultExportToken?: string;
   // Feature flags
   showCompatibilityWarnings: boolean;

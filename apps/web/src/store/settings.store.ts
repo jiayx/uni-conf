@@ -17,6 +17,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       language: 'zh',
       theme: 'system',
+      routingPolicyTemplate: 'common',
       showCompatibilityWarnings: true,
       enableAutoRefresh: false,
       autoRefreshInterval: 60,

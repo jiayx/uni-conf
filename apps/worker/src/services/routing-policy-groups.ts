@@ -1,3 +1,4 @@
+import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import { jsonParse, jsonStringify } from '../db/helpers';
 
 type GroupRow = Record<string, unknown>;
@@ -20,15 +21,19 @@ const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [] },
   { id: 'builtin-streaming', name: 'Streaming', type: 'select', sortOrder: 2, builtins: [] },
   { id: 'builtin-social', name: 'Social', type: 'select', sortOrder: 3, builtins: [] },
-  { id: 'builtin-direct', name: 'DIRECT', type: 'direct', sortOrder: 4, builtins: ['DIRECT'] },
-  { id: 'builtin-reject', name: 'REJECT', type: 'reject', sortOrder: 5, builtins: ['REJECT'] },
-  { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 6, builtins: [] },
-  { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 7, builtins: [] },
-  { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 8, builtins: [] },
+  { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 4, builtins: [] },
+  { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 5, builtins: [] },
+  { id: 'builtin-developer', name: 'Developer', type: 'select', sortOrder: 6, builtins: [] },
+  { id: 'builtin-direct', name: 'DIRECT', type: 'direct', sortOrder: 7, builtins: ['DIRECT'] },
+  { id: 'builtin-reject', name: 'REJECT', type: 'reject', sortOrder: 8, builtins: ['REJECT'] },
+  { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 9, builtins: [] },
+  { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 10, builtins: [] },
+  { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 11, builtins: [] },
 ];
 
 export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promise<void> {
   await ensureDefaultGeneratedGroups(db, ts);
+  await applyActiveTemplate(db, ts);
 
   const { results } = await db
     .prepare('SELECT id, type, collection_ids, enabled, is_builtin FROM groups ORDER BY sort_order ASC, created_at ASC')
@@ -105,6 +110,32 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
   );
 
   await db.batch(statements);
+}
+
+async function applyActiveTemplate(db: D1Database, ts: string): Promise<void> {
+  const template = await getActiveTemplate(db);
+  const activeNames = new Set(template.groupNames.map((name) => name.toUpperCase()));
+  const templateGroupNames = new Set(
+    ROUTING_POLICY_TEMPLATES.flatMap((item) => item.groupNames).map((name) => name.toUpperCase())
+  );
+  const statements = DEFAULT_GENERATED_GROUPS
+    .filter((group) => templateGroupNames.has(group.name.toUpperCase()))
+    .map((group) =>
+      db
+        .prepare('UPDATE groups SET enabled = ?, updated_at = ? WHERE id = ?')
+        .bind(activeNames.has(group.name.toUpperCase()) ? 1 : 0, ts, group.id)
+    );
+
+  if (statements.length > 0) await db.batch(statements);
+}
+
+async function getActiveTemplate(db: D1Database) {
+  const row = await db
+    .prepare("SELECT routing_policy_template FROM app_settings WHERE id = 'singleton'")
+    .first<{ routing_policy_template: string | null }>();
+  return ROUTING_POLICY_TEMPLATES.find((template) => template.id === row?.routing_policy_template)
+    ?? ROUTING_POLICY_TEMPLATES.find((template) => template.id === 'common')
+    ?? ROUTING_POLICY_TEMPLATES[0]!;
 }
 
 function parseIds(value: unknown): string[] {

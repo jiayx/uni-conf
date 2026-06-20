@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { QUIXOTIC_RULE_SET_PRESETS } from '@uni-conf/shared';
+import { inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS } from '@uni-conf/shared';
 import { ensureDefaultRemoteRuleSets } from './default-rule-sets';
 
 describe('default remote rule sets', () => {
-  it('creates preset rule sets only when no remote rule sets exist', async () => {
+  it('creates missing preset rule sets with template target groups', async () => {
     const inserted: Array<Record<string, unknown>> = [];
-    const db = createMockDb({ existingCount: 0, inserted });
+    const db = createMockDb({ existingPresets: [], inserted });
 
     await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
 
@@ -16,50 +16,76 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'cn')?.targetGroupId).toBe('builtin-direct');
   });
 
-  it('does not recreate defaults after rule sets already exist', async () => {
+  it('does not recreate defaults when preset rule sets already exist with current targets', async () => {
     const inserted: Array<Record<string, unknown>> = [];
-    const db = createMockDb({ existingCount: 1, inserted });
+    const db = createMockDb({
+      existingPresets: QUIXOTIC_RULE_SET_PRESETS.map((preset) => ({
+        id: `preset-${preset.id}`,
+        preset_id: preset.id,
+        target_group_id: expectedTargetGroupId(preset.id),
+      })),
+      inserted,
+    });
 
     await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
 
     expect(inserted).toHaveLength(0);
   });
+
+  it('retargets existing presets when the active template adds a specific group', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{ id: 'preset-crypto', preset_id: 'crypto', target_group_id: 'builtin-proxy' }],
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual({
+      operation: 'update',
+      id: 'preset-crypto',
+      targetGroupId: 'builtin-crypto',
+    });
+  });
 });
 
 function createMockDb({
-  existingCount,
+  existingPresets,
   inserted,
 }: {
-  existingCount: number;
+  existingPresets: Array<{ id: string; preset_id: string; target_group_id: string }>;
   inserted: Array<Record<string, unknown>>;
 }): D1Database {
   const db = {
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
-          if (sql.includes('COUNT(*)')) return { count: existingCount };
           return null;
         },
-        all: async () => ({ results: listGroups() }),
+        all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
         run: async () => ({ success: true }),
         raw: async () => [],
       }),
       first: async () => {
-        if (sql.includes('COUNT(*)')) return { count: existingCount };
         return null;
       },
-      all: async () => ({ results: listGroups() }),
+      all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
     batch: vi.fn(async (statements: Array<{ __args?: unknown[] }>) => {
       for (const statement of statements) {
         const args = statement.__args ?? [];
-        inserted.push({
-          name: args[1],
-          presetId: args[3],
-          targetGroupId: args[4],
-        });
+        if (args.length === 3) {
+          inserted.push({ operation: 'update', targetGroupId: args[0], id: args[2] });
+        } else {
+          inserted.push({
+            operation: 'insert',
+            name: args[1],
+            presetId: args[3],
+            targetGroupId: args[4],
+          });
+        }
       }
       return [];
     }),
@@ -69,18 +95,16 @@ function createMockDb({
     bind: (...args: unknown[]) => ({
       __args: args,
       first: async () => {
-        if (sql.includes('COUNT(*)')) return { count: existingCount };
         return null;
       },
-      all: async () => ({ results: listGroups() }),
+      all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
       run: async () => ({ success: true }),
       raw: async () => [],
     }),
     first: async () => {
-      if (sql.includes('COUNT(*)')) return { count: existingCount };
       return null;
     },
-    all: async () => ({ results: listGroups() }),
+    all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
     run: async () => ({ success: true }),
     raw: async () => [],
   }) as unknown as D1PreparedStatement);
@@ -94,7 +118,27 @@ function listGroups() {
     { id: 'builtin-ai', name: 'AI' },
     { id: 'builtin-streaming', name: 'Streaming' },
     { id: 'builtin-social', name: 'Social' },
+    { id: 'builtin-crypto', name: 'Crypto' },
+    { id: 'builtin-gaming', name: 'Gaming' },
+    { id: 'builtin-developer', name: 'Developer' },
     { id: 'builtin-direct', name: 'DIRECT' },
     { id: 'builtin-reject', name: 'REJECT' },
   ];
+}
+
+function expectedTargetGroupId(presetId: string): string {
+  const preset = QUIXOTIC_RULE_SET_PRESETS.find((item) => item.id === presetId);
+  const target = preset ? inferQuixoticTargetGroup(preset) : 'PROXY';
+  const map: Record<string, string> = {
+    PROXY: 'builtin-proxy',
+    AI: 'builtin-ai',
+    Streaming: 'builtin-streaming',
+    Social: 'builtin-social',
+    Crypto: 'builtin-crypto',
+    Gaming: 'builtin-gaming',
+    Developer: 'builtin-developer',
+    DIRECT: 'builtin-direct',
+    REJECT: 'builtin-reject',
+  };
+  return map[target] ?? 'builtin-proxy';
 }

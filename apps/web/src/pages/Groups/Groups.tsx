@@ -7,8 +7,10 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
-import type { GroupType, ProxyGroup } from '@uni-conf/types'
+import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
 type GroupForm = Omit<ProxyGroup, 'id' | 'createdAt' | 'updatedAt'>
@@ -22,29 +24,6 @@ const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning
   direct: 'default',
   reject: 'error',
 }
-
-const ROUTING_GROUP_TEMPLATES = [
-  {
-    id: 'builtin-proxy',
-    name: 'PROXY',
-    description: '默认代理入口，汇总全部可用出口策略。',
-  },
-  {
-    id: 'builtin-ai',
-    name: 'AI',
-    description: 'AI 服务分流，默认关联 AI 规则集。',
-  },
-  {
-    id: 'builtin-streaming',
-    name: 'Streaming',
-    description: '流媒体分流，默认关联视频与音乐服务规则集。',
-  },
-  {
-    id: 'builtin-social',
-    name: 'Social',
-    description: '社交平台分流，默认关联社交媒体规则集。',
-  },
-]
 
 function createEmptyForm(order: number): GroupForm {
   return {
@@ -70,21 +49,32 @@ export function Groups() {
   const [editingGroup, setEditingGroup] = useState<ProxyGroup | null>(null)
   const [form, setForm] = useState<GroupForm>(() => createEmptyForm(0))
   const [formError, setFormError] = useState('')
+  const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   useEffect(() => {
     void fetchGroups()
+    void api.settings.get().then(settings => setActiveTemplate(settings.routingPolicyTemplate))
   }, [fetchGroups])
 
   const visibleGroups = useMemo(
-    () => groups.filter(group => isRoutingPolicyGroup(group) || isCustomRoutingGroup(group)),
+    () => groups.filter(group => (isRoutingPolicyGroup(group) && group.enabled) || isCustomRoutingGroup(group)),
     [groups]
   )
-  const templateStatus = useMemo(
-    () => ROUTING_GROUP_TEMPLATES.map(template => ({
-      ...template,
-      group: groups.find(group => group.id === template.id || group.name === template.name),
+  const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate) ?? ROUTING_POLICY_TEMPLATES[1]
+  const templateGroups = useMemo(
+    () => (activeTemplateConfig?.groupNames ?? []).map(name => ({
+      name,
+      group: groups.find(group => group.name === name),
     })),
-    [groups]
+    [activeTemplateConfig?.groupNames, groups]
+  )
+  const templateOptions = useMemo(
+    () => ROUTING_POLICY_TEMPLATES.map(template => ({
+      ...template,
+      active: template.id === activeTemplate,
+    })),
+    [activeTemplate]
   )
   const groupOptions = useMemo(
     () => groups
@@ -145,6 +135,17 @@ export function Groups() {
     setForm(createEmptyForm(visibleGroups.length))
   }
 
+  const handleTemplateChange = async (templateId: RoutingPolicyTemplateId) => {
+    setSavingTemplate(true)
+    try {
+      const updated = await api.settings.update({ routingPolicyTemplate: templateId })
+      setActiveTemplate(updated.routingPolicyTemplate)
+      await fetchGroups()
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
   const moveGroup = (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= visibleGroups.length) return
@@ -180,34 +181,40 @@ export function Groups() {
     <div className={styles.page}>
       <PageHeader
         title={t('groups.title')}
-        description="策略组建议从模板开始；默认规则会自动关联到对应策略组，只有特殊需求才需要手动补充。"
+        description="先选择一套策略组组合，再按需添加自定义策略组；默认规则会自动关联到组合里的策略组。"
         actions={<Button onClick={openCreate} icon={<PlusIcon />}>添加自定义策略组</Button>}
       />
       <section className={styles.templatePanel}>
         <div className={styles.templateHeader}>
           <div>
-            <div className={styles.templateTitle}>常用策略模板</div>
-            <div className={styles.templateMeta}>系统默认维护这些分流策略组，并自动挂载出口策略和预置规则集。</div>
+            <div className={styles.templateTitle}>策略组组合</div>
+            <div className={styles.templateMeta}>选择一个默认组合后，系统会维护对应策略组和默认规则关联；自定义策略组会保留。</div>
           </div>
-          <Button variant="secondary" onClick={() => void fetchGroups()}>{t('common.refresh')}</Button>
+          <Button variant="secondary" onClick={() => void fetchGroups()} loading={savingTemplate}>{t('common.refresh')}</Button>
         </div>
         <div className={styles.templateGrid}>
-          {templateStatus.map(template => (
-            <div key={template.id} className={styles.templateItem}>
+          {templateOptions.map(template => (
+            <button
+              key={template.id}
+              type="button"
+              className={`${styles.templateItem} ${template.active ? styles.templateItemActive : ''}`}
+              onClick={() => void handleTemplateChange(template.id)}
+              disabled={savingTemplate}
+            >
               <div className={styles.templateItemTop}>
                 <span className={styles.templateName}>{template.name}</span>
-                <Badge variant={template.group?.enabled ? 'success' : 'default'}>
-                  {template.group ? (template.group.enabled ? t('common.enabled') : t('common.disabled')) : '待生成'}
-                </Badge>
+                <Badge variant={template.active ? 'success' : 'default'}>{template.active ? '当前' : `${template.groupNames.length} 组`}</Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
-              {template.group && (
-                <div className={styles.templateMembers}>
-                  {template.group.groupIds.length} 个出口选项
-                  {template.group.builtins.length > 0 ? `，${template.group.builtins.join(' / ')}` : ''}
-                </div>
-              )}
-            </div>
+              <div className={styles.templateMembers}>{template.groupNames.join(' / ')}</div>
+            </button>
+          ))}
+        </div>
+        <div className={styles.activeTemplateGroups}>
+          {(templateGroups ?? []).map(item => (
+            <Badge key={item.name} variant={item.group?.enabled ? 'purple' : 'default'}>
+              {item.name}
+            </Badge>
           ))}
         </div>
       </section>
