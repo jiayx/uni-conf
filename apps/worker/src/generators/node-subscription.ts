@@ -4,12 +4,12 @@ export function generateNodeSubscriptionBase64(nodes: Record<string, unknown>[])
 
 export function generateNodeSubscriptionRaw(nodes: Record<string, unknown>[]): string {
   return nodes
-    .map(nodeToUri)
+    .map(nodeToSubscriptionUri)
     .filter((uri): uri is string => uri !== null)
     .join('\n')
 }
 
-function nodeToUri(node: Record<string, unknown>): string | null {
+export function nodeToSubscriptionUri(node: Record<string, unknown>): string | null {
   const name = encodeURIComponent(String(node['name'] ?? ''))
   const server = String(node['server'] ?? '')
   const port = Number(node['port'] ?? 0)
@@ -70,6 +70,12 @@ function nodeToUri(node: Record<string, unknown>): string | null {
     return `tuic://${uuid}:${password}@${server}:${port}${params ? `?${params}` : ''}#${name}`
   }
 
+  if (protocol === 'anytls') {
+    const password = encodeURIComponent(String(parsed?.['password'] ?? ''))
+    const params = buildParams(parsed)
+    return `anytls://${password}@${server}:${port}${params ? `?${params}` : ''}#${name}`
+  }
+
   if (protocol === 'socks5') {
     const username = String(extra?.['username'] ?? parsed?.['uuid'] ?? '')
     const password = String(parsed?.['password'] ?? '')
@@ -101,12 +107,17 @@ function buildParams(
   const network = String(parsed['network'] ?? '')
   const wsPath = String(parsed['wsPath'] ?? '')
   const sni = String(parsed['sni'] ?? '')
+  const extra = asRecord(parsed['extra'])
 
   if (parsed['tls']) params.set('security', 'tls')
   if (sni) params.set('sni', sni)
   if (parsed['skipCertVerify']) params.set('allowInsecure', '1')
   if (network && network !== 'tcp') params.set('type', network)
   if (wsPath) params.set('path', wsPath)
+  if (Array.isArray(extra?.['alpn'])) params.set('alpn', extra['alpn'].map(String).join(','))
+  if (extra?.['client-fingerprint']) params.set('fp', String(extra['client-fingerprint']))
+  if (extra?.['clientFingerprint']) params.set('fp', String(extra['clientFingerprint']))
+  if (extra?.['udp'] !== undefined) params.set('udp', String(Boolean(extra['udp'])))
 
   return params.toString()
 }

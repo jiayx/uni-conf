@@ -43,6 +43,16 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
       const skipVerify = parsed['skipCertVerify'] ? `, skip-cert-verify=true` : ''
       return `${name} = trojan, ${server}, ${port}, password=${password}${sni}${skipVerify}`
     }
+    case 'anytls': {
+      const password = String(parsed['password'] ?? '')
+      const sni = parsed['sni'] ? `, tls-name=${parsed['sni']}` : ''
+      const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint']
+      const fp = fingerprint ? `, client-fingerprint=${fingerprint}` : ''
+      const udp = extra['udp'] !== undefined ? `, udp-relay=${Boolean(extra['udp'])}` : ''
+      const alpn = Array.isArray(extra['alpn']) ? `, alpn=${extra['alpn'].map(String).join('|')}` : ''
+      const skipVerify = parsed['skipCertVerify'] ? `, skip-cert-verify=true` : ''
+      return `${name} = anytls, ${server}, ${port}, password=${password}${sni}${fp}${udp}${alpn}${skipVerify}`
+    }
     case 'http':
     case 'https': {
       const username = String(extra['username'] ?? '')

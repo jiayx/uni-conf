@@ -1,6 +1,6 @@
 import yaml from 'js-yaml'
 import { generateMihomoYaml } from './mihomo'
-import { generateNodeSubscriptionRaw } from './node-subscription'
+import { nodeToSubscriptionUri } from './node-subscription'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 
@@ -71,8 +71,11 @@ export function generateQuantumultX(
   rules: Row[],
   remoteSets: Row[]
 ): string {
-  const nodeUris = generateNodeSubscriptionRaw(nodes).split('\n').filter(Boolean)
-  const nodeNames = nodes.map((node) => String(node['name'] ?? '')).filter(Boolean)
+  const serializedNodes = nodes
+    .map((node) => ({ node, uri: nodeToSubscriptionUri(node) }))
+    .filter((item): item is { node: Row; uri: string } => item.uri !== null)
+  const nodeUris = serializedNodes.map((item) => item.uri)
+  const nodeNames = serializedNodes.map((item) => String(item.node['name'] ?? '')).filter(Boolean)
   const lines: string[] = [
     '[general]',
     'server_check_url=http://www.gstatic.com/generate_204',
@@ -117,7 +120,10 @@ export function generateEgern(
   rules: Row[],
   remoteSets: Row[]
 ): string {
-  const nodeNames = nodes.map((node) => String(node['name'] ?? '')).filter(Boolean)
+  const proxies = nodes
+    .map(nodeToEgernProxy)
+    .filter((proxy): proxy is Record<string, unknown> => proxy !== null)
+  const nodeNames = proxies.map((proxy) => String(proxy['name'] ?? '')).filter(Boolean)
   const ruleSets = remoteSets
     .filter((rs) => rs['enabled'])
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetRowForExport(rs, 'egern') }))
@@ -137,7 +143,7 @@ export function generateEgern(
     ipv6: false,
     http_port: 3080,
     socks_port: 3081,
-    proxies: nodes.map(nodeToEgernProxy).filter(Boolean),
+    proxies,
     policy_groups: groups.map((group) => groupToEgern(group, groups, nodeNames)),
     rule_sets: ruleSets,
     rules: [
@@ -244,6 +250,14 @@ function nodeToIniProxy(node: Row): string | null {
   if (protocol === 'trojan') {
     const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
     return `${name} = trojan, ${server}, ${port}, password=${parsed['password'] ?? ''}${sni}`
+  }
+  if (protocol === 'anytls') {
+    const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
+    const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint']
+    const fp = fingerprint ? `, client-fingerprint=${fingerprint}` : ''
+    const udp = extra['udp'] !== undefined ? `, udp-relay=${Boolean(extra['udp'])}` : ''
+    const alpn = Array.isArray(extra['alpn']) ? `, alpn=${extra['alpn'].map(String).join('|')}` : ''
+    return `${name} = anytls, ${server}, ${port}, password=${parsed['password'] ?? ''}${sni}${fp}${udp}${alpn}`
   }
   if (protocol === 'http' || protocol === 'https') {
     const tls = protocol === 'https' || parsed['tls'] ? ', tls=true' : ''
@@ -365,6 +379,20 @@ function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
   }
   if (protocol === 'trojan') {
     return { name, type: 'trojan', server, port, password: parsed['password'] ?? '', sni: parsed['sni'] }
+  }
+  if (protocol === 'anytls') {
+    const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint']
+    return {
+      name,
+      type: 'anytls',
+      server,
+      port,
+      password: parsed['password'] ?? '',
+      sni: parsed['sni'],
+      'client-fingerprint': fingerprint,
+      alpn: Array.isArray(extra['alpn']) ? extra['alpn'].map(String) : undefined,
+      udp: extra['udp'],
+    }
   }
   if (protocol === 'http' || protocol === 'https') {
     return { name, type: 'http', server, port, tls: protocol === 'https' || Boolean(parsed['tls']) }
