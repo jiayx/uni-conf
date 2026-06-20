@@ -1,21 +1,27 @@
-import type { ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── sing-box JSON generator ──────────────────────────────────────────────────
+
+interface SingboxGeneratorOptions {
+  dnsMode?: DnsMode;
+}
 
 export function generateSingboxJson(
   nodes: ProxyNode[],
   groups: ProxyGroup[],
   rules: ProxyRule[],
   remoteSets: RemoteRuleSet[],
-  collectionNodeNames: Record<string, string[]> = {}
+  collectionNodeNames: Record<string, string[]> = {},
+  options: SingboxGeneratorOptions = {}
 ): string {
+  const dnsMode = options.dnsMode ?? 'smart';
   const config = {
     log: {
       level: 'info',
       timestamp: true,
     },
-    dns: buildDns(),
+    dns: buildDns(dnsMode),
     inbounds: buildInbounds(),
     outbounds: buildOutbounds(nodes, groups, collectionNodeNames),
     route: buildRoute(rules, groups, remoteSets),
@@ -24,7 +30,7 @@ export function generateSingboxJson(
         enabled: true,
         path: 'cache.db',
         cache_id: 'uni-conf',
-        store_fakeip: true,
+        store_fakeip: dnsMode === 'fake-ip',
       },
     },
   };
@@ -34,8 +40,8 @@ export function generateSingboxJson(
 
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
-function buildDns(): object {
-  return {
+function buildDns(mode: DnsMode): object {
+  const dns: Record<string, unknown> = {
     servers: [
       {
         tag: 'proxyDns',
@@ -66,15 +72,20 @@ function buildDns(): object {
         server: 'proxyDns',
       },
     ],
-    final: 'proxyDns',
+    final: mode === 'compatible' ? 'localDns' : 'proxyDns',
     independent_cache: true,
-    fakeip: {
+    strategy: 'prefer_ipv4',
+  };
+
+  if (mode === 'fake-ip') {
+    dns.fakeip = {
       enabled: true,
       inet4_range: '198.18.0.0/15',
       inet6_range: 'fc00::/18',
-    },
-    strategy: 'prefer_ipv4',
-  };
+    };
+  }
+
+  return dns;
 }
 
 // ─── Inbounds ─────────────────────────────────────────────────────────────────

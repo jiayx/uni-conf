@@ -315,11 +315,13 @@ export interface ExportConfig {
 export type Language = 'zh' | 'en';
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type RoutingPolicyTemplateId = 'empty' | 'common' | 'extended';
+export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
 
 export interface AppSettings {
   language: Language;
   theme: ThemePreference;
   routingPolicyTemplate: RoutingPolicyTemplateId;
+  dnsMode: DnsMode;
   defaultExportToken?: string;
   // Feature flags
   showCompatibilityWarnings: boolean;

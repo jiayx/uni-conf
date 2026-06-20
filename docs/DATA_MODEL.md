@@ -181,6 +181,7 @@ Built-in groups have two product roles:
 | language | TEXT | `zh` \| `en` |
 | theme | TEXT | `system` \| `light` \| `dark` |
 | routing_policy_template | TEXT | `empty` \| `common` \| `extended` |
+| dns_mode | TEXT | `compatible` \| `smart` \| `fake-ip` |
 | default_export_token | TEXT? | |
 | show_compatibility_warnings | INTEGER | 1/0 |
 | enable_auto_refresh | INTEGER | 1/0 |

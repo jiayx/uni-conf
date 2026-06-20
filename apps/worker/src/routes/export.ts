@@ -12,6 +12,7 @@ import {
   generateStashYaml,
   generateSurge,
 } from '../generators/client-configs'
+import { getAppSettings } from '../services/app-settings'
 import type { Env } from '../types'
 import type { ExportConfig } from '@uni-conf/types'
 
@@ -125,15 +126,16 @@ exportRouter.get('/preview/:format', async (c) => {
   const format = c.req.param('format')
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
+  const settings = await getAppSettings(c.env.DB)
   const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = await buildExportData(c.env.DB, config)
   let content: string
   let contentType: string
 
   if (format === 'mihomo' || format === 'clash') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
   } else if (format === 'singbox') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames)
+    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'application/json; charset=utf-8'
   } else if (format === 'loon') {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
@@ -148,7 +150,7 @@ exportRouter.get('/preview/:format', async (c) => {
     content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows)
     contentType = 'text/plain; charset=utf-8'
   } else if (format === 'stash') {
-    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
   } else if (format === 'egern') {
     content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows)
@@ -171,17 +173,18 @@ exportRouter.get('/download/:format', async (c) => {
   const format = c.req.param('format')
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
+  const settings = await getAppSettings(c.env.DB)
   const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = await buildExportData(c.env.DB, config)
   let content: string
   let contentType: string
   let filename: string
 
   if (format === 'mihomo' || format === 'clash') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
     filename = 'mihomo.yaml'
   } else if (format === 'singbox') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames)
+    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'application/json; charset=utf-8'
     filename = 'singbox.json'
   } else if (format === 'loon') {
@@ -201,7 +204,7 @@ exportRouter.get('/download/:format', async (c) => {
     contentType = 'text/plain; charset=utf-8'
     filename = 'quantumultx.conf'
   } else if (format === 'stash') {
-    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
     filename = 'stash.yaml'
   } else if (format === 'egern') {

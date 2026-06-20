@@ -4,6 +4,7 @@ import type { AppSettings } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
+import { getAppSettings } from '../services/app-settings'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -21,6 +22,7 @@ app.put('/', async (c) => {
       language = ?,
       theme = ?,
       routing_policy_template = ?,
+      dns_mode = ?,
       default_export_token = ?,
       show_compatibility_warnings = ?,
       enable_auto_refresh = ?,
@@ -32,6 +34,7 @@ app.put('/', async (c) => {
       body.language ?? current.language,
       body.theme ?? current.theme,
       body.routingPolicyTemplate ?? current.routingPolicyTemplate,
+      body.dnsMode ?? current.dnsMode,
       body.defaultExportToken !== undefined
         ? body.defaultExportToken
         : current.defaultExportToken ?? null,
@@ -54,27 +57,7 @@ app.put('/', async (c) => {
 })
 
 async function getSettings(db: D1Database): Promise<AppSettings> {
-  const row = await db.prepare('SELECT * FROM app_settings WHERE id = ?')
-    .bind('singleton')
-    .first<Record<string, unknown>>()
-
-  if (!row) {
-    const ts = now()
-    await db.prepare('INSERT INTO app_settings (id, updated_at) VALUES (?, ?)')
-      .bind('singleton', ts)
-      .run()
-    return getSettings(db)
-  }
-
-  return {
-    language: row.language as AppSettings['language'],
-    theme: row.theme as AppSettings['theme'],
-    routingPolicyTemplate: (row.routing_policy_template as AppSettings['routingPolicyTemplate'] | null) ?? 'common',
-    defaultExportToken: (row.default_export_token as string | null) ?? undefined,
-    showCompatibilityWarnings: Boolean(row.show_compatibility_warnings),
-    enableAutoRefresh: Boolean(row.enable_auto_refresh),
-    autoRefreshInterval: row.auto_refresh_interval as number,
-  }
+  return getAppSettings(db)
 }
 
 export default app

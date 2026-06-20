@@ -70,6 +70,8 @@ app.delete('/', async (c) => {
       `UPDATE app_settings SET
         language = 'zh',
         theme = 'system',
+        routing_policy_template = 'common',
+        dns_mode = 'smart',
         default_export_token = NULL,
         show_compatibility_warnings = 1,
         enable_auto_refresh = 0,

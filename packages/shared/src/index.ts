@@ -146,6 +146,32 @@ export interface RoutingPolicyTemplate {
   groupNames: string[];
 }
 
+export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
+
+export interface DnsModePreset {
+  id: DnsMode;
+  name: string;
+  description: string;
+}
+
+export const DNS_MODE_PRESETS: DnsModePreset[] = [
+  {
+    id: 'compatible',
+    name: '兼容优先',
+    description: '使用传统 redir-host 解析，适合路由器或对 fake-ip 兼容性不确定的客户端。',
+  },
+  {
+    id: 'smart',
+    name: '智能防污染',
+    description: '默认模式，国内域名优先使用国内 DNS，其他请求使用可信 DNS 并启用污染过滤。',
+  },
+  {
+    id: 'fake-ip',
+    name: '高级 fake-ip',
+    description: '启用 fake-ip 和兼容过滤，适合熟悉 Mihomo 或 sing-box 高级 DNS 行为的用户。',
+  },
+];
+
 export const FOUNDATION_POLICY_GROUP_NAMES = ['PROXY', 'DIRECT', 'REJECT'] as const;
 
 export function buildRoutingPolicyTemplateGroupNames(template: RoutingPolicyTemplate): string[] {

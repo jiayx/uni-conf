@@ -1,14 +1,19 @@
-import type { ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
+
+interface MihomoGeneratorOptions {
+  dnsMode?: DnsMode;
+}
 
 export function generateMihomoYaml(
   nodes: ProxyNode[],
   groups: ProxyGroup[],
   rules: ProxyRule[],
   remoteSets: RemoteRuleSet[],
-  collectionNodeNames: Record<string, string[]> = {}
+  collectionNodeNames: Record<string, string[]> = {},
+  options: MihomoGeneratorOptions = {}
 ): string {
   const lines: string[] = [];
   const serializedNodes = nodes
@@ -38,27 +43,7 @@ export function generateMihomoYaml(
   lines.push('external-controller: 127.0.0.1:9090');
   lines.push('');
 
-  // ── DNS ─────────────────────────────────────────────────────────────────────
-  lines.push('dns:');
-  lines.push('  enable: true');
-  lines.push('  enhanced-mode: fake-ip');
-  lines.push('  fake-ip-range: 198.18.0.1/16');
-  lines.push('  fake-ip-filter:');
-  lines.push('    - "*.lan"');
-  lines.push('    - "*.local"');
-  lines.push('    - "localhost.ptlogin2.qq.com"');
-  lines.push('  nameserver:');
-  lines.push('    - 8.8.8.8');
-  lines.push('    - 1.1.1.1');
-  lines.push('    - 223.5.5.5');
-  lines.push('  fallback:');
-  lines.push('    - 8.8.4.4');
-  lines.push('    - 1.0.0.1');
-  lines.push('  fallback-filter:');
-  lines.push('    geoip: true');
-  lines.push('    geoip-code: CN');
-  lines.push('    ipcidr:');
-  lines.push('      - 240.0.0.0/4');
+  lines.push(...buildDnsLines(options.dnsMode ?? 'smart'));
   lines.push('');
 
   // ── Proxies ─────────────────────────────────────────────────────────────────
@@ -135,6 +120,50 @@ export function generateMihomoYaml(
   }
 
   return lines.join('\n');
+}
+
+function buildDnsLines(mode: DnsMode): string[] {
+  const lines = [
+    'dns:',
+    '  enable: true',
+    `  enhanced-mode: ${mode === 'fake-ip' ? 'fake-ip' : 'redir-host'}`,
+  ];
+
+  if (mode === 'fake-ip') {
+    lines.push('  fake-ip-range: 198.18.0.1/16');
+    lines.push('  fake-ip-filter:');
+    lines.push('    - "*.lan"');
+    lines.push('    - "*.local"');
+    lines.push('    - "localhost.ptlogin2.qq.com"');
+    lines.push('    - "localhost.sec.qq.com"');
+    lines.push('    - "+.msftconnecttest.com"');
+    lines.push('    - "+.msftncsi.com"');
+  }
+
+  lines.push('  default-nameserver:');
+  lines.push('    - 223.5.5.5');
+  lines.push('    - 119.29.29.29');
+  lines.push('  nameserver:');
+  lines.push('    - https://223.5.5.5/dns-query');
+  lines.push('    - https://120.53.53.53/dns-query');
+
+  if (mode === 'compatible') {
+    return lines;
+  }
+
+  lines.push('  fallback:');
+  lines.push('    - tls://8.8.8.8');
+  lines.push('    - tls://1.1.1.1');
+  lines.push('  fallback-filter:');
+  lines.push('    geoip: true');
+  lines.push('    geoip-code: CN');
+  lines.push('    ipcidr:');
+  lines.push('      - 240.0.0.0/4');
+  lines.push('  nameserver-policy:');
+  lines.push('    "geosite:cn":');
+  lines.push('      - https://223.5.5.5/dns-query');
+  lines.push('      - https://120.53.53.53/dns-query');
+  return lines;
 }
 
 // ─── Node serialization ───────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import yaml from 'js-yaml'
 import { generateMihomoYaml } from './mihomo'
 import { nodeToSubscriptionUri } from './node-subscription'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
-import type { ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
+import type { DnsMode, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 
 type Row = Record<string, unknown>
 
@@ -11,9 +11,10 @@ export function generateStashYaml(
   groups: ProxyGroup[],
   rules: ProxyRule[],
   remoteSets: RemoteRuleSet[],
-  collectionNodeNames: Record<string, string[]> = {}
+  collectionNodeNames: Record<string, string[]> = {},
+  options: { dnsMode?: DnsMode } = {}
 ): string {
-  return generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames)
+  return generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, options)
 }
 
 export function generateSurge(

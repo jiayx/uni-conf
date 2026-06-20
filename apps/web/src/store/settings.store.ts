@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AppSettings, Language, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, DnsMode, Language, ThemePreference } from '@uni-conf/types'
 
 interface SettingsState extends AppSettings {
   setLanguage: (lang: Language) => void
   setTheme: (theme: ThemePreference) => void
+  setDnsMode: (dnsMode: DnsMode) => void
   setShowCompatibilityWarnings: (showCompatibilityWarnings: boolean) => void
   setEnableAutoRefresh: (enableAutoRefresh: boolean) => void
   setAutoRefreshInterval: (autoRefreshInterval: number) => void
@@ -18,6 +19,7 @@ export const useSettingsStore = create<SettingsState>()(
       language: 'zh',
       theme: 'system',
       routingPolicyTemplate: 'common',
+      dnsMode: 'smart',
       showCompatibilityWarnings: true,
       enableAutoRefresh: false,
       autoRefreshInterval: 60,
@@ -30,6 +32,10 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (theme) => {
         set({ theme })
         get().applyTheme(theme)
+      },
+
+      setDnsMode: (dnsMode) => {
+        set({ dnsMode })
       },
 
       setShowCompatibilityWarnings: (showCompatibilityWarnings) => {

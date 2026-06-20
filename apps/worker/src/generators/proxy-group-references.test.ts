@@ -90,6 +90,41 @@ const autoGroup: ProxyGroup = {
 }
 
 describe('proxy group references', () => {
+  it('uses smart DNS mode by default for Mihomo configs', () => {
+    const content = generateMihomoYaml([], [], [], [])
+
+    expect(content).toContain('enhanced-mode: redir-host')
+    expect(content).toContain('fallback-filter:')
+    expect(content).toContain('nameserver-policy:')
+    expect(content).not.toContain('fake-ip-range:')
+  })
+
+  it('can generate compatible and fake-ip DNS modes', () => {
+    const compatible = generateMihomoYaml([], [], [], [], {}, { dnsMode: 'compatible' })
+    const fakeIp = generateMihomoYaml([], [], [], [], {}, { dnsMode: 'fake-ip' })
+
+    expect(compatible).toContain('enhanced-mode: redir-host')
+    expect(compatible).not.toContain('fallback-filter:')
+    expect(fakeIp).toContain('enhanced-mode: fake-ip')
+    expect(fakeIp).toContain('fake-ip-filter:')
+  })
+
+  it('maps DNS mode to sing-box fakeip settings', () => {
+    const smart = JSON.parse(generateSingboxJson([], [], [], [])) as {
+      dns: Record<string, unknown>;
+      experimental: { cache_file: { store_fakeip: boolean } };
+    }
+    const fakeIp = JSON.parse(generateSingboxJson([], [], [], [], {}, { dnsMode: 'fake-ip' })) as {
+      dns: Record<string, unknown>;
+      experimental: { cache_file: { store_fakeip: boolean } };
+    }
+
+    expect(smart.dns.fakeip).toBeUndefined()
+    expect(smart.experimental.cache_file.store_fakeip).toBe(false)
+    expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))
+    expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
+  })
+
   it('exports AnyTLS nodes for Mihomo preview configs', () => {
     const content = generateMihomoYaml(
       [anytlsNode],

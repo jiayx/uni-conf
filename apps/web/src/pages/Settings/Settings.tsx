@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button/Button'
 import { Input } from '@/components/ui/Input/Input'
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
-import type { AppSettings, Language, ThemePreference } from '@uni-conf/types'
+import { DNS_MODE_PRESETS } from '@uni-conf/shared'
+import type { AppSettings, DnsMode, Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 export function Settings() {
@@ -17,11 +18,13 @@ export function Settings() {
   const {
     language,
     theme,
+    dnsMode,
     showCompatibilityWarnings,
     enableAutoRefresh,
     autoRefreshInterval,
     setLanguage,
     setTheme,
+    setDnsMode,
     setShowCompatibilityWarnings,
     setEnableAutoRefresh,
     setAutoRefreshInterval,
@@ -62,6 +65,11 @@ export function Settings() {
   const handleTheme = (nextTheme: ThemePreference) => {
     setTheme(nextTheme)
     void persistSettings({ theme: nextTheme })
+  }
+
+  const handleDnsMode = (nextDnsMode: DnsMode) => {
+    setDnsMode(nextDnsMode)
+    void persistSettings({ dnsMode: nextDnsMode })
   }
 
   const handleExport = async () => {
@@ -137,6 +145,24 @@ export function Settings() {
                 {th === 'system' ? <MonitorIcon /> : th === 'light' ? <SunIcon /> : <MoonIcon />}
               </span>
               {th === 'system' ? t('settings.theme_system') : th === 'light' ? t('settings.theme_light') : t('settings.theme_dark')}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* DNS */}
+      <Card className={styles.section}>
+        <h2 className={styles.sectionTitle}>DNS 模式</h2>
+        <div className={styles.optionGroup}>
+          {DNS_MODE_PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              className={`${styles.optionBtn} ${dnsMode === preset.id ? styles.active : ''}`}
+              onClick={() => handleDnsMode(preset.id)}
+              disabled={saving}
+              title={preset.description}
+            >
+              {preset.name}
             </button>
           ))}
         </div>
