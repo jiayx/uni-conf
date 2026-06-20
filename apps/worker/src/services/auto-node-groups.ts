@@ -1,5 +1,6 @@
 import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag } from '@uni-conf/shared';
 import { jsonStringify, newId } from '../db/helpers';
+import { syncRoutingPolicyGroups } from './routing-policy-groups';
 
 const AUTO_GROUP_TYPE = 'url-test';
 const TEST_URL = 'http://www.gstatic.com/generate_204';
@@ -45,6 +46,8 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
       await createLinkedGroup(db, collectionId, name, ts);
     }
   }
+
+  await syncRoutingPolicyGroups(db, ts);
 }
 
 async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]> {

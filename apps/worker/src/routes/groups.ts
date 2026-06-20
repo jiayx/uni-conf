@@ -2,12 +2,15 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
 import type { ProxyGroup } from '@uni-conf/types';
+import { syncRoutingPolicyGroups } from '../services/routing-policy-groups';
 
 const app = new Hono<{ Bindings: Env }>();
 
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
 app.get('/', async (c) => {
+  await syncRoutingPolicyGroups(c.env.DB, now());
+
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM groups ORDER BY sort_order ASC, created_at ASC'
   ).all<Record<string, unknown>>();
@@ -80,6 +83,8 @@ app.post('/', async (c) => {
     )
     .run();
 
+  await syncRoutingPolicyGroups(c.env.DB, ts);
+
   const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
@@ -136,6 +141,8 @@ app.put('/:id', async (c) => {
     )
     .run();
 
+  await syncRoutingPolicyGroups(c.env.DB, ts);
+
   const updated = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
@@ -157,6 +164,7 @@ app.delete('/:id', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(id).run();
+  await syncRoutingPolicyGroups(c.env.DB, now());
   return c.json({ success: true, data: { id } });
 });
 

@@ -17,6 +17,7 @@ import {
   mapRemoteRuleSet,
   mapRule,
 } from './db/helpers'
+import { applyRoutingPolicyGroupLinks } from './services/routing-policy-groups'
 
 export interface ExportData {
   config?: ExportConfig
@@ -59,7 +60,9 @@ export async function buildExportData(
 ): Promise<ExportData> {
   const allNodeRows = await selectRows(db, 'SELECT * FROM nodes WHERE enabled = 1')
   const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
-  const allGroupRows = await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC')
+  const allGroupRows = applyRoutingPolicyGroupLinks(
+    await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC')
+  )
   const groupRows = expandReferencedGroupRows(allGroupRows, config?.includeGroupIds)
   const collectionScopeIds = resolveCollectionScopeIds(config, groupRows)
   const nodeRows = collectionScopeIds.length
