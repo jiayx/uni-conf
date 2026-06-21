@@ -61,7 +61,9 @@ export function Groups() {
     () => groups.filter(group => (isRoutingPolicyGroup(group) && group.enabled) || isCustomRoutingGroup(group)),
     [groups]
   )
-  const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate) ?? ROUTING_POLICY_TEMPLATES[1]
+  const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate)
+    ?? ROUTING_POLICY_TEMPLATES.find(template => template.id === 'common')
+    ?? ROUTING_POLICY_TEMPLATES[0]
   const activeTemplateGroupNames = useMemo(
     () => buildRoutingPolicyTemplateGroupNames(activeTemplateConfig),
     [activeTemplateConfig]

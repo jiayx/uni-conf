@@ -136,10 +136,14 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 
 `routing_policy_template` controls which business routing groups are enabled; foundation groups stay enabled for every template:
 
-| Template | Enabled business groups |
+| Template | Enabled business groups, excluding foundation groups |
 |----------|-------------------------|
 | `empty` | none, foundation groups only |
+| `minimal` | 漏网之鱼 |
 | `common` | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼 |
+| `ai` | AI, GitHub, Developer, Apple, Microsoft, 漏网之鱼 |
+| `streaming` | Streaming, Telegram, Social, Apple, Microsoft, 漏网之鱼 |
+| `router` | Streaming, Telegram, GitHub, Apple, Microsoft, 漏网之鱼 |
 | `extended` | common + Crypto, Gaming, Developer |
 
 ### `rules` — Traffic Routing Rules
@@ -227,7 +231,7 @@ The system ensures a built-in default export config exists:
 | id | TEXT PK | Always `'singleton'` |
 | language | TEXT | `zh` \| `en` |
 | theme | TEXT | `system` \| `light` \| `dark` |
-| routing_policy_template | TEXT | `empty` \| `common` \| `extended` |
+| routing_policy_template | TEXT | `empty` \| `minimal` \| `common` \| `ai` \| `streaming` \| `router` \| `extended` |
 | dns_mode | TEXT | `compatible` \| `smart` \| `fake-ip` |
 | default_export_token | TEXT? | Token of the default export config |
 | show_compatibility_warnings | INTEGER | 1/0 |

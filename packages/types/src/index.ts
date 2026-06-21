@@ -315,7 +315,14 @@ export interface ExportConfig {
 
 export type Language = 'zh' | 'en';
 export type ThemePreference = 'system' | 'light' | 'dark';
-export type RoutingPolicyTemplateId = 'empty' | 'common' | 'extended';
+export type RoutingPolicyTemplateId =
+  | 'empty'
+  | 'minimal'
+  | 'common'
+  | 'ai'
+  | 'streaming'
+  | 'router'
+  | 'extended';
 export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
 
 export interface AppSettings {

@@ -198,6 +198,112 @@ describe('routing policy group sync', () => {
     ]);
   });
 
+  it.each([
+    ['minimal', ['PROXY', 'DIRECT', 'REJECT', '全部节点', '节点选择', '自动选择', '故障切换', '漏网之鱼']],
+    [
+      'common',
+      [
+        'PROXY',
+        'DIRECT',
+        'REJECT',
+        '全部节点',
+        '节点选择',
+        '自动选择',
+        '故障切换',
+        'AI',
+        'STREAMING',
+        'TELEGRAM',
+        'SOCIAL',
+        'GITHUB',
+        'APPLE',
+        'MICROSOFT',
+        '漏网之鱼',
+      ],
+    ],
+    [
+      'ai',
+      [
+        'PROXY',
+        'DIRECT',
+        'REJECT',
+        '全部节点',
+        '节点选择',
+        '自动选择',
+        '故障切换',
+        'AI',
+        'GITHUB',
+        'DEVELOPER',
+        'APPLE',
+        'MICROSOFT',
+        '漏网之鱼',
+      ],
+    ],
+    [
+      'streaming',
+      [
+        'PROXY',
+        'DIRECT',
+        'REJECT',
+        '全部节点',
+        '节点选择',
+        '自动选择',
+        '故障切换',
+        'STREAMING',
+        'TELEGRAM',
+        'SOCIAL',
+        'APPLE',
+        'MICROSOFT',
+        '漏网之鱼',
+      ],
+    ],
+    [
+      'router',
+      [
+        'PROXY',
+        'DIRECT',
+        'REJECT',
+        '全部节点',
+        '节点选择',
+        '自动选择',
+        '故障切换',
+        'STREAMING',
+        'TELEGRAM',
+        'GITHUB',
+        'APPLE',
+        'MICROSOFT',
+        '漏网之鱼',
+      ],
+    ],
+    [
+      'extended',
+      [
+        'PROXY',
+        'DIRECT',
+        'REJECT',
+        '全部节点',
+        '节点选择',
+        '自动选择',
+        '故障切换',
+        'AI',
+        'STREAMING',
+        'TELEGRAM',
+        'SOCIAL',
+        'GITHUB',
+        'APPLE',
+        'MICROSOFT',
+        '漏网之鱼',
+        'CRYPTO',
+        'GAMING',
+        'DEVELOPER',
+      ],
+    ],
+  ])('resolves the %s scenario template with foundation outlets', (templateId, groupNames) => {
+    const template = ROUTING_POLICY_TEMPLATES.find((item) => item.id === templateId);
+
+    expect(template).toBeDefined();
+    expect([...resolveActiveTemplateGroupNames(template!)]).toEqual(groupNames);
+  });
+
   it('manages every generated foundation and business group through templates', () => {
     expect([...resolveManagedTemplateGroupNames()]).toEqual([
       'PROXY',
@@ -207,6 +313,7 @@ describe('routing policy group sync', () => {
       '节点选择',
       '自动选择',
       '故障切换',
+      '漏网之鱼',
       'AI',
       'STREAMING',
       'TELEGRAM',
@@ -214,10 +321,9 @@ describe('routing policy group sync', () => {
       'GITHUB',
       'APPLE',
       'MICROSOFT',
-      '漏网之鱼',
+      'DEVELOPER',
       'CRYPTO',
       'GAMING',
-      'DEVELOPER',
     ]);
   });
 

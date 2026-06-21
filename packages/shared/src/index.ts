@@ -227,7 +227,14 @@ export type InferredRuleSetTargetGroup =
   | 'DIRECT'
   | 'REJECT';
 
-export type RoutingPolicyTemplateId = 'empty' | 'common' | 'extended';
+export type RoutingPolicyTemplateId =
+  | 'empty'
+  | 'minimal'
+  | 'common'
+  | 'ai'
+  | 'streaming'
+  | 'router'
+  | 'extended';
 
 export interface RoutingPolicyTemplate {
   id: RoutingPolicyTemplateId;
@@ -281,19 +288,43 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
     id: 'empty',
     name: '空组合',
     description: '只保留基础出口，所有业务分流策略由用户自己添加。',
-    groupNames: ['PROXY'],
+    groupNames: [],
+  },
+  {
+    id: 'minimal',
+    name: '极简模式',
+    description: '适合新手，只启用代理兜底和基础出口，国内直连、广告拦截由预置规则直接命中。',
+    groupNames: ['漏网之鱼'],
   },
   {
     id: 'common',
     name: '默认智能模板',
     description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Apple、Microsoft 和兜底分流。',
-    groupNames: ['PROXY', 'AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],
+  },
+  {
+    id: 'ai',
+    name: 'AI 优先模式',
+    description: '优先启用 AI、开发和代码服务分流，适合主要使用 OpenAI、Claude、Gemini、Cursor 或 Copilot 的场景。',
+    groupNames: ['AI', 'GitHub', 'Developer', 'Apple', 'Microsoft', '漏网之鱼'],
+  },
+  {
+    id: 'streaming',
+    name: '流媒体模式',
+    description: '优先启用流媒体、社交和 Telegram 分流，适合 Netflix、YouTube、Disney+ 等服务。',
+    groupNames: ['Streaming', 'Telegram', 'Social', 'Apple', 'Microsoft', '漏网之鱼'],
+  },
+  {
+    id: 'router',
+    name: '路由器模式',
+    description: '适合 OpenClash、软路由和网关场景，保留常用分流并避免过多业务组。',
+    groupNames: ['Streaming', 'Telegram', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'extended',
     name: '扩展组合',
     description: '在常用组合基础上增加加密货币、游戏和开发服务。',
-    groupNames: ['PROXY', 'AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
+    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
   },
 ];
 
