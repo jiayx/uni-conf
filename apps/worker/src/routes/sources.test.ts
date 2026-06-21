@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import { filterUsableParsedContent, parseClashGroups, parseClashYaml } from './sources'
 
 // Mock Clash YAML with multiple node formats
@@ -159,6 +159,28 @@ proxies:
     expect(detectCountry('[三网]DE 02')).toEqual({ country: 'Germany', countryCode: 'DE' })
     expect(detectCountry('[三网]CA 01')).toEqual({ country: 'Canada', countryCode: 'CA' })
     expect(detectCountry('[三网]HK 01')).toEqual({ country: 'Hong Kong', countryCode: 'HK' })
+  })
+
+  it('should detect traffic multipliers without matching normal node numbers', () => {
+    expect(detectTrafficMultiplier('🇭🇰 HK IEPL 2x')).toEqual({ value: 2, label: '2x', high: true })
+    expect(detectTrafficMultiplier('US｜Los Angeles｜x1')).toEqual({ value: 1, label: '1x', high: false })
+    expect(detectTrafficMultiplier('日本 倍率: 0.5')).toEqual({ value: 0.5, label: '0.5x', high: false })
+    expect(detectTrafficMultiplier('🇭🇰 HK 01')).toBeNull()
+  })
+
+  it('should attach multiplier tags to parsed subscription nodes', () => {
+    const yaml = `
+proxies:
+    - { name: '🇭🇰 HK IEPL 2x', type: trojan, server: hk.example.com, port: 443, password: pwd }
+    - { name: '🇺🇸 US 01', type: trojan, server: us.example.com, port: 443, password: pwd }
+`
+    const nodes = parseClashYaml(yaml)
+
+    expect(nodes.find(node => node.name === '🇭🇰 HK IEPL 2x')?.tags).toEqual([
+      'multiplier:2x',
+      'high-multiplier',
+    ])
+    expect(nodes.find(node => node.name === '🇺🇸 US 01')?.tags).toEqual([])
   })
 
   it('should handle edge cases with YAML parser', () => {

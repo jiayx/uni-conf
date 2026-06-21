@@ -7,7 +7,7 @@ import {
   newId,
   now,
 } from '../db/helpers';
-import { detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
+import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
@@ -225,7 +225,7 @@ app.post('/:id/refresh', async (c) => {
 
   // Load existing nodes for this source to compute diff
   const { results: existingRows } = await c.env.DB.prepare(
-    'SELECT id, name, server, port, protocol, country, country_code, raw_config, parsed_config FROM nodes WHERE source_id = ? AND is_manual = 0'
+    'SELECT id, name, server, port, protocol, country, country_code, tags, raw_config, parsed_config FROM nodes WHERE source_id = ? AND is_manual = 0'
   )
     .bind(id)
     .all<{
@@ -236,6 +236,7 @@ app.post('/:id/refresh', async (c) => {
       protocol: string;
       country: string | null;
       country_code: string | null;
+      tags: string | null;
       raw_config: string | null;
       parsed_config: string | null;
     }>();
@@ -274,7 +275,7 @@ app.post('/:id/refresh', async (c) => {
     const nodeId = newId();
     await c.env.DB.prepare(
       `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, '[]', NULL, ?, ?, 0, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?, ?, 0, ?, ?)`
     )
       .bind(
         nodeId,
@@ -285,6 +286,7 @@ app.post('/:id/refresh', async (c) => {
         node.port,
         node.country ?? null,
         node.countryCode ?? null,
+        jsonStringify(node.tags),
         jsonStringify(node.rawConfig),
         jsonStringify(node.parsedConfig),
         ts,
@@ -297,13 +299,14 @@ app.post('/:id/refresh', async (c) => {
   for (const item of updatedNodes) {
     await c.env.DB.prepare(
       `UPDATE nodes SET
-        protocol = ?, country = ?, country_code = ?, raw_config = ?, parsed_config = ?, updated_at = ?
+        protocol = ?, country = ?, country_code = ?, tags = ?, raw_config = ?, parsed_config = ?, updated_at = ?
        WHERE id = ?`
     )
       .bind(
         item.node.protocol,
         item.node.country ?? null,
         item.node.countryCode ?? null,
+        jsonStringify(item.node.tags),
         jsonStringify(item.node.rawConfig),
         jsonStringify(item.node.parsedConfig),
         ts,
@@ -382,6 +385,7 @@ export interface ParsedNodeRaw {
   countryCode?: string;
   rawConfig: Record<string, unknown>;
   parsedConfig: NormalizedProxyConfig;
+  tags: string[];
 }
 
 function shouldKeepParsedNode(node: ParsedNodeRaw): boolean {
@@ -414,6 +418,10 @@ function countryFields(name: string): Pick<ParsedNodeRaw, 'country' | 'countryCo
     country: countryInfo?.country,
     countryCode: countryInfo?.countryCode,
   };
+}
+
+function recognitionTags(name: string): Pick<ParsedNodeRaw, 'tags'> {
+  return { tags: buildNodeRecognitionTags(name) };
 }
 
 function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; format: string } {
@@ -459,6 +467,7 @@ function shouldUpdateNode(
     protocol: string;
     country: string | null;
     country_code: string | null;
+    tags: string | null;
     raw_config: string | null;
     parsed_config: string | null;
   },
@@ -467,6 +476,7 @@ function shouldUpdateNode(
   return existing.protocol !== next.protocol ||
     (existing.country ?? null) !== (next.country ?? null) ||
     (existing.country_code ?? null) !== (next.countryCode ?? null) ||
+    (existing.tags ?? '[]') !== jsonStringify(next.tags) ||
     existing.raw_config !== jsonStringify(next.rawConfig) ||
     existing.parsed_config !== jsonStringify(next.parsedConfig);
 }
@@ -510,6 +520,7 @@ export function parseClashYaml(content: string): ParsedNodeRaw[] {
         server: serverStr,
         port: portNum,
         ...countryFields(nameStr),
+        ...recognitionTags(nameStr),
         rawConfig,
         parsedConfig: buildParsedConfig(protocol, serverStr, portNum, rawConfig),
       });
@@ -585,6 +596,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
       server,
       port,
       ...countryFields(name),
+      ...recognitionTags(name),
       rawConfig: ob,
       parsedConfig: buildParsedConfig(protocol, server, port, ob),
     });
@@ -695,6 +707,7 @@ function parseVmessUri(uri: string): ParsedNodeRaw | null {
     server,
     port,
     ...countryFields(name),
+    ...recognitionTags(name),
     rawConfig: data,
     parsedConfig: {
       protocol: 'vmess',
@@ -770,6 +783,7 @@ function parseSsUri(uri: string): ParsedNodeRaw | null {
     server,
     port,
     ...countryFields(name),
+    ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
       protocol: 'ss',
@@ -802,6 +816,7 @@ function parseTrojanUri(uri: string): ParsedNodeRaw | null {
     server,
     port,
     ...countryFields(name),
+    ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
       protocol: 'trojan',
@@ -842,6 +857,7 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
     server,
     port,
     ...countryFields(name),
+    ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
       protocol: 'vless',
@@ -880,6 +896,7 @@ function parseHysteria2Uri(uri: string): ParsedNodeRaw | null {
     server,
     port,
     ...countryFields(name),
+    ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
       protocol: 'hysteria2',
@@ -1013,6 +1030,7 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
     server,
     port,
     ...countryFields(name),
+    ...recognitionTags(name),
     rawConfig,
     parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),
   };

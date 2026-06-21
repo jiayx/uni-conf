@@ -4,16 +4,17 @@ import { resolveManualNodeInput } from './nodes';
 describe('manual node input', () => {
   it('resolves a node from a share URI', () => {
     const input = resolveManualNodeInput({
-      uri: 'vless://12345678-1234-1234-1234-123456789012@us.example.com:443?security=reality&type=tcp&sni=example.com#🇺🇸 US 01',
+      uri: 'vless://12345678-1234-1234-1234-123456789012@us.example.com:443?security=reality&type=tcp&sni=example.com#🇺🇸 US 2x',
     });
 
     expect(input).toMatchObject({
-      name: '🇺🇸 US 01',
+      name: '🇺🇸 US 2x',
       protocol: 'vless',
       server: 'us.example.com',
       port: 443,
       country: 'United States',
       countryCode: 'US',
+      tags: ['multiplier:2x', 'high-multiplier'],
     });
     expect(input?.rawConfig).toMatchObject({
       sourceFormat: 'uri',
@@ -29,17 +30,18 @@ describe('manual node input', () => {
 
   it('keeps structured manual node input supported', () => {
     const input = resolveManualNodeInput({
-      name: 'Manual Trojan',
+      name: 'Manual Trojan x1',
       protocol: 'trojan',
       server: 'trojan.example.com',
       port: 443,
     });
 
     expect(input).toMatchObject({
-      name: 'Manual Trojan',
+      name: 'Manual Trojan x1',
       protocol: 'trojan',
       server: 'trojan.example.com',
       port: 443,
+      tags: ['multiplier:1x'],
     });
   });
 

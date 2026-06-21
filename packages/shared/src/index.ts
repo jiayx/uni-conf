@@ -3,6 +3,12 @@ export interface CountryInfo {
   countryCode: string;
 }
 
+export interface TrafficMultiplierInfo {
+  value: number;
+  label: string;
+  high: boolean;
+}
+
 export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
@@ -96,6 +102,47 @@ export function countryCodeToFlag(countryCode: string): string | undefined {
   return COUNTRY_FLAG_MAP.find(([, , code]) => code === normalizedCode)?.[0];
 }
 
+export function detectTrafficMultiplier(name: string): TrafficMultiplierInfo | null {
+  const normalized = name.trim();
+  if (!normalized) return null;
+
+  const patterns = [
+    /(?:^|[\s|｜_\-[（([])(\d+(?:\.\d+)?)\s*[xX倍](?=$|[\s|｜_\-)）\]])/,
+    /(?:^|[\s|｜_\-[（([])[xX]\s*(\d+(?:\.\d+)?)(?=$|[\s|｜_\-)）\]])/,
+    /倍率\s*[:：]?\s*(\d+(?:\.\d+)?)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    const rawValue = match?.[1];
+    if (!rawValue) continue;
+
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value <= 0) continue;
+
+    return {
+      value,
+      label: `${trimNumeric(value)}x`,
+      high: value > 1,
+    };
+  }
+
+  return null;
+}
+
+export function buildNodeRecognitionTags(name: string): string[] {
+  const multiplier = detectTrafficMultiplier(name);
+  if (!multiplier) return [];
+
+  const tags = [`multiplier:${multiplier.label}`];
+  if (multiplier.high) tags.push('high-multiplier');
+  return tags;
+}
+
+function trimNumeric(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(value).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 const QUIXOTIC_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset';
 
 const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; ruleSetFormat: string }> = {
@@ -187,7 +234,15 @@ export const DNS_MODE_PRESETS: DnsModePreset[] = [
   },
 ];
 
-export const FOUNDATION_POLICY_GROUP_NAMES = ['PROXY', 'DIRECT', 'REJECT'] as const;
+export const FOUNDATION_POLICY_GROUP_NAMES = [
+  'PROXY',
+  'DIRECT',
+  'REJECT',
+  '全部节点',
+  '节点选择',
+  '自动选择',
+  '故障切换',
+] as const;
 
 export function buildRoutingPolicyTemplateGroupNames(template: RoutingPolicyTemplate): string[] {
   return Array.from(new Set([...FOUNDATION_POLICY_GROUP_NAMES, ...template.groupNames]));

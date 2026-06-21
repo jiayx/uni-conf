@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyRoutingPolicyGroupLinks,
+  resolveActiveTemplateGroupNames,
+  resolveManagedTemplateGroupNames,
   resolveOutletGroupIds,
   resolveRoutingGroupIds,
 } from './routing-policy-groups';
+import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 
 const groupRows = [
   {
@@ -162,6 +165,44 @@ const groupRows = [
 ];
 
 describe('routing policy group sync', () => {
+  it('keeps foundation policy and full-node outlet groups enabled for the empty template', () => {
+    const emptyTemplate = ROUTING_POLICY_TEMPLATES.find((template) => template.id === 'empty');
+
+    expect(emptyTemplate).toBeDefined();
+    expect([...resolveActiveTemplateGroupNames(emptyTemplate!)]).toEqual([
+      'PROXY',
+      'DIRECT',
+      'REJECT',
+      '全部节点',
+      '节点选择',
+      '自动选择',
+      '故障切换',
+    ]);
+  });
+
+  it('manages every generated foundation and business group through templates', () => {
+    expect([...resolveManagedTemplateGroupNames()]).toEqual([
+      'PROXY',
+      'DIRECT',
+      'REJECT',
+      '全部节点',
+      '节点选择',
+      '自动选择',
+      '故障切换',
+      'AI',
+      'STREAMING',
+      'TELEGRAM',
+      'SOCIAL',
+      'GITHUB',
+      'APPLE',
+      'MICROSOFT',
+      '漏网之鱼',
+      'CRYPTO',
+      'GAMING',
+      'DEVELOPER',
+    ]);
+  });
+
   it('resolves default and node-backed groups as outlet groups', () => {
     expect(resolveOutletGroupIds(groupRows)).toEqual([
       'builtin-proxy',

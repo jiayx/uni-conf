@@ -1,4 +1,9 @@
-import { detectCountry, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
+import {
+  buildRoutingPolicyTemplateGroupNames,
+  detectCountry,
+  ROUTING_POLICY_TEMPLATES,
+  type RoutingPolicyTemplate,
+} from '@uni-conf/shared';
 import { jsonParse, jsonStringify } from '../db/helpers';
 
 type GroupRow = Record<string, unknown>;
@@ -118,6 +123,18 @@ export function resolveRoutingMemberGroupIds(groupRows: GroupRow[], routingGroup
   );
 }
 
+export function resolveActiveTemplateGroupNames(template: RoutingPolicyTemplate): Set<string> {
+  return new Set(buildRoutingPolicyTemplateGroupNames(template).map((name) => name.toUpperCase()));
+}
+
+export function resolveManagedTemplateGroupNames(): Set<string> {
+  return new Set(
+    ROUTING_POLICY_TEMPLATES
+      .flatMap((item) => buildRoutingPolicyTemplateGroupNames(item))
+      .map((name) => name.toUpperCase())
+  );
+}
+
 function sortRoutingMemberGroupIds(outletIds: string[], groupRows: GroupRow[], routingGroupId: string): string[] {
   const rowsById = new Map(groupRows.map((row) => [String(row.id), row]));
   const routingGroupName = String(rowsById.get(routingGroupId)?.name ?? routingGroupId).toUpperCase();
@@ -172,10 +189,8 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
 
 async function applyActiveTemplate(db: D1Database, ts: string): Promise<void> {
   const template = await getActiveTemplate(db);
-  const activeNames = new Set(template.groupNames.map((name) => name.toUpperCase()));
-  const templateGroupNames = new Set(
-    ROUTING_POLICY_TEMPLATES.flatMap((item) => item.groupNames).map((name) => name.toUpperCase())
-  );
+  const activeNames = resolveActiveTemplateGroupNames(template);
+  const templateGroupNames = resolveManagedTemplateGroupNames();
   const statements = DEFAULT_GENERATED_GROUPS
     .filter((group) => templateGroupNames.has(group.name.toUpperCase()))
     .map((group) =>

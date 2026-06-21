@@ -120,7 +120,8 @@ Built-in groups have two product roles:
 
 | Role | Groups | Behavior |
 |------|--------|----------|
-| Foundation policy groups | PROXY, DIRECT, REJECT | Always available as rule targets |
+| Foundation groups | PROXY, DIRECT, REJECT, 全部节点, 节点选择, 自动选择, 故障切换 | Always enabled by every routing policy template |
+| Rule target foundations | PROXY, DIRECT, REJECT | Always available as direct rule targets |
 | Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
 | Business routing groups | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
 
@@ -133,7 +134,7 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 | Telegram | SG, HK, JP, US country auto groups, then 自动选择 |
 | PROXY, GitHub, 漏网之鱼, and other groups | 自动选择 / 节点选择 / 故障切换 / 全部节点, then country auto groups |
 
-`routing_policy_template` controls which business routing groups are enabled:
+`routing_policy_template` controls which business routing groups are enabled; foundation groups stay enabled for every template:
 
 | Template | Enabled business groups |
 |----------|-------------------------|
@@ -273,6 +274,13 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 | sourceGroupCount | Upstream node groups retained after cleanup |
 
 Default cleanup excludes subscription info nodes such as traffic quota, expiry, package, official site, reset, and user-center entries. It also skips parsed nodes whose protocol maps to `unknown`.
+
+Node recognition writes derived metadata into `nodes.tags` when it does not need a dedicated column. Traffic multipliers are stored as:
+
+- `multiplier:2x`, `multiplier:1x`, `multiplier:0.5x`, etc.
+- `high-multiplier` when the detected multiplier is greater than `1x`.
+
+This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes or create low-cost pools without changing the node schema.
 
 ### Default Export Node Names
 

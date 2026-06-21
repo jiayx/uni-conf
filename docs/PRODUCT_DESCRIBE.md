@@ -233,6 +233,7 @@ GitHub / Apple / Microsoft / Google / 游戏 / Crypto
 排除官网、流量、套餐、过期等提示节点
 排除不可识别协议节点
 按完整节点配置去重
+识别倍率并写入节点标签
 按国家 / 地区生成 url-test 节点组
 把自动节点组加入业务分流组候选出口
 ```
@@ -247,7 +248,15 @@ GitHub / Apple / Microsoft / Google / 游戏 / Crypto
 倍率说明 / 倍数规则
 ```
 
-普通节点名里的倍率标记不会被误删，例如 `🇭🇰 HK IEPL 2x`、`US｜Los Angeles｜x1` 会保留。
+普通节点名里的倍率标记不会被误删，例如 `🇭🇰 HK IEPL 2x`、`US｜Los Angeles｜x1` 会保留。倍率会被识别成节点标签：
+
+```text
+🇭🇰 HK IEPL 2x -> multiplier:2x, high-multiplier
+US｜Los Angeles｜x1 -> multiplier:1x
+日本 倍率: 0.5 -> multiplier:0.5x
+```
+
+节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。
 
 ### 默认节点命名
 
