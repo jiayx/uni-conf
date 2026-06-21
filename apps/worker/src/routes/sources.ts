@@ -9,7 +9,7 @@ import {
 } from '../db/helpers';
 import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup, SourceRefreshResult } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -149,18 +149,39 @@ app.delete('/:id', async (c) => {
 
 app.post('/:id/refresh', async (c) => {
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
+  try {
+    const result = await refreshSourceById(c.env.DB, id);
+    return c.json({ success: true, data: result });
+  } catch (err) {
+    if (err instanceof SourceRefreshError) {
+      return c.json({ success: false, error: err.message }, err.status);
+    }
+    return c.json(
+      { success: false, error: `Failed to fetch URL: ${String(err)}` },
+      502
+    );
+  }
+});
+
+export class SourceRefreshError extends Error {
+  constructor(
+    message: string,
+    public readonly status: 400 | 404 | 422 | 502
+  ) {
+    super(message);
+  }
+}
+
+export async function refreshSourceById(db: D1Database, id: string): Promise<SourceRefreshResult> {
+  const row = await db.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
 
-  if (!row) return c.json({ success: false, error: 'Source not found' }, 404);
-  if (!row.url) {
-    return c.json({ success: false, error: 'Source has no URL to fetch' }, 400);
-  }
+  if (!row) throw new SourceRefreshError('Source not found', 404);
+  if (!row.url) throw new SourceRefreshError('Source has no URL to fetch', 400);
 
   // Use mainstream client User-Agent to avoid 502 errors from airport servers
-  // that check UA for anti-crawler protection
-  // Based on sub-store's default: https://github.com/sub-store-org/Sub-Store
+  // that check UA for anti-crawler protection.
   const defaultUserAgent = 'clash.meta/v1.19.23';
 
   let rawContent: string;
@@ -184,30 +205,10 @@ app.post('/:id/refresh', async (c) => {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    // Parse subscription-userinfo header if present
-    const userInfoHeader = response.headers.get('subscription-userinfo');
-    if (userInfoHeader) {
-      const parts = userInfoHeader.split(';').map(p => p.trim());
-      for (const part of parts) {
-        const [key, value] = part.split('=').map(s => s.trim());
-        if (key && value) {
-          const numValue = parseInt(value, 10);
-          if (!isNaN(numValue)) {
-            if (key === 'upload') subscriptionInfo.uploadBytes = numValue;
-            else if (key === 'download') subscriptionInfo.downloadBytes = numValue;
-            else if (key === 'total') subscriptionInfo.totalBytes = numValue;
-            else if (key === 'expire') subscriptionInfo.expireTime = numValue;
-          }
-        }
-      }
-    }
-
+    subscriptionInfo = parseSubscriptionUserInfo(response.headers.get('subscription-userinfo'));
     rawContent = await response.text();
   } catch (err) {
-    return c.json(
-      { success: false, error: `Failed to fetch URL: ${String(err)}` },
-      502
-    );
+    throw new SourceRefreshError(`Failed to fetch URL: ${String(err)}`, 502);
   }
 
   // Detect format and parse nodes
@@ -217,14 +218,14 @@ app.post('/:id/refresh', async (c) => {
     rawParsedGroups
   );
   if (parsedNodes.length === 0) {
-    return c.json(
-      { success: false, error: `No usable proxy nodes parsed from source content (detected format: ${format}, excluded: ${excludedCount})` },
+    throw new SourceRefreshError(
+      `No usable proxy nodes parsed from source content (detected format: ${format}, excluded: ${excludedCount})`,
       422
     );
   }
 
   // Load existing nodes for this source to compute diff
-  const { results: existingRows } = await c.env.DB.prepare(
+  const { results: existingRows } = await db.prepare(
     'SELECT id, name, server, port, protocol, country, country_code, tags, raw_config, parsed_config FROM nodes WHERE source_id = ? AND is_manual = 0'
   )
     .bind(id)
@@ -273,7 +274,7 @@ app.post('/:id/refresh', async (c) => {
   // Insert added nodes
   for (const node of addedNodes) {
     const nodeId = newId();
-    await c.env.DB.prepare(
+    await db.prepare(
       `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?, ?, 0, ?, ?)`
     )
@@ -297,7 +298,7 @@ app.post('/:id/refresh', async (c) => {
 
   // Update existing nodes whose identity is unchanged but config may have changed
   for (const item of updatedNodes) {
-    await c.env.DB.prepare(
+    await db.prepare(
       `UPDATE nodes SET
         protocol = ?, country = ?, country_code = ?, tags = ?, raw_config = ?, parsed_config = ?, updated_at = ?
        WHERE id = ?`
@@ -317,11 +318,11 @@ app.post('/:id/refresh', async (c) => {
 
   // Delete removed nodes
   for (const rem of toRemove) {
-    await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(rem.id).run();
+    await db.prepare('DELETE FROM nodes WHERE id = ?').bind(rem.id).run();
   }
 
   // Update source node_count, last_updated, and subscription info
-  const { results: countResult } = await c.env.DB.prepare(
+  const { results: countResult } = await db.prepare(
     'SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?'
   )
     .bind(id)
@@ -329,7 +330,7 @@ app.post('/:id/refresh', async (c) => {
 
   const nodeCount = countResult[0]?.cnt ?? parsedNodes.length;
 
-  await c.env.DB.prepare(
+  await db.prepare(
     `UPDATE sources SET
       node_count = ?,
       last_updated = ?,
@@ -356,23 +357,50 @@ app.post('/:id/refresh', async (c) => {
     )
     .run();
 
-  await syncAutoNodeGroups(c.env.DB, ts);
+  await syncAutoNodeGroups(db, ts);
 
-  return c.json({
+  return {
+    sourceId: id,
     success: true,
-    data: {
-      sourceId: id,
-      success: true,
-      nodeCount,
-      addedCount: addedNodes.length,
-      updatedCount: updatedNodes.length,
-      removedCount: toRemove.length,
-      excludedCount,
-      sourceGroupCount: parsedGroups.length,
-      format,
-    },
-  });
-});
+    nodeCount,
+    addedCount: addedNodes.length,
+    updatedCount: updatedNodes.length,
+    removedCount: toRemove.length,
+    excludedCount,
+    sourceGroupCount: parsedGroups.length,
+    format,
+  };
+}
+
+function parseSubscriptionUserInfo(header: string | null): {
+  uploadBytes?: number;
+  downloadBytes?: number;
+  totalBytes?: number;
+  expireTime?: number;
+} {
+  const info: {
+    uploadBytes?: number;
+    downloadBytes?: number;
+    totalBytes?: number;
+    expireTime?: number;
+  } = {};
+  if (!header) return info;
+
+  const parts = header.split(';').map(p => p.trim());
+  for (const part of parts) {
+    const [key, value] = part.split('=').map(s => s.trim());
+    if (!key || !value) continue;
+
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue)) continue;
+    if (key === 'upload') info.uploadBytes = numValue;
+    else if (key === 'download') info.downloadBytes = numValue;
+    else if (key === 'total') info.totalBytes = numValue;
+    else if (key === 'expire') info.expireTime = numValue;
+  }
+
+  return info;
+}
 
 // ─── Format detection & parsing ───────────────────────────────────────────────
 

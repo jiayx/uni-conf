@@ -20,3 +20,6 @@ id = "local"
 [dev]
 port = 8787
 local_protocol = "http"
+
+[triggers]
+crons = ["*/5 * * * *"]

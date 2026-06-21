@@ -1,0 +1,77 @@
+import { getAppSettings } from './app-settings';
+import { refreshSourceById } from '../routes/sources';
+
+export interface AutoRefreshSourceRow {
+  id: string;
+  last_updated: string | null;
+  update_interval: number | null;
+}
+
+export interface AutoRefreshResult {
+  checkedCount: number;
+  refreshedCount: number;
+  failedCount: number;
+  skipped: boolean;
+  refreshedSourceIds: string[];
+  errors: Array<{ sourceId: string; error: string }>;
+}
+
+export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Promise<AutoRefreshResult> {
+  const settings = await getAppSettings(db);
+  if (!settings.enableAutoRefresh) {
+    return {
+      checkedCount: 0,
+      refreshedCount: 0,
+      failedCount: 0,
+      skipped: true,
+      refreshedSourceIds: [],
+      errors: [],
+    };
+  }
+
+  const { results } = await db.prepare(
+    `SELECT id, last_updated, update_interval
+     FROM sources
+     WHERE enabled = 1 AND type = 'url' AND url IS NOT NULL`
+  ).all<AutoRefreshSourceRow>();
+
+  const dueSources = resolveDueSources(results, settings.autoRefreshInterval, nowMs);
+  const refreshedSourceIds: string[] = [];
+  const errors: Array<{ sourceId: string; error: string }> = [];
+
+  for (const source of dueSources) {
+    try {
+      await refreshSourceById(db, source.id);
+      refreshedSourceIds.push(source.id);
+    } catch (err) {
+      errors.push({ sourceId: source.id, error: String(err instanceof Error ? err.message : err) });
+    }
+  }
+
+  return {
+    checkedCount: results.length,
+    refreshedCount: refreshedSourceIds.length,
+    failedCount: errors.length,
+    skipped: false,
+    refreshedSourceIds,
+    errors,
+  };
+}
+
+export function resolveDueSources(
+  sources: AutoRefreshSourceRow[],
+  globalIntervalMinutes: number,
+  nowMs: number
+): AutoRefreshSourceRow[] {
+  const fallbackInterval = Math.max(5, globalIntervalMinutes || 60);
+  return sources.filter((source) => {
+    const interval = Math.max(5, source.update_interval && source.update_interval > 0
+      ? source.update_interval
+      : fallbackInterval);
+    if (!source.last_updated) return true;
+
+    const lastUpdatedMs = Date.parse(source.last_updated);
+    if (!Number.isFinite(lastUpdatedMs)) return true;
+    return nowMs - lastUpdatedMs >= interval * 60 * 1000;
+  });
+}

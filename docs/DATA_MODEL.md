@@ -235,6 +235,13 @@ The system ensures a built-in default export config exists:
 | auto_refresh_interval | INTEGER | Minutes |
 | updated_at | TEXT | |
 
+Auto refresh is driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
+
+- Source `update_interval > 0` overrides the global interval.
+- Source `update_interval = 0` uses `app_settings.auto_refresh_interval`.
+- The effective interval is clamped to at least 5 minutes.
+- Sources with `last_updated = NULL` or an invalid timestamp are treated as due.
+
 ---
 
 ## JSON Field Schemas

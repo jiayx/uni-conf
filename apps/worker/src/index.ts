@@ -13,6 +13,7 @@ import dataRouter from './routes/data'
 import { exportRouter } from './routes/export'
 import { subscriptionRouter } from './routes/subscription'
 import type { Env } from './types'
+import { refreshDueSources } from './services/source-auto-refresh'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -47,4 +48,14 @@ app.onError((err, c) => {
   return c.json({ success: false, error: err.message ?? 'Internal server error' }, 500)
 })
 
-export default app
+export default {
+  fetch(request, env, ctx) {
+    return app.fetch(request, env, ctx)
+  },
+  async scheduled(_event, env, _ctx) {
+    const result = await refreshDueSources(env.DB)
+    if (!result.skipped && (result.refreshedCount > 0 || result.failedCount > 0)) {
+      console.log('Auto refresh completed', result)
+    }
+  },
+} satisfies ExportedHandler<Env>

@@ -142,14 +142,17 @@ All API endpoints are under `/api/`. Responses follow:
 
 ```
 1. User adds subscription URL in Sources page
-2. User clicks "Refresh" 
-3. Frontend calls POST /api/sources/:id/refresh
-4. Worker fetches the external URL (server-side, no CORS issue)
-5. Auto-detects format (Clash YAML / sing-box JSON / Base64 / etc.)
-6. Parses nodes from content
-7. Upserts nodes into D1 nodes table
-8. Updates source.node_count and source.last_updated
-9. Returns { success, nodeCount, addedCount, removedCount }
+2. Frontend immediately calls POST /api/sources/:id/refresh when "refresh after create" is enabled
+3. User can also click "Refresh" manually
+4. Worker scheduled handler runs every 5 minutes and refreshes due URL sources when auto refresh is enabled
+5. Worker fetches the external URL (server-side, no CORS issue)
+6. Auto-detects format (Clash YAML / sing-box JSON / Base64 / raw URI lines / etc.)
+7. Parses nodes and upstream proxy groups from content
+8. Filters subscription-info pseudo nodes and unsupported protocols
+9. Upserts nodes into D1 nodes table and stores raw source content
+10. Regenerates country/region auto node groups
+11. Updates source.node_count and source.last_updated
+12. Returns { success, nodeCount, addedCount, updatedCount, removedCount, excludedCount }
 ```
 
 ### Config Export
