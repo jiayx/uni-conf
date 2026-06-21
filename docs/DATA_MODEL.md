@@ -136,15 +136,17 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 
 `routing_policy_template` controls which business routing groups are enabled; foundation groups stay enabled for every template:
 
-| Template | Enabled business groups, excluding foundation groups |
-|----------|-------------------------|
-| `empty` | none, foundation groups only |
-| `minimal` | 漏网之鱼 |
-| `common` | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼 |
-| `ai` | AI, GitHub, Developer, Apple, Microsoft, 漏网之鱼 |
-| `streaming` | Streaming, Telegram, Social, Apple, Microsoft, 漏网之鱼 |
-| `router` | Streaming, Telegram, GitHub, Apple, Microsoft, 漏网之鱼 |
-| `extended` | common + Crypto, Gaming, Developer |
+| Template | Recommended DNS | Enabled business groups, excluding foundation groups |
+|----------|-----------------|----------------------------------------------------|
+| `empty` | `smart` | none, foundation groups only |
+| `minimal` | `smart` | 漏网之鱼 |
+| `common` | `smart` | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼 |
+| `ai` | `smart` | AI, GitHub, Developer, Apple, Microsoft, 漏网之鱼 |
+| `streaming` | `smart` | Streaming, Telegram, Social, Apple, Microsoft, 漏网之鱼 |
+| `router` | `compatible` | Streaming, Telegram, GitHub, Apple, Microsoft, 漏网之鱼 |
+| `extended` | `smart` | common + Crypto, Gaming, Developer |
+
+When the user changes the scenario template, the web app saves both `routing_policy_template` and the template's recommended `dns_mode`. Users can still override DNS later in Settings.
 
 ### `rules` — Traffic Routing Rules
 

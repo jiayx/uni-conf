@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
+import { useSettingsStore } from '@/store/settings.store'
 import { ROUTING_POLICY_TEMPLATES, buildRoutingPolicyTemplateGroupNames } from '@uni-conf/shared'
 import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Groups.module.css'
@@ -45,6 +46,7 @@ function createEmptyForm(order: number): GroupForm {
 export function Groups() {
   const { t } = useTranslation()
   const { groups, loading, fetchGroups, addGroup, updateGroup, deleteGroup, reorderGroups } = useGroupsStore()
+  const applySettings = useSettingsStore(state => state.applySettings)
   const [showModal, setShowModal] = useState(false)
   const [editingGroup, setEditingGroup] = useState<ProxyGroup | null>(null)
   const [form, setForm] = useState<GroupForm>(() => createEmptyForm(0))
@@ -143,9 +145,14 @@ export function Groups() {
   }
 
   const handleTemplateChange = async (templateId: RoutingPolicyTemplateId) => {
+    const template = ROUTING_POLICY_TEMPLATES.find(item => item.id === templateId)
     setSavingTemplate(true)
     try {
-      const updated = await api.settings.update({ routingPolicyTemplate: templateId })
+      const updated = await api.settings.update({
+        routingPolicyTemplate: templateId,
+        dnsMode: template?.recommendedDnsMode,
+      })
+      applySettings(updated)
       setActiveTemplate(updated.routingPolicyTemplate)
       await fetchGroups()
     } finally {

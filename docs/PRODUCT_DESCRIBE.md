@@ -157,15 +157,15 @@ REJECT
 
 系统把策略组组合做成可选的使用场景模板。无论选择哪个模板，基础出口始终保留；模板只决定额外启用哪些业务分流组：
 
-| 模板 | 额外启用的业务分流组 |
-|------|------------|
-| 空组合 | 无业务分流组，只保留基础出口 |
-| 极简模式 | 漏网之鱼 |
-| 默认智能模板 | AI、Streaming、Telegram、Social、GitHub、Apple、Microsoft、漏网之鱼 |
-| AI 优先模式 | AI、GitHub、Developer、Apple、Microsoft、漏网之鱼 |
-| 流媒体模式 | Streaming、Telegram、Social、Apple、Microsoft、漏网之鱼 |
-| 路由器模式 | Streaming、Telegram、GitHub、Apple、Microsoft、漏网之鱼 |
-| 扩展组合 | 默认智能模板 + Crypto、Gaming、Developer |
+| 模板 | 推荐 DNS | 额外启用的业务分流组 |
+|------|----------|------------------------|
+| 空组合 | 智能防污染 | 无业务分流组，只保留基础出口 |
+| 极简模式 | 智能防污染 | 漏网之鱼 |
+| 默认智能模板 | 智能防污染 | AI、Streaming、Telegram、Social、GitHub、Apple、Microsoft、漏网之鱼 |
+| AI 优先模式 | 智能防污染 | AI、GitHub、Developer、Apple、Microsoft、漏网之鱼 |
+| 流媒体模式 | 智能防污染 | Streaming、Telegram、Social、Apple、Microsoft、漏网之鱼 |
+| 路由器模式 | 兼容优先 | Streaming、Telegram、GitHub、Apple、Microsoft、漏网之鱼 |
+| 扩展组合 | 智能防污染 | 默认智能模板 + Crypto、Gaming、Developer |
 
 默认智能模板适合大多数用户，启用这些业务分流组：
 
@@ -188,7 +188,7 @@ Gaming
 Developer
 ```
 
-空组合只保留基础出口，业务分流组由用户手动添加。极简模式只暴露代理兜底，适合“不想理解分流，只要国内直连、国外代理、广告拦截”的用户。AI 优先、流媒体模式、路由器模式是更明确的入口，但底层仍然复用同一套规则集、出口排序和导出逻辑。
+空组合只保留基础出口，业务分流组由用户手动添加。极简模式只暴露代理兜底，适合“不想理解分流，只要国内直连、国外代理、广告拦截”的用户。AI 优先、流媒体模式、路由器模式是更明确的入口，但底层仍然复用同一套规则集、出口排序和导出逻辑。用户切换场景模板时，系统会同步套用该模板推荐的 DNS 模式；之后仍可在设置里手动调整。
 
 无论选择哪种组合，系统都会把基础出口和可用节点组自动放入每个业务分流组，用户不需要手工维护关联关系。
 
