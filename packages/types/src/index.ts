@@ -268,6 +268,7 @@ export interface RemoteRuleSet {
   targetGroupId: string;
   updateInterval: number; // hours
   enabled: boolean;
+  sortOrder: number;
   lastUpdated?: string;
   notes?: string;
   createdAt: string;

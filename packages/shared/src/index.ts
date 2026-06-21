@@ -335,3 +335,22 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
       return 'PROXY';
   }
 }
+
+export function resolveQuixoticRuleSetSortOrder(presetId: string): number {
+  if (['private'].includes(presetId)) return 10;
+  if (['adrules', 'httpdns'].includes(presetId)) return 20;
+  if (['cn', 'cncidr', 'cncidr-resolve', 'apple-cn', 'microsoft-cn', 'games-cn', 'socialmedia-cn', 'iplocation-direct', 'apns', 'cdn', 'douyin', 'fake-ip-filter', 'bilibili'].includes(presetId)) return 30;
+  if (presetId === 'ai') return 40;
+  if (presetId === 'telegram') return 50;
+  if (['netflix', 'youtube', 'disney', 'apple-tv', 'primevideo', 'hbo', 'hulu', 'dazn', 'abema', 'bahamut', 'dmm', 'mytvsuper', 'niconico', 'spotify', 'twitch'].includes(presetId)) return 60;
+  if (presetId === 'gits') return 70;
+  if (['apple', 'apple-proxy'].includes(presetId)) return 80;
+  if (['microsoft', 'onedrive'].includes(presetId)) return 90;
+  if (['google', 'googlefcm'].includes(presetId)) return 100;
+  if (['games', 'steam'].includes(presetId)) return 110;
+  if (presetId === 'crypto') return 120;
+  if (['forum', 'socialmedia', 'talkatone', 'tiktok'].includes(presetId)) return 130;
+  if (['gfw', 'proxy', 'tld-proxy', 'iplocation-proxy'].includes(presetId)) return 140;
+  if (['ecommerce', 'paypal', 'speedtest', 'dmca'].includes(presetId)) return 150;
+  return 900;
+}

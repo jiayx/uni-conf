@@ -2,6 +2,7 @@ import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticRuleSetSortOrder,
 } from '@uni-conf/shared';
 import { newId } from '../db/helpers';
 
@@ -11,19 +12,20 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
   const statements = QUIXOTIC_RULE_SET_PRESETS
     .map((preset) => {
       const targetGroupId = resolveTargetGroupId(groups, inferQuixoticTargetGroup(preset));
+      const sortOrder = resolveQuixoticRuleSetSortOrder(preset.id);
       if (!targetGroupId) return null;
       const existing = existingPresets.get(preset.id);
       if (existing) {
-        if (existing.target_group_id === targetGroupId) return null;
+        if (existing.target_group_id === targetGroupId && existing.sort_order === sortOrder) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET target_group_id = ?, updated_at = ? WHERE id = ?')
-          .bind(targetGroupId, ts, existing.id);
+          .prepare('UPDATE remote_rule_sets SET target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+          .bind(targetGroupId, sortOrder, ts, existing.id);
       }
       return db
         .prepare(
           `INSERT INTO remote_rule_sets
-            (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
-           VALUES (?, ?, ?, 'mihomo', 'quixotic', ?, ?, 24, 1, NULL, ?, ?, ?)`
+            (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+           VALUES (?, ?, ?, 'mihomo', 'quixotic', ?, ?, 24, 1, ?, NULL, ?, ?, ?)`
         )
         .bind(
           newId(),
@@ -31,6 +33,7 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
           buildQuixoticRuleSetUrl(preset.id, 'mihomo'),
           preset.id,
           targetGroupId,
+          sortOrder,
           `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
           ts,
           ts
@@ -49,12 +52,12 @@ async function listGroupsByName(db: D1Database): Promise<Map<string, string>> {
   return new Map(results.map((group) => [group.name.toUpperCase(), group.id]));
 }
 
-async function listExistingPresetRows(db: D1Database): Promise<Map<string, { id: string; target_group_id: string }>> {
+async function listExistingPresetRows(db: D1Database): Promise<Map<string, { id: string; target_group_id: string; sort_order: number }>> {
   const { results } = await db
-    .prepare("SELECT id, preset_id, target_group_id FROM remote_rule_sets WHERE preset_source = 'quixotic' AND preset_id IS NOT NULL")
-    .all<{ id: string; preset_id: string; target_group_id: string }>();
+    .prepare("SELECT id, preset_id, target_group_id, sort_order FROM remote_rule_sets WHERE preset_source = 'quixotic' AND preset_id IS NOT NULL")
+    .all<{ id: string; preset_id: string; target_group_id: string; sort_order: number }>();
 
-  return new Map(results.map((row) => [row.preset_id, { id: row.id, target_group_id: row.target_group_id }]));
+  return new Map(results.map((row) => [row.preset_id, { id: row.id, target_group_id: row.target_group_id, sort_order: row.sort_order ?? 0 }]));
 }
 
 function resolveTargetGroupId(groups: Map<string, string>, groupName: string): string | undefined {

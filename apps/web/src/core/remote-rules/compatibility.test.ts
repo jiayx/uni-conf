@@ -30,6 +30,7 @@ describe('remote rule set compatibility', () => {
       format: 'mihomo',
       presetSource: 'quixotic',
       presetId: 'ai',
+      sortOrder: 40,
     } as RemoteRuleSet
 
     expect(isRemoteRuleSetCompatible('singbox', set)).toBe(true)

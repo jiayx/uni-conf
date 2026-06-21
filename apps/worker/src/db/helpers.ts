@@ -150,6 +150,7 @@ export function mapRemoteRuleSet(row: Record<string, unknown>): RemoteRuleSet {
     targetGroupId: row.target_group_id as string,
     updateInterval: row.update_interval as number,
     enabled: Boolean(row.enabled),
+    sortOrder: (row.sort_order as number | null) ?? 0,
     lastUpdated: (row.last_updated as string | null) ?? undefined,
     notes: (row.notes as string | null) ?? undefined,
     createdAt: row.created_at as string,

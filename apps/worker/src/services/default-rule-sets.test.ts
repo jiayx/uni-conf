@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS } from '@uni-conf/shared';
+import { inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
 import { ensureDefaultRemoteRuleSets } from './default-rule-sets';
 
 describe('default remote rule sets', () => {
@@ -17,6 +17,9 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'microsoft')?.targetGroupId).toBe('builtin-microsoft');
     expect(inserted.find((item) => item.presetId === 'adrules')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'cn')?.targetGroupId).toBe('builtin-direct');
+    expect(inserted.find((item) => item.presetId === 'adrules')?.sortOrder).toBe(20);
+    expect(inserted.find((item) => item.presetId === 'ai')?.sortOrder).toBe(40);
+    expect(inserted.find((item) => item.presetId === 'netflix')?.sortOrder).toBe(60);
   });
 
   it('does not recreate defaults when preset rule sets already exist with current targets', async () => {
@@ -26,6 +29,7 @@ describe('default remote rule sets', () => {
         id: `preset-${preset.id}`,
         preset_id: preset.id,
         target_group_id: expectedTargetGroupId(preset.id),
+        sort_order: resolveQuixoticRuleSetSortOrder(preset.id),
       })),
       inserted,
     });
@@ -38,7 +42,7 @@ describe('default remote rule sets', () => {
   it('retargets existing presets when the active template adds a specific group', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-crypto', preset_id: 'crypto', target_group_id: 'builtin-proxy' }],
+      existingPresets: [{ id: 'preset-crypto', preset_id: 'crypto', target_group_id: 'builtin-proxy', sort_order: 0 }],
       inserted,
     });
 
@@ -48,6 +52,24 @@ describe('default remote rule sets', () => {
       operation: 'update',
       id: 'preset-crypto',
       targetGroupId: 'builtin-crypto',
+      sortOrder: 120,
+    });
+  });
+
+  it('retains target but fixes stale preset sort order', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{ id: 'preset-ai', preset_id: 'ai', target_group_id: 'builtin-ai', sort_order: 900 }],
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual({
+      operation: 'update',
+      id: 'preset-ai',
+      targetGroupId: 'builtin-ai',
+      sortOrder: 40,
     });
   });
 });
@@ -56,7 +78,7 @@ function createMockDb({
   existingPresets,
   inserted,
 }: {
-  existingPresets: Array<{ id: string; preset_id: string; target_group_id: string }>;
+  existingPresets: Array<{ id: string; preset_id: string; target_group_id: string; sort_order?: number }>;
   inserted: Array<Record<string, unknown>>;
 }): D1Database {
   const db = {
@@ -79,14 +101,15 @@ function createMockDb({
     batch: vi.fn(async (statements: Array<{ __args?: unknown[] }>) => {
       for (const statement of statements) {
         const args = statement.__args ?? [];
-        if (args.length === 3) {
-          inserted.push({ operation: 'update', targetGroupId: args[0], id: args[2] });
+        if (args.length === 4) {
+          inserted.push({ operation: 'update', targetGroupId: args[0], sortOrder: args[1], id: args[3] });
         } else {
           inserted.push({
             operation: 'insert',
             name: args[1],
             presetId: args[3],
             targetGroupId: args[4],
+            sortOrder: args[5],
           });
         }
       }

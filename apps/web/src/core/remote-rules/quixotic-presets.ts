@@ -3,6 +3,7 @@ import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticRuleSetSortOrder,
   type InferredRuleSetTargetGroup,
   type QuixoticRuleSetPreset,
 } from '@uni-conf/shared'
@@ -11,6 +12,7 @@ export {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticRuleSetSortOrder,
 }
 
 export type {

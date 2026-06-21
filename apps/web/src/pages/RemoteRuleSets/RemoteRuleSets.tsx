@@ -12,6 +12,7 @@ import {
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
   RULE_SET_FORMAT_OPTIONS,
+  resolveQuixoticRuleSetSortOrder,
   type QuixoticRuleSetPreset,
 } from '@/core/remote-rules/quixotic-presets'
 import { api } from '@/lib/api'
@@ -45,6 +46,7 @@ function createEmptyForm(targetGroupId = ''): RemoteSetForm {
     targetGroupId,
     updateInterval: 24,
     enabled: true,
+    sortOrder: 500,
     notes: '',
   }
 }
@@ -109,6 +111,7 @@ export function RemoteRuleSets() {
       targetGroupId: set.targetGroupId,
       updateInterval: set.updateInterval,
       enabled: set.enabled,
+      sortOrder: set.sortOrder,
       lastUpdated: set.lastUpdated,
       notes: set.notes ?? '',
       presetSource: set.presetSource,
@@ -139,6 +142,7 @@ export function RemoteRuleSets() {
       targetGroupId: findSuggestedGroupId(preset),
       updateInterval: 24,
       enabled: true,
+      sortOrder: resolveQuixoticRuleSetSortOrder(preset.id),
       notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
     }))
   }
@@ -152,6 +156,7 @@ export function RemoteRuleSets() {
     targetGroupId: findSuggestedGroupId(preset),
     updateInterval: 24,
     enabled: true,
+    sortOrder: resolveQuixoticRuleSetSortOrder(preset.id),
     notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
   })
 
@@ -198,6 +203,7 @@ export function RemoteRuleSets() {
       url: form.url.trim(),
       notes: form.notes?.trim() || undefined,
       updateInterval: Number(form.updateInterval) || 24,
+      sortOrder: Number(form.sortOrder) || 500,
     }
 
     if (!payload.name || !payload.url || !payload.targetGroupId) {
@@ -399,7 +405,7 @@ function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: strin
   }
 
   return [...sections.values()]
-    .map(section => ({ ...section, sets: section.sets.sort((a, b) => a.name.localeCompare(b.name)) }))
+    .map(section => ({ ...section, sets: section.sets.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)) }))
     .sort((a, b) => a.groupName.localeCompare(b.groupName))
 }
 

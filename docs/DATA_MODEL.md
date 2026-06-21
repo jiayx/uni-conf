@@ -171,10 +171,25 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 | target_group_id | TEXT FK→groups | |
 | update_interval | INTEGER | Hours |
 | enabled | INTEGER | 1/0 |
+| sort_order | INTEGER | Rule set evaluation order (lower = higher priority) |
 | last_updated | TEXT? | |
 | notes | TEXT? | |
 | created_at | TEXT | |
 | updated_at | TEXT | |
+
+Built-in Quixotic rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority:
+
+| Order | Rule set intent |
+|-------|-----------------|
+| 10 | Private / local network |
+| 20 | Reject / privacy blocking |
+| 30 | Direct China and client-local rules |
+| 40 | AI |
+| 50 | Telegram |
+| 60 | Streaming |
+| 70-120 | GitHub, Apple, Microsoft, Google, Gaming, Crypto |
+| 130-150 | Social, proxy, ecommerce, speedtest, DMCA |
+| 900 | Unknown presets |
 
 ### `export_configs` — Export Configuration
 

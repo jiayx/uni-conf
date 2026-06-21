@@ -211,6 +211,19 @@ Microsoft / OneDrive -> Microsoft
 
 如果当前组合没有启用某个专用策略组，规则集回退到 `PROXY`；如果没有显式 MATCH 规则，导出器优先用 `漏网之鱼` 作为兜底，未启用时再回退到 `PROXY`。这样用户切换组合时不会产生悬空规则。
 
+预置远程规则集还会自动写入稳定的优先级顺序，导出时按 `sort_order` 从小到大输出：
+
+```text
+私有网络 / 本机规则
+广告 / HTTPDNS 拦截
+国内直连
+AI
+Telegram
+流媒体
+GitHub / Apple / Microsoft / Google / 游戏 / Crypto
+社交 / 常规代理 / 其他服务
+```
+
 ### 节点自动处理
 
 订阅刷新后，系统应自动完成：

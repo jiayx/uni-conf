@@ -13,7 +13,7 @@ app.get('/', async (c) => {
   await ensureDefaultRemoteRuleSets(c.env.DB, ts)
 
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM remote_rule_sets ORDER BY created_at DESC'
+    'SELECT * FROM remote_rule_sets ORDER BY sort_order ASC, created_at ASC'
   ).all<Record<string, unknown>>()
 
   return c.json({ success: true, data: results.map(mapRemoteRuleSet) })
@@ -32,8 +32,8 @@ app.post('/', async (c) => {
   const ts = now()
   await c.env.DB.prepare(
     `INSERT INTO remote_rule_sets
-      (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -45,6 +45,7 @@ app.post('/', async (c) => {
       body.targetGroupId,
       body.updateInterval ?? 24,
       body.enabled !== false ? 1 : 0,
+      body.sortOrder ?? 500,
       body.lastUpdated ?? null,
       body.notes ?? null,
       ts,
@@ -74,8 +75,8 @@ app.post('/batch', async (c) => {
     createdIds.push(id)
     await c.env.DB.prepare(
       `INSERT INTO remote_rule_sets
-        (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
@@ -87,6 +88,7 @@ app.post('/batch', async (c) => {
         set.targetGroupId,
         set.updateInterval ?? 24,
         set.enabled !== false ? 1 : 0,
+        set.sortOrder ?? 500,
         set.lastUpdated ?? null,
         set.notes ?? null,
         ts,
@@ -101,7 +103,7 @@ app.post('/batch', async (c) => {
 
   const placeholders = createdIds.map(() => '?').join(',')
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM remote_rule_sets WHERE id IN (${placeholders}) ORDER BY created_at DESC`
+    `SELECT * FROM remote_rule_sets WHERE id IN (${placeholders}) ORDER BY sort_order ASC, created_at ASC`
   )
     .bind(...createdIds)
     .all<Record<string, unknown>>()
@@ -130,7 +132,7 @@ app.put('/:id', async (c) => {
   await c.env.DB.prepare(
     `UPDATE remote_rule_sets SET
       name = ?, url = ?, format = ?, preset_source = ?, preset_id = ?, target_group_id = ?, update_interval = ?,
-      enabled = ?, last_updated = ?, notes = ?, updated_at = ?
+      enabled = ?, sort_order = ?, last_updated = ?, notes = ?, updated_at = ?
      WHERE id = ?`
   )
     .bind(
@@ -142,6 +144,7 @@ app.put('/:id', async (c) => {
       body.targetGroupId ?? existing.target_group_id,
       body.updateInterval ?? existing.update_interval,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
+      body.sortOrder ?? existing.sort_order ?? 500,
       body.lastUpdated !== undefined ? body.lastUpdated : existing.last_updated,
       body.notes !== undefined ? body.notes : existing.notes,
       ts,

@@ -56,6 +56,7 @@ const remoteSet: RemoteRuleSet = {
   targetGroupId: directGroup.id,
   updateInterval: 12,
   enabled: true,
+  sortOrder: 20,
   createdAt,
   updatedAt: createdAt,
 };

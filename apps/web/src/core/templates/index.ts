@@ -132,6 +132,7 @@ export const BUILTIN_TEMPLATES: RuleTemplate[] = [
         format: 'text',
         updateInterval: 24,
         enabled: true,
+        sortOrder: 20,
       },
     ],
   },

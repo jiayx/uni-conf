@@ -117,12 +117,15 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   target_group_id TEXT NOT NULL,
   update_interval INTEGER NOT NULL DEFAULT 24,
   enabled INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   last_updated TEXT,
   notes TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (target_group_id) REFERENCES groups(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_remote_rule_sets_sort_order ON remote_rule_sets(sort_order);
 
 -- Export configurations
 CREATE TABLE IF NOT EXISTS export_configs (

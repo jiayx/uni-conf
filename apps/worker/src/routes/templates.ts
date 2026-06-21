@@ -706,8 +706,8 @@ app.post('/:id/import', async (c) => {
     for (const rset of template.remoteSets) {
       const id = newId();
       await c.env.DB.prepare(
-        `INSERT INTO remote_rule_sets (id, name, url, format, target_group_id, update_interval, enabled, last_updated, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`
+        `INSERT INTO remote_rule_sets (id, name, url, format, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`
       )
         .bind(
           id,
@@ -717,6 +717,7 @@ app.post('/:id/import', async (c) => {
           body.targetGroupId,
           rset.updateInterval,
           rset.enabled ? 1 : 0,
+          500,
           rset.notes ?? null,
           ts,
           ts
@@ -731,6 +732,7 @@ app.post('/:id/import', async (c) => {
         targetGroupId: body.targetGroupId,
         updateInterval: rset.updateInterval,
         enabled: rset.enabled,
+        sortOrder: 500,
         notes: rset.notes,
         createdAt: ts,
         updatedAt: ts,

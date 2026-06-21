@@ -88,7 +88,7 @@ export async function buildExportData(
   )
   const remoteSetRows = await selectRows(
     db,
-    'SELECT * FROM remote_rule_sets WHERE enabled = 1',
+    'SELECT * FROM remote_rule_sets WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC',
     config?.includeRemoteSetIds
   )
 

@@ -134,6 +134,7 @@ function makeRemoteSet(id: string, targetGroupId: string): ExportData['remoteSet
     targetGroupId,
     updateInterval: 24,
     enabled: true,
+    sortOrder: 500,
     createdAt,
     updatedAt: createdAt,
   };
