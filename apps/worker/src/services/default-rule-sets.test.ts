@@ -120,6 +120,7 @@ function listGroups() {
     { id: 'builtin-proxy', name: 'PROXY' },
     { id: 'builtin-ai', name: 'AI' },
     { id: 'builtin-streaming', name: 'Streaming' },
+    { id: 'builtin-telegram', name: 'Telegram' },
     { id: 'builtin-social', name: 'Social' },
     { id: 'builtin-github', name: 'GitHub' },
     { id: 'builtin-apple', name: 'Apple' },
@@ -127,6 +128,7 @@ function listGroups() {
     { id: 'builtin-crypto', name: 'Crypto' },
     { id: 'builtin-gaming', name: 'Gaming' },
     { id: 'builtin-developer', name: 'Developer' },
+    { id: 'builtin-final', name: '漏网之鱼' },
     { id: 'builtin-direct', name: 'DIRECT' },
     { id: 'builtin-reject', name: 'REJECT' },
   ];
@@ -139,6 +141,7 @@ function expectedTargetGroupId(presetId: string): string {
     PROXY: 'builtin-proxy',
     AI: 'builtin-ai',
     Streaming: 'builtin-streaming',
+    Telegram: 'builtin-telegram',
     Social: 'builtin-social',
     GitHub: 'builtin-github',
     Apple: 'builtin-apple',
@@ -146,6 +149,7 @@ function expectedTargetGroupId(presetId: string): string {
     Crypto: 'builtin-crypto',
     Gaming: 'builtin-gaming',
     Developer: 'builtin-developer',
+    '漏网之鱼': 'builtin-final',
     DIRECT: 'builtin-direct',
     REJECT: 'builtin-reject',
   };

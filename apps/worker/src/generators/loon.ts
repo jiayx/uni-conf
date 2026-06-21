@@ -188,8 +188,7 @@ export function generateLoon(
   // Ensure FINAL rule exists
   const hasFinal = rules.some(r => String(r['type']) === 'MATCH')
   if (!hasFinal) {
-    const proxyGroup = groups.find(g => String(g['name']) === 'PROXY')
-    lines.push(`FINAL, ${proxyGroup ? 'PROXY' : groups[0] ? String(groups[0]['name']) : 'PROXY'}`)
+    lines.push(`FINAL, ${defaultPolicy(groups)}`)
   }
   lines.push('')
 
@@ -217,6 +216,15 @@ export function generateLoon(
   lines.push('')
 
   return lines.join('\n')
+}
+
+function defaultPolicy(groups: Array<Record<string, unknown>>): string {
+  return String(
+    groups.find(group => String(group['name']) === '漏网之鱼')?.['name']
+      ?? groups.find(group => String(group['name']) === 'PROXY')?.['name']
+      ?? groups[0]?.['name']
+      ?? 'PROXY'
+  )
 }
 
 function isLoonCompatibleRemoteSet(format: string): boolean {

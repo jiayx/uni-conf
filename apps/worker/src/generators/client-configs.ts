@@ -419,7 +419,12 @@ function resolveGroupName(groupId: string, groups: Row[]): string {
 }
 
 function defaultPolicy(groups: Row[]): string {
-  return String(groups.find((group) => String(group['name']) === 'PROXY')?.['name'] ?? groups[0]?.['name'] ?? 'DIRECT')
+  return String(
+    groups.find((group) => String(group['name']) === '漏网之鱼')?.['name']
+      ?? groups.find((group) => String(group['name']) === 'PROXY')?.['name']
+      ?? groups[0]?.['name']
+      ?? 'DIRECT'
+  )
 }
 
 function safeJson(value: unknown): Record<string, unknown> {

@@ -519,10 +519,9 @@ function buildRoute(
     });
   }
 
-  const proxyGroup = groups.find((g) => g.name === 'PROXY') ?? groups[0];
   const finalOutbound = matchRule
     ? resolveGroupName(matchRule.targetGroupId, groups)
-    : proxyGroup ? proxyGroup.name : 'direct';
+    : defaultPolicyName(groups);
 
   return {
     rules: routeRules,
@@ -531,6 +530,13 @@ function buildRoute(
     auto_detect_interface: true,
     override_android_vpn: true,
   };
+}
+
+function defaultPolicyName(groups: ProxyGroup[]): string {
+  return groups.find((group) => group.name === '漏网之鱼')?.name
+    ?? groups.find((group) => group.name === 'PROXY')?.name
+    ?? groups[0]?.name
+    ?? 'direct';
 }
 
 function filterCollectionNodeNames(

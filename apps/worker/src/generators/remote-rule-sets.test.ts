@@ -28,6 +28,14 @@ const directGroup: ProxyGroup = {
   builtins: [],
 };
 
+const finalGroup: ProxyGroup = {
+  ...proxyGroup,
+  id: 'group-final',
+  name: '漏网之鱼',
+  type: 'select',
+  builtins: [],
+};
+
 const matchRule: ProxyRule = {
   id: 'rule-match',
   type: 'MATCH',
@@ -115,6 +123,16 @@ describe('remote rule set generators', () => {
       content.indexOf('  - MATCH,PROXY')
     );
     expect(content).not.toContain('ai.srs');
+  });
+
+  it('uses the catch-all policy group when MATCH is not configured', () => {
+    const mihomo = generateMihomoYaml([], [proxyGroup, finalGroup], [], []);
+    expect(mihomo).toContain('  - MATCH,漏网之鱼');
+
+    const singbox = JSON.parse(generateSingboxJson([], [proxyGroup, finalGroup], [], [])) as {
+      route: { final: string };
+    };
+    expect(singbox.route.final).toBe('漏网之鱼');
   });
 
   it('routes sing-box remote rule sets and uses MATCH as final outbound', () => {

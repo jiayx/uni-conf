@@ -160,10 +160,12 @@ REJECT
 ```text
 AI
 Streaming
+Telegram
 Social
 GitHub
 Apple
 Microsoft
+漏网之鱼
 ```
 
 扩展组合在默认智能模板基础上增加：
@@ -185,6 +187,7 @@ Developer
 广告 / HTTPDNS -> REJECT
 AI 服务 -> AI
 流媒体 -> Streaming
+Telegram -> Telegram
 国外社交 -> Social
 Git 服务 -> GitHub
 Apple 代理规则 -> Apple
@@ -192,10 +195,10 @@ Microsoft / OneDrive -> Microsoft
 加密货币 -> Crypto
 游戏平台 -> Gaming
 开发服务 -> Developer
-其他国外流量 -> PROXY
+其他国外流量 / 兜底 MATCH -> 漏网之鱼
 ```
 
-如果当前组合没有启用某个专用策略组，规则集回退到 `PROXY`。这样用户切换组合时不会产生悬空规则。
+如果当前组合没有启用某个专用策略组，规则集回退到 `PROXY`；如果没有显式 MATCH 规则，导出器优先用 `漏网之鱼` 作为兜底，未启用时再回退到 `PROXY`。这样用户切换组合时不会产生悬空规则。
 
 ### 节点自动处理
 

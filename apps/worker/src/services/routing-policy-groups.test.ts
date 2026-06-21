@@ -31,6 +31,22 @@ const groupRows = [
     is_builtin: 1,
   },
   {
+    id: 'builtin-telegram',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '["builtin-proxy"]',
+    enabled: 1,
+    is_builtin: 1,
+  },
+  {
+    id: 'builtin-final',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '["builtin-proxy"]',
+    enabled: 1,
+    is_builtin: 1,
+  },
+  {
     id: 'builtin-direct',
     type: 'direct',
     collection_ids: '[]',
@@ -120,7 +136,13 @@ describe('routing policy group sync', () => {
   });
 
   it('resolves builtin non-node select groups as routing policy groups', () => {
-    expect(resolveRoutingGroupIds(groupRows)).toEqual(['builtin-proxy', 'builtin-ai', 'builtin-github']);
+    expect(resolveRoutingGroupIds(groupRows)).toEqual([
+      'builtin-proxy',
+      'builtin-ai',
+      'builtin-github',
+      'builtin-telegram',
+      'builtin-final',
+    ]);
   });
 
   it('links every routing policy group to all outlet groups for preview/export', () => {
@@ -133,6 +155,12 @@ describe('routing policy group sync', () => {
       '["builtin-proxy","builtin-direct","builtin-reject","builtin-all-nodes","builtin-node-select","builtin-auto-select","builtin-fallback-select","us-auto","hk-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-github')?.group_ids).toBe(
+      '["builtin-proxy","builtin-direct","builtin-reject","builtin-all-nodes","builtin-node-select","builtin-auto-select","builtin-fallback-select","us-auto","hk-auto"]'
+    );
+    expect(rows.find((row) => row.id === 'builtin-telegram')?.group_ids).toBe(
+      '["builtin-proxy","builtin-direct","builtin-reject","builtin-all-nodes","builtin-node-select","builtin-auto-select","builtin-fallback-select","us-auto","hk-auto"]'
+    );
+    expect(rows.find((row) => row.id === 'builtin-final')?.group_ids).toBe(
       '["builtin-proxy","builtin-direct","builtin-reject","builtin-all-nodes","builtin-node-select","builtin-auto-select","builtin-fallback-select","us-auto","hk-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-direct')?.group_ids).toBe('[]');

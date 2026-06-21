@@ -144,7 +144,7 @@ export class MihomoExporter implements IExporter {
 
     // Ensure MATCH at end
     if (!ruleLines.some((l) => l.startsWith('MATCH'))) {
-      ruleLines.push('MATCH,PROXY')
+      ruleLines.push(`MATCH,${defaultPolicyName(groups)}`)
     }
 
     config['rules'] = ruleLines
@@ -155,4 +155,11 @@ export class MihomoExporter implements IExporter {
   validate(): CompatibilityWarning[] {
     return []
   }
+}
+
+function defaultPolicyName(groups: ProxyGroup[]): string {
+  return groups.find((group) => group.name === '漏网之鱼')?.name
+    ?? groups.find((group) => group.name === 'PROXY')?.name
+    ?? groups[0]?.name
+    ?? 'DIRECT'
 }

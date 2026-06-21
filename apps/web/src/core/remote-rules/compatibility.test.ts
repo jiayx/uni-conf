@@ -42,6 +42,7 @@ describe('remote rule set compatibility', () => {
   it('infers target groups from preset category and known direct/reject exceptions', () => {
     expect(inferQuixoticTargetGroup({ id: 'ai', name: 'AI', description: '', category: 'ai' })).toBe('AI')
     expect(inferQuixoticTargetGroup({ id: 'netflix', name: 'Netflix', description: '', category: 'streaming' })).toBe('Streaming')
+    expect(inferQuixoticTargetGroup({ id: 'telegram', name: 'Telegram', description: '', category: 'social' })).toBe('Telegram')
     expect(inferQuixoticTargetGroup({ id: 'bilibili', name: 'Bilibili', description: '', category: 'streaming' })).toBe('DIRECT')
     expect(inferQuixoticTargetGroup({ id: 'adrules', name: 'Advertising', description: '', category: 'privacy' })).toBe('REJECT')
   })

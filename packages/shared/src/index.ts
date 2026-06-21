@@ -140,6 +140,7 @@ export type InferredRuleSetTargetGroup =
   | 'PROXY'
   | 'AI'
   | 'Streaming'
+  | 'Telegram'
   | 'Social'
   | 'GitHub'
   | 'Apple'
@@ -147,6 +148,7 @@ export type InferredRuleSetTargetGroup =
   | 'Crypto'
   | 'Gaming'
   | 'Developer'
+  | '漏网之鱼'
   | 'DIRECT'
   | 'REJECT';
 
@@ -201,14 +203,14 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   {
     id: 'common',
     name: '默认智能模板',
-    description: '适合大多数用户，包含 AI、流媒体、社交、GitHub、Apple 和 Microsoft 分流。',
-    groupNames: ['PROXY', 'AI', 'Streaming', 'Social', 'GitHub', 'Apple', 'Microsoft'],
+    description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Apple、Microsoft 和兜底分流。',
+    groupNames: ['PROXY', 'AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'extended',
     name: '扩展组合',
     description: '在常用组合基础上增加加密货币、游戏和开发服务。',
-    groupNames: ['PROXY', 'AI', 'Streaming', 'Social', 'GitHub', 'Apple', 'Microsoft', 'Crypto', 'Gaming', 'Developer'],
+    groupNames: ['PROXY', 'AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
   },
 ];
 
@@ -298,6 +300,7 @@ const CRYPTO_PRESET_IDS = new Set(['crypto']);
 const GITHUB_PRESET_IDS = new Set(['gits']);
 const APPLE_PRESET_IDS = new Set(['apple', 'apple-proxy']);
 const MICROSOFT_PRESET_IDS = new Set(['microsoft', 'onedrive']);
+const TELEGRAM_PRESET_IDS = new Set(['telegram']);
 
 export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): InferredRuleSetTargetGroup {
   if (REJECT_PRESET_IDS.has(preset.id)) return 'REJECT';
@@ -305,6 +308,7 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
   if (GITHUB_PRESET_IDS.has(preset.id)) return 'GitHub';
   if (APPLE_PRESET_IDS.has(preset.id)) return 'Apple';
   if (MICROSOFT_PRESET_IDS.has(preset.id)) return 'Microsoft';
+  if (TELEGRAM_PRESET_IDS.has(preset.id)) return 'Telegram';
   if (CRYPTO_PRESET_IDS.has(preset.id)) return 'Crypto';
   if (PROXY_PRESET_IDS.has(preset.id)) return 'PROXY';
 

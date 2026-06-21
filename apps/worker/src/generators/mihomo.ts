@@ -110,13 +110,15 @@ export function generateMihomoYaml(
     lines.push(`  - RULE-SET,${safeName},${targetGroup}`);
   }
 
-  const proxyGroup = groups.find((g) => g.name === 'PROXY') ?? groups[0];
   if (matchRule) {
     lines.push(`  - ${ruleToMihomo(matchRule, groups)}`);
-  } else if (proxyGroup) {
-    lines.push(`  - MATCH,${proxyGroup.name}`);
   } else {
-    lines.push('  - MATCH,DIRECT');
+    const defaultTarget = defaultPolicyName(groups);
+    if (defaultTarget) {
+      lines.push(`  - MATCH,${defaultTarget}`);
+    } else {
+      lines.push('  - MATCH,DIRECT');
+    }
   }
 
   return lines.join('\n');
@@ -354,6 +356,12 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string {
 
   const noResolve = rule.noResolve ? ',no-resolve' : '';
   return `${rule.type},${rule.payload},${groupName}${noResolve}`;
+}
+
+function defaultPolicyName(groups: ProxyGroup[]): string | undefined {
+  return groups.find((group) => group.name === '漏网之鱼')?.name
+    ?? groups.find((group) => group.name === 'PROXY')?.name
+    ?? groups[0]?.name;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

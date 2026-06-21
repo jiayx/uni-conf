@@ -1,4 +1,4 @@
-import type { CompatibilityWarning, ProxyProtocol, RemoteRuleSet, RuleSetFormat, RuleType } from '@uni-conf/types'
+import type { CompatibilityWarning, ProxyGroup, ProxyProtocol, RemoteRuleSet, RuleSetFormat, RuleType } from '@uni-conf/types'
 import type { ExportInput, IExporter } from './exporter.interface'
 import { nodeToLoon } from './node-serializer'
 import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '../remote-rules/compatibility'
@@ -102,7 +102,7 @@ export class LoonExporter implements IExporter {
     }
     // Ensure FINAL at end
     if (!enabledRules.some((r) => r.type === 'MATCH')) {
-      lines.push('FINAL,PROXY')
+      lines.push(`FINAL,${defaultPolicyName(groups)}`)
     }
     lines.push('')
 
@@ -154,6 +154,13 @@ export class LoonExporter implements IExporter {
 
     return warnings
   }
+}
+
+function defaultPolicyName(groups: ProxyGroup[]): string {
+  return groups.find((group) => group.name === '漏网之鱼')?.name
+    ?? groups.find((group) => group.name === 'PROXY')?.name
+    ?? groups[0]?.name
+    ?? 'PROXY'
 }
 
 function mapLoonGroupType(type: string): string {

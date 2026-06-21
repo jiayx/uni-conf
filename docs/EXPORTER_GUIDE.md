@@ -59,7 +59,7 @@ export class SurgeExporter implements IExporter {
     for (const rule of rules) {
       if (rule.enabled) lines.push(ruleToSurge(rule))
     }
-    lines.push('FINAL,PROXY')
+    lines.push(`FINAL,${defaultPolicy(groups)}`)
 
     return lines.join('\n')
   }
@@ -81,6 +81,8 @@ export class SurgeExporter implements IExporter {
   }
 }
 ```
+
+`defaultPolicy(groups)` should prefer `漏网之鱼`, then `PROXY`, then the first available group. This keeps generated client configs aligned with UniConf's default catch-all strategy.
 
 ## Step 3: Register the exporter
 

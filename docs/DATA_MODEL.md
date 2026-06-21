@@ -92,10 +92,12 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 - `builtin-proxy` → PROXY (select)
 - `builtin-ai` → AI (select)
 - `builtin-streaming` → Streaming (select)
+- `builtin-telegram` → Telegram (select)
 - `builtin-social` → Social (select)
 - `builtin-github` → GitHub (select)
 - `builtin-apple` → Apple (select)
 - `builtin-microsoft` → Microsoft (select)
+- `builtin-final` → 漏网之鱼 (select)
 - `builtin-crypto` → Crypto (select, enabled by extended template)
 - `builtin-gaming` → Gaming (select, enabled by extended template)
 - `builtin-developer` → Developer (select, enabled by extended template)
@@ -112,14 +114,14 @@ Built-in groups have two product roles:
 |------|--------|----------|
 | Foundation policy groups | PROXY, DIRECT, REJECT | Always available as rule targets |
 | Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
-| Business routing groups | AI, Streaming, Social, GitHub, Apple, Microsoft, Crypto, Gaming, Developer | Used by remote rule sets and manual rules |
+| Business routing groups | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
 
 `routing_policy_template` controls which business routing groups are enabled:
 
 | Template | Enabled business groups |
 |----------|-------------------------|
 | `empty` | none, foundation groups only |
-| `common` | AI, Streaming, Social, GitHub, Apple, Microsoft |
+| `common` | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼 |
 | `extended` | common + Crypto, Gaming, Developer |
 
 ### `rules` — Traffic Routing Rules
