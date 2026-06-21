@@ -97,6 +97,15 @@ Manual node creation accepts either structured fields (`name`, `protocol`, `serv
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
+Newly generated built-in groups, auto node groups, and UI-created linked node groups use `DEFAULT_HEALTH_CHECK` from `@uni-conf/shared`:
+
+```text
+testUrl: http://www.gstatic.com/generate_204
+interval: 300
+tolerance: 150
+lazy: true
+```
+
 **Built-in groups** (pre-seeded, `is_builtin=1`):
 - `builtin-proxy` → PROXY (select)
 - `builtin-ai` → AI (select)

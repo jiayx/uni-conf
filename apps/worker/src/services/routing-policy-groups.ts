@@ -1,6 +1,7 @@
 import {
   buildRoutingPolicyTemplateGroupNames,
   detectCountry,
+  DEFAULT_HEALTH_CHECK,
   ROUTING_POLICY_TEMPLATES,
   type RoutingPolicyTemplate,
 } from '@uni-conf/shared';
@@ -190,13 +191,16 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
     db.prepare(
       `INSERT OR IGNORE INTO groups
         (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, '[]', '[]', ?, ?, 300, 150, 1, 1, ?, 1, ?, ?)`
+       VALUES (?, ?, ?, '[]', '[]', ?, ?, ?, ?, ?, 1, ?, 1, ?, ?)`
     ).bind(
       group.id,
       group.name,
       group.type,
       jsonStringify(group.builtins),
-      'http://www.gstatic.com/generate_204',
+      DEFAULT_HEALTH_CHECK.testUrl,
+      DEFAULT_HEALTH_CHECK.interval,
+      DEFAULT_HEALTH_CHECK.tolerance,
+      DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
       group.sortOrder,
       ts,
       ts

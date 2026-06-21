@@ -11,6 +11,13 @@ export interface TrafficMultiplierInfo {
 
 export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
 
+export const DEFAULT_HEALTH_CHECK = {
+  testUrl: 'http://www.gstatic.com/generate_204',
+  interval: 300,
+  tolerance: 150,
+  lazy: true,
+} as const;
+
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
   /官网|官方网站|用户中心|客户中心|订阅|更新订阅/,
   /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|流量[:：]/,

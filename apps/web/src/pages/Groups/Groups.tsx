@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
-import { ROUTING_POLICY_TEMPLATES, buildRoutingPolicyTemplateGroupNames } from '@uni-conf/shared'
+import { DEFAULT_HEALTH_CHECK, ROUTING_POLICY_TEMPLATES, buildRoutingPolicyTemplateGroupNames } from '@uni-conf/shared'
 import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
@@ -35,10 +35,10 @@ function createEmptyForm(order: number): GroupForm {
     collectionIds: [],
     groupIds: [],
     builtins: [],
-    testUrl: 'http://www.gstatic.com/generate_204',
-    interval: 300,
-    tolerance: 150,
-    lazy: true,
+    testUrl: DEFAULT_HEALTH_CHECK.testUrl,
+    interval: DEFAULT_HEALTH_CHECK.interval,
+    tolerance: DEFAULT_HEALTH_CHECK.tolerance,
+    lazy: DEFAULT_HEALTH_CHECK.lazy,
     enabled: true,
     order,
     isBuiltin: false,
@@ -115,10 +115,10 @@ export function Groups() {
       collectionIds: group.collectionIds,
       groupIds: group.groupIds,
       builtins: group.builtins,
-      testUrl: group.testUrl ?? 'http://www.gstatic.com/generate_204',
-      interval: group.interval ?? 300,
-      tolerance: group.tolerance ?? 150,
-      lazy: group.lazy ?? true,
+      testUrl: group.testUrl ?? DEFAULT_HEALTH_CHECK.testUrl,
+      interval: group.interval ?? DEFAULT_HEALTH_CHECK.interval,
+      tolerance: group.tolerance ?? DEFAULT_HEALTH_CHECK.tolerance,
+      lazy: group.lazy ?? DEFAULT_HEALTH_CHECK.lazy,
       enabled: group.enabled,
       order: group.order,
       isBuiltin: group.isBuiltin,
@@ -132,8 +132,8 @@ export function Groups() {
       ...form,
       name: form.name.trim(),
       testUrl: form.testUrl?.trim() || undefined,
-      interval: Number(form.interval) || 300,
-      tolerance: Number(form.tolerance) || 150,
+      interval: Number(form.interval) || DEFAULT_HEALTH_CHECK.interval,
+      tolerance: Number(form.tolerance) || DEFAULT_HEALTH_CHECK.tolerance,
     }
 
     if (!payload.name) {
@@ -331,8 +331,8 @@ export function Groups() {
             </select>
           </div>
           <Input label={t('groups.test_url')} value={form.testUrl ?? ''} onChange={e => setFormValue('testUrl', e.target.value, setForm)} />
-          <Input label={t('groups.interval')} type="number" min="1" value={form.interval ?? 300} onChange={e => setFormValue('interval', Number(e.target.value), setForm)} />
-          <Input label={t('groups.tolerance')} type="number" min="0" value={form.tolerance ?? 150} onChange={e => setFormValue('tolerance', Number(e.target.value), setForm)} />
+          <Input label={t('groups.interval')} type="number" min="1" value={form.interval ?? DEFAULT_HEALTH_CHECK.interval} onChange={e => setFormValue('interval', Number(e.target.value), setForm)} />
+          <Input label={t('groups.tolerance')} type="number" min="0" value={form.tolerance ?? DEFAULT_HEALTH_CHECK.tolerance} onChange={e => setFormValue('tolerance', Number(e.target.value), setForm)} />
         </div>
 
         <div className={styles.toggleGrid}>
@@ -341,7 +341,7 @@ export function Groups() {
             <span>{t('common.enabled')}</span>
           </label>
           <label className={styles.checkboxRow}>
-            <input type="checkbox" checked={form.lazy ?? true} onChange={e => setFormValue('lazy', e.target.checked, setForm)} />
+            <input type="checkbox" checked={form.lazy ?? DEFAULT_HEALTH_CHECK.lazy} onChange={e => setFormValue('lazy', e.target.checked, setForm)} />
             <span>{t('groups.lazy')}</span>
           </label>
         </div>

@@ -12,7 +12,7 @@ import { useGroupsStore } from '@/store/groups.store'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { api } from '@/lib/api'
-import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag } from '@uni-conf/shared'
+import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
 import type {
   DedupStrategy,
   FilterOperator,
@@ -822,10 +822,10 @@ async function createLinkedGroup(
     collectionIds: [collection.id],
     groupIds: [],
     builtins: [],
-    testUrl: 'http://www.gstatic.com/generate_204',
-    interval: 300,
-    tolerance: 150,
-    lazy: true,
+    testUrl: DEFAULT_HEALTH_CHECK.testUrl,
+    interval: DEFAULT_HEALTH_CHECK.interval,
+    tolerance: DEFAULT_HEALTH_CHECK.tolerance,
+    lazy: DEFAULT_HEALTH_CHECK.lazy,
     enabled: true,
     order,
     isBuiltin: false,

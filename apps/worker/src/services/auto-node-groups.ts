@@ -1,9 +1,8 @@
-import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag } from '@uni-conf/shared';
+import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared';
 import { jsonStringify, newId } from '../db/helpers';
 import { syncRoutingPolicyGroups } from './routing-policy-groups';
 
 const AUTO_GROUP_TYPE = 'url-test';
-const TEST_URL = 'http://www.gstatic.com/generate_204';
 
 interface AutoNodeGroupMarker {
   key: string;
@@ -209,9 +208,21 @@ async function createLinkedGroup(
     .prepare(
       `INSERT INTO groups
         (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, ?, '[]', '[]', ?, 300, 150, 1, 1, ?, 0, ?, ?)`
+       VALUES (?, ?, ?, ?, '[]', '[]', ?, ?, ?, ?, 1, ?, 0, ?, ?)`
     )
-    .bind(newId(), name, AUTO_GROUP_TYPE, jsonStringify([collectionId]), TEST_URL, sortOrder, ts, ts)
+    .bind(
+      newId(),
+      name,
+      AUTO_GROUP_TYPE,
+      jsonStringify([collectionId]),
+      DEFAULT_HEALTH_CHECK.testUrl,
+      DEFAULT_HEALTH_CHECK.interval,
+      DEFAULT_HEALTH_CHECK.tolerance,
+      DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
+      sortOrder,
+      ts,
+      ts
+    )
     .run();
 }
 
@@ -235,10 +246,20 @@ async function ensureLinkedGroup(
     .prepare(
       `UPDATE groups SET
         name = ?, type = ?, collection_ids = ?, group_ids = '[]', builtins = '[]',
-        test_url = ?, interval = 300, tolerance = 150, lazy = 1, enabled = 1, updated_at = ?
+        test_url = ?, interval = ?, tolerance = ?, lazy = ?, enabled = 1, updated_at = ?
        WHERE id = ?`
     )
-    .bind(name, AUTO_GROUP_TYPE, jsonStringify([collectionId]), TEST_URL, ts, row.id)
+    .bind(
+      name,
+      AUTO_GROUP_TYPE,
+      jsonStringify([collectionId]),
+      DEFAULT_HEALTH_CHECK.testUrl,
+      DEFAULT_HEALTH_CHECK.interval,
+      DEFAULT_HEALTH_CHECK.tolerance,
+      DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
+      ts,
+      row.id
+    )
     .run();
 }
 
