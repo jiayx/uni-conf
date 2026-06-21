@@ -233,7 +233,7 @@ GitHub / Apple / Microsoft / Google / 游戏 / Crypto
 排除官网、流量、套餐、过期等提示节点
 排除不可识别协议节点
 按完整节点配置去重
-识别倍率并写入节点标签
+识别倍率、流媒体、解锁、家宽 / 原生特征并写入节点标签
 按国家 / 地区生成 url-test 节点组
 把自动节点组加入业务分流组候选出口
 ```
@@ -256,7 +256,16 @@ US｜Los Angeles｜x1 -> multiplier:1x
 日本 倍率: 0.5 -> multiplier:0.5x
 ```
 
-节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。
+节点识别标签还包括：
+
+```text
+Netflix / YouTube / Disney+ / 流媒体 -> streaming
+解锁 / unlock -> unlock
+家宽 / residential / ISP -> residential
+原生 / native ip -> native-ip
+```
+
+节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。后续创建流媒体、家宽、原生等专用节点池时，也应复用这些标签，而不是在各处重复解析节点名称。
 
 ### 默认节点命名
 

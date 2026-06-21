@@ -131,17 +131,45 @@ export function detectTrafficMultiplier(name: string): TrafficMultiplierInfo | n
 }
 
 export function buildNodeRecognitionTags(name: string): string[] {
+  const tags = new Set<string>();
   const multiplier = detectTrafficMultiplier(name);
-  if (!multiplier) return [];
+  if (multiplier) {
+    tags.add(`multiplier:${multiplier.label}`);
+    if (multiplier.high) tags.add('high-multiplier');
+  }
 
-  const tags = [`multiplier:${multiplier.label}`];
-  if (multiplier.high) tags.push('high-multiplier');
-  return tags;
+  const normalized = name.toLowerCase();
+  if (STREAMING_NODE_PATTERNS.some((pattern) => pattern.test(normalized))) tags.add('streaming');
+  if (UNLOCK_NODE_PATTERNS.some((pattern) => pattern.test(normalized))) tags.add('unlock');
+  if (RESIDENTIAL_NODE_PATTERNS.some((pattern) => pattern.test(normalized))) tags.add('residential');
+  if (NATIVE_NODE_PATTERNS.some((pattern) => pattern.test(normalized))) tags.add('native-ip');
+
+  return [...tags];
 }
 
 function trimNumeric(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value).replace(/0+$/, '').replace(/\.$/, '');
 }
+
+const STREAMING_NODE_PATTERNS: RegExp[] = [
+  /流媒体|媒体|影音|奈飞|网飞|迪士尼|油管|动画|动漫|直播/,
+  /\b(stream|streaming|media|netflix|nf|disney|disney\+|youtube|yt|hulu|hbo|max|dazn|abema|bahamut|spotify|twitch)\b/i,
+];
+
+const UNLOCK_NODE_PATTERNS: RegExp[] = [
+  /解锁|解除|原生解锁|流媒解锁/,
+  /\b(unlock|unlocked|unblocking)\b/i,
+];
+
+const RESIDENTIAL_NODE_PATTERNS: RegExp[] = [
+  /家宽|家庭宽带|住宅|住宅宽带|民宽/,
+  /\b(residential|home\s*broadband|home\s*isp|home\s*ip|isp)\b/i,
+];
+
+const NATIVE_NODE_PATTERNS: RegExp[] = [
+  /原生|原生\s*ip|本土|本地/,
+  /\b(native|native\s*ip|local\s*ip)\b/i,
+];
 
 const QUIXOTIC_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset';
 

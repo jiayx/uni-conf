@@ -286,8 +286,12 @@ Node recognition writes derived metadata into `nodes.tags` when it does not need
 
 - `multiplier:2x`, `multiplier:1x`, `multiplier:0.5x`, etc.
 - `high-multiplier` when the detected multiplier is greater than `1x`.
+- `streaming` for media-oriented nodes such as Netflix, YouTube, Disney+, Hulu, HBO, Spotify, Twitch, or Chinese `流媒体` names.
+- `unlock` for nodes named as media/service unlock nodes.
+- `residential` for home ISP / residential nodes.
+- `native-ip` for native/local IP nodes.
 
-This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes or create low-cost pools without changing the node schema.
+This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes, create low-cost pools, or build streaming/residential/native candidate pools without changing the node schema.
 
 ### Default Export Node Names
 

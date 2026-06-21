@@ -183,6 +183,28 @@ proxies:
     expect(nodes.find(node => node.name === '🇺🇸 US 01')?.tags).toEqual([])
   })
 
+  it('should attach streaming, unlock, residential, and native-ip tags to parsed nodes', () => {
+    const yaml = `
+proxies:
+    - { name: '🇭🇰 Netflix 解锁 2x', type: trojan, server: hk.example.com, port: 443, password: pwd }
+    - { name: '🇺🇸 US Residential Native', type: trojan, server: us.example.com, port: 443, password: pwd }
+    - { name: '🇯🇵 JP 普通节点', type: trojan, server: jp.example.com, port: 443, password: pwd }
+`
+    const nodes = parseClashYaml(yaml)
+
+    expect(nodes.find(node => node.name === '🇭🇰 Netflix 解锁 2x')?.tags).toEqual([
+      'multiplier:2x',
+      'high-multiplier',
+      'streaming',
+      'unlock',
+    ])
+    expect(nodes.find(node => node.name === '🇺🇸 US Residential Native')?.tags).toEqual([
+      'residential',
+      'native-ip',
+    ])
+    expect(nodes.find(node => node.name === '🇯🇵 JP 普通节点')?.tags).toEqual([])
+  })
+
   it('should handle edge cases with YAML parser', () => {
     const edgeCasesYaml = `
 proxies:
