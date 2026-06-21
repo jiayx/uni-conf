@@ -85,7 +85,7 @@ export function Sources() {
     const finalUserAgent = form.userAgent === 'custom'
       ? form.customUserAgent
       : (form.userAgent || undefined)
-    const source = await addSource({
+    await addSource({
       name: form.name,
       type: 'url',
       url: form.url,
@@ -95,10 +95,10 @@ export function Sources() {
       updateInterval: form.updateInterval,
       userAgent: finalUserAgent,
       notes: form.notes,
+      refreshAfterCreate: form.refreshAfterCreate,
     })
     setShowAddModal(false)
     setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })
-    if (form.refreshAfterCreate) void handleRefresh(source.id)
   }
 
   const handleRefresh = async (id: string) => {

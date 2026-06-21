@@ -1,5 +1,7 @@
 import type {
   ProxySource,
+  SourceCreateInput,
+  SourceCreateResult,
   ProxyNode,
   NodeCollection,
   ProxyGroup,
@@ -64,7 +66,7 @@ const del = <T>(path: string) => request<T>('DELETE', path)
 const sources = {
   list: (): Promise<ProxySource[]> => get('/sources'),
   get: (id: string): Promise<ProxySource> => get(`/sources/${id}`),
-  create: (data: Omit<ProxySource, 'id' | 'nodeCount' | 'groups' | 'rawContent' | 'createdAt' | 'updatedAt'>): Promise<ProxySource> =>
+  create: (data: SourceCreateInput): Promise<SourceCreateResult> =>
     post('/sources', data),
   update: (id: string, data: Partial<ProxySource>): Promise<ProxySource> => put(`/sources/${id}`, data),
   remove: (id: string): Promise<void> => del(`/sources/${id}`),

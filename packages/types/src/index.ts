@@ -368,6 +368,19 @@ export interface SourceRefreshResult {
   error?: string;
 }
 
+export type SourceCreateInput = Omit<
+  ProxySource,
+  'id' | 'nodeCount' | 'groups' | 'rawContent' | 'createdAt' | 'updatedAt'
+> & {
+  refreshAfterCreate?: boolean;
+};
+
+export interface SourceCreateResult {
+  source: ProxySource;
+  refresh?: SourceRefreshResult;
+  refreshError?: string;
+}
+
 export interface ExportResult {
   format: ExportFormat;
   content: string;

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ProxySource, SourceRefreshResult } from '@uni-conf/types'
+import type { ProxySource, SourceCreateInput, SourceRefreshResult } from '@uni-conf/types'
 import { api } from '@/lib/api'
 
 interface SourcesState {
@@ -9,7 +9,7 @@ interface SourcesState {
   refreshResults: Record<string, SourceRefreshResult>
   refreshErrors: Record<string, string>
   fetchSources: () => Promise<void>
-  addSource: (data: Omit<ProxySource, 'id' | 'nodeCount' | 'groups' | 'rawContent' | 'createdAt' | 'updatedAt'>) => Promise<ProxySource>
+  addSource: (data: SourceCreateInput) => Promise<ProxySource>
   updateSource: (id: string, data: Partial<ProxySource>) => Promise<void>
   deleteSource: (id: string) => Promise<void>
   refreshSource: (id: string) => Promise<SourceRefreshResult>
@@ -33,9 +33,25 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
   },
 
   addSource: async (data) => {
-    const source = await api.sources.create(data)
-    set(s => ({ sources: [...s.sources, source] }))
-    return source
+    const result = await api.sources.create(data)
+    set(s => {
+      const nextErrors = { ...s.refreshErrors }
+      const nextResults = { ...s.refreshResults }
+      if (result.refresh) {
+        nextResults[result.source.id] = result.refresh
+        delete nextErrors[result.source.id]
+      }
+      if (result.refreshError) {
+        nextErrors[result.source.id] = result.refreshError
+        delete nextResults[result.source.id]
+      }
+      return {
+        sources: [...s.sources, result.source],
+        refreshResults: nextResults,
+        refreshErrors: nextErrors,
+      }
+    })
+    return result.source
   },
 
   updateSource: async (id, data) => {

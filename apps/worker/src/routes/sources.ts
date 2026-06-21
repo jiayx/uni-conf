@@ -41,6 +41,7 @@ app.post('/', async (c) => {
     userAgent?: string;
     notes?: string;
     tags?: string[];
+    refreshAfterCreate?: boolean;
   }>();
 
   if (!body.name || !body.type) {
@@ -70,11 +71,22 @@ app.post('/', async (c) => {
     )
     .run();
 
+  let refresh: SourceRefreshResult | undefined;
+  let refreshError: string | undefined;
+  const shouldRefreshAfterCreate = body.refreshAfterCreate !== false && body.type === 'url' && Boolean(body.url);
+  if (shouldRefreshAfterCreate) {
+    try {
+      refresh = await refreshSourceById(c.env.DB, id);
+    } catch (err) {
+      refreshError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
 
-  return c.json({ success: true, data: mapSource(row!) }, 201);
+  return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError } }, 201);
 });
 
 // ─── Get source ───────────────────────────────────────────────────────────────

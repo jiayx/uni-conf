@@ -286,6 +286,22 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 | excludedCount | Parsed nodes skipped as subscription info entries or unsupported protocols |
 | sourceGroupCount | Upstream node groups retained after cleanup |
 
+### SourceCreateInput / SourceCreateResult
+
+`POST /api/sources` accepts `refreshAfterCreate?: boolean`. For URL sources it defaults to `true`, so API callers can create a subscription and immediately populate nodes in one request.
+
+The response data is:
+
+```ts
+{
+  source: ProxySource
+  refresh?: SourceRefreshResult
+  refreshError?: string
+}
+```
+
+If refresh fails, the created source remains stored and `refreshError` contains the fetch or parse error. The caller can update the source URL, format, or User-Agent and refresh again.
+
 Default cleanup excludes subscription info nodes such as traffic quota, expiry, package, official site, reset, and user-center entries. It also skips parsed nodes whose protocol maps to `unknown`.
 
 Node recognition writes derived metadata into `nodes.tags` when it does not need a dedicated column. Traffic multipliers are stored as:
