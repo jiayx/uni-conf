@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ProxyNode } from '@uni-conf/types'
 import { api } from '@/lib/api'
-import type { NodeListParams } from '@/lib/api'
+import type { NodeCreateInput, NodeListParams } from '@/lib/api'
 
 interface NodesFilters {
   search: string
@@ -17,7 +17,7 @@ interface NodesState {
   error: string | null
   filters: NodesFilters
   fetchNodes: (params?: NodeListParams) => Promise<void>
-  addNode: (data: Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
+  addNode: (data: NodeCreateInput) => Promise<void>
   updateNode: (id: string, data: Partial<ProxyNode>) => Promise<void>
   deleteNode: (id: string) => Promise<void>
   setFilters: (filters: Partial<NodesFilters>) => void

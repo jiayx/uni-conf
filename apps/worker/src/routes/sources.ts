@@ -625,7 +625,7 @@ function singboxTypeToProtocol(type: string): ProxyProtocol {
   return SINGBOX_TYPE_TO_PROTOCOL[type] ?? 'unknown';
 }
 
-function parseRawLines(lines: string[]): ParsedNodeRaw[] {
+export function parseRawLines(lines: string[]): ParsedNodeRaw[] {
   const nodes: ParsedNodeRaw[] = [];
 
   for (const line of lines) {

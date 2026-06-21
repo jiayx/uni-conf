@@ -19,7 +19,7 @@ Use these sources as synchronization inputs:
 | --- | --- | --- |
 | sing-box | `@black-duty/sing-box-schema` | Zod schemas, JSON Schema, and generated TypeScript types for sing-box config. |
 | mihomo | `meta-json-schema` | JSON Schema for Clash Meta / mihomo YAML config. |
-| URI input | local parser registry | Share links are not uniformly standardized, so URI parsing remains a compatibility layer. |
+| URI input | URI compatibility parser | Share links are not uniformly standardized, so URI parsing remains a compatibility layer shared by raw subscription parsing and manual node input. |
 
 The schema packages should be dev/codegen inputs, not hand-copied into app code.
 
@@ -94,7 +94,7 @@ The field registry is used in three places:
 
 URI/manual input:
 
-1. Parse URI into a best-effort native object.
+1. Parse URI into a best-effort native object using the same compatibility parser for raw subscription lines and manual node creation.
 2. Prefer a sing-box outbound object for protocols whose fields match sing-box more closely.
 3. Also derive a mihomo object when lossless conversion is known.
 4. Store both native objects when possible; otherwise store the one that is faithful.

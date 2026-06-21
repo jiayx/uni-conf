@@ -50,6 +50,14 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | created_at | TEXT | ISO timestamp |
 | updated_at | TEXT | ISO timestamp |
 
+Manual node creation accepts either structured fields (`name`, `protocol`, `server`, `port`) or a share-link `uri`. URI input is parsed by the same parser used for raw subscription lines. For URI-created nodes:
+
+- `source_id` defaults to `manual`
+- `is_manual` is `1`
+- `raw_config.sourceFormat` is `uri`
+- `raw_config.uri` keeps the original pasted URI
+- `parsed_config` stores the normalized fields used by export, filtering, and form rendering
+
 ### `collections` — Node Group Filter Config
 
 | Column | Type | Description |

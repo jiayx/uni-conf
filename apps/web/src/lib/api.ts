@@ -86,6 +86,10 @@ export interface NodeListParams {
   pageSize?: number
 }
 
+export type NodeCreateInput =
+  | (Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'> & { uri?: never })
+  | ({ uri: string } & Partial<Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'>>)
+
 function buildNodeListQuery(params?: NodeListParams): string {
   if (!params) return ''
 
@@ -111,7 +115,7 @@ const nodes = {
   listPage: (params?: NodeListParams): Promise<PaginatedResponse<ProxyNode>> =>
     get(`/nodes${buildNodeListQuery(params)}`),
   get: (id: string): Promise<ProxyNode> => get(`/nodes/${id}`),
-  create: (data: Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProxyNode> =>
+  create: (data: NodeCreateInput): Promise<ProxyNode> =>
     post('/nodes', data),
   update: (id: string, data: Partial<ProxyNode>): Promise<ProxyNode> => put(`/nodes/${id}`, data),
   remove: (id: string): Promise<void> => del(`/nodes/${id}`),

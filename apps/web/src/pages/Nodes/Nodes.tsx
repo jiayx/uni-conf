@@ -8,7 +8,6 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
-import { parseProxyLink } from '@/core/parser/proxy-link.parser'
 import { MAINSTREAM_PROXY_PROTOCOLS, PROTOCOL_FORM_FIELDS } from '@uni-conf/types'
 import type { ProtocolFieldDefinition, ProxyNode, ProxyProtocol } from '@uni-conf/types'
 import styles from './Nodes.module.css'
@@ -100,17 +99,9 @@ export function Nodes() {
   const handleSave = async () => {
     const uri = uriInput.trim()
     if (!editingNode && uri) {
-      const parsed = parseProxyLink(uri, 'manual')
-      if (!parsed) {
-        setFormError('Unsupported or invalid node URI')
-        return
-      }
-
-      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...payload } = parsed
       await addNode({
-        ...payload,
+        uri,
         sourceId: 'manual',
-        isManual: true,
       })
       setShowModal(false)
       setEditingNode(null)

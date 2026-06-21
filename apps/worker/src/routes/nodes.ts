@@ -3,8 +3,28 @@ import type { Env } from '../types';
 import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import type { ProxyProtocol } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
+import { parseRawLines } from './sources';
 
 const app = new Hono<{ Bindings: Env }>();
+
+type ManualNodeCreateBody = {
+  sourceId?: string;
+  uri?: string;
+  name?: string;
+  protocol?: ProxyProtocol;
+  server?: string;
+  port?: number;
+  country?: string;
+  countryCode?: string;
+  enabled?: boolean;
+  tags?: string[];
+  notes?: string;
+  rawConfig?: Record<string, unknown>;
+  parsedConfig?: Record<string, unknown>;
+};
+
+type ResolvedManualNodeInput = Required<Pick<ManualNodeCreateBody, 'name' | 'protocol' | 'server' | 'port'>> &
+  Pick<ManualNodeCreateBody, 'sourceId' | 'country' | 'countryCode' | 'enabled' | 'tags' | 'notes' | 'rawConfig' | 'parsedConfig'>;
 
 // ─── List nodes with filtering/pagination ─────────────────────────────────────
 
@@ -75,24 +95,12 @@ app.get('/', async (c) => {
 // ─── Create manual node ───────────────────────────────────────────────────────
 
 app.post('/', async (c) => {
-  const body = await c.req.json<{
-    sourceId?: string;
-    name: string;
-    protocol: ProxyProtocol;
-    server: string;
-    port: number;
-    country?: string;
-    countryCode?: string;
-    enabled?: boolean;
-    tags?: string[];
-    notes?: string;
-    rawConfig?: Record<string, unknown>;
-    parsedConfig?: Record<string, unknown>;
-  }>();
+  const body = await c.req.json<ManualNodeCreateBody>();
+  const input = resolveManualNodeInput(body);
 
-  if (!body.name || !body.protocol || !body.server || !body.port) {
+  if (!input) {
     return c.json(
-      { success: false, error: 'name, protocol, server, and port are required' },
+      { success: false, error: 'valid uri or name, protocol, server, and port are required' },
       400
     );
   }
@@ -100,7 +108,7 @@ app.post('/', async (c) => {
   const id = newId();
   const ts = now();
   // Use 'manual' pseudo-source if no sourceId given
-  const sourceId = body.sourceId ?? 'manual';
+  const sourceId = input.sourceId ?? 'manual';
 
   // Ensure manual source exists
   if (sourceId === 'manual') {
@@ -117,11 +125,11 @@ app.post('/', async (c) => {
     }
   }
 
-  const rawConfig = body.rawConfig ?? {};
-  const parsedConfig = body.parsedConfig ?? {
-    protocol: body.protocol,
-    server: body.server,
-    port: body.port,
+  const rawConfig = input.rawConfig ?? {};
+  const parsedConfig = input.parsedConfig ?? {
+    protocol: input.protocol,
+    server: input.server,
+    port: input.port,
     extra: {},
   };
 
@@ -132,15 +140,15 @@ app.post('/', async (c) => {
     .bind(
       id,
       sourceId,
-      body.name,
-      body.protocol,
-      body.server,
-      body.port,
-      body.country ?? null,
-      body.countryCode ?? null,
-      body.enabled !== false ? 1 : 0,
-      jsonStringify(body.tags ?? []),
-      body.notes ?? null,
+      input.name,
+      input.protocol,
+      input.server,
+      input.port,
+      input.country ?? null,
+      input.countryCode ?? null,
+      input.enabled !== false ? 1 : 0,
+      jsonStringify(input.tags ?? []),
+      input.notes ?? null,
       jsonStringify(rawConfig),
       jsonStringify(parsedConfig),
       ts,
@@ -244,6 +252,50 @@ async function updateSourceNodeCount(db: D1Database, sourceId: string, ts: strin
   await db.prepare('UPDATE sources SET node_count = ?, updated_at = ? WHERE id = ?')
     .bind(row?.count ?? 0, ts, sourceId)
     .run();
+}
+
+export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManualNodeInput | null {
+  const uri = body.uri?.trim();
+  if (uri) {
+    const parsed = parseRawLines(uri.split(/\r?\n/))[0];
+    if (!parsed) return null;
+
+    return {
+      sourceId: body.sourceId,
+      name: body.name || parsed.name,
+      protocol: body.protocol ?? parsed.protocol,
+      server: body.server || parsed.server,
+      port: body.port || parsed.port,
+      country: body.country ?? parsed.country,
+      countryCode: body.countryCode ?? parsed.countryCode,
+      enabled: body.enabled,
+      tags: body.tags,
+      notes: body.notes,
+      rawConfig: body.rawConfig ?? {
+        ...parsed.rawConfig,
+        sourceFormat: 'uri',
+        uri,
+      },
+      parsedConfig: body.parsedConfig ?? parsed.parsedConfig as unknown as Record<string, unknown>,
+    };
+  }
+
+  if (!body.name || !body.protocol || !body.server || !body.port) return null;
+
+  return {
+    sourceId: body.sourceId,
+    name: body.name,
+    protocol: body.protocol,
+    server: body.server,
+    port: body.port,
+    country: body.country,
+    countryCode: body.countryCode,
+    enabled: body.enabled,
+    tags: body.tags,
+    notes: body.notes,
+    rawConfig: body.rawConfig,
+    parsedConfig: body.parsedConfig,
+  };
 }
 
 export default app;
