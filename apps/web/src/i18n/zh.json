@@ -253,6 +253,7 @@
     "docs": "文档",
     "auto_refresh": "自动刷新",
     "auto_refresh_interval": "刷新间隔（分钟）",
+    "export_node_naming": "导出节点命名",
     "show_compat_warnings": "显示兼容性警告",
     "features": "功能设置",
     "export_success": "数据导出成功",

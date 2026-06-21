@@ -325,12 +325,14 @@ export type RoutingPolicyTemplateId =
   | 'router'
   | 'extended';
 export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
+export type ExportNodeNamingMode = 'original' | 'region_sequence' | 'source_region_sequence' | 'smart';
 
 export interface AppSettings {
   language: Language;
   theme: ThemePreference;
   routingPolicyTemplate: RoutingPolicyTemplateId;
   dnsMode: DnsMode;
+  exportNodeNamingMode: ExportNodeNamingMode;
   defaultExportToken?: string;
   // Feature flags
   showCompatibilityWarnings: boolean;

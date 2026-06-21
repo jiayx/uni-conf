@@ -3,6 +3,7 @@ import type { ExportConfig } from '@uni-conf/types'
 import {
   applyDefaultExportDedup,
   applyDefaultExportNodeNames,
+  applyExportNodeNames,
   buildCollectionNodeNames,
   expandReferencedGroupRows,
   resolveCollectionScopeIds,
@@ -115,6 +116,34 @@ describe('export data scoping', () => {
       'HK - Airport A - 01',
       'HK - Airport A - 02',
       'Other - 机场-B - 01',
+    ])
+  })
+
+  it('supports configurable exported node naming modes', () => {
+    const rows = [
+      { id: 'node-1', source_id: 'source-a', name: 'HK 01', country_code: 'HK' },
+      { id: 'node-2', source_id: 'source-a', name: 'HK 02', country_code: 'HK' },
+      { id: 'node-3', source_id: 'source-b', name: 'JP 01', country_code: 'JP' },
+    ]
+    const sources = new Map([
+      ['source-a', 'Airport A'],
+      ['source-b', 'Airport B'],
+    ])
+
+    expect(applyExportNodeNames(rows, sources, 'original').map(row => row.name)).toEqual([
+      'HK 01',
+      'HK 02',
+      'JP 01',
+    ])
+    expect(applyExportNodeNames(rows, sources, 'region_sequence').map(row => row.name)).toEqual([
+      'HK - 01',
+      'HK - 02',
+      'JP - 01',
+    ])
+    expect(applyExportNodeNames(rows, sources, 'source_region_sequence').map(row => row.name)).toEqual([
+      'Airport A - HK - 01',
+      'Airport A - HK - 02',
+      'Airport B - JP - 01',
     ])
   })
 

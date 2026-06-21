@@ -245,6 +245,7 @@ The system ensures a built-in default export config exists:
 | theme | TEXT | `system` \| `light` \| `dark` |
 | routing_policy_template | TEXT | `empty` \| `minimal` \| `common` \| `ai` \| `streaming` \| `router` \| `extended` |
 | dns_mode | TEXT | `compatible` \| `smart` \| `fake-ip` |
+| export_node_naming_mode | TEXT | `original` \| `region_sequence` \| `source_region_sequence` \| `smart` |
 | default_export_token | TEXT? | Token of the default export config |
 | show_compatibility_warnings | INTEGER | 1/0 |
 | enable_auto_refresh | INTEGER | 1/0, default `1` |

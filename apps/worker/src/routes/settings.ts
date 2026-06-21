@@ -25,6 +25,7 @@ app.put('/', async (c) => {
       theme = ?,
       routing_policy_template = ?,
       dns_mode = ?,
+      export_node_naming_mode = ?,
       default_export_token = ?,
       show_compatibility_warnings = ?,
       enable_auto_refresh = ?,
@@ -37,6 +38,7 @@ app.put('/', async (c) => {
       body.theme ?? current.theme,
       body.routingPolicyTemplate ?? current.routingPolicyTemplate,
       body.dnsMode ?? current.dnsMode,
+      body.exportNodeNamingMode ?? current.exportNodeNamingMode,
       body.defaultExportToken !== undefined
         ? body.defaultExportToken
         : current.defaultExportToken ?? null,

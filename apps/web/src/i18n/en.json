@@ -253,6 +253,7 @@
     "docs": "Documentation",
     "auto_refresh": "Auto Refresh",
     "auto_refresh_interval": "Refresh Interval (minutes)",
+    "export_node_naming": "Export Node Naming",
     "show_compat_warnings": "Show Compatibility Warnings",
     "features": "Features",
     "export_success": "Data exported successfully",

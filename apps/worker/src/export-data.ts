@@ -7,6 +7,7 @@ import type {
   ProxyNode,
   ProxyRule,
   RemoteRuleSet,
+  ExportNodeNamingMode,
 } from '@uni-conf/types'
 import {
   jsonParse,
@@ -24,6 +25,7 @@ import {
   syncRoutingPolicyGroups,
 } from './services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
+import { getAppSettings } from './services/app-settings'
 
 export interface ExportData {
   config?: ExportConfig
@@ -79,7 +81,12 @@ export async function buildExportData(
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
   const sourceNameById = await buildSourceNameById(db)
-  const exportNodeRows = applyDefaultExportNodeNames(applyDefaultExportDedup(nodeRows), sourceNameById)
+  const settings = await getAppSettings(db)
+  const exportNodeRows = applyExportNodeNames(
+    applyDefaultExportDedup(nodeRows),
+    sourceNameById,
+    settings.exportNodeNamingMode
+  )
 
   const ruleRows = await selectRows(
     db,
@@ -262,21 +269,53 @@ export function applyDefaultExportNodeNames(
   rows: Record<string, unknown>[],
   sourceNameById: Map<string, string>
 ): Record<string, unknown>[] {
+  return applyExportNodeNames(rows, sourceNameById, 'smart')
+}
+
+export function applyExportNodeNames(
+  rows: Record<string, unknown>[],
+  sourceNameById: Map<string, string>,
+  mode: ExportNodeNamingMode
+): Record<string, unknown>[] {
+  if (mode === 'original') return rows
+
   const counters = new Map<string, number>()
   return rows.map((row) => {
     const region = getExportNodeRegion(row)
     const sourceName = normalizeExportNamePart(
       sourceNameById.get(String(row.source_id ?? '')) ?? String(row.source_id ?? 'Source')
     )
-    const key = `${region}\u0000${sourceName}`
+    const key = getExportNodeNameCounterKey(region, sourceName, mode)
     const index = (counters.get(key) ?? 0) + 1
     counters.set(key, index)
 
     return {
       ...row,
-      name: `${region} - ${sourceName} - ${index.toString().padStart(2, '0')}`,
+      name: buildExportNodeName(region, sourceName, index, mode),
     }
   })
+}
+
+function getExportNodeNameCounterKey(
+  region: string,
+  sourceName: string,
+  mode: ExportNodeNamingMode
+): string {
+  if (mode === 'region_sequence') return region
+  if (mode === 'source_region_sequence') return `${sourceName}\u0000${region}`
+  return `${region}\u0000${sourceName}`
+}
+
+function buildExportNodeName(
+  region: string,
+  sourceName: string,
+  index: number,
+  mode: ExportNodeNamingMode
+): string {
+  const sequence = index.toString().padStart(2, '0')
+  if (mode === 'region_sequence') return `${region} - ${sequence}`
+  if (mode === 'source_region_sequence') return `${sourceName} - ${region} - ${sequence}`
+  return `${region} - ${sourceName} - ${sequence}`
 }
 
 export function applyDefaultExportDedup(rows: Record<string, unknown>[]): Record<string, unknown>[] {

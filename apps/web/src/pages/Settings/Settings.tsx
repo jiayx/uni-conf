@@ -7,8 +7,15 @@ import { Input } from '@/components/ui/Input/Input'
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
 import { DNS_MODE_PRESETS } from '@uni-conf/shared'
-import type { AppSettings, DnsMode, Language, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
+
+const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; name: string; description: string }> = [
+  { id: 'smart', name: '智能命名', description: '国家/地区 + 来源 + 序号，适合多订阅混合导出' },
+  { id: 'original', name: '保留原名', description: '导出时保留订阅或节点组处理后的名称' },
+  { id: 'region_sequence', name: '地区 + 序号', description: '例如 HK - 01' },
+  { id: 'source_region_sequence', name: '来源 + 地区 + 序号', description: '例如 Airport A - HK - 01' },
+]
 
 export function Settings() {
   const { t, i18n } = useTranslation()
@@ -19,12 +26,14 @@ export function Settings() {
     language,
     theme,
     dnsMode,
+    exportNodeNamingMode,
     showCompatibilityWarnings,
     enableAutoRefresh,
     autoRefreshInterval,
     setLanguage,
     setTheme,
     setDnsMode,
+    setExportNodeNamingMode,
     setShowCompatibilityWarnings,
     setEnableAutoRefresh,
     setAutoRefreshInterval,
@@ -70,6 +79,11 @@ export function Settings() {
   const handleDnsMode = (nextDnsMode: DnsMode) => {
     setDnsMode(nextDnsMode)
     void persistSettings({ dnsMode: nextDnsMode })
+  }
+
+  const handleExportNodeNamingMode = (nextMode: ExportNodeNamingMode) => {
+    setExportNodeNamingMode(nextMode)
+    void persistSettings({ exportNodeNamingMode: nextMode })
   }
 
   const handleExport = async () => {
@@ -159,6 +173,23 @@ export function Settings() {
               key={preset.id}
               className={`${styles.optionBtn} ${dnsMode === preset.id ? styles.active : ''}`}
               onClick={() => handleDnsMode(preset.id)}
+              disabled={saving}
+              title={preset.description}
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card className={styles.section}>
+        <h2 className={styles.sectionTitle}>{t('settings.export_node_naming')}</h2>
+        <div className={styles.optionGroup}>
+          {EXPORT_NODE_NAMING_PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              className={`${styles.optionBtn} ${exportNodeNamingMode === preset.id ? styles.active : ''}`}
+              onClick={() => handleExportNodeNamingMode(preset.id)}
               disabled={saving}
               title={preset.description}
             >
