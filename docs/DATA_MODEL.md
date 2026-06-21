@@ -231,11 +231,11 @@ The system ensures a built-in default export config exists:
 | dns_mode | TEXT | `compatible` \| `smart` \| `fake-ip` |
 | default_export_token | TEXT? | Token of the default export config |
 | show_compatibility_warnings | INTEGER | 1/0 |
-| enable_auto_refresh | INTEGER | 1/0 |
+| enable_auto_refresh | INTEGER | 1/0, default `1` |
 | auto_refresh_interval | INTEGER | Minutes |
 | updated_at | TEXT | |
 
-Auto refresh is driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
+Auto refresh is enabled by default and driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
 
 - Source `update_interval > 0` overrides the global interval.
 - Source `update_interval = 0` uses `app_settings.auto_refresh_interval`.

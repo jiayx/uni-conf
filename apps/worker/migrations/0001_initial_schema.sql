@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
   dns_mode TEXT NOT NULL DEFAULT 'smart',
   default_export_token TEXT,
   show_compatibility_warnings INTEGER NOT NULL DEFAULT 1,
-  enable_auto_refresh INTEGER NOT NULL DEFAULT 0,
+  enable_auto_refresh INTEGER NOT NULL DEFAULT 1,
   auto_refresh_interval INTEGER NOT NULL DEFAULT 60,
   updated_at TEXT NOT NULL
 );

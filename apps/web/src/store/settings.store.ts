@@ -21,7 +21,7 @@ export const useSettingsStore = create<SettingsState>()(
       routingPolicyTemplate: 'common',
       dnsMode: 'smart',
       showCompatibilityWarnings: true,
-      enableAutoRefresh: false,
+      enableAutoRefresh: true,
       autoRefreshInterval: 60,
 
       setLanguage: (language) => {
