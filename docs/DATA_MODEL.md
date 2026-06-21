@@ -116,6 +116,15 @@ Built-in groups have two product roles:
 | Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
 | Business routing groups | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
 
+Business routing group `group_ids` are derived, not manually maintained. The system orders outlet candidates by intent:
+
+| Routing group | Preferred outlet order |
+|---------------|------------------------|
+| AI | US, JP, SG country auto groups, then 自动选择 / 节点选择 / 故障切换 |
+| Streaming | HK, JP, SG, TW, US country auto groups, then 自动选择 |
+| Telegram | SG, HK, JP, US country auto groups, then 自动选择 |
+| PROXY, GitHub, 漏网之鱼, and other groups | 自动选择 / 节点选择 / 故障切换 / 全部节点, then country auto groups |
+
 `routing_policy_template` controls which business routing groups are enabled:
 
 | Template | Enabled business groups |

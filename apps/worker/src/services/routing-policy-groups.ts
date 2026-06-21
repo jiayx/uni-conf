@@ -1,4 +1,4 @@
-import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
+import { detectCountry, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import { jsonParse, jsonStringify } from '../db/helpers';
 
 type GroupRow = Record<string, unknown>;
@@ -16,6 +16,22 @@ const DEFAULT_MEMBER_GROUP_IDS = [
   'builtin-reject',
   ...ALL_NODE_OUTLET_GROUP_IDS,
 ];
+
+const GENERAL_OUTLET_ORDER = [
+  'builtin-auto-select',
+  'builtin-node-select',
+  'builtin-fallback-select',
+  'builtin-all-nodes',
+  DEFAULT_PROXY_GROUP_ID,
+  'builtin-direct',
+  'builtin-reject',
+];
+
+const ROUTING_COUNTRY_PREFERENCES: Record<string, string[]> = {
+  AI: ['US', 'JP', 'SG'],
+  STREAMING: ['HK', 'JP', 'SG', 'TW', 'US'],
+  TELEGRAM: ['SG', 'HK', 'JP', 'US'],
+};
 
 const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: ['DIRECT'] },
@@ -43,7 +59,7 @@ export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promi
   await applyActiveTemplate(db, ts);
 
   const { results } = await db
-    .prepare('SELECT id, type, collection_ids, enabled, is_builtin FROM groups ORDER BY sort_order ASC, created_at ASC')
+    .prepare('SELECT id, name, type, collection_ids, enabled, is_builtin FROM groups ORDER BY sort_order ASC, created_at ASC')
     .all<GroupRow>();
 
   const routingGroupIds = resolveRoutingGroupIds(results);
@@ -95,7 +111,42 @@ export function resolveRoutingGroupIds(groupRows: GroupRow[]): string[] {
 }
 
 export function resolveRoutingMemberGroupIds(groupRows: GroupRow[], routingGroupId: string): string[] {
-  return resolveOutletGroupIds(groupRows).filter((id) => id !== routingGroupId);
+  return sortRoutingMemberGroupIds(
+    resolveOutletGroupIds(groupRows).filter((id) => id !== routingGroupId),
+    groupRows,
+    routingGroupId
+  );
+}
+
+function sortRoutingMemberGroupIds(outletIds: string[], groupRows: GroupRow[], routingGroupId: string): string[] {
+  const rowsById = new Map(groupRows.map((row) => [String(row.id), row]));
+  const routingGroupName = String(rowsById.get(routingGroupId)?.name ?? routingGroupId).toUpperCase();
+  const countryPreferences = ROUTING_COUNTRY_PREFERENCES[routingGroupName] ?? [];
+  const used = new Set<string>();
+  const ordered: string[] = [];
+
+  const push = (id: string) => {
+    if (!outletIds.includes(id) || used.has(id)) return;
+    ordered.push(id);
+    used.add(id);
+  };
+
+  for (const countryCode of countryPreferences) {
+    for (const id of outletIds) {
+      if (countryCodeFromGroup(rowsById.get(id)) === countryCode) push(id);
+    }
+  }
+
+  for (const id of GENERAL_OUTLET_ORDER) push(id);
+
+  for (const id of outletIds) push(id);
+
+  return ordered;
+}
+
+function countryCodeFromGroup(row: GroupRow | undefined): string | undefined {
+  if (!row || parseIds(row.collection_ids).length === 0) return undefined;
+  return detectCountry(String(row.name ?? ''))?.countryCode;
 }
 
 async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise<void> {
