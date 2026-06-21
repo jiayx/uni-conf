@@ -16,25 +16,37 @@ describe('auto node groups', () => {
         key: 'country:US:url-test',
         name: '🇺🇸 US Auto',
         markerText: '[uni-conf:auto-node-group] country:US:url-test',
-        filters: [{ id: 'auto-country-us', field: 'countryCode', operator: 'equals', value: 'US', enabled: true }],
+        filters: [
+          { id: 'auto-country-us', field: 'countryCode', operator: 'equals', value: 'US', enabled: true },
+          { id: 'auto-exclude-high-multiplier', field: 'tag', operator: 'not_in', value: ['high-multiplier'], enabled: true },
+        ],
       },
       {
         key: 'country:HK:url-test',
         name: '🇭🇰 HK Auto',
         markerText: '[uni-conf:auto-node-group] country:HK:url-test',
-        filters: [{ id: 'auto-country-hk', field: 'countryCode', operator: 'equals', value: 'HK', enabled: true }],
+        filters: [
+          { id: 'auto-country-hk', field: 'countryCode', operator: 'equals', value: 'HK', enabled: true },
+          { id: 'auto-exclude-high-multiplier', field: 'tag', operator: 'not_in', value: ['high-multiplier'], enabled: true },
+        ],
       },
       {
         key: 'tag:streaming:url-test',
         name: 'Streaming Auto',
         markerText: '[uni-conf:auto-node-group] tag:streaming:url-test',
-        filters: [{ id: 'auto-tag-streaming', field: 'tag', operator: 'in', value: ['streaming', 'unlock'], enabled: true }],
+        filters: [
+          { id: 'auto-tag-streaming', field: 'tag', operator: 'in', value: ['streaming', 'unlock'], enabled: true },
+          { id: 'auto-exclude-high-multiplier', field: 'tag', operator: 'not_in', value: ['high-multiplier'], enabled: true },
+        ],
       },
       {
         key: 'tag:native:url-test',
         name: 'Native Auto',
         markerText: '[uni-conf:auto-node-group] tag:native:url-test',
-        filters: [{ id: 'auto-tag-native', field: 'tag', operator: 'in', value: ['residential', 'native-ip'], enabled: true }],
+        filters: [
+          { id: 'auto-tag-native', field: 'tag', operator: 'in', value: ['residential', 'native-ip'], enabled: true },
+          { id: 'auto-exclude-high-multiplier', field: 'tag', operator: 'not_in', value: ['high-multiplier'], enabled: true },
+        ],
       },
     ]);
   });

@@ -252,6 +252,7 @@ GitHub / Apple / Microsoft / Google / 游戏 / Crypto
 识别倍率、流媒体、解锁、家宽 / 原生特征并写入节点标签
 按国家 / 地区生成 url-test 节点组
 按流媒体 / 解锁、家宽 / 原生标签生成专用 url-test 节点组
+自动生成节点组默认排除 high-multiplier 高倍率节点
 把自动节点组加入业务分流组候选出口
 ```
 
@@ -282,7 +283,7 @@ Netflix / YouTube / Disney+ / 流媒体 -> streaming
 原生 / native ip -> native-ip
 ```
 
-节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。系统也会复用这些标签自动生成专用节点组：
+节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。系统也会复用这些标签自动生成专用节点组；自动生成的国家 / 地区节点组、Streaming Auto、Native Auto 默认都会加上 `tag not_in high-multiplier`，避免高倍率节点成为默认出口。手动节点组不强制排除，用户可以按自己的成本策略调整。
 
 ```text
 Streaming Auto：匹配 streaming / unlock，优先放入 Streaming 策略组

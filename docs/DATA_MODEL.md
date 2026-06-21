@@ -297,15 +297,15 @@ Node recognition writes derived metadata into `nodes.tags` when it does not need
 - `residential` for home ISP / residential nodes.
 - `native-ip` for native/local IP nodes.
 
-This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes, create low-cost pools, or build streaming/residential/native candidate pools without changing the node schema.
+This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes, create low-cost pools, or build streaming/residential/native candidate pools without changing the node schema. Generated auto node groups add `tag not_in ["high-multiplier"]` by default, while manually created node groups remain fully user-controlled.
 
 Auto node group sync creates these generated collections and linked policy groups when matching nodes exist:
 
 | Generated group | Collection filter | Used first by |
 |-----------------|-------------------|---------------|
-| `{flag} {countryCode} Auto` | `countryCode equals {countryCode}` | Country-aware routing preferences |
-| `Streaming Auto` | `tag in ["streaming", "unlock"]` | Streaming |
-| `Native Auto` | `tag in ["residential", "native-ip"]` | AI, Streaming |
+| `{flag} {countryCode} Auto` | `countryCode equals {countryCode}` + `tag not_in ["high-multiplier"]` | Country-aware routing preferences |
+| `Streaming Auto` | `tag in ["streaming", "unlock"]` + `tag not_in ["high-multiplier"]` | Streaming |
+| `Native Auto` | `tag in ["residential", "native-ip"]` + `tag not_in ["high-multiplier"]` | AI, Streaming |
 
 ### Default Export Node Names
 

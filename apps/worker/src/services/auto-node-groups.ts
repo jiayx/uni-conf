@@ -25,6 +25,14 @@ interface AutoNodeGroupPlan {
   markerText: string;
 }
 
+const EXCLUDE_HIGH_MULTIPLIER_FILTER = {
+  id: 'auto-exclude-high-multiplier',
+  field: 'tag',
+  operator: 'not_in',
+  value: ['high-multiplier'],
+  enabled: true,
+} as const;
+
 const TAG_GROUPS = [
   {
     key: 'streaming',
@@ -111,7 +119,7 @@ export function buildAutoNodeGroupPlans(
     return {
       key: marker.key,
       name: makeAutoGroupName(country.countryCode),
-      filters: [makeCountryFilter(country.countryCode)],
+      filters: withDefaultAutoFilters([makeCountryFilter(country.countryCode)]),
       markerText: marker.text,
     };
   });
@@ -124,7 +132,7 @@ export function buildAutoNodeGroupPlans(
       return {
         key: marker.key,
         name: group.name,
-        filters: [makeTagFilter(group.key, group.tags)],
+        filters: withDefaultAutoFilters([makeTagFilter(group.key, group.tags)]),
         markerText: marker.text,
       };
     });
@@ -253,6 +261,10 @@ function makeTagFilter(tagKey: string, tags: readonly string[]) {
     value: [...tags],
     enabled: true,
   };
+}
+
+function withDefaultAutoFilters(filters: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return [...filters, { ...EXCLUDE_HIGH_MULTIPLIER_FILTER }];
 }
 
 function makeCountryAutoNodeGroupKey(countryCode: string): string {
