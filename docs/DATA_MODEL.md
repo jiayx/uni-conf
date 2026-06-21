@@ -346,6 +346,7 @@ The worker validates:
 | Missing nested group target | `unsupported` |
 | Missing rule target group | `unsupported` |
 | Missing remote rule set target group | `unsupported` |
+| Remote rule set incompatible with export format | `partial` |
 | Missing MATCH fallback | `partial` |
 | MATCH not last | `partial` |
 

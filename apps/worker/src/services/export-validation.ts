@@ -1,5 +1,6 @@
 import type { CompatibilityWarning, ExportFormat } from '@uni-conf/types';
 import type { ExportData } from '../export-data';
+import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 
 export function validateExportData(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   return [
@@ -97,13 +98,39 @@ function validateRemoteRuleSets(data: ExportData, format: ExportFormat): Compati
   const groupIds = new Set(data.groups.map((group) => group.id));
   const warnings: CompatibilityWarning[] = [];
   for (const ruleSet of data.remoteSets) {
-    if (groupIds.has(ruleSet.targetGroupId)) continue;
-    warnings.push({
-      client: format,
-      level: 'unsupported',
-      message: `远程规则集 "${ruleSet.name}" 指向不存在或未导出的策略组 ${ruleSet.targetGroupId}`,
-      messageEn: `Remote rule set "${ruleSet.name}" targets a missing or non-exported group ${ruleSet.targetGroupId}.`,
-    });
+    if (!groupIds.has(ruleSet.targetGroupId)) {
+      warnings.push({
+        client: format,
+        level: 'unsupported',
+        message: `远程规则集 "${ruleSet.name}" 指向不存在或未导出的策略组 ${ruleSet.targetGroupId}`,
+        messageEn: `Remote rule set "${ruleSet.name}" targets a missing or non-exported group ${ruleSet.targetGroupId}.`,
+      });
+    }
+
+    const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
+    if (!resolved || !isRemoteRuleSetFormatCompatible(format, resolved.format)) {
+      warnings.push({
+        client: format,
+        level: 'partial',
+        message: `远程规则集 "${ruleSet.name}" 的格式 ${ruleSet.presetSource === 'quixotic' ? '动态预置' : ruleSet.format} 不兼容 ${format}，导出时会跳过`,
+        messageEn: `Remote rule set "${ruleSet.name}" is not compatible with ${format} and will be skipped during export.`,
+      });
+    }
   }
   return warnings;
+}
+
+function isRemoteRuleSetFormatCompatible(format: ExportFormat, ruleSetFormat: string): boolean {
+  const matrix: Partial<Record<ExportFormat, string[]>> = {
+    mihomo: ['mihomo', 'clash', 'stash', 'text'],
+    clash: ['mihomo', 'clash', 'stash', 'text'],
+    singbox: ['singbox'],
+    loon: ['loon', 'surge', 'shadowrocket', 'text'],
+    surge: ['surge', 'text'],
+    shadowrocket: ['shadowrocket', 'surge', 'text'],
+    quantumultx: ['quantumultx', 'text'],
+    stash: ['stash', 'mihomo', 'clash', 'text'],
+    egern: ['egern', 'text'],
+  };
+  return matrix[format]?.includes(ruleSetFormat) ?? false;
 }

@@ -53,6 +53,31 @@ describe('export validation', () => {
       message: expect.stringContaining('MATCH 规则不是最后一条'),
     }));
   });
+
+  it('warns when a remote rule set is incompatible with the export format', () => {
+    const warnings = validateExportData(makeExportData({
+      remoteSets: [makeRemoteSet('singbox-remote', 'proxy', { format: 'singbox' })],
+    }), 'mihomo');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      level: 'partial',
+      message: expect.stringContaining('不兼容 mihomo'),
+    }));
+  });
+
+  it('does not warn when a dynamic Quixotic preset resolves to a compatible export format', () => {
+    const warnings = validateExportData(makeExportData({
+      remoteSets: [makeRemoteSet('quixotic-ai', 'proxy', {
+        presetSource: 'quixotic',
+        presetId: 'ai',
+        format: 'mihomo',
+      })],
+    }), 'singbox');
+
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('不兼容 singbox'),
+    }));
+  });
 });
 
 function makeExportData(patch: Partial<ExportData> = {}): ExportData {
@@ -125,7 +150,11 @@ function makeRule(
   };
 }
 
-function makeRemoteSet(id: string, targetGroupId: string): ExportData['remoteSets'][number] {
+function makeRemoteSet(
+  id: string,
+  targetGroupId: string,
+  patch: Partial<ExportData['remoteSets'][number]> = {}
+): ExportData['remoteSets'][number] {
   return {
     id,
     name: 'Remote',
@@ -137,5 +166,6 @@ function makeRemoteSet(id: string, targetGroupId: string): ExportData['remoteSet
     sortOrder: 500,
     createdAt,
     updatedAt: createdAt,
+    ...patch,
   };
 }
