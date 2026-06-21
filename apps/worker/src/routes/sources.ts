@@ -19,6 +19,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT id, name, type, url, format, enabled, node_count, last_updated,
+      last_refresh_error,
       update_interval, user_agent, notes, tags, source_groups,
       upload_bytes, download_bytes, total_bytes, expire_time,
       created_at, updated_at
@@ -79,6 +80,7 @@ app.post('/', async (c) => {
       refresh = await refreshSourceById(c.env.DB, id);
     } catch (err) {
       refreshError = err instanceof Error ? err.message : String(err);
+      await recordSourceRefreshError(c.env.DB, id, refreshError);
     }
   }
 
@@ -165,11 +167,13 @@ app.post('/:id/refresh', async (c) => {
     const result = await refreshSourceById(c.env.DB, id);
     return c.json({ success: true, data: result });
   } catch (err) {
+    const message = err instanceof Error ? err.message : `Failed to fetch URL: ${String(err)}`;
+    await recordSourceRefreshError(c.env.DB, id, message);
     if (err instanceof SourceRefreshError) {
       return c.json({ success: false, error: err.message }, err.status);
     }
     return c.json(
-      { success: false, error: `Failed to fetch URL: ${String(err)}` },
+      { success: false, error: message },
       502
     );
   }
@@ -352,6 +356,7 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
       expire_time = ?,
       source_groups = ?,
       raw_content = ?,
+      last_refresh_error = NULL,
       updated_at = ?
      WHERE id = ?`
   )
@@ -382,6 +387,12 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     sourceGroupCount: parsedGroups.length,
     format,
   };
+}
+
+export async function recordSourceRefreshError(db: D1Database, id: string, error: string): Promise<void> {
+  await db.prepare('UPDATE sources SET last_refresh_error = ?, updated_at = ? WHERE id = ?')
+    .bind(error, now(), id)
+    .run();
 }
 
 function parseSubscriptionUserInfo(header: string | null): {

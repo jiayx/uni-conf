@@ -142,7 +142,7 @@ All API endpoints are under `/api/`. Responses follow:
 
 ```
 1. User adds subscription URL in Sources page
-2. Frontend immediately calls POST /api/sources/:id/refresh when "refresh after create" is enabled
+2. Backend refreshes URL sources during creation when refreshAfterCreate is enabled
 3. User can also click "Refresh" manually
 4. Worker scheduled handler runs every 5 minutes and refreshes due URL sources when auto refresh is enabled
 5. Worker fetches the external URL (server-side, no CORS issue)
@@ -151,8 +151,9 @@ All API endpoints are under `/api/`. Responses follow:
 8. Filters subscription-info pseudo nodes and unsupported protocols
 9. Upserts nodes into D1 nodes table and stores raw source content
 10. Regenerates country/region auto node groups
-11. Updates source.node_count and source.last_updated
-12. Returns { success, nodeCount, addedCount, updatedCount, removedCount, excludedCount }
+11. Updates source.node_count and source.last_updated, and clears source.last_refresh_error
+12. On refresh failure, stores source.last_refresh_error for source status display
+13. Returns { success, nodeCount, addedCount, updatedCount, removedCount, excludedCount }
 ```
 
 ### Config Export

@@ -96,6 +96,7 @@ export interface ProxySource {
   enabled: boolean;
   nodeCount: number;
   lastUpdated?: string; // ISO string
+  lastRefreshError?: string;
   updateInterval?: number; // minutes, 0 = manual only
   userAgent?: string;
   notes?: string;

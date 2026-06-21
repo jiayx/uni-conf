@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS sources (
   enabled INTEGER NOT NULL DEFAULT 1,
   node_count INTEGER NOT NULL DEFAULT 0,
   last_updated TEXT,
+  last_refresh_error TEXT,
   update_interval INTEGER DEFAULT 0,
   user_agent TEXT,
   notes TEXT,

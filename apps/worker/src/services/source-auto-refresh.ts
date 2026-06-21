@@ -1,5 +1,5 @@
 import { getAppSettings } from './app-settings';
-import { refreshSourceById } from '../routes/sources';
+import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
 
 export interface AutoRefreshSourceRow {
   id: string;
@@ -44,7 +44,9 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
       await refreshSourceById(db, source.id);
       refreshedSourceIds.push(source.id);
     } catch (err) {
-      errors.push({ sourceId: source.id, error: String(err instanceof Error ? err.message : err) });
+      const error = String(err instanceof Error ? err.message : err);
+      await recordSourceRefreshError(db, source.id, error);
+      errors.push({ sourceId: source.id, error });
     }
   }
 

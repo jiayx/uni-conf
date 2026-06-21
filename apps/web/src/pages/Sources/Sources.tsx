@@ -249,9 +249,9 @@ export function Sources() {
                   </span>
                 </div>
               )}
-              {refreshErrors[source.id] && (
+              {(refreshErrors[source.id] || source.lastRefreshError) && (
                 <div className={styles.refreshError}>
-                  {t('sources.refresh_failed')}: {refreshErrors[source.id]}
+                  {t('sources.refresh_failed')}: {refreshErrors[source.id] || source.lastRefreshError}
                 </div>
               )}
             </Card>

@@ -43,6 +43,7 @@ export function mapSource(row: Record<string, unknown>): ProxySource {
     enabled: Boolean(row.enabled),
     nodeCount: row.node_count as number,
     lastUpdated: (row.last_updated as string | null) ?? undefined,
+    lastRefreshError: (row.last_refresh_error as string | null) ?? undefined,
     updateInterval: (row.update_interval as number | null) ?? undefined,
     userAgent: (row.user_agent as string | null) ?? undefined,
     notes: (row.notes as string | null) ?? undefined,
