@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportData } from '../export-data';
-import { validateExportData } from './export-validation';
+import { resolveExportWarnings, validateExportData } from './export-validation';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -88,6 +88,14 @@ describe('export validation', () => {
       level: 'unsupported',
       message: expect.stringContaining('不是可下载的 http(s) 地址'),
     }));
+  });
+
+  it('suppresses warnings when compatibility warnings are disabled', () => {
+    const warnings = resolveExportWarnings(makeExportData({ nodes: [], rules: [] }), 'mihomo', {
+      showCompatibilityWarnings: false,
+    });
+
+    expect(warnings).toEqual([]);
   });
 });
 

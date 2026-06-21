@@ -14,7 +14,7 @@ import {
 } from '../generators/client-configs'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
-import { validateExportData } from '../services/export-validation'
+import { resolveExportWarnings } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 
@@ -123,7 +123,9 @@ exportRouter.get('/preview/:format', async (c) => {
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config)
   const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = exportData
-  const warnings = validateExportData(exportData, format as ExportFormat)
+  const warnings = resolveExportWarnings(exportData, format as ExportFormat, {
+    showCompatibilityWarnings: settings.showCompatibilityWarnings,
+  })
   let content: string
   let contentType: string
 

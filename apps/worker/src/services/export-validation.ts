@@ -11,6 +11,14 @@ export function validateExportData(data: ExportData, format: ExportFormat): Comp
   ];
 }
 
+export function resolveExportWarnings(
+  data: ExportData,
+  format: ExportFormat,
+  options: { showCompatibilityWarnings: boolean }
+): CompatibilityWarning[] {
+  return options.showCompatibilityWarnings ? validateExportData(data, format) : [];
+}
+
 function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const warnings: CompatibilityWarning[] = [];
   if (data.nodes.length === 0) {
