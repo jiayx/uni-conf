@@ -316,6 +316,7 @@ export function Collections() {
       for (const key of selectedAutoKeys) {
         const marker = parseAutoNodeGroupKey(key)
         if (!marker) continue
+        if (marker.scope !== 'country' || !marker.countryCode) continue
         const suggestion = countrySuggestions.find(item => item.countryCode === marker.countryCode)
         if (!suggestion) continue
         const name = makeAutoGroupName(marker.countryCode, marker.type, autoNamesIncludeFlag)
@@ -832,7 +833,9 @@ async function createLinkedGroup(
 }
 
 interface AutoNodeGroupMarker {
-  countryCode: string
+  scope: 'country' | 'tag'
+  countryCode?: string
+  tagKey?: string
   type: GeneratedGroupType
   key: string
 }
@@ -854,13 +857,29 @@ function buildCountrySuggestions(nodes: ProxyNode[]): Array<{ countryCode: strin
 }
 
 function makeAutoNodeGroupKey(countryCode: string, type: GeneratedGroupType): string {
-  return `${countryCode}:${type}`
+  return `country:${countryCode.trim().toUpperCase()}:${type}`
 }
 
 function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
-  const [countryCode, type] = key.split(':')
-  if (!countryCode || !isGeneratedGroupType(type)) return null
-  return { countryCode, type, key }
+  const parts = key.split(':')
+  if (parts.length === 2) {
+    const [countryCode, type] = parts
+    if (!countryCode || !isGeneratedGroupType(type)) return null
+    const normalizedCode = countryCode.trim().toUpperCase()
+    return { scope: 'country', countryCode: normalizedCode, type, key: makeAutoNodeGroupKey(normalizedCode, type) }
+  }
+  if (parts.length !== 3) return null
+
+  const [scope, value, type] = parts
+  if (!isGeneratedGroupType(type)) return null
+  if (scope === 'country' && value) {
+    const normalizedCode = value.trim().toUpperCase()
+    return { scope, countryCode: normalizedCode, type, key: makeAutoNodeGroupKey(normalizedCode, type) }
+  }
+  if (scope === 'tag' && value) {
+    return { scope, tagKey: value, type, key: `tag:${value}:${type}` }
+  }
+  return null
 }
 
 function makeAutoNodeGroupMarker(countryCode: string, type: GeneratedGroupType): string {
@@ -985,8 +1004,14 @@ function toggleCountryKeys(
 }
 
 function rebuildAutoKeysForTypes(source: Set<string>, types: Set<GeneratedGroupType>): Set<string> {
-  const countries = new Set([...source].map(key => parseAutoNodeGroupKey(key)?.countryCode).filter((value): value is string => Boolean(value)))
+  const parsedMarkers = [...source]
+    .map(key => parseAutoNodeGroupKey(key))
+    .filter((marker): marker is AutoNodeGroupMarker => Boolean(marker))
+  const countries = new Set(parsedMarkers.map(marker => marker.countryCode).filter((value): value is string => Boolean(value)))
   const next = new Set<string>()
+  for (const marker of parsedMarkers) {
+    if (marker.scope === 'tag') next.add(marker.key)
+  }
   for (const countryCode of countries) {
     for (const type of types) {
       next.add(makeAutoNodeGroupKey(countryCode, type))

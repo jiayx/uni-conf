@@ -154,6 +154,24 @@ const groupRows = [
     is_builtin: 0,
   },
   {
+    id: 'streaming-auto',
+    name: 'Streaming Auto',
+    type: 'url-test',
+    collection_ids: '["collection-streaming"]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 0,
+  },
+  {
+    id: 'native-auto',
+    name: 'Native Auto',
+    type: 'url-test',
+    collection_ids: '["collection-native"]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 0,
+  },
+  {
     id: 'disabled-exit',
     name: 'Disabled Auto',
     type: 'url-test',
@@ -216,6 +234,8 @@ describe('routing policy group sync', () => {
       'hk-auto',
       'jp-auto',
       'sg-auto',
+      'streaming-auto',
+      'native-auto',
     ]);
   });
 
@@ -234,22 +254,22 @@ describe('routing policy group sync', () => {
     const rows = applyRoutingPolicyGroupLinks(groupRows);
 
     expect(rows.find((row) => row.id === 'builtin-proxy')?.group_ids).toBe(
-      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto"]'
+      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-ai')?.group_ids).toBe(
-      '["us-auto","jp-auto","sg-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","hk-auto"]'
+      '["native-auto","us-auto","jp-auto","sg-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","hk-auto","streaming-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-streaming')?.group_ids).toBe(
-      '["hk-auto","jp-auto","sg-auto","us-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject"]'
+      '["streaming-auto","native-auto","hk-auto","jp-auto","sg-auto","us-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject"]'
     );
     expect(rows.find((row) => row.id === 'builtin-github')?.group_ids).toBe(
-      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto"]'
+      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-telegram')?.group_ids).toBe(
-      '["sg-auto","hk-auto","jp-auto","us-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject"]'
+      '["sg-auto","hk-auto","jp-auto","us-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","streaming-auto","native-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-final')?.group_ids).toBe(
-      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto"]'
+      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
     );
     expect(rows.find((row) => row.id === 'builtin-direct')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'builtin-all-nodes')?.group_ids).toBe('[]');

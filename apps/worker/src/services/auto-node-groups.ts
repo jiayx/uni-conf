@@ -6,9 +6,11 @@ const AUTO_GROUP_TYPE = 'url-test';
 const TEST_URL = 'http://www.gstatic.com/generate_204';
 
 interface AutoNodeGroupMarker {
-  countryCode: string;
-  type: string;
   key: string;
+  scope: 'country' | 'tag';
+  countryCode?: string;
+  tagKey?: string;
+  type: string;
 }
 
 interface CountrySummary {
@@ -16,13 +18,35 @@ interface CountrySummary {
   country: string;
 }
 
+interface AutoNodeGroupPlan {
+  key: string;
+  name: string;
+  filters: Array<Record<string, unknown>>;
+  markerText: string;
+}
+
+const TAG_GROUPS = [
+  {
+    key: 'streaming',
+    name: 'Streaming Auto',
+    tags: ['streaming', 'unlock'],
+  },
+  {
+    key: 'native',
+    name: 'Native Auto',
+    tags: ['residential', 'native-ip'],
+  },
+] as const;
+
 export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<void> {
   const countries = await listCountriesWithNodes(db);
-  const countryCodes = new Set(countries.map((country) => country.countryCode));
+  const tagKeys = await listTagGroupKeysWithNodes(db);
+  const plans = buildAutoNodeGroupPlans(countries, tagKeys);
+  const planKeys = new Set(plans.map((plan) => plan.key));
   const autoCollections = await listAutoCollections(db);
 
   for (const item of autoCollections) {
-    if (item.marker.type === AUTO_GROUP_TYPE && countryCodes.has(item.marker.countryCode)) continue;
+    if (item.marker.type === AUTO_GROUP_TYPE && planKeys.has(item.marker.key)) continue;
     await deleteCollectionAndLinkedGroups(db, item.id);
   }
 
@@ -32,18 +56,16 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
       .map((item) => [item.marker.key, item])
   );
 
-  for (const country of countries) {
-    const marker = makeAutoNodeGroupMarker(country.countryCode);
-    const name = makeAutoGroupName(country.countryCode);
-    const existing = existingByKey.get(marker.key);
+  for (const plan of plans) {
+    const existing = existingByKey.get(plan.key);
 
     if (existing) {
-      await updateAutoCollection(db, existing.id, name, country.countryCode, marker.text, ts);
-      await ensureLinkedGroup(db, existing.id, name, ts);
+      await updateAutoCollection(db, existing.id, plan.name, plan.filters, plan.markerText, ts);
+      await ensureLinkedGroup(db, existing.id, plan.name, ts);
     } else {
       const collectionId = newId();
-      await createAutoCollection(db, collectionId, name, country.countryCode, marker.text, ts);
-      await createLinkedGroup(db, collectionId, name, ts);
+      await createAutoCollection(db, collectionId, plan.name, plan.filters, plan.markerText, ts);
+      await createLinkedGroup(db, collectionId, plan.name, ts);
     }
   }
 
@@ -67,6 +89,49 @@ async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]>
   }));
 }
 
+async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
+  const keys: string[] = [];
+  for (const group of TAG_GROUPS) {
+    const conditions = group.tags.map(() => 'tags LIKE ?').join(' OR ');
+    const row = await db
+      .prepare(`SELECT COUNT(*) AS node_count FROM nodes WHERE enabled = 1 AND (${conditions})`)
+      .bind(...group.tags.map((tag) => `%"${tag}"%`))
+      .first<{ node_count: number }>();
+    if ((row?.node_count ?? 0) > 0) keys.push(group.key);
+  }
+  return keys;
+}
+
+export function buildAutoNodeGroupPlans(
+  countries: CountrySummary[],
+  tagKeys: string[]
+): AutoNodeGroupPlan[] {
+  const countryPlans = countries.map((country) => {
+    const marker = makeCountryAutoNodeGroupMarker(country.countryCode);
+    return {
+      key: marker.key,
+      name: makeAutoGroupName(country.countryCode),
+      filters: [makeCountryFilter(country.countryCode)],
+      markerText: marker.text,
+    };
+  });
+
+  const tagKeySet = new Set(tagKeys);
+  const tagPlans = TAG_GROUPS
+    .filter((group) => tagKeySet.has(group.key))
+    .map((group) => {
+      const marker = makeTagAutoNodeGroupMarker(group.key);
+      return {
+        key: marker.key,
+        name: group.name,
+        filters: [makeTagFilter(group.key, group.tags)],
+        markerText: marker.text,
+      };
+    });
+
+  return [...countryPlans, ...tagPlans];
+}
+
 async function listAutoCollections(db: D1Database): Promise<Array<{ id: string; marker: AutoNodeGroupMarker }>> {
   const { results } = await db
     .prepare(`SELECT id, notes FROM collections WHERE notes LIKE ?`)
@@ -82,7 +147,7 @@ async function createAutoCollection(
   db: D1Database,
   id: string,
   name: string,
-  countryCode: string,
+  filters: Array<Record<string, unknown>>,
   marker: string,
   ts: string
 ): Promise<void> {
@@ -92,7 +157,7 @@ async function createAutoCollection(
         (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
        VALUES (?, ?, '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
     )
-    .bind(id, name, jsonStringify([makeCountryFilter(countryCode)]), marker, ts, ts)
+    .bind(id, name, jsonStringify(filters), marker, ts, ts)
     .run();
 }
 
@@ -100,7 +165,7 @@ async function updateAutoCollection(
   db: D1Database,
   id: string,
   name: string,
-  countryCode: string,
+  filters: Array<Record<string, unknown>>,
   marker: string,
   ts: string
 ): Promise<void> {
@@ -112,7 +177,7 @@ async function updateAutoCollection(
         enabled = 1, notes = ?, updated_at = ?
        WHERE id = ?`
     )
-    .bind(name, jsonStringify([makeCountryFilter(countryCode)]), marker, ts, id)
+    .bind(name, jsonStringify(filters), marker, ts, id)
     .run();
 }
 
@@ -180,21 +245,66 @@ function makeCountryFilter(countryCode: string) {
   };
 }
 
-function makeAutoNodeGroupKey(countryCode: string): string {
-  return `${countryCode.trim().toUpperCase()}:${AUTO_GROUP_TYPE}`;
+function makeTagFilter(tagKey: string, tags: readonly string[]) {
+  return {
+    id: `auto-tag-${tagKey}`,
+    field: 'tag',
+    operator: 'in',
+    value: [...tags],
+    enabled: true,
+  };
 }
 
-function makeAutoNodeGroupMarker(countryCode: string): { key: string; text: string } {
-  const key = makeAutoNodeGroupKey(countryCode);
+function makeCountryAutoNodeGroupKey(countryCode: string): string {
+  return `country:${countryCode.trim().toUpperCase()}:${AUTO_GROUP_TYPE}`;
+}
+
+function makeTagAutoNodeGroupKey(tagKey: string): string {
+  return `tag:${tagKey}:${AUTO_GROUP_TYPE}`;
+}
+
+function makeCountryAutoNodeGroupMarker(countryCode: string): { key: string; text: string } {
+  const key = makeCountryAutoNodeGroupKey(countryCode);
+  return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
+}
+
+function makeTagAutoNodeGroupMarker(tagKey: string): { key: string; text: string } {
+  const key = makeTagAutoNodeGroupKey(tagKey);
   return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
 }
 
 function parseAutoNodeGroupMarker(notes?: string | null): AutoNodeGroupMarker | null {
   if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null;
-  const [countryCode, type] = notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim().split(':');
-  if (!countryCode || !type) return null;
-  const normalizedCode = countryCode.trim().toUpperCase();
-  return { countryCode: normalizedCode, type, key: `${normalizedCode}:${type}` };
+  const rawKey = notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim();
+  const parts = rawKey.split(':');
+  if (parts.length === 2) {
+    const [countryCode, type] = parts;
+    if (!countryCode || !type) return null;
+    const normalizedCode = countryCode.trim().toUpperCase();
+    const key = makeCountryAutoNodeGroupKey(normalizedCode);
+    return { scope: 'country', countryCode: normalizedCode, type, key };
+  }
+  if (parts.length !== 3) return null;
+
+  const [scope, value, type] = parts;
+  if (scope === 'country' && value && type) {
+    const normalizedCode = value.trim().toUpperCase();
+    return {
+      scope,
+      countryCode: normalizedCode,
+      type,
+      key: makeCountryAutoNodeGroupKey(normalizedCode),
+    };
+  }
+  if (scope === 'tag' && value && type) {
+    return {
+      scope,
+      tagKey: value,
+      type,
+      key: makeTagAutoNodeGroupKey(value),
+    };
+  }
+  return null;
 }
 
 function makeAutoGroupName(countryCode: string): string {

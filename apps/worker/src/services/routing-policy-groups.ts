@@ -38,6 +38,11 @@ const ROUTING_COUNTRY_PREFERENCES: Record<string, string[]> = {
   TELEGRAM: ['SG', 'HK', 'JP', 'US'],
 };
 
+const ROUTING_TAG_GROUP_PREFERENCES: Record<string, string[]> = {
+  AI: ['native'],
+  STREAMING: ['streaming', 'native'],
+};
+
 const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: ['DIRECT'] },
   { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [] },
@@ -148,6 +153,12 @@ function sortRoutingMemberGroupIds(outletIds: string[], groupRows: GroupRow[], r
     used.add(id);
   };
 
+  for (const tagKey of ROUTING_TAG_GROUP_PREFERENCES[routingGroupName] ?? []) {
+    for (const id of outletIds) {
+      if (tagGroupKeyFromGroup(rowsById.get(id)) === tagKey) push(id);
+    }
+  }
+
   for (const countryCode of countryPreferences) {
     for (const id of outletIds) {
       if (countryCodeFromGroup(rowsById.get(id)) === countryCode) push(id);
@@ -164,6 +175,14 @@ function sortRoutingMemberGroupIds(outletIds: string[], groupRows: GroupRow[], r
 function countryCodeFromGroup(row: GroupRow | undefined): string | undefined {
   if (!row || parseIds(row.collection_ids).length === 0) return undefined;
   return detectCountry(String(row.name ?? ''))?.countryCode;
+}
+
+function tagGroupKeyFromGroup(row: GroupRow | undefined): string | undefined {
+  if (!row || parseIds(row.collection_ids).length === 0) return undefined;
+  const name = String(row.name ?? '').toUpperCase();
+  if (name.includes('STREAMING')) return 'streaming';
+  if (name.includes('NATIVE')) return 'native';
+  return undefined;
 }
 
 async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise<void> {

@@ -130,8 +130,8 @@ UniConf 的默认体验不是让用户从空白配置开始搭建，而是：
 
 ```text
 1. 用户粘贴一个或多个订阅链接
-2. 系统解析节点并识别国家 / 地区
-3. 系统按国家 / 地区自动生成 url-test 节点组
+2. 系统解析节点并识别国家 / 地区、倍率、流媒体、解锁、家宽 / 原生特征
+3. 系统按国家 / 地区和关键标签自动生成 url-test 节点组
 4. 系统启用基础出口和默认业务分流组
 5. 系统加载预置远程规则集并分配目标策略组
 6. 用户选择导出客户端并得到完整配置
@@ -235,6 +235,7 @@ GitHub / Apple / Microsoft / Google / 游戏 / Crypto
 按完整节点配置去重
 识别倍率、流媒体、解锁、家宽 / 原生特征并写入节点标签
 按国家 / 地区生成 url-test 节点组
+按流媒体 / 解锁、家宽 / 原生标签生成专用 url-test 节点组
 把自动节点组加入业务分流组候选出口
 ```
 
@@ -265,7 +266,12 @@ Netflix / YouTube / Disney+ / 流媒体 -> streaming
 原生 / native ip -> native-ip
 ```
 
-节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。后续创建流媒体、家宽、原生等专用节点池时，也应复用这些标签，而不是在各处重复解析节点名称。
+节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。系统也会复用这些标签自动生成专用节点组：
+
+```text
+Streaming Auto：匹配 streaming / unlock，优先放入 Streaming 策略组
+Native Auto：匹配 residential / native-ip，优先放入 AI 和 Streaming 策略组
+```
 
 ### 默认节点命名
 
@@ -294,6 +300,8 @@ Other - Manual - 01
 🇸🇬 SG Auto
 🇺🇸 US Auto
 ```
+
+自动生成的标签节点组使用意图命名，例如 `Streaming Auto`、`Native Auto`。
 
 ### 默认 DNS 预设
 

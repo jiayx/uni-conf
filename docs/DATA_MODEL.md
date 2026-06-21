@@ -129,8 +129,8 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 
 | Routing group | Preferred outlet order |
 |---------------|------------------------|
-| AI | US, JP, SG country auto groups, then 自动选择 / 节点选择 / 故障切换 |
-| Streaming | HK, JP, SG, TW, US country auto groups, then 自动选择 |
+| AI | Native Auto, then US, JP, SG country auto groups, then 自动选择 / 节点选择 / 故障切换 |
+| Streaming | Streaming Auto, Native Auto, then HK, JP, SG, TW, US country auto groups, then 自动选择 |
 | Telegram | SG, HK, JP, US country auto groups, then 自动选择 |
 | PROXY, GitHub, 漏网之鱼, and other groups | 自动选择 / 节点选择 / 故障切换 / 全部节点, then country auto groups |
 
@@ -292,6 +292,14 @@ Node recognition writes derived metadata into `nodes.tags` when it does not need
 - `native-ip` for native/local IP nodes.
 
 This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes, create low-cost pools, or build streaming/residential/native candidate pools without changing the node schema.
+
+Auto node group sync creates these generated collections and linked policy groups when matching nodes exist:
+
+| Generated group | Collection filter | Used first by |
+|-----------------|-------------------|---------------|
+| `{flag} {countryCode} Auto` | `countryCode equals {countryCode}` | Country-aware routing preferences |
+| `Streaming Auto` | `tag in ["streaming", "unlock"]` | Streaming |
+| `Native Auto` | `tag in ["residential", "native-ip"]` | AI, Streaming |
 
 ### Default Export Node Names
 
