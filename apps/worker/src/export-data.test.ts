@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ExportConfig } from '@uni-conf/types'
-import { expandReferencedGroupRows, resolveCollectionScopeIds } from './export-data'
+import {
+  applyDefaultExportNodeNames,
+  buildCollectionNodeNames,
+  expandReferencedGroupRows,
+  resolveCollectionScopeIds,
+} from './export-data'
 
 const baseConfig: ExportConfig = {
   id: 'export-1',
@@ -90,5 +95,42 @@ describe('export data scoping', () => {
     )
 
     expect(scopeIds).toEqual(['collection-excluded'])
+  })
+
+  it('renames exported nodes with region, source, and sequence', () => {
+    const renamed = applyDefaultExportNodeNames(
+      [
+        { id: 'node-1', source_id: 'source-a', name: 'HK 01', country_code: 'HK' },
+        { id: 'node-2', source_id: 'source-a', name: 'HK 02', country_code: 'HK' },
+        { id: 'node-3', source_id: 'source-b', name: 'Unknown' },
+      ],
+      new Map([
+        ['source-a', 'Airport A'],
+        ['source-b', '机场/B'],
+      ])
+    )
+
+    expect(renamed.map(row => row.name)).toEqual([
+      'HK - Airport A - 01',
+      'HK - Airport A - 02',
+      'Other - 机场-B - 01',
+    ])
+  })
+
+  it('builds collection node names from final exported names', () => {
+    const collectionRows = new Map([
+      ['collection-hk', [
+        { id: 'node-1', name: 'Original HK 01' },
+        { id: 'node-2', name: 'Original HK 02' },
+      ]],
+    ])
+    const names = buildCollectionNodeNames(collectionRows, [
+      { id: 'node-1', name: 'HK - Airport A - 01' },
+      { id: 'node-2', name: 'HK - Airport A - 02' },
+    ])
+
+    expect(names).toEqual({
+      'collection-hk': ['HK - Airport A - 01', 'HK - Airport A - 02'],
+    })
   })
 })

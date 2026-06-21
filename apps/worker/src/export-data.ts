@@ -78,6 +78,8 @@ export async function buildExportData(
   const nodeRows = collectionScopeIds.length
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
+  const sourceNameById = await buildSourceNameById(db)
+  const exportNodeRows = applyDefaultExportNodeNames(nodeRows, sourceNameById)
 
   const ruleRows = await selectRows(
     db,
@@ -92,15 +94,15 @@ export async function buildExportData(
 
   return {
     config,
-    nodeRows,
+    nodeRows: exportNodeRows,
     groupRows,
     ruleRows,
     remoteSetRows,
-    nodes: nodeRows.map(mapNode),
+    nodes: exportNodeRows.map(mapNode),
     groups: groupRows.map(mapGroup),
     rules: ruleRows.map(mapRule),
     remoteSets: remoteSetRows.map(mapRemoteRuleSet),
-    collectionNodeNames: buildCollectionNodeNames(collectionRows, nodeRows),
+    collectionNodeNames: buildCollectionNodeNames(collectionRows, exportNodeRows),
   }
 }
 
@@ -233,21 +235,63 @@ function mergeCollectionRows(
   return [...selected.values()]
 }
 
-function buildCollectionNodeNames(
+export function buildCollectionNodeNames(
   collectionRows: Map<string, Record<string, unknown>[]>,
   exportedRows: Record<string, unknown>[]
 ): Record<string, string[]> {
   const exportedIds = new Set(exportedRows.map((row) => String(row.id)))
+  const exportedNameById = new Map(exportedRows.map((row) => [String(row.id), String(row.name ?? '')]))
   const result: Record<string, string[]> = {}
 
   for (const [collectionId, rows] of collectionRows) {
     result[collectionId] = rows
       .filter((row) => exportedIds.has(String(row.id)))
-      .map((row) => String(row.name ?? ''))
+      .map((row) => exportedNameById.get(String(row.id)) ?? '')
       .filter(Boolean)
   }
 
   return result
+}
+
+async function buildSourceNameById(db: D1Database): Promise<Map<string, string>> {
+  const { results } = await db.prepare('SELECT id, name FROM sources').all<{ id: string; name: string }>()
+  return new Map(results.map((row) => [row.id, row.name]))
+}
+
+export function applyDefaultExportNodeNames(
+  rows: Record<string, unknown>[],
+  sourceNameById: Map<string, string>
+): Record<string, unknown>[] {
+  const counters = new Map<string, number>()
+  return rows.map((row) => {
+    const region = getExportNodeRegion(row)
+    const sourceName = normalizeExportNamePart(
+      sourceNameById.get(String(row.source_id ?? '')) ?? String(row.source_id ?? 'Source')
+    )
+    const key = `${region}\u0000${sourceName}`
+    const index = (counters.get(key) ?? 0) + 1
+    counters.set(key, index)
+
+    return {
+      ...row,
+      name: `${region} - ${sourceName} - ${index.toString().padStart(2, '0')}`,
+    }
+  })
+}
+
+function getExportNodeRegion(row: Record<string, unknown>): string {
+  const countryCode = String(row.country_code ?? '').trim().toUpperCase()
+  if (countryCode) return countryCode
+  const country = String(row.country ?? '').trim()
+  if (!country) return 'Other'
+  return normalizeExportNamePart(country)
+}
+
+function normalizeExportNamePart(value: string): string {
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .trim() || 'Unknown'
 }
 
 function scopeRowsForCollection(

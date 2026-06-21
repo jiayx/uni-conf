@@ -239,6 +239,24 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 
 Default cleanup excludes subscription info nodes such as traffic quota, expiry, package, official site, reset, and user-center entries. It also skips parsed nodes whose protocol maps to `unknown`.
 
+### Default Export Node Names
+
+The `nodes.name` value remains the original subscription/manual node name in storage. During export, `buildExportData` rewrites exported node names to:
+
+```text
+{country_code or Other} - {source name} - {two-digit sequence}
+```
+
+Examples:
+
+```text
+HK - Airport A - 01
+US - Airport A - 02
+Other - Manual - 01
+```
+
+`collectionNodeNames` is built from the rewritten names, so generated policy groups reference the same names that appear in the exported `proxies` / `outbounds` list.
+
 ### ClientCompatibility (stored in `rules.compatibility`)
 ```json
 [
