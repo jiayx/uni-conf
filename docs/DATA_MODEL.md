@@ -325,7 +325,7 @@ Auto node group sync creates these generated collections and linked policy group
 
 ### Default Export Node Names
 
-The `nodes.name` value remains the original subscription/manual node name in storage. During export, `buildExportData` rewrites exported node names to:
+The `nodes.name` value remains the original subscription/manual node name in storage. During export, `buildExportData` first deduplicates the final node rows by full parsed config, then rewrites exported node names to:
 
 ```text
 {country_code or Other} - {source name} - {two-digit sequence}

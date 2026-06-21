@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ExportConfig } from '@uni-conf/types'
 import {
+  applyDefaultExportDedup,
   applyDefaultExportNodeNames,
   buildCollectionNodeNames,
   expandReferencedGroupRows,
@@ -115,6 +116,26 @@ describe('export data scoping', () => {
       'HK - Airport A - 02',
       'Other - 机场-B - 01',
     ])
+  })
+
+  it('deduplicates exported nodes by full parsed config before naming', () => {
+    const rows = applyDefaultExportDedup([
+      { id: 'node-1', parsed_config: '{"protocol":"trojan","server":"same.example.com","port":443,"extra":{}}' },
+      { id: 'node-2', parsed_config: '{"protocol":"trojan","server":"same.example.com","port":443,"extra":{}}' },
+      { id: 'node-3', parsed_config: '{"protocol":"trojan","server":"other.example.com","port":443,"extra":{}}' },
+    ])
+
+    expect(rows.map(row => row.id)).toEqual(['node-1', 'node-3'])
+  })
+
+  it('falls back to protocol server and port when parsed config is unavailable', () => {
+    const rows = applyDefaultExportDedup([
+      { id: 'node-1', protocol: 'trojan', server: 'same.example.com', port: 443 },
+      { id: 'node-2', protocol: 'trojan', server: 'same.example.com', port: 443 },
+      { id: 'node-3', protocol: 'vless', server: 'same.example.com', port: 443 },
+    ])
+
+    expect(rows.map(row => row.id)).toEqual(['node-1', 'node-3'])
   })
 
   it('builds collection node names from final exported names', () => {

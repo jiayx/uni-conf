@@ -79,7 +79,7 @@ export async function buildExportData(
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
   const sourceNameById = await buildSourceNameById(db)
-  const exportNodeRows = applyDefaultExportNodeNames(nodeRows, sourceNameById)
+  const exportNodeRows = applyDefaultExportNodeNames(applyDefaultExportDedup(nodeRows), sourceNameById)
 
   const ruleRows = await selectRows(
     db,
@@ -277,6 +277,34 @@ export function applyDefaultExportNodeNames(
       name: `${region} - ${sourceName} - ${index.toString().padStart(2, '0')}`,
     }
   })
+}
+
+export function applyDefaultExportDedup(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    const key = getExportDedupKey(row)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function getExportDedupKey(row: Record<string, unknown>): string {
+  const parsedConfig = typeof row.parsed_config === 'string' && row.parsed_config
+    ? row.parsed_config
+    : undefined
+  if (parsedConfig) return `parsed:${parsedConfig}`
+
+  const rawConfig = typeof row.raw_config === 'string' && row.raw_config
+    ? row.raw_config
+    : undefined
+  if (rawConfig) return `raw:${rawConfig}`
+
+  return [
+    row.protocol,
+    row.server,
+    row.port,
+  ].map((value) => String(value ?? '')).join('\u0000')
 }
 
 function getExportNodeRegion(row: Record<string, unknown>): string {
