@@ -400,7 +400,14 @@ function isOutletGroup(group: ProxyGroup): boolean {
 }
 
 function isDefaultOutletGroup(group: ProxyGroup): boolean {
-  return ['builtin-direct', 'builtin-reject', 'builtin-all-nodes', 'builtin-node-select', 'builtin-auto-select'].includes(group.id)
+  return [
+    'builtin-direct',
+    'builtin-reject',
+    'builtin-all-nodes',
+    'builtin-node-select',
+    'builtin-auto-select',
+    'builtin-fallback-select',
+  ].includes(group.id)
 }
 
 function isRoutingPolicyGroup(group: ProxyGroup): boolean {

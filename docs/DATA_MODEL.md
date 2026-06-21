@@ -104,13 +104,14 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 - `builtin-all-nodes` → 全部节点 (select)
 - `builtin-node-select` → 节点选择 (select)
 - `builtin-auto-select` → 自动选择 (url-test)
+- `builtin-fallback-select` → 故障切换 (fallback)
 
 Built-in groups have two product roles:
 
 | Role | Groups | Behavior |
 |------|--------|----------|
 | Foundation policy groups | PROXY, DIRECT, REJECT | Always available as rule targets |
-| Outlet groups | 全部节点, 节点选择, 自动选择, country auto groups | Added as candidates inside business routing groups |
+| Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
 | Business routing groups | AI, Streaming, Social, GitHub, Apple, Microsoft, Crypto, Gaming, Developer | Used by remote rule sets and manual rules |
 
 `routing_policy_template` controls which business routing groups are enabled:

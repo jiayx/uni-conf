@@ -176,4 +176,5 @@ INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtin
   ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 11, 1, datetime('now'), datetime('now')),
   ('builtin-all-nodes', '全部节点',   'select',   '[]', '[]', '[]',          1, 12, 1, datetime('now'), datetime('now')),
   ('builtin-node-select', '节点选择', 'select',   '[]', '[]', '[]',          1, 13, 1, datetime('now'), datetime('now')),
-  ('builtin-auto-select', '自动选择', 'url-test', '[]', '[]', '[]',          1, 14, 1, datetime('now'), datetime('now'));
+  ('builtin-auto-select', '自动选择', 'url-test', '[]', '[]', '[]',          1, 14, 1, datetime('now'), datetime('now')),
+  ('builtin-fallback-select', '故障切换', 'fallback', '[]', '[]', '[]',      1, 15, 1, datetime('now'), datetime('now'));

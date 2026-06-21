@@ -8,6 +8,7 @@ export const ALL_NODE_OUTLET_GROUP_IDS = [
   'builtin-all-nodes',
   'builtin-node-select',
   'builtin-auto-select',
+  'builtin-fallback-select',
 ];
 const DEFAULT_MEMBER_GROUP_IDS = [
   DEFAULT_PROXY_GROUP_ID,
@@ -32,6 +33,7 @@ const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 12, builtins: [] },
   { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 13, builtins: [] },
   { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 14, builtins: [] },
+  { id: 'builtin-fallback-select', name: '故障切换', type: 'fallback', sortOrder: 15, builtins: [] },
 ];
 
 export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promise<void> {
