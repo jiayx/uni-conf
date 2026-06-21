@@ -26,6 +26,8 @@ const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning
   reject: 'error',
 }
 
+const FOUNDATION_GROUP_IDS = ['builtin-proxy', 'builtin-direct', 'builtin-reject']
+
 function createEmptyForm(order: number): GroupForm {
   return {
     name: '',
@@ -61,6 +63,12 @@ export function Groups() {
 
   const visibleGroups = useMemo(
     () => groups.filter(group => (isRoutingPolicyGroup(group) && group.enabled) || isCustomRoutingGroup(group)),
+    [groups]
+  )
+  const foundationGroups = useMemo(
+    () => FOUNDATION_GROUP_IDS
+      .map(id => groups.find(group => group.id === id))
+      .filter((group): group is ProxyGroup => Boolean(group)),
     [groups]
   )
   const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate)
@@ -232,6 +240,27 @@ export function Groups() {
           ))}
         </div>
       </section>
+      {foundationGroups.length > 0 && (
+        <section className={styles.foundationPanel}>
+          <div className={styles.foundationHeader}>
+            <div>
+              <div className={styles.foundationTitle}>基础出口</div>
+              <div className={styles.foundationMeta}>始终存在，规则可以直接命中；业务分流策略组会自动包含这些出口。</div>
+            </div>
+          </div>
+          <div className={styles.foundationGrid}>
+            {foundationGroups.map(group => (
+              <div key={group.id} className={styles.foundationItem}>
+                <div className={styles.foundationItemTop}>
+                  <span className={styles.foundationName}>{group.name}</span>
+                  <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
+                </div>
+                <div className={styles.foundationSummary}>{describeFoundationGroup(group)}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
         <div className={styles.list}>
           {visibleGroups.map((group, index) => (
@@ -410,6 +439,7 @@ function isOutletGroup(group: ProxyGroup): boolean {
 
 function isDefaultOutletGroup(group: ProxyGroup): boolean {
   return [
+    'builtin-proxy',
     'builtin-direct',
     'builtin-reject',
     'builtin-all-nodes',
@@ -441,4 +471,11 @@ function ArrowUpIcon() {
 
 function ArrowDownIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+}
+
+function describeFoundationGroup(group: ProxyGroup): string {
+  if (group.name === 'PROXY') return '默认代理出口，自动聚合节点选择、自动选择、故障切换和全部节点。'
+  if (group.name === 'DIRECT') return '直连出口，国内规则、局域网和无需代理的流量会命中这里。'
+  if (group.name === 'REJECT') return '拒绝出口，广告、HTTPDNS 等拦截规则会命中这里。'
+  return '系统内置基础出口。'
 }

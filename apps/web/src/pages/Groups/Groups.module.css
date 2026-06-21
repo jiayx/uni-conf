@@ -22,6 +22,23 @@
 .templateDesc { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.45; min-height: 2.3rem; }
 .templateMembers { color: var(--color-text-tertiary); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activeTemplateGroups { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.foundationPanel {
+  display: flex; flex-direction: column; gap: 0.875rem;
+  padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.foundationHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.foundationTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
+.foundationMeta { margin-top: 0.25rem; font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
+.foundationGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.foundationItem {
+  display: flex; flex-direction: column; gap: 0.5rem; min-width: 0;
+  padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface2);
+}
+.foundationItemTop { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.foundationName { font-size: 0.875rem; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foundationSummary { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
 .list { display: flex; flex-direction: column; gap: 0.75rem; }
 .groupCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: 1rem 1.25rem; }
 .orderControls { display: flex; flex-direction: column; gap: 0.25rem; }
@@ -69,6 +86,7 @@
   .cardActions { justify-content: flex-start; }
   .templateHeader { align-items: flex-start; flex-direction: column; }
   .templateGrid { grid-template-columns: 1fr; }
+  .foundationGrid { grid-template-columns: 1fr; }
   .formGrid, .optionList { grid-template-columns: 1fr; }
   .summary { white-space: normal; }
 }
