@@ -32,6 +32,7 @@ const EXCLUDE_HIGH_MULTIPLIER_FILTER = {
   value: ['high-multiplier'],
   enabled: true,
 } as const;
+const HIGH_MULTIPLIER_TAG_PATTERN = '%"high-multiplier"%';
 
 const TAG_GROUPS = [
   {
@@ -85,10 +86,14 @@ async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]>
     .prepare(
       `SELECT country_code, MAX(country) AS country, COUNT(*) AS node_count
        FROM nodes
-       WHERE enabled = 1 AND country_code IS NOT NULL AND country_code != ''
+       WHERE enabled = 1
+         AND tags NOT LIKE ?
+         AND country_code IS NOT NULL
+         AND country_code != ''
        GROUP BY country_code
        ORDER BY node_count DESC, country_code ASC`
     )
+    .bind(HIGH_MULTIPLIER_TAG_PATTERN)
     .all<{ country_code: string; country: string | null; node_count: number }>();
 
   return results.map((row) => ({
@@ -102,8 +107,8 @@ async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
   for (const group of TAG_GROUPS) {
     const conditions = group.tags.map(() => 'tags LIKE ?').join(' OR ');
     const row = await db
-      .prepare(`SELECT COUNT(*) AS node_count FROM nodes WHERE enabled = 1 AND (${conditions})`)
-      .bind(...group.tags.map((tag) => `%"${tag}"%`))
+      .prepare(`SELECT COUNT(*) AS node_count FROM nodes WHERE enabled = 1 AND tags NOT LIKE ? AND (${conditions})`)
+      .bind(HIGH_MULTIPLIER_TAG_PATTERN, ...group.tags.map((tag) => `%"${tag}"%`))
       .first<{ node_count: number }>();
     if ((row?.node_count ?? 0) > 0) keys.push(group.key);
   }
