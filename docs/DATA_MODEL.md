@@ -363,6 +363,7 @@ The worker validates:
 | Missing rule target group | `unsupported` |
 | Missing remote rule set target group | `unsupported` |
 | Remote rule set incompatible with export format | `partial` |
+| Remote rule set URL is not downloadable over http(s) | `unsupported` |
 | Missing MATCH fallback | `partial` |
 | MATCH not last | `partial` |
 

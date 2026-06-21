@@ -78,6 +78,17 @@ describe('export validation', () => {
       message: expect.stringContaining('不兼容 singbox'),
     }));
   });
+
+  it('warns when a remote rule set URL is not downloadable', () => {
+    const warnings = validateExportData(makeExportData({
+      remoteSets: [makeRemoteSet('bad-url', 'proxy', { url: './local-rule.yaml' })],
+    }), 'mihomo');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      level: 'unsupported',
+      message: expect.stringContaining('不是可下载的 http(s) 地址'),
+    }));
+  });
 });
 
 function makeExportData(patch: Partial<ExportData> = {}): ExportData {

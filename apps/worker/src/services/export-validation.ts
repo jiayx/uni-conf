@@ -116,6 +116,15 @@ function validateRemoteRuleSets(data: ExportData, format: ExportFormat): Compati
         messageEn: `Remote rule set "${ruleSet.name}" is not compatible with ${format} and will be skipped during export.`,
       });
     }
+
+    if (resolved && !isDownloadableHttpUrl(resolved.url)) {
+      warnings.push({
+        client: format,
+        level: 'unsupported',
+        message: `远程规则集 "${ruleSet.name}" 的 URL 不是可下载的 http(s) 地址`,
+        messageEn: `Remote rule set "${ruleSet.name}" does not use a downloadable http(s) URL.`,
+      });
+    }
   }
   return warnings;
 }
@@ -133,4 +142,13 @@ function isRemoteRuleSetFormatCompatible(format: ExportFormat, ruleSetFormat: st
     egern: ['egern', 'text'],
   };
   return matrix[format]?.includes(ruleSetFormat) ?? false;
+}
+
+function isDownloadableHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
