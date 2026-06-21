@@ -282,7 +282,7 @@ export function RemoteRuleSets() {
                       <div className={styles.cardTitle}>{set.name}</div>
                     </div>
                     <div className={styles.meta}>
-                      <Badge variant="info">{set.presetSource === 'quixotic' ? '预置' : set.format}</Badge>
+                      <Badge variant="info">{ruleSetBadgeLabel(set)}</Badge>
                       <Badge variant="default">{set.updateInterval}h</Badge>
                     </div>
                     <div className={styles.url}>{set.url}</div>
@@ -389,7 +389,14 @@ function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
 
 function presetKey(set: Pick<RemoteRuleSet, 'name' | 'format' | 'presetSource' | 'presetId'>): string {
   if (set.presetSource === 'quixotic' && set.presetId) return `quixotic:${set.presetId}`
+  if (set.presetSource === 'uni-conf' && set.presetId) return `uni-conf:${set.presetId}`
   return `${set.name}:${set.format}`
+}
+
+function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>): string {
+  if (set.presetSource === 'quixotic') return '预置'
+  if (set.presetSource === 'uni-conf') return '内置'
+  return set.format
 }
 
 function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string }>) {

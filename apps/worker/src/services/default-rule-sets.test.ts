@@ -9,8 +9,13 @@ describe('default remote rule sets', () => {
 
     await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
 
-    expect(inserted).toHaveLength(QUIXOTIC_RULE_SET_PRESETS.length);
+    expect(inserted).toHaveLength(QUIXOTIC_RULE_SET_PRESETS.length + 1);
     expect(inserted.find((item) => item.presetId === 'ai')?.targetGroupId).toBe('builtin-ai');
+    expect(inserted.find((item) => item.presetSource === 'uni-conf' && item.presetId === 'telegram')).toMatchObject({
+      format: 'text',
+      targetGroupId: 'builtin-telegram',
+      sortOrder: 50,
+    });
     expect(inserted.find((item) => item.presetId === 'netflix')?.targetGroupId).toBe('builtin-streaming');
     expect(inserted.find((item) => item.presetId === 'gits')?.targetGroupId).toBe('builtin-github');
     expect(inserted.find((item) => item.presetId === 'apple')?.targetGroupId).toBe('builtin-apple');
@@ -27,10 +32,21 @@ describe('default remote rule sets', () => {
     const db = createMockDb({
       existingPresets: QUIXOTIC_RULE_SET_PRESETS.map((preset) => ({
         id: `preset-${preset.id}`,
+        preset_source: 'quixotic',
         preset_id: preset.id,
+        url: `https://example.com/${preset.id}.list`,
+        format: 'mihomo',
         target_group_id: expectedTargetGroupId(preset.id),
         sort_order: resolveQuixoticRuleSetSortOrder(preset.id),
-      })),
+      })).concat({
+        id: 'preset-telegram',
+        preset_source: 'uni-conf',
+        preset_id: 'telegram',
+        url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.list',
+        format: 'text',
+        target_group_id: 'builtin-telegram',
+        sort_order: 50,
+      }),
       inserted,
     });
 
@@ -42,7 +58,7 @@ describe('default remote rule sets', () => {
   it('retargets existing presets when the active template adds a specific group', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-crypto', preset_id: 'crypto', target_group_id: 'builtin-proxy', sort_order: 0 }],
+      existingPresets: [{ id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', target_group_id: 'builtin-proxy', sort_order: 0 }],
       inserted,
     });
 
@@ -59,7 +75,7 @@ describe('default remote rule sets', () => {
   it('retains target but fixes stale preset sort order', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-ai', preset_id: 'ai', target_group_id: 'builtin-ai', sort_order: 900 }],
+      existingPresets: [{ id: 'preset-ai', preset_source: 'quixotic', preset_id: 'ai', target_group_id: 'builtin-ai', sort_order: 900 }],
       inserted,
     });
 
@@ -72,29 +88,70 @@ describe('default remote rule sets', () => {
       sortOrder: 40,
     });
   });
+
+  it('repairs stale built-in Telegram rule set metadata', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{
+        id: 'preset-telegram',
+        preset_source: 'uni-conf',
+        preset_id: 'telegram',
+        url: 'https://example.com/old-telegram.list',
+        format: 'mihomo',
+        target_group_id: 'builtin-proxy',
+        sort_order: 900,
+      }],
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual({
+      operation: 'update',
+      id: 'preset-telegram',
+      url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.list',
+      format: 'text',
+      targetGroupId: 'builtin-telegram',
+      sortOrder: 50,
+    });
+  });
 });
 
 function createMockDb({
   existingPresets,
   inserted,
 }: {
-  existingPresets: Array<{ id: string; preset_id: string; target_group_id: string; sort_order?: number }>;
+  existingPresets: Array<{
+    id: string;
+    preset_source?: string;
+    preset_id: string;
+    url?: string;
+    format?: string;
+    target_group_id: string;
+    sort_order?: number;
+  }>;
   inserted: Array<Record<string, unknown>>;
 }): D1Database {
+  const remoteRows = existingPresets.map((row) => ({
+    preset_source: 'quixotic',
+    url: `https://example.com/${row.preset_id}.list`,
+    format: 'mihomo',
+    ...row,
+  }));
   const db = {
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
           return null;
         },
-        all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
+        all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : listGroups() }),
         run: async () => ({ success: true }),
         raw: async () => [],
       }),
       first: async () => {
         return null;
       },
-      all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
+      all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : listGroups() }),
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
@@ -103,10 +160,31 @@ function createMockDb({
         const args = statement.__args ?? [];
         if (args.length === 4) {
           inserted.push({ operation: 'update', targetGroupId: args[0], sortOrder: args[1], id: args[3] });
+        } else if (args.length === 6) {
+          inserted.push({
+            operation: 'update',
+            url: args[0],
+            format: args[1],
+            targetGroupId: args[2],
+            sortOrder: args[3],
+            id: args[5],
+          });
+        } else if (args.length === 11) {
+          inserted.push({
+            operation: 'insert',
+            name: args[1],
+            url: args[2],
+            format: args[3],
+            presetSource: args[4],
+            presetId: args[5],
+            targetGroupId: args[6],
+            sortOrder: args[7],
+          });
         } else {
           inserted.push({
             operation: 'insert',
             name: args[1],
+            presetSource: 'quixotic',
             presetId: args[3],
             targetGroupId: args[4],
             sortOrder: args[5],
@@ -123,7 +201,7 @@ function createMockDb({
       first: async () => {
         return null;
       },
-      all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
+      all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : listGroups() }),
       run: async () => ({ success: true }),
       raw: async () => [],
     }),

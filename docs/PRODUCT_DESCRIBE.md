@@ -225,6 +225,8 @@ Microsoft / OneDrive -> Microsoft
 
 如果当前组合没有启用某个专用策略组，规则集回退到 `PROXY`；如果没有显式 MATCH 规则，导出器优先用 `漏网之鱼` 作为兜底，未启用时再回退到 `PROXY`。这样用户切换组合时不会产生悬空规则。
 
+QuixoticHeart/rule-set 是默认远程规则包来源。对于 Quixotic 当前没有独立拆分的 Telegram，系统额外内置 MetaCubeX/meta-rules-dat 的 `geosite/telegram.list`，并把它分配到 `Telegram` 策略组。
+
 预置远程规则集还会自动写入稳定的优先级顺序，导出时按 `sort_order` 从小到大输出：
 
 ```text

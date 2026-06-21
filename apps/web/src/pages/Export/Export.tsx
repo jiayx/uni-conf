@@ -250,7 +250,11 @@ export function Export() {
           hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
           options={remoteSets.map(item => {
             const compatible = isRemoteRuleSetCompatible(form.format, item)
-            const formatLabel = item.presetSource === 'quixotic' ? '预置 · 动态格式' : item.format
+            const formatLabel = item.presetSource === 'quixotic'
+              ? '预置 · 动态格式'
+              : item.presetSource === 'uni-conf'
+                ? `内置 · ${item.format}`
+                : item.format
             return {
               id: item.id,
               label: item.name,

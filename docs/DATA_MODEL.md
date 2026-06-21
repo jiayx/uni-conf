@@ -173,7 +173,7 @@ When the user changes the scenario template, the web app saves both `routing_pol
 | name | TEXT | Display name |
 | url | TEXT | Remote URL |
 | format | TEXT | `clash` \| `mihomo` \| `singbox` \| `surge` \| `text` |
-| preset_source | TEXT? | Built-in preset provider, e.g. `quixotic` |
+| preset_source | TEXT? | Built-in preset provider: `quixotic` or `uni-conf` |
 | preset_id | TEXT? | Provider-specific preset id |
 | target_group_id | TEXT FK→groups | |
 | update_interval | INTEGER | Hours |
@@ -184,7 +184,7 @@ When the user changes the scenario template, the web app saves both `routing_pol
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
-Built-in Quixotic rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority:
+Built-in remote rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority. `preset_source = 'quixotic'` means the URL is resolved dynamically per export format from QuixoticHeart/rule-set; `preset_source = 'uni-conf'` means a UniConf-maintained built-in rule set. The Telegram default is `uni-conf:telegram`, backed by MetaCubeX/meta-rules-dat `geosite/telegram.list`, because the Quixotic preset list currently folds Telegram into `socialmedia`.
 
 | Order | Rule set intent |
 |-------|-----------------|

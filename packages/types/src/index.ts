@@ -263,7 +263,7 @@ export interface RemoteRuleSet {
   name: string;
   url: string;
   format: RuleSetFormat;
-  presetSource?: 'quixotic';
+  presetSource?: 'quixotic' | 'uni-conf';
   presetId?: string;
   targetGroupId: string;
   updateInterval: number; // hours
