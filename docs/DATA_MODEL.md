@@ -345,6 +345,8 @@ Auto node group sync creates these generated collections and linked policy group
 
 Auto node group sync runs after subscription refreshes and manual node changes. The collections list endpoint also performs a read-time sync so the node group page reflects the current node inventory.
 
+Export, collection preview, and auto node group sync only consider nodes whose node row is enabled and whose source row is enabled. Disabling a subscription source therefore removes its nodes from generated node pools and exported configs without deleting the cached node rows; re-enabling the source makes the cached nodes eligible again.
+
 ### Default Export Node Names
 
 The `nodes.name` value remains the original subscription/manual node name in storage. During export, `buildExportData` first deduplicates the final node rows by full parsed config, then rewrites exported node names to:

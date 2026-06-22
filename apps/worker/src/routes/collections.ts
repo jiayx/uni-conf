@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapNode, newId, now } from '../db/helpers';
 import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
+import { enabledNodeRowsQuery } from '../services/enabled-node-rows';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -143,7 +144,7 @@ app.get('/:id/preview', async (c) => {
     // Explicit node selection
     const placeholders = collection.nodeIds.map(() => '?').join(',');
     const { results } = await c.env.DB.prepare(
-      `SELECT * FROM nodes WHERE id IN (${placeholders}) AND enabled = 1`
+      enabledNodeRowsQuery(`n.id IN (${placeholders})`)
     )
       .bind(...collection.nodeIds)
       .all<Record<string, unknown>>();
@@ -152,7 +153,7 @@ app.get('/:id/preview', async (c) => {
     // Filter by source
     const placeholders = collection.sourceIds.map(() => '?').join(',');
     const { results } = await c.env.DB.prepare(
-      `SELECT * FROM nodes WHERE source_id IN (${placeholders}) AND enabled = 1`
+      enabledNodeRowsQuery(`n.source_id IN (${placeholders})`)
     )
       .bind(...collection.sourceIds)
       .all<Record<string, unknown>>();
@@ -160,7 +161,7 @@ app.get('/:id/preview', async (c) => {
   } else {
     // All enabled nodes
     const { results } = await c.env.DB.prepare(
-      'SELECT * FROM nodes WHERE enabled = 1'
+      enabledNodeRowsQuery()
     ).all<Record<string, unknown>>();
     nodeRows = results;
   }

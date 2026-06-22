@@ -27,6 +27,7 @@ import {
   syncRoutingPolicyGroups,
 } from './services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
+import { enabledNodeRowsQuery } from './services/enabled-node-rows'
 import { getAppSettings } from './services/app-settings'
 
 export interface ExportData {
@@ -74,7 +75,7 @@ export async function buildExportData(
   await syncRoutingPolicyGroups(db, ts)
   await ensureDefaultRemoteRuleSets(db, ts)
 
-  const allNodeRows = await selectRows(db, 'SELECT * FROM nodes WHERE enabled = 1')
+  const allNodeRows = await selectRows(db, enabledNodeRowsQuery())
   const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
   const allGroupRows = applyRoutingPolicyGroupLinks(
     await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC')

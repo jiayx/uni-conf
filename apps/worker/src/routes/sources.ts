@@ -137,6 +137,8 @@ app.put('/:id', async (c) => {
     )
     .run();
 
+  await syncAutoNodeGroups(c.env.DB, ts);
+
   const updated = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();

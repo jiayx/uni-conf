@@ -1,5 +1,6 @@
 import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared';
 import { jsonStringify, newId } from '../db/helpers';
+import { enabledNodeRowsQuery } from './enabled-node-rows';
 import { syncRoutingPolicyGroups } from './routing-policy-groups';
 
 const AUTO_GROUP_TYPE = 'url-test';
@@ -84,9 +85,8 @@ async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]>
   const { results } = await db
     .prepare(
       `SELECT country_code, MAX(country) AS country, COUNT(*) AS node_count
-       FROM nodes
-       WHERE enabled = 1
-         AND tags NOT LIKE ?
+       FROM (${enabledNodeRowsQuery()}) enabled_nodes
+       WHERE tags NOT LIKE ?
          AND country_code IS NOT NULL
          AND country_code != ''
        GROUP BY country_code
@@ -106,7 +106,7 @@ async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
   for (const group of TAG_GROUPS) {
     const conditions = group.tags.map(() => 'tags LIKE ?').join(' OR ');
     const row = await db
-      .prepare(`SELECT COUNT(*) AS node_count FROM nodes WHERE enabled = 1 AND tags NOT LIKE ? AND (${conditions})`)
+      .prepare(`SELECT COUNT(*) AS node_count FROM (${enabledNodeRowsQuery()}) enabled_nodes WHERE tags NOT LIKE ? AND (${conditions})`)
       .bind(HIGH_MULTIPLIER_TAG_PATTERN, ...group.tags.map((tag) => `%"${tag}"%`))
       .first<{ node_count: number }>();
     if ((row?.node_count ?? 0) > 0) keys.push(group.key);
