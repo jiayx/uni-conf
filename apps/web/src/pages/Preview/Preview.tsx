@@ -45,7 +45,7 @@ export function Preview() {
     })
   }, [loadConfigs])
 
-  const handlePreview = async () => {
+  const handlePreview = useCallback(async () => {
     setLoading(true)
     try {
       const result = await api.export.previewFormat(format, configId || undefined)
@@ -57,7 +57,11 @@ export function Preview() {
       setContentType('text/plain')
       setWarnings([])
     } finally { setLoading(false) }
-  }
+  }, [configId, format])
+
+  useEffect(() => {
+    void handlePreview()
+  }, [handlePreview])
 
   const handleCopy = () => {
     void navigator.clipboard.writeText(content)
@@ -114,7 +118,7 @@ export function Preview() {
         </>
       ) : (
         <div className={styles.empty}>
-          <div className={styles.emptyText}>点击「预览」生成配置 / Click Preview to generate config</div>
+          <div className={styles.emptyText}>{loading ? '正在生成配置...' : '暂无预览内容'}</div>
         </div>
       )}
     </div>
