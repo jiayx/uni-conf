@@ -10,7 +10,10 @@ import { ensureDefaultExportConfig } from '../services/default-export-config'
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
-  await ensureDefaultExportConfig(c.env.DB, now())
+  const ts = now()
+  await ensureDefaultExportConfig(c.env.DB, ts)
+  await syncRoutingPolicyGroups(c.env.DB, ts)
+  await ensureDefaultRemoteRuleSets(c.env.DB, ts)
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })
 })
