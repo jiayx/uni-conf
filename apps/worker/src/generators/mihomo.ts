@@ -63,6 +63,7 @@ export function generateMihomoYaml(
   } else {
     lines.push('proxy-groups:');
     for (const group of groups) {
+      if (!isMihomoProxyGroup(group)) continue;
       lines.push(...groupToMihomo(group, serializableNodes, groups, serializableCollectionNodeNames));
     }
   }
@@ -342,6 +343,10 @@ function groupToMihomo(
   }
 
   return lines;
+}
+
+function isMihomoProxyGroup(group: ProxyGroup): boolean {
+  return !['direct', 'reject'].includes(group.type);
 }
 
 // ─── Rule serialization ───────────────────────────────────────────────────────

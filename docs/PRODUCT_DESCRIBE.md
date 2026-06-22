@@ -159,6 +159,8 @@ REJECT
 - `DIRECT` 是直连出口，国内规则、局域网和无需代理的流量直接命中。
 - `REJECT` 是拒绝出口，广告、HTTPDNS 等拦截规则直接命中。
 
+导出时需要按客户端语义处理基础出口。以 Mihomo / Stash 为例，`DIRECT` 和 `REJECT` 是客户端内置策略名，不应该额外导出成 `type: direct` / `type: reject` 的 `proxy-groups`；规则和其他策略组可以直接引用这两个内置策略名。sing-box 则会把它们转换成 `direct` / `block` outbound。
+
 业务分流策略组只展示 AI、Streaming、Telegram、GitHub、漏网之鱼等用户真正需要理解和调整的流量意图；这些分流组会自动包含基础出口和可用节点出口，用户不需要手动关联。
 
 ### 使用场景模板

@@ -89,6 +89,24 @@ const autoGroup: ProxyGroup = {
   updatedAt: createdAt,
 }
 
+const directGroup: ProxyGroup = {
+  ...autoGroup,
+  id: 'builtin-direct',
+  name: 'DIRECT',
+  type: 'direct',
+  collectionIds: [],
+  isBuiltin: true,
+}
+
+const rejectGroup: ProxyGroup = {
+  ...autoGroup,
+  id: 'builtin-reject',
+  name: 'REJECT',
+  type: 'reject',
+  collectionIds: [],
+  isBuiltin: true,
+}
+
 describe('proxy group references', () => {
   it('uses smart DNS mode by default for Mihomo configs', () => {
     const content = generateMihomoYaml([], [], [], [])
@@ -170,5 +188,42 @@ describe('proxy group references', () => {
     expect(tags.has(ssNode.name)).toBe(true)
     expect(tags.has(singboxUnsupportedNode.name)).toBe(false)
     expect(auto?.outbounds).toEqual([ssNode.name])
+  })
+
+  it('uses Mihomo built-in DIRECT and REJECT policies without emitting invalid groups', () => {
+    const content = generateMihomoYaml(
+      [],
+      [directGroup, rejectGroup],
+      [
+        {
+          id: 'rule-direct',
+          type: 'DOMAIN',
+          payload: 'example.com',
+          targetGroupId: directGroup.id,
+          enabled: true,
+          order: 1,
+          compatibility: [],
+          createdAt,
+          updatedAt: createdAt,
+        },
+        {
+          id: 'rule-reject',
+          type: 'DOMAIN-SUFFIX',
+          payload: 'ads.example',
+          targetGroupId: rejectGroup.id,
+          enabled: true,
+          order: 2,
+          compatibility: [],
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      []
+    )
+
+    expect(content).not.toContain('type: direct')
+    expect(content).not.toContain('type: reject')
+    expect(content).toContain('  - DOMAIN,example.com,DIRECT')
+    expect(content).toContain('  - DOMAIN-SUFFIX,ads.example,REJECT')
   })
 })
