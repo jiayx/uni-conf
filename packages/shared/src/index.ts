@@ -193,18 +193,18 @@ export const COUNTRY_FLAG_MAP: Array<[string, string, string]> = [
 ];
 
 export const COUNTRY_KEYWORD_MAP: Array<[RegExp, string, string]> = [
-  [/\b(hong\s*kong|hongkong|hk)\b/i, 'Hong Kong', 'HK'],
-  [/\b(japan|jp|tokyo)\b/i, 'Japan', 'JP'],
-  [/\b(usa|united\s+states|america)\b/i, 'United States', 'US'],
-  [/\b(singapore|sg)\b/i, 'Singapore', 'SG'],
-  [/\b(taiwan|tw)\b/i, 'Taiwan', 'TW'],
-  [/\b(korea|kr)\b/i, 'Korea', 'KR'],
-  [/\b(uk|britain|england|london)\b/i, 'United Kingdom', 'GB'],
-  [/\b(germany|german|de)\b/i, 'Germany', 'DE'],
-  [/\b(france|fr)\b/i, 'France', 'FR'],
-  [/\b(netherlands|nl|dutch)\b/i, 'Netherlands', 'NL'],
-  [/\b(australia|au)\b/i, 'Australia', 'AU'],
-  [/\b(canada|ca)\b/i, 'Canada', 'CA'],
+  [/\b(hong\s*kong|hongkong|hk)\b|香港|港(?!口)/i, 'Hong Kong', 'HK'],
+  [/\b(japan|jp|tokyo|osaka)\b|日本|东京|大阪/i, 'Japan', 'JP'],
+  [/\b(usa|united\s+states|america|us|la|los\s+angeles|san\s+jose)\b|美国|洛杉矶|圣何塞/i, 'United States', 'US'],
+  [/\b(singapore|sg)\b|新加坡|狮城/i, 'Singapore', 'SG'],
+  [/\b(taiwan|tw|taipei)\b|台湾|台北/i, 'Taiwan', 'TW'],
+  [/\b(korea|kr|seoul)\b|韩国|首尔/i, 'Korea', 'KR'],
+  [/\b(uk|gb|britain|england|london)\b|英国|伦敦/i, 'United Kingdom', 'GB'],
+  [/\b(germany|german|de|frankfurt)\b|德国|法兰克福/i, 'Germany', 'DE'],
+  [/\b(france|fr|paris)\b|法国|巴黎/i, 'France', 'FR'],
+  [/\b(netherlands|nl|dutch|amsterdam)\b|荷兰|阿姆斯特丹/i, 'Netherlands', 'NL'],
+  [/\b(australia|au|sydney|melbourne)\b|澳大利亚|澳洲|悉尼|墨尔本/i, 'Australia', 'AU'],
+  [/\b(canada|ca|toronto|vancouver)\b|加拿大|多伦多|温哥华/i, 'Canada', 'CA'],
 ];
 
 export function detectCountry(name: string): CountryInfo | null {

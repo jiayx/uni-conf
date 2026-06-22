@@ -161,6 +161,16 @@ proxies:
     expect(detectCountry('[三网]HK 01')).toEqual({ country: 'Hong Kong', countryCode: 'HK' })
   })
 
+  it('should detect countries from Chinese aliases and city names', () => {
+    expect(detectCountry('香港 IEPL 2x')).toEqual({ country: 'Hong Kong', countryCode: 'HK' })
+    expect(detectCountry('日本 Osaka 03')).toEqual({ country: 'Japan', countryCode: 'JP' })
+    expect(detectCountry('新加坡-流媒体')).toEqual({ country: 'Singapore', countryCode: 'SG' })
+    expect(detectCountry('US｜Los Angeles｜x1')).toEqual({ country: 'United States', countryCode: 'US' })
+    expect(detectCountry('美国 San Jose 01')).toEqual({ country: 'United States', countryCode: 'US' })
+    expect(detectCountry('台湾 台北 01')).toEqual({ country: 'Taiwan', countryCode: 'TW' })
+    expect(detectCountry('德国 法兰克福 01')).toEqual({ country: 'Germany', countryCode: 'DE' })
+  })
+
   it('should detect traffic multipliers without matching normal node numbers', () => {
     expect(detectTrafficMultiplier('🇭🇰 HK IEPL 2x')).toEqual({ value: 2, label: '2x', high: true })
     expect(detectTrafficMultiplier('US｜Los Angeles｜x1')).toEqual({ value: 1, label: '1x', high: false })
