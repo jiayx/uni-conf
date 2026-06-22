@@ -45,12 +45,16 @@ app.post('/', async (c) => {
     refreshAfterCreate?: boolean;
   }>();
 
-  if (!body.name || !body.type) {
-    return c.json({ success: false, error: 'name and type are required' }, 400);
+  if (!body.type) {
+    return c.json({ success: false, error: 'type is required' }, 400);
+  }
+  if (body.type === 'url' && !body.url) {
+    return c.json({ success: false, error: 'url is required' }, 400);
   }
 
   const id = newId();
   const ts = now();
+  const sourceName = body.name?.trim() || deriveSourceName(body.url);
 
   await c.env.DB.prepare(
     `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
@@ -58,7 +62,7 @@ app.post('/', async (c) => {
   )
     .bind(
       id,
-      body.name,
+      sourceName,
       body.type,
       body.url ?? null,
       body.format ?? 'auto',
@@ -395,6 +399,19 @@ export async function recordSourceRefreshError(db: D1Database, id: string, error
   await db.prepare('UPDATE sources SET last_refresh_error = ?, updated_at = ? WHERE id = ?')
     .bind(error, now(), id)
     .run();
+}
+
+export function deriveSourceName(url: string | undefined): string {
+  const value = url?.trim();
+  if (!value) return '订阅源';
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.replace(/^www\./, '');
+    return host || '订阅源';
+  } catch {
+    return value.length > 32 ? `${value.slice(0, 32)}...` : value;
+  }
 }
 
 function parseSubscriptionUserInfo(header: string | null): {

@@ -76,7 +76,6 @@ export function Sources() {
   useEffect(() => { void fetchSources() }, [fetchSources])
 
   const handleAdd = async () => {
-    if (!form.name) { setFormError(t('sources.name_required')); return }
     if (!form.url) { setFormError(t('sources.url_required')); return }
     setFormError('')
     // When userAgent is empty string (Default), send undefined to use backend default
@@ -86,7 +85,7 @@ export function Sources() {
       ? form.customUserAgent
       : (form.userAgent || undefined)
     await addSource({
-      name: form.name,
+      name: form.name.trim() || undefined,
       type: 'url',
       url: form.url,
       format: form.format,
@@ -272,10 +271,10 @@ export function Sources() {
       >
         {formError && <div className={styles.formError}>{formError}</div>}
         <Input
-          label={t('common.name')}
+          label={t('sources.name_optional')}
           value={form.name}
           onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          placeholder="My Airport"
+          placeholder={t('sources.name_auto_placeholder')}
         />
         <Input
           label={t('sources.url')}

@@ -373,8 +373,9 @@ export interface SourceRefreshResult {
 
 export type SourceCreateInput = Omit<
   ProxySource,
-  'id' | 'nodeCount' | 'groups' | 'rawContent' | 'createdAt' | 'updatedAt'
+  'id' | 'name' | 'nodeCount' | 'groups' | 'rawContent' | 'createdAt' | 'updatedAt'
 > & {
+  name?: string;
   refreshAfterCreate?: boolean;
 };
 

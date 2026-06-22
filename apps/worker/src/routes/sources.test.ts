@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
-import { filterUsableParsedContent, parseClashGroups, parseClashYaml } from './sources'
+import { deriveSourceName, filterUsableParsedContent, parseClashGroups, parseClashYaml } from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -30,6 +30,13 @@ proxy-groups:
 `
 
 describe('Clash YAML Parser', () => {
+  it('derives source names from subscription URLs', () => {
+    expect(deriveSourceName('https://www.example.com/api/sub?token=abc')).toBe('example.com')
+    expect(deriveSourceName('https://airport.example/sub')).toBe('airport.example')
+    expect(deriveSourceName('not a valid url')).toBe('not a valid url')
+    expect(deriveSourceName(undefined)).toBe('订阅源')
+  })
+
   it('should parse inline format nodes (flow-style)', () => {
     const inlineYaml = `
 proxies:

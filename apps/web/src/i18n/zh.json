@@ -81,6 +81,8 @@
     "delete_confirm": "确认删除此订阅源？相关节点将一并删除。",
     "url_placeholder": "https://example.com/subscribe",
     "name_placeholder": "订阅源名称",
+    "name_optional": "名称（可选）",
+    "name_auto_placeholder": "留空时自动使用订阅域名",
     "never_updated": "从未更新",
     "url_required": "请输入订阅链接",
     "name_required": "请输入名称"
