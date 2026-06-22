@@ -8,8 +8,8 @@ import { api } from '@/lib/api'
 import type { DashboardStats, ExportFormat } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
-const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3', 'dashboard.step4', 'dashboard.step5']
-const STEP_PATHS = ['/sources', '/collections', '/groups', '/rules', '/export']
+const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3']
+const STEP_PATHS = ['/sources', '/sources', '/']
 
 export function Dashboard() {
   const { t } = useTranslation()
@@ -79,11 +79,15 @@ export function Dashboard() {
       {isEmpty && (
         <Card className={styles.gettingStarted}>
           <h2 className={styles.sectionTitle}>{t('dashboard.getting_started')}</h2>
+          <p className={styles.sectionDescription}>{t('dashboard.no_data')}</p>
           <div className={styles.steps}>
             {STEPS.map((step, i) => (
               <Link key={step} to={STEP_PATHS[i] ?? '/'} className={styles.step}>
                 <div className={styles.stepNumber}>{i + 1}</div>
-                <div className={styles.stepLabel}>{t(step)}</div>
+                <div className={styles.stepText}>
+                  <div className={styles.stepLabel}>{t(step)}</div>
+                  <div className={styles.stepDescription}>{t(`dashboard.step${i + 1}_desc`)}</div>
+                </div>
               </Link>
             ))}
           </div>

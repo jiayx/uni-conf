@@ -35,7 +35,13 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-text-primary);
+  margin: 0 0 0.5rem;
+}
+.sectionDescription {
   margin: 0 0 1.25rem;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .steps {
@@ -46,7 +52,7 @@
 
 .step {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
   background: var(--color-surface2);
@@ -57,6 +63,7 @@
   font-size: 0.875rem;
   font-weight: 500;
   transition: all var(--transition-fast);
+  max-width: 18rem;
 }
 .step:hover { border-color: var(--color-accent); color: var(--color-accent); background: rgba(124,58,237,0.05); }
 
@@ -72,6 +79,9 @@
   font-weight: 700;
   flex-shrink: 0;
 }
+.stepText { min-width: 0; display: grid; gap: 0.125rem; }
+.stepLabel { color: var(--color-text-primary); overflow-wrap: anywhere; }
+.stepDescription { color: var(--color-text-secondary); font-size: 0.75rem; line-height: 1.4; font-weight: 400; overflow-wrap: anywhere; }
 
 .exportButtons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .subscriptionRow {
