@@ -20,7 +20,7 @@ export const DEFAULT_HEALTH_CHECK = {
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
 
-type ExportSubscriptionFormat =
+export type ExportSubscriptionFormat =
   | 'mihomo'
   | 'clash'
   | 'singbox'
@@ -33,7 +33,7 @@ type ExportSubscriptionFormat =
   | 'nodes_base64'
   | 'nodes_raw';
 
-type RuleSetFormat =
+export type RuleSetFormat =
   | 'mihomo'
   | 'clash'
   | 'singbox'
@@ -170,6 +170,36 @@ export function isRuleSetFormatCompatible(
   ruleSetFormat: string
 ): boolean {
   return getCompatibleRuleSetFormats(exportFormat).includes(ruleSetFormat as RuleSetFormat);
+}
+
+export interface RemoteRuleSetLike {
+  url: string;
+  format: string;
+  presetSource?: string | null;
+  presetId?: string | null;
+}
+
+export function isRemoteRuleSetCompatible(
+  exportFormat: ExportSubscriptionFormat,
+  ruleSet: Pick<RemoteRuleSetLike, 'format' | 'presetSource' | 'presetId'>
+): boolean {
+  if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
+    return supportsQuixoticRuleSetExport(exportFormat);
+  }
+  return isRuleSetFormatCompatible(exportFormat, ruleSet.format);
+}
+
+export function resolveRemoteRuleSetForExport(
+  ruleSet: RemoteRuleSetLike,
+  exportFormat: ExportSubscriptionFormat
+): { url: string; format: RuleSetFormat } | null {
+  if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
+    if (!supportsQuixoticRuleSetExport(exportFormat)) return null;
+    const resolved = resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat);
+    return { url: resolved.url, format: resolved.format as RuleSetFormat };
+  }
+
+  return { url: ruleSet.url, format: ruleSet.format as RuleSetFormat };
 }
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [

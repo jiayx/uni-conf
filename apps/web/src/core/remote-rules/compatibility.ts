@@ -1,8 +1,8 @@
 import {
   getCompatibleRuleSetFormats as getSharedCompatibleRuleSetFormats,
+  isRemoteRuleSetCompatible as isSharedRemoteRuleSetCompatible,
   isRuleSetFormatCompatible as isSharedRuleSetFormatCompatible,
-  resolveQuixoticRuleSetForExport,
-  supportsQuixoticRuleSetExport,
+  resolveRemoteRuleSetForExport as resolveSharedRemoteRuleSetForExport,
 } from '@uni-conf/shared'
 import type { ExportFormat, RemoteRuleSet, RuleSetFormat } from '@uni-conf/types'
 
@@ -15,23 +15,16 @@ export function isRuleSetFormatCompatible(exportFormat: ExportFormat, ruleSetFor
 }
 
 export function isRemoteRuleSetCompatible(exportFormat: ExportFormat, ruleSet: Pick<RemoteRuleSet, 'format' | 'presetSource' | 'presetId'>): boolean {
-  if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
-    return supportsQuixoticRuleSetExport(exportFormat)
-  }
-  return isRuleSetFormatCompatible(exportFormat, ruleSet.format)
+  return isSharedRemoteRuleSetCompatible(exportFormat, ruleSet)
 }
 
 export function resolveRemoteRuleSetForExport(
   ruleSet: RemoteRuleSet,
   exportFormat: ExportFormat
 ): { url: string; format: RuleSetFormat } | null {
-  if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
-    if (!supportsQuixoticRuleSetExport(exportFormat)) return null
-    const resolved = resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat)
-    return { url: resolved.url, format: resolved.format as RuleSetFormat }
-  }
-
-  return { url: ruleSet.url, format: ruleSet.format }
+  const resolved = resolveSharedRemoteRuleSetForExport(ruleSet, exportFormat)
+  if (!resolved || !isRuleSetFormat(resolved.format)) return null
+  return resolved
 }
 
 export function describeCompatibleRuleSetFormats(format: ExportFormat): string {
