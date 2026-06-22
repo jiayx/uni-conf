@@ -1,9 +1,12 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
+import { ensureDefaultExportConfig } from '../services/default-export-config'
+import { now } from '../db/helpers'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/stats', async (c) => {
+  const defaultExportConfig = await ensureDefaultExportConfig(c.env.DB, now())
   const [
     sourceCount,
     nodeCount,
@@ -35,6 +38,8 @@ app.get('/stats', async (c) => {
       groupCount,
       ruleCount,
       exportConfigCount,
+      defaultExportToken: defaultExportConfig.token,
+      defaultExportFormat: defaultExportConfig.format,
       lastRefreshedAt: lastRefresh?.last_refreshed_at ?? undefined,
     },
   })

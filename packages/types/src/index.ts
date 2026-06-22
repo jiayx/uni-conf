@@ -412,5 +412,7 @@ export interface DashboardStats {
   groupCount: number;
   ruleCount: number;
   exportConfigCount: number;
+  defaultExportToken?: string;
+  defaultExportFormat?: ExportFormat;
   lastRefreshedAt?: string;
 }

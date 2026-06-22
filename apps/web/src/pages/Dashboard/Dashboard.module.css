@@ -74,9 +74,29 @@
 }
 
 .exportButtons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.subscriptionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.subscriptionUrl {
+  display: block;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface2);
+  color: var(--color-text-primary);
+  font-size: 0.8125rem;
+  overflow: auto;
+  white-space: nowrap;
+}
 
 .gettingStarted, .quickExport { padding: 1.5rem; }
 
 @media (max-width: 640px) {
   .statCard.wide { grid-column: auto; }
+  .subscriptionRow { grid-template-columns: 1fr; }
 }

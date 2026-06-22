@@ -367,6 +367,7 @@ DNS 不要求用户手写配置，系统提供三档意图选项：
 ```
 
 第一版导出模板里，Clash Verge Rev 和 OpenClash 明确作为 Mihomo / Clash YAML 的客户端目标展示；底层仍复用统一中间模型和同一个 YAML 导出器，不维护单独业务逻辑。
+概览页在已有订阅源后直接显示默认订阅链接 `/sub/{default_export_token}/mihomo.yaml`，用户不需要先进入导出配置页才能复制链接。
 
 ### 配置预览校验
 

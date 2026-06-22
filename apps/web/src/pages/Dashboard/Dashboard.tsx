@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { api } from '@/lib/api'
-import type { DashboardStats } from '@uni-conf/types'
+import type { DashboardStats, ExportFormat } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3', 'dashboard.step4', 'dashboard.step5']
@@ -16,6 +16,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -46,6 +47,16 @@ export function Dashboard() {
   ]
 
   const isEmpty = !loading && (stats?.sourceCount ?? 0) === 0
+  const defaultSubscriptionUrl = stats?.defaultExportToken && stats.defaultExportFormat
+    ? `${window.location.origin}/sub/${stats.defaultExportToken}/${getSubscriptionFilename(stats.defaultExportFormat)}`
+    : ''
+
+  const copyDefaultSubscriptionUrl = () => {
+    if (!defaultSubscriptionUrl) return
+    void navigator.clipboard.writeText(defaultSubscriptionUrl)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
     <div className={styles.page}>
@@ -83,6 +94,14 @@ export function Dashboard() {
       {!isEmpty && (
         <Card className={styles.quickExport}>
           <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
+          {defaultSubscriptionUrl && (
+            <div className={styles.subscriptionRow}>
+              <code className={styles.subscriptionUrl}>{defaultSubscriptionUrl}</code>
+              <Button variant="secondary" size="sm" onClick={copyDefaultSubscriptionUrl}>
+                {copied ? t('common.copied') : t('common.copy')}
+              </Button>
+            </div>
+          )}
           <div className={styles.exportButtons}>
             <Button variant="secondary" size="sm" onClick={() => window.open('/api/export/download/mihomo', '_blank')}>
               Mihomo YAML
@@ -98,6 +117,23 @@ export function Dashboard() {
       )}
     </div>
   )
+}
+
+function getSubscriptionFilename(format: ExportFormat): string {
+  switch (format) {
+    case 'mihomo':
+      return 'mihomo.yaml'
+    case 'clash':
+      return 'clash.yaml'
+    case 'singbox':
+      return 'singbox.json'
+    case 'nodes_base64':
+      return 'nodes.txt'
+    case 'nodes_raw':
+      return 'nodes-raw.txt'
+    default:
+      return `${format}.conf`
+  }
 }
 
 // Icon components
