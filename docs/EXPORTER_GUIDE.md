@@ -170,11 +170,11 @@ In `apps/web/src/i18n/en.json`:
 
 ## Step 8: Add compatibility rules
 
-In `apps/web/src/core/compatibility/compat-checker.ts`, update `RULE_COMPAT` to include Surge's compatibility for each rule type.
+In `packages/shared/src/index.ts`, update `RULE_COMPATIBILITY` to include the target client's compatibility for each rule type. The web compatibility checker and the worker preview validator both consume this shared matrix, so do not add a second client-specific matrix in the web app.
 
 ## Step 9: Write tests
 
-Create `apps/web/src/core/exporter/__tests__/surge.exporter.test.ts` with snapshot tests and edge cases.
+Add worker generator and validation tests for the target format. If the UI compatibility behavior changes, also update the web compatibility tests.
 
 ## Compatibility Matrix Reference
 

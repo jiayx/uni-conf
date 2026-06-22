@@ -216,9 +216,8 @@ src/
 ├── core/                    # Pure business logic (testable)
 │   ├── parser/              # Subscription format parsers
 │   ├── filter/              # Node filtering/renaming/sorting
-│   ├── exporter/            # Config file generators
 │   ├── templates/           # Built-in rule templates
-│   └── compatibility/       # Client compatibility checker
+│   └── compatibility/       # UI wrappers around shared client compatibility data
 ├── lib/
 │   └── api.ts               # Typed API client
 ├── i18n/
