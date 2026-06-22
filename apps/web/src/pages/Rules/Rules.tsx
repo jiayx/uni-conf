@@ -75,7 +75,9 @@ export function Rules() {
     void fetchGroups()
   }, [fetchRules, fetchGroups])
 
-  const defaultTargetGroupId = groups.find(group => group.name === 'PROXY')?.id ?? groups[0]?.id ?? ''
+  const enabledGroups = groups.filter(group => group.enabled)
+  const targetGroups = enabledGroups.length > 0 ? enabledGroups : groups
+  const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? ''
 
   const openCreate = () => {
     setEditingRule(null)
@@ -142,7 +144,7 @@ export function Rules() {
       return
     }
 
-    const parsed = parseRules(batchText, batchTargetGroupId, groups, rules.length)
+    const parsed = parseRules(batchText, batchTargetGroupId, targetGroups, rules.length)
     if (parsed.length === 0) {
       setBatchError('no valid rules found')
       return
@@ -271,7 +273,7 @@ export function Rules() {
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
             <option value="">-- {t('rules.target')} --</option>
-            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            {targetGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
         <label className={styles.checkLabel}>
@@ -302,7 +304,7 @@ export function Rules() {
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={batchTargetGroupId} onChange={e => setBatchTargetGroupId(e.target.value)}>
             <option value="">-- {t('rules.target')} --</option>
-            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            {targetGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
         <div>

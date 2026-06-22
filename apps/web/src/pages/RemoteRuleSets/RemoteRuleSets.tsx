@@ -75,7 +75,9 @@ export function RemoteRuleSets() {
     return () => { cancelled = true }
   }, [fetchGroups])
 
-  const defaultTargetGroupId = groups.find(group => group.name === 'PROXY')?.id ?? groups[0]?.id ?? ''
+  const enabledGroups = groups.filter(group => group.enabled)
+  const targetGroups = enabledGroups.length > 0 ? enabledGroups : groups
+  const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? ''
   const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)
@@ -124,7 +126,7 @@ export function RemoteRuleSets() {
 
   const findSuggestedGroupId = (preset: QuixoticRuleSetPreset): string => {
     const wanted = inferQuixoticTargetGroup(preset).toUpperCase()
-    return groups.find(group => group.name.toUpperCase() === wanted)?.id ?? defaultTargetGroupId
+    return targetGroups.find(group => group.name.toUpperCase() === wanted)?.id ?? defaultTargetGroupId
   }
 
   const applyPreset = (presetId: string, format = form.format) => {
@@ -358,7 +360,7 @@ export function RemoteRuleSets() {
           <label className={styles.label}>匹配后使用</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
             <option value="">-- 选择策略组 --</option>
-            {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+            {targetGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </div>
         <Input label="更新间隔（小时）" type="number" min="1" value={form.updateInterval} onChange={e => setFormValue('updateInterval', Number(e.target.value), setForm)} />

@@ -161,6 +161,8 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 
 When the user changes the scenario template, the web app saves both `routing_policy_template` and the template's recommended `dns_mode`. Users can still override DNS later in Settings.
 
+Remote rule sets and manual rules target enabled groups only. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled or missing targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
+
 ### `rules` — Traffic Routing Rules
 
 | Column | Type | Description |

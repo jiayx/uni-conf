@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { jsonStringify, mapRule, newId, now } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
 import { getRuleCompatibility } from '@uni-conf/shared';
+import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -59,9 +60,13 @@ app.post('/batch', async (c) => {
     'SELECT MAX(sort_order) as max_order FROM rules'
   ).first<{ max_order: number | null }>();
   let nextOrder = (maxRow?.max_order ?? -1) + 1;
+  const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB);
 
   for (const rule of body.rules) {
     if (!rule.type || !hasRequiredPayload(rule) || !rule.targetGroupId) continue;
+    if (!enabledTargetGroupIds.has(rule.targetGroupId)) {
+      return c.json({ success: false, error: `target group is disabled or missing: ${rule.targetGroupId}` }, 400);
+    }
 
     const id = newId();
     await c.env.DB.prepare(
@@ -104,6 +109,9 @@ app.post('/', async (c) => {
       { success: false, error: 'type, payload, and targetGroupId are required' },
       400
     );
+  }
+  if (!(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+    return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
   }
 
   const id = newId();
@@ -164,6 +172,9 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<ProxyRule>>();
   const ts = now();
+  if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+    return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
+  }
 
   await c.env.DB.prepare(
     `UPDATE rules SET

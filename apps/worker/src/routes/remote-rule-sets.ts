@@ -3,6 +3,7 @@ import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
 import type { RemoteRuleSet } from '@uni-conf/types'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
+import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -26,6 +27,9 @@ app.post('/', async (c) => {
       { success: false, error: 'name, url, format, and targetGroupId are required' },
       400
     )
+  }
+  if (!(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+    return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
 
   const id = newId()
@@ -68,9 +72,13 @@ app.post('/batch', async (c) => {
 
   const ts = now()
   const createdIds: string[] = []
+  const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB)
 
   for (const set of sets) {
     if (!set.name || !set.url || !set.format || !set.targetGroupId) continue
+    if (!enabledTargetGroupIds.has(set.targetGroupId)) {
+      return c.json({ success: false, error: `target group is disabled or missing: ${set.targetGroupId}` }, 400)
+    }
     const id = newId()
     createdIds.push(id)
     await c.env.DB.prepare(
@@ -129,6 +137,9 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<RemoteRuleSet>>()
   const ts = now()
+  if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+    return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
+  }
   await c.env.DB.prepare(
     `UPDATE remote_rule_sets SET
       name = ?, url = ?, format = ?, preset_source = ?, preset_id = ?, target_group_id = ?, update_interval = ?,
