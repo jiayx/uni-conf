@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Badge } from '@/components/ui/Badge/Badge'
@@ -36,8 +36,6 @@ const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> 
   general: 'General',
 }
 
-const PRESET_AUTO_IMPORT_KEY = 'uni-conf:remote-rule-presets-auto-imported'
-
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
   return {
     name: '',
@@ -62,8 +60,6 @@ export function RemoteRuleSets() {
   const [form, setForm] = useState<RemoteSetForm>(() => createEmptyForm())
   const [selectedPresetId, setSelectedPresetId] = useState('')
   const [formError, setFormError] = useState('')
-  const [importingPresets, setImportingPresets] = useState(false)
-  const autoImportStarted = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -149,47 +145,6 @@ export function RemoteRuleSets() {
     }))
   }
 
-  const buildPresetPayload = (preset: QuixoticRuleSetPreset): RemoteSetForm => ({
-    name: preset.name,
-    url: buildQuixoticRuleSetUrl(preset.id, 'mihomo'),
-    format: 'mihomo',
-    presetSource: 'quixotic',
-    presetId: preset.id,
-    targetGroupId: findSuggestedGroupId(preset),
-    updateInterval: 24,
-    enabled: true,
-    sortOrder: resolveQuixoticRuleSetSortOrder(preset.id),
-    notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
-  })
-
-  const importAllPresets = async () => {
-    setImportingPresets(true)
-    setError('')
-    try {
-      const existingKeys = new Set(sets.map(set => presetKey(set)))
-      const payloads = QUIXOTIC_RULE_SET_PRESETS
-        .map(preset => buildPresetPayload(preset))
-        .filter(payload => !existingKeys.has(presetKey(payload)))
-
-      if (payloads.length === 0) return
-
-      const created = await api.remoteRuleSets.batchCreate(payloads)
-      setSets(current => [...created, ...current])
-      window.localStorage.setItem(PRESET_AUTO_IMPORT_KEY, '1')
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setImportingPresets(false)
-    }
-  }
-
-  useEffect(() => {
-    if (loading || importingPresets || autoImportStarted.current || groups.length === 0 || sets.length > 0) return
-    if (window.localStorage.getItem(PRESET_AUTO_IMPORT_KEY) === '1') return
-    autoImportStarted.current = true
-    void importAllPresets()
-  }, [groups.length, importingPresets, loading, sets.length])
-
   const handleFormatChange = (format: RuleSetFormat) => {
     if (selectedPresetId) {
       applyPreset(selectedPresetId, format)
@@ -244,7 +199,6 @@ export function RemoteRuleSets() {
         actions={
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
-            <Button variant="secondary" onClick={() => void importAllPresets()} loading={importingPresets}>加载全部预置</Button>
             <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加规则集</Button>
           </div>
         }
@@ -255,7 +209,7 @@ export function RemoteRuleSets() {
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
-        <EmptyState title="暂无分流策略" description="添加规则集后，系统会按“匹配后使用”的策略组生成分流配置" action={{ label: '加载全部预置', onClick: () => void importAllPresets() }} />
+        <EmptyState title="暂无分流策略" description="默认分流策略会由系统自动生成；这里通常只需要添加额外规则集。" action={{ label: '添加规则集', onClick: () => openCreate() }} />
       ) : (
         <div className={styles.groupedList}>
           {setsByTargetGroup.map(section => (
@@ -387,12 +341,6 @@ function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
     acc[preset.category] = [...(acc[preset.category] ?? []), preset]
     return acc
   }, {} as Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>)
-}
-
-function presetKey(set: Pick<RemoteRuleSet, 'name' | 'format' | 'presetSource' | 'presetId'>): string {
-  if (set.presetSource === 'quixotic' && set.presetId) return `quixotic:${set.presetId}`
-  if (set.presetSource === 'uni-conf' && set.presetId) return `uni-conf:${set.presetId}`
-  return `${set.name}:${set.format}`
 }
 
 function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>): string {
