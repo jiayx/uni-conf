@@ -73,6 +73,30 @@ describe('default remote rule sets', () => {
     });
   });
 
+  it('falls back to PROXY when a preset target group is not enabled by the active template', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [
+        { id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', target_group_id: 'builtin-crypto', sort_order: 120 },
+        { id: 'preset-cn', preset_source: 'quixotic', preset_id: 'cn', target_group_id: 'builtin-direct', sort_order: 30 },
+        { id: 'preset-adrules', preset_source: 'quixotic', preset_id: 'adrules', target_group_id: 'builtin-reject', sort_order: 20 },
+      ],
+      groups: listGroups().filter((group) => !['builtin-crypto', 'builtin-gaming', 'builtin-developer'].includes(group.id)),
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual({
+      operation: 'update',
+      id: 'preset-crypto',
+      targetGroupId: 'builtin-proxy',
+      sortOrder: 120,
+    });
+    expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-cn' }));
+    expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-adrules' }));
+  });
+
   it('retains target but fixes stale preset sort order', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
@@ -120,6 +144,7 @@ describe('default remote rule sets', () => {
 
 function createMockDb({
   existingPresets,
+  groups = listGroups(),
   inserted,
 }: {
   existingPresets: Array<{
@@ -131,6 +156,7 @@ function createMockDb({
     target_group_id: string;
     sort_order?: number;
   }>;
+  groups?: ReturnType<typeof listGroups>;
   inserted: Array<Record<string, unknown>>;
 }): D1Database {
   const remoteRows = existingPresets.map((row) => ({
@@ -145,14 +171,14 @@ function createMockDb({
         first: async () => {
           return null;
         },
-        all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : listGroups() }),
+        all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : groups }),
         run: async () => ({ success: true }),
         raw: async () => [],
       }),
       first: async () => {
         return null;
       },
-      all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : listGroups() }),
+      all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : groups }),
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
@@ -209,7 +235,7 @@ function createMockDb({
     first: async () => {
       return null;
     },
-    all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : listGroups() }),
+    all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : groups }),
     run: async () => ({ success: true }),
     raw: async () => [],
   }) as unknown as D1PreparedStatement);
