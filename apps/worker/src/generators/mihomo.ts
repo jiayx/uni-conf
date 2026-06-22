@@ -58,12 +58,12 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Proxy groups ─────────────────────────────────────────────────────────────
-  if (groups.length === 0) {
+  const mihomoProxyGroups = groups.filter(isMihomoProxyGroup);
+  if (mihomoProxyGroups.length === 0) {
     lines.push('proxy-groups: []');
   } else {
     lines.push('proxy-groups:');
-    for (const group of groups) {
-      if (!isMihomoProxyGroup(group)) continue;
+    for (const group of mihomoProxyGroups) {
       lines.push(...groupToMihomo(group, serializableNodes, groups, serializableCollectionNodeNames));
     }
   }

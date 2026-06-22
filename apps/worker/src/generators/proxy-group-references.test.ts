@@ -221,6 +221,7 @@ describe('proxy group references', () => {
       []
     )
 
+    expect(content).toContain('proxy-groups: []')
     expect(content).not.toContain('type: direct')
     expect(content).not.toContain('type: reject')
     expect(content).toContain('  - DOMAIN,example.com,DIRECT')
