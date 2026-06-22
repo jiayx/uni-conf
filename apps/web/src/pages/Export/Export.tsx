@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
+import { getExportSubscriptionFilename } from '@uni-conf/shared'
 import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import styles from './Export.module.css'
 
@@ -164,7 +165,7 @@ export function Export() {
       ) : (
         <div className={styles.list}>
           {configs.map(cfg => {
-            const filename = getSubscriptionFilename(cfg.format)
+            const filename = getExportSubscriptionFilename(cfg.format)
             const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
             const scopeText = scopeSummary(cfg, collections, groups, rules, remoteSets)
             return (
@@ -270,35 +271,6 @@ export function Export() {
       </Modal>
     </div>
   )
-}
-
-function getSubscriptionFilename(format: ExportFormat): string {
-  switch (format) {
-    case 'mihomo':
-      return 'mihomo.yaml'
-    case 'clash':
-      return 'clash.yaml'
-    case 'singbox':
-      return 'singbox.json'
-    case 'loon':
-      return 'loon.conf'
-    case 'surge':
-      return 'surge.conf'
-    case 'shadowrocket':
-      return 'shadowrocket.conf'
-    case 'quantumultx':
-      return 'quantumultx.conf'
-    case 'stash':
-      return 'stash.yaml'
-    case 'egern':
-      return 'egern.yaml'
-    case 'nodes_base64':
-      return 'nodes.txt'
-    case 'nodes_raw':
-      return 'nodes-raw.txt'
-    default:
-      return `${format}.txt`
-  }
 }
 
 interface MultiSelectOption {

@@ -5,7 +5,8 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { api } from '@/lib/api'
-import type { DashboardStats, ExportFormat } from '@uni-conf/types'
+import { getExportSubscriptionFilename } from '@uni-conf/shared'
+import type { DashboardStats } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3']
@@ -48,7 +49,7 @@ export function Dashboard() {
 
   const isEmpty = !loading && (stats?.sourceCount ?? 0) === 0
   const defaultSubscriptionUrl = stats?.defaultExportToken && stats.defaultExportFormat
-    ? `${window.location.origin}/sub/${stats.defaultExportToken}/${getSubscriptionFilename(stats.defaultExportFormat)}`
+    ? `${window.location.origin}/sub/${stats.defaultExportToken}/${getExportSubscriptionFilename(stats.defaultExportFormat)}`
     : ''
 
   const copyDefaultSubscriptionUrl = () => {
@@ -121,23 +122,6 @@ export function Dashboard() {
       )}
     </div>
   )
-}
-
-function getSubscriptionFilename(format: ExportFormat): string {
-  switch (format) {
-    case 'mihomo':
-      return 'mihomo.yaml'
-    case 'clash':
-      return 'clash.yaml'
-    case 'singbox':
-      return 'singbox.json'
-    case 'nodes_base64':
-      return 'nodes.txt'
-    case 'nodes_raw':
-      return 'nodes-raw.txt'
-    default:
-      return `${format}.conf`
-  }
 }
 
 // Icon components
