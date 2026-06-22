@@ -247,9 +247,11 @@ export function RemoteRuleSets() {
                       <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
                         {t('common.edit')}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => void handleDelete(set)}>
-                        <TrashIcon />
-                      </Button>
+                      {canDeleteRemoteRuleSet(set) && (
+                        <Button variant="ghost" size="sm" onClick={() => void handleDelete(set)}>
+                          <TrashIcon />
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}
@@ -347,6 +349,10 @@ function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>):
   if (set.presetSource === 'quixotic') return '预置'
   if (set.presetSource === 'uni-conf') return '内置'
   return set.format
+}
+
+function canDeleteRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {
+  return !(set.presetSource && set.presetId)
 }
 
 function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string }>) {

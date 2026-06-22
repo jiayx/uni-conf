@@ -171,13 +171,25 @@ app.put('/:id', async (c) => {
 
 app.delete('/:id', async (c) => {
   const id = c.req.param('id')
-  const row = await c.env.DB.prepare('SELECT id FROM remote_rule_sets WHERE id = ?')
+  const row = await c.env.DB.prepare('SELECT id, preset_source, preset_id FROM remote_rule_sets WHERE id = ?')
     .bind(id)
-    .first()
+    .first<Record<string, unknown>>()
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
+  if (isManagedRemoteRuleSet(row)) {
+    return c.json({ success: false, error: 'built-in remote rule sets can be disabled but not deleted' }, 400)
+  }
 
   await c.env.DB.prepare('DELETE FROM remote_rule_sets WHERE id = ?').bind(id).run()
   return c.json({ success: true, data: { id } })
 })
+
+export interface ManagedRemoteRuleSetFields {
+  preset_source?: unknown;
+  preset_id?: unknown;
+}
+
+export function isManagedRemoteRuleSet(row: ManagedRemoteRuleSetFields): boolean {
+  return Boolean(row.preset_source && row.preset_id)
+}
 
 export default app

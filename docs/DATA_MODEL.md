@@ -203,6 +203,8 @@ Export data applies the same rule again after resolving the final exported group
 
 Built-in remote rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority. `preset_source = 'quixotic'` means the URL is resolved dynamically per export format from QuixoticHeart/rule-set; `preset_source = 'uni-conf'` means a UniConf-maintained built-in rule set. The Telegram default is `uni-conf:telegram`, backed by MetaCubeX/meta-rules-dat `geosite/telegram.list`, because the Quixotic preset list currently folds Telegram into `socialmedia`.
 
+Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but deletion is reserved for custom remote rule sets so a refresh cannot silently recreate a row the UI appeared to delete.
+
 | Order | Rule set intent |
 |-------|-----------------|
 | 10 | Private / local network |
