@@ -1,4 +1,5 @@
 import type { CompatibilityWarning, DnsMode, ExportFormat } from '@uni-conf/types';
+import { getRuleCompatibilityLevel } from '@uni-conf/shared';
 import type { ExportData } from '../export-data';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 
@@ -80,14 +81,34 @@ function validateRules(data: ExportData, format: ExportFormat): CompatibilityWar
   const enabledRules = [...data.rules].filter((rule) => rule.enabled).sort((a, b) => a.order - b.order);
 
   for (const rule of enabledRules) {
-    if (groupIds.has(rule.targetGroupId)) continue;
-    warnings.push({
-      ruleId: rule.id,
-      client: format,
-      level: 'unsupported',
-      message: `规则 ${rule.type}${rule.payload ? `,${rule.payload}` : ''} 指向不存在或未导出的策略组 ${rule.targetGroupId}`,
-      messageEn: `Rule ${rule.type}${rule.payload ? `,${rule.payload}` : ''} targets a missing or non-exported group ${rule.targetGroupId}.`,
-    });
+    if (!groupIds.has(rule.targetGroupId)) {
+      warnings.push({
+        ruleId: rule.id,
+        client: format,
+        level: 'unsupported',
+        message: `规则 ${rule.type}${rule.payload ? `,${rule.payload}` : ''} 指向不存在或未导出的策略组 ${rule.targetGroupId}`,
+        messageEn: `Rule ${rule.type}${rule.payload ? `,${rule.payload}` : ''} targets a missing or non-exported group ${rule.targetGroupId}.`,
+      });
+    }
+
+    const compatibility = getExportRuleCompatibility(rule.type, format);
+    if (compatibility === 'unsupported') {
+      warnings.push({
+        ruleId: rule.id,
+        client: format,
+        level: 'unsupported',
+        message: `规则类型 ${rule.type} 不兼容 ${format}，导出时会跳过`,
+        messageEn: `Rule type ${rule.type} is not supported by ${format} and will be skipped during export.`,
+      });
+    } else if (compatibility === 'partial' || compatibility === 'convert') {
+      warnings.push({
+        ruleId: rule.id,
+        client: format,
+        level: 'partial',
+        message: `规则类型 ${rule.type} 在 ${format} 中只能部分兼容，导出时会按客户端能力降级`,
+        messageEn: `Rule type ${rule.type} is only partially supported by ${format} and will be downgraded during export.`,
+      });
+    }
   }
 
   const matchIndex = enabledRules.findIndex((rule) => rule.type === 'MATCH');
@@ -109,6 +130,14 @@ function validateRules(data: ExportData, format: ExportFormat): CompatibilityWar
   }
 
   return warnings;
+}
+
+function getExportRuleCompatibility(
+  ruleType: ExportData['rules'][number]['type'],
+  format: ExportFormat
+): 'full' | 'partial' | 'convert' | 'unsupported' {
+  if (format === 'nodes_base64' || format === 'nodes_raw') return 'full';
+  return getRuleCompatibilityLevel(ruleType, format);
 }
 
 function validateRemoteRuleSets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {

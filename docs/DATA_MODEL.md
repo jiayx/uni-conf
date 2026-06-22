@@ -372,9 +372,12 @@ The worker validates:
 | Duplicate node names | `partial` |
 | Missing nested group target | `unsupported` |
 | Missing rule target group | `unsupported` |
+| Rule type unsupported by target export format | `unsupported` |
+| Rule type partially supported by target export format | `partial` |
 | Missing remote rule set target group | `unsupported` |
 | Remote rule set incompatible with export format | `partial` |
 | Remote rule set URL is not downloadable over http(s) | `unsupported` |
+| DNS mode cannot be fully represented by target export format | `partial` |
 | Missing MATCH fallback | `partial` |
 | MATCH not last | `partial` |
 

@@ -54,6 +54,50 @@ describe('export validation', () => {
     }));
   });
 
+  it('warns when a rule type is unsupported by the export format', () => {
+    const warnings = validateExportData(makeExportData({
+      rules: [
+        makeRule('process', 'proxy', 'PROCESS-NAME', 'Example.app', 0),
+        makeRule('match', 'proxy', 'MATCH', '', 999),
+      ],
+    }), 'shadowrocket');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      ruleId: 'process',
+      level: 'unsupported',
+      message: expect.stringContaining('PROCESS-NAME 不兼容 shadowrocket'),
+    }));
+  });
+
+  it('warns when a rule type is only partially supported by the export format', () => {
+    const warnings = validateExportData(makeExportData({
+      rules: [
+        makeRule('regex', 'proxy', 'DOMAIN-REGEX', '^api\\.', 0),
+        makeRule('match', 'proxy', 'MATCH', '', 999),
+      ],
+    }), 'surge');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      ruleId: 'regex',
+      level: 'partial',
+      message: expect.stringContaining('DOMAIN-REGEX 在 surge 中只能部分兼容'),
+    }));
+  });
+
+  it('does not warn about rule type compatibility for node-only subscriptions', () => {
+    const warnings = validateExportData(makeExportData({
+      rules: [
+        makeRule('process', 'proxy', 'PROCESS-NAME', 'Example.app', 0),
+        makeRule('match', 'proxy', 'MATCH', '', 999),
+      ],
+    }), 'nodes_raw');
+
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      ruleId: 'process',
+      message: expect.stringContaining('PROCESS-NAME'),
+    }));
+  });
+
   it('warns when a remote rule set is incompatible with the export format', () => {
     const warnings = validateExportData(makeExportData({
       remoteSets: [makeRemoteSet('singbox-remote', 'proxy', { format: 'singbox' })],
