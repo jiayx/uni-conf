@@ -4,7 +4,8 @@ export function collectGroupMembers(
   group: Row,
   groups: Row[],
   nodeNames: string[],
-  collectionNodeNames: Record<string, string[]> = {}
+  collectionNodeNames: Record<string, string[]> = {},
+  resolveNestedGroupName: (group: Row) => string = (item) => String(item['name'] ?? '')
 ): string[] {
   const groupIds = safeJsonArray(group['group_ids'])
   const collectionIds = safeJsonArray(group['collection_ids'])
@@ -13,7 +14,7 @@ export function collectGroupMembers(
   const nested = groupIds
     .map((id) => groups.find((item) => String(item['id']) === id))
     .filter((item): item is Row => Boolean(item))
-    .map((item) => String(item['name'] ?? ''))
+    .map(resolveNestedGroupName)
 
   const scopedNodeNames = collectionIds
     .flatMap((id) => collectionNodeNames[id] ?? [])

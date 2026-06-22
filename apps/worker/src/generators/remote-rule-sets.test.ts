@@ -154,7 +154,7 @@ describe('remote rule set generators', () => {
     );
     expect(config.route.rules).toContainEqual({
       rule_set: ['AI_SRS'],
-      outbound: 'DIRECT-GROUP',
+      outbound: 'direct',
     });
     expect(config.route.final).toBe('PROXY');
   });
@@ -200,7 +200,7 @@ describe('remote rule set generators', () => {
 
     expect(content).toContain('[Rule Set]');
     expect(content).toContain('Ads_List = https://example.com/ads.yaml');
-    expect(content).toContain('RULE-SET,Ads_List,DIRECT-GROUP');
+    expect(content).toContain('RULE-SET,Ads_List,DIRECT');
     expect(content).not.toContain('ai.srs');
   });
 
@@ -210,7 +210,7 @@ describe('remote rule set generators', () => {
     ]);
 
     expect(content).toContain('[filter_remote]');
-    expect(content).toContain('https://example.com/ads.yaml, tag=Ads List, force-policy=DIRECT-GROUP, enabled=true');
+    expect(content).toContain('https://example.com/ads.yaml, tag=Ads List, force-policy=DIRECT, enabled=true');
   });
 
   it('routes Egern remote rule sets in YAML', () => {

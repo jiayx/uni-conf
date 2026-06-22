@@ -81,7 +81,7 @@ function groupToLoon(
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const members = collectGroupMembers(group, allGroups, nodeNames, collectionNodeNames).join(', ')
+  const members = collectGroupMembers(group, allGroups, nodeNames, collectionNodeNames, nativePolicyName).join(', ')
 
   if (type === 'select') return `${name} = select, ${members}`
   if (type === 'url-test') {
@@ -95,8 +95,6 @@ function groupToLoon(
     return `${name} = fallback, ${members}, url=${testUrl}, interval=${interval}`
   }
   if (type === 'load-balance') return `${name} = load-balance, ${members}`
-  if (type === 'direct') return `${name} = select, DIRECT`
-  if (type === 'reject') return `${name} = select, REJECT`
   return `${name} = select, ${members}`
 }
 
@@ -105,7 +103,7 @@ function ruleToLoon(rule: Record<string, unknown>, allGroups: Record<string, unk
   const payload = String(rule['payload'] ?? '')
   const targetGroupId = String(rule['target_group_id'] ?? '')
   const targetGroup = allGroups.find(g => String(g['id']) === targetGroupId)
-  const target = targetGroup ? String(targetGroup['name']) : 'PROXY'
+  const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
   const noResolve = rule['no_resolve'] ? ', no-resolve' : ''
 
   // Map rule types to Loon format
@@ -166,7 +164,7 @@ export function generateLoon(
 
   // [Proxy Group]
   lines.push('[Proxy Group]')
-  for (const group of groups) {
+  for (const group of groups.filter(group => !isNativeOutletGroup(group))) {
     const line = groupToLoon(group, groups, validNodes, collectionNodeNames)
     lines.push(line)
   }
@@ -195,7 +193,7 @@ export function generateLoon(
     const name = String(rs['name'] ?? '')
     const targetGroupId = String(rs['target_group_id'] ?? '')
     const targetGroup = groups.find(g => String(g['id']) === targetGroupId)
-    const target = targetGroup ? String(targetGroup['name']) : 'PROXY'
+    const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
     lines.push(`${resolved.url}, policy=${target}, tag=${name}, enabled=true`)
   }
   lines.push('')
@@ -223,4 +221,15 @@ function defaultPolicy(groups: Array<Record<string, unknown>>): string {
 
 function isLoonCompatibleRemoteSet(format: string): boolean {
   return ['loon', 'surge', 'shadowrocket', 'text'].includes(format)
+}
+
+function nativePolicyName(group: Record<string, unknown>): string {
+  const type = String(group['type'] ?? '')
+  if (type === 'direct') return 'DIRECT'
+  if (type === 'reject') return 'REJECT'
+  return String(group['name'] ?? '')
+}
+
+function isNativeOutletGroup(group: Record<string, unknown>): boolean {
+  return ['direct', 'reject'].includes(String(group['type'] ?? ''))
 }

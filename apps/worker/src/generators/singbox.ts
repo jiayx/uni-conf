@@ -139,6 +139,7 @@ function buildOutbounds(
 
   // Convert groups (selectors/url-tests)
   for (const group of groups) {
+    if (isNativeOutletGroup(group)) continue;
     const ob = groupToSingbox(group, serializableNodes, groups, serializableCollectionNodeNames);
     if (ob) outbounds.push(ob);
   }
@@ -390,12 +391,12 @@ function groupToSingbox(
   const outbounds: string[] = [];
 
   for (const b of group.builtins) {
-    outbounds.push(b === 'DIRECT' ? 'direct' : 'block');
+    outbounds.push(nativeSingboxOutboundFromBuiltin(b));
   }
 
   for (const gid of group.groupIds) {
     const nestedGroup = allGroups.find((item) => item.id === gid);
-    if (nestedGroup) outbounds.push(nestedGroup.name);
+    if (nestedGroup) outbounds.push(resolveSingboxGroupName(nestedGroup));
   }
 
   const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? []);
@@ -439,10 +440,6 @@ function groupToSingbox(
         outbounds: dedupedOutbounds,
         default: dedupedOutbounds[0],
       };
-    case 'direct':
-      return { type: 'direct', tag };
-    case 'reject':
-      return { type: 'block', tag };
     default:
       return null;
   }
@@ -533,10 +530,10 @@ function buildRoute(
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string {
-  return groups.find((group) => group.name === '漏网之鱼')?.name
-    ?? groups.find((group) => group.name === 'PROXY')?.name
-    ?? groups[0]?.name
-    ?? 'direct';
+  const group = groups.find((item) => item.name === '漏网之鱼')
+    ?? groups.find((item) => item.name === 'PROXY')
+    ?? groups[0];
+  return group ? resolveSingboxGroupName(group) : 'direct';
 }
 
 function filterCollectionNodeNames(
@@ -553,7 +550,21 @@ function filterCollectionNodeNames(
 
 function resolveGroupName(groupId: string, groups: ProxyGroup[]): string {
   const group = groups.find((g) => g.id === groupId);
-  return group ? group.name : groupId;
+  return group ? resolveSingboxGroupName(group) : groupId;
+}
+
+function resolveSingboxGroupName(group: ProxyGroup): string {
+  if (group.type === 'direct') return 'direct';
+  if (group.type === 'reject') return 'block';
+  return group.name;
+}
+
+function nativeSingboxOutboundFromBuiltin(name: string): string {
+  return name === 'REJECT' ? 'block' : 'direct';
+}
+
+function isNativeOutletGroup(group: ProxyGroup): boolean {
+  return group.type === 'direct' || group.type === 'reject';
 }
 
 function ruleToSingbox(rule: ProxyRule, outbound: string): object | null {

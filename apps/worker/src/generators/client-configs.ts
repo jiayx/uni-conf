@@ -94,7 +94,7 @@ export function generateQuantumultX(
     '[policy]',
   ]
 
-  for (const group of groups) {
+  for (const group of exportPolicyGroups(groups)) {
     lines.push(groupToQuantumultX(group, groups, nodeNames, collectionNodeNames))
   }
 
@@ -152,7 +152,8 @@ export function generateEgern(
     http_port: 3080,
     socks_port: 3081,
     proxies,
-    policy_groups: groups.map((group) => groupToEgern(group, groups, nodeNames, collectionNodeNames)),
+    policy_groups: exportPolicyGroups(groups)
+      .map((group) => groupToEgern(group, groups, nodeNames, collectionNodeNames)),
     rule_sets: ruleSets,
     rules: [
       ...remoteSets
@@ -205,7 +206,7 @@ function buildIniConfig({
   }
 
   lines.push('', '[Proxy Group]')
-  for (const group of groups) {
+  for (const group of exportPolicyGroups(groups)) {
     lines.push(groupToIni(group, groups, validNodes, collectionNodeNames))
   }
 
@@ -287,12 +288,10 @@ function groupToIni(
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const members = collectGroupMembers(group, groups, nodeNames, collectionNodeNames)
+  const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames)
   if (type === 'url-test') return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'fallback') return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'load-balance') return `${name} = load-balance, ${members.join(', ')}`
-  if (type === 'direct') return `${name} = select, DIRECT`
-  if (type === 'reject') return `${name} = select, REJECT`
   return `${name} = select, ${members.join(', ')}`
 }
 
@@ -304,11 +303,9 @@ function groupToQuantumultX(
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const members = collectGroupMembers(group, groups, nodeNames, collectionNodeNames).join(',')
+  const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames).join(',')
   if (type === 'url-test') return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'fallback') return `fallback=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
-  if (type === 'direct') return `static=${name}, DIRECT`
-  if (type === 'reject') return `static=${name}, REJECT`
   return `static=${name}, ${members}`
 }
 
@@ -322,7 +319,7 @@ function groupToEgern(
   return {
     name: String(group['name'] ?? ''),
     type: type === 'url-test' ? 'url_test' : type === 'load-balance' ? 'load_balance' : type,
-    policies: collectGroupMembers(group, groups, nodeNames, collectionNodeNames),
+    policies: collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames),
     url: group['test_url'] ?? 'http://www.gstatic.com/generate_204',
     interval: Number(group['interval'] ?? 300),
   }
@@ -428,7 +425,32 @@ function isCompatibleRemoteSet(client: string, format: string): boolean {
 }
 
 function resolveGroupName(groupId: string, groups: Row[]): string {
-  return String(groups.find((group) => String(group['id']) === groupId)?.['name'] ?? (groupId || defaultPolicy(groups)))
+  const group = groups.find((item) => String(item['id']) === groupId)
+  return group ? nativePolicyName(group) : (groupId || defaultPolicy(groups))
+}
+
+function exportPolicyGroups(groups: Row[]): Row[] {
+  return groups.filter((group) => !isNativeOutletGroup(group))
+}
+
+function collectClientGroupMembers(
+  group: Row,
+  groups: Row[],
+  nodeNames: string[],
+  collectionNodeNames: Record<string, string[]>
+): string[] {
+  return collectGroupMembers(group, groups, nodeNames, collectionNodeNames, nativePolicyName)
+}
+
+function nativePolicyName(group: Row): string {
+  const type = String(group['type'] ?? '')
+  if (type === 'direct') return 'DIRECT'
+  if (type === 'reject') return 'REJECT'
+  return String(group['name'] ?? '')
+}
+
+function isNativeOutletGroup(group: Row): boolean {
+  return ['direct', 'reject'].includes(String(group['type'] ?? ''))
 }
 
 function defaultPolicy(groups: Row[]): string {
