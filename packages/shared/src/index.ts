@@ -57,6 +57,20 @@ type RuleCompatibilityType =
 
 type RuleCompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
 
+export const EXPORT_SUBSCRIPTION_FORMATS: ExportSubscriptionFormat[] = [
+  'mihomo',
+  'clash',
+  'singbox',
+  'loon',
+  'surge',
+  'shadowrocket',
+  'quantumultx',
+  'stash',
+  'egern',
+  'nodes_base64',
+  'nodes_raw',
+];
+
 export const EXPORT_FORMAT_FILENAMES: Record<ExportSubscriptionFormat, string> = {
   mihomo: 'mihomo.yaml',
   clash: 'clash.yaml',
@@ -111,6 +125,16 @@ export function getRuleCompatibilityLevel(
   format: ExportSubscriptionFormat
 ): RuleCompatibilityLevel {
   return RULE_COMPATIBILITY[ruleType]?.[format] ?? 'unsupported';
+}
+
+export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
+  client: ExportSubscriptionFormat;
+  level: RuleCompatibilityLevel;
+}> {
+  return EXPORT_SUBSCRIPTION_FORMATS.map((format) => ({
+    client: format,
+    level: getRuleCompatibilityLevel(ruleType, format),
+  }));
 }
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [

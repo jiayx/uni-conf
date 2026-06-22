@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapRule, newId, now } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
+import { getRuleCompatibility } from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -77,7 +78,7 @@ app.post('/batch', async (c) => {
         rule.enabled !== false ? 1 : 0,
         rule.order ?? nextOrder,
         rule.notes ?? null,
-        jsonStringify(rule.compatibility ?? []),
+        jsonStringify(getRuleCompatibility(rule.type)),
         ts,
         ts
       )
@@ -127,7 +128,7 @@ app.post('/', async (c) => {
       body.enabled !== false ? 1 : 0,
       sortOrder,
       body.notes ?? null,
-      jsonStringify(body.compatibility ?? []),
+      jsonStringify(getRuleCompatibility(body.type)),
       ts,
       ts
     )
@@ -180,9 +181,7 @@ app.put('/:id', async (c) => {
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.order !== undefined ? body.order : existing.sort_order,
       body.notes !== undefined ? body.notes : existing.notes,
-      body.compatibility !== undefined
-        ? jsonStringify(body.compatibility)
-        : existing.compatibility,
+      jsonStringify(getRuleCompatibility((body.type ?? existing.type) as ProxyRule['type'])),
       ts,
       id
     )

@@ -171,7 +171,7 @@ When the user changes the scenario template, the web app saves both `routing_pol
 | enabled | INTEGER | 1/0 |
 | sort_order | INTEGER | Rule evaluation order (lower = higher priority) |
 | notes | TEXT? | |
-| compatibility | TEXT | JSON array of ClientCompatibility objects |
+| compatibility | TEXT | JSON array of derived ClientCompatibility objects from `@uni-conf/shared` |
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
@@ -359,6 +359,8 @@ Other - Manual - 01
   { "client": "loon", "level": "partial", "note": "Loon 不支持 GEOSITE" }
 ]
 ```
+
+`rules.compatibility` is not user-authored. Rule creation, batch import, and template import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
 
 ### Export Preview Warnings
 

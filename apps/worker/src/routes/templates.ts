@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { newId, now, jsonStringify } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
+import { getRuleCompatibility } from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -676,7 +677,7 @@ app.post('/:id/import', async (c) => {
         rule.enabled !== false ? 1 : 0,
         nextOrder,
         rule.notes ?? null,
-        jsonStringify(rule.compatibility ?? []),
+        jsonStringify(getRuleCompatibility(rule.type)),
         ts,
         ts
       )
@@ -692,7 +693,7 @@ app.post('/:id/import', async (c) => {
       enabled: rule.enabled !== false,
       order: nextOrder,
       notes: rule.notes,
-      compatibility: rule.compatibility ?? [],
+      compatibility: getRuleCompatibility(rule.type),
       createdAt: ts,
       updatedAt: ts,
     });
