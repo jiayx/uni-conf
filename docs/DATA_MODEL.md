@@ -27,6 +27,7 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | tags | TEXT | JSON array of strings |
 | source_groups | TEXT | JSON array of node group names parsed from full subscription config |
 | raw_content | TEXT? | Last fetched raw subscription/config content cache |
+| upload_bytes / download_bytes / total_bytes / expire_time | INTEGER? | Cached `subscription-userinfo` values from the last successful refresh |
 | created_at | TEXT | ISO timestamp |
 | updated_at | TEXT | ISO timestamp |
 
@@ -312,6 +313,8 @@ The response data is:
 ```
 
 If refresh fails, the created source remains stored and `refreshError` contains the fetch or parse error. The caller can update the source URL, format, or User-Agent and refresh again.
+
+Public subscription responses aggregate cached `subscription-userinfo` from enabled URL sources. `upload`, `download`, and `total` are summed; `expire` uses the earliest cached expiry. If no source has cached userinfo, UniConf returns a stable default header so clients that display subscription traffic still have a valid value.
 
 Default cleanup excludes subscription info nodes such as traffic quota, expiry, package, official site, reset, and user-center entries. It also skips parsed nodes whose protocol maps to `unknown`.
 

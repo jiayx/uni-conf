@@ -14,6 +14,7 @@ import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
 import { getAppSettings } from '../services/app-settings'
 import type { Env } from '../types'
 import { getExportFormatFromSubscriptionFilename } from '@uni-conf/shared'
+import type { ProxySource } from '@uni-conf/types'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -38,6 +39,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     groupRows,
     ruleRows,
     remoteSetRows,
+    sources,
     nodes,
     groups,
     rules,
@@ -95,7 +97,42 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
       'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Subscription-Userinfo': `upload=0; download=0; total=10737418240; expire=4099680000`,
+      'Subscription-Userinfo': buildSubscriptionUserInfoHeader(sources),
     },
   })
 })
+
+export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string {
+  const summary = sources.reduce(
+    (acc, source) => ({
+      upload: acc.upload + (source.uploadBytes ?? 0),
+      download: acc.download + (source.downloadBytes ?? 0),
+      total: acc.total + (source.totalBytes ?? 0),
+      expire: source.expireTime === undefined
+        ? acc.expire
+        : acc.expire === undefined
+          ? source.expireTime
+          : Math.min(acc.expire, source.expireTime),
+      hasAny: acc.hasAny
+        || source.uploadBytes !== undefined
+        || source.downloadBytes !== undefined
+        || source.totalBytes !== undefined
+        || source.expireTime !== undefined,
+    }),
+    {
+      upload: 0,
+      download: 0,
+      total: 0,
+      expire: undefined as number | undefined,
+      hasAny: false,
+    }
+  )
+
+  if (!summary.hasAny) {
+    return 'upload=0; download=0; total=10737418240; expire=4099680000'
+  }
+
+  const total = summary.total > 0 ? summary.total : 10737418240
+  const expire = summary.expire ?? 4099680000
+  return `upload=${summary.upload}; download=${summary.download}; total=${total}; expire=${expire}`
+}
