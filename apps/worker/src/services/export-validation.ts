@@ -140,14 +140,7 @@ function validateRules(data: ExportData, format: ExportFormat): CompatibilityWar
   }
 
   const matchIndex = enabledRules.findIndex((rule) => rule.type === 'MATCH');
-  if (matchIndex === -1) {
-    warnings.push({
-      client: format,
-      level: 'partial',
-      message: '缺少 MATCH 兜底规则，导出时已自动补到最后',
-      messageEn: 'MATCH fallback rule is missing and will be appended during export.',
-    });
-  } else if (matchIndex !== enabledRules.length - 1) {
+  if (matchIndex !== -1 && matchIndex !== enabledRules.length - 1) {
     warnings.push({
       ruleId: enabledRules[matchIndex]?.id,
       client: format,

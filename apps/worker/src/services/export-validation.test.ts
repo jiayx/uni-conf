@@ -5,13 +5,23 @@ import { resolveExportWarnings, validateExportData } from './export-validation';
 const createdAt = '2026-01-01T00:00:00.000Z';
 
 describe('export validation', () => {
-  it('warns about empty node exports and missing MATCH fallback', () => {
+  it('warns about empty node exports', () => {
     const warnings = validateExportData(makeExportData({ nodes: [], rules: [] }), 'mihomo');
 
     expect(warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ level: 'unsupported', message: expect.stringContaining('没有可导出的节点') }),
-      expect.objectContaining({ level: 'partial', message: expect.stringContaining('缺少 MATCH') }),
     ]));
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('缺少 MATCH'),
+    }));
+  });
+
+  it('does not warn when MATCH is omitted because exporters add the fallback', () => {
+    const warnings = validateExportData(makeExportData({ rules: [] }), 'mihomo');
+
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('缺少 MATCH'),
+    }));
   });
 
   it('warns about duplicate node names', () => {

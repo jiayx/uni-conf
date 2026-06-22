@@ -399,10 +399,9 @@ The worker validates:
 | Remote rule set incompatible with export format | `partial` |
 | Remote rule set URL is not downloadable over http(s) | `unsupported` |
 | DNS mode cannot be fully represented by target export format | `partial` |
-| Missing MATCH fallback | `partial` |
 | MATCH not last | `partial` |
 
-`partial` warnings are still exported with an automatic fallback or compatibility caveat. `unsupported` warnings indicate a configuration problem that may break the target client.
+If no explicit `MATCH` rule exists, exporters append the fallback policy automatically and preview does not warn; this is the normal zero-setup path. `partial` warnings are still exported with an automatic fallback or compatibility caveat. `unsupported` warnings indicate a configuration problem that may break the target client.
 
 ---
 
