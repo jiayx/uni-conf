@@ -163,6 +163,8 @@ When the user changes the scenario template, the web app saves both `routing_pol
 
 Remote rule sets, manual rules, and advanced local template imports target enabled groups only. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled or missing targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
 
+Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
+
 ### `rules` — Traffic Routing Rules
 
 | Column | Type | Description |

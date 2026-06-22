@@ -93,15 +93,22 @@ export async function buildExportData(
     settings.exportNodeNamingMode
   )
 
-  const ruleRows = await selectRows(
-    db,
-    'SELECT * FROM rules WHERE enabled = 1 ORDER BY sort_order ASC',
-    config?.includeRuleIds
+  const exportGroupIds = new Set(groupRows.map((row) => String(row.id)))
+  const ruleRows = filterRowsByTargetGroup(
+    await selectRows(
+      db,
+      'SELECT * FROM rules WHERE enabled = 1 ORDER BY sort_order ASC',
+      config?.includeRuleIds
+    ),
+    exportGroupIds
   )
-  const remoteSetRows = await selectRows(
-    db,
-    'SELECT * FROM remote_rule_sets WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC',
-    config?.includeRemoteSetIds
+  const remoteSetRows = filterRowsByTargetGroup(
+    await selectRows(
+      db,
+      'SELECT * FROM remote_rule_sets WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC',
+      config?.includeRemoteSetIds
+    ),
+    exportGroupIds
   )
   const sourceRows = await selectRows(
     db,
@@ -122,6 +129,13 @@ export async function buildExportData(
     remoteSets: remoteSetRows.map(mapRemoteRuleSet),
     collectionNodeNames: buildCollectionNodeNames(collectionRows, exportNodeRows),
   }
+}
+
+export function filterRowsByTargetGroup(
+  rows: Record<string, unknown>[],
+  enabledGroupIds: Set<string>
+): Record<string, unknown>[] {
+  return rows.filter((row) => enabledGroupIds.has(String(row.target_group_id ?? row.targetGroupId ?? '')))
 }
 
 async function selectRows(

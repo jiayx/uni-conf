@@ -6,6 +6,7 @@ import {
   applyExportNodeNames,
   buildCollectionNodeNames,
   expandReferencedGroupRows,
+  filterRowsByTargetGroup,
   resolveCollectionScopeIds,
 } from './export-data'
 
@@ -97,6 +98,19 @@ describe('export data scoping', () => {
     )
 
     expect(scopeIds).toEqual(['collection-excluded'])
+  })
+
+  it('filters rules and remote rule sets whose target group is not exported', () => {
+    const filtered = filterRowsByTargetGroup(
+      [
+        { id: 'rule-1', target_group_id: 'proxy' },
+        { id: 'rule-2', target_group_id: 'disabled' },
+        { id: 'rule-3', targetGroupId: 'streaming' },
+      ],
+      new Set(['proxy', 'streaming'])
+    )
+
+    expect(filtered.map(row => row.id)).toEqual(['rule-1', 'rule-3'])
   })
 
   it('renames exported nodes with region, source, and sequence', () => {
