@@ -18,6 +18,8 @@ export const DEFAULT_HEALTH_CHECK = {
   lazy: true,
 } as const;
 
+export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
+
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
   /官网|官方网站|用户中心|客户中心|订阅|更新订阅/,
   /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|流量[:：]/,

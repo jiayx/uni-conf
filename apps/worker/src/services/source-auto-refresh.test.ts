@@ -20,6 +20,15 @@ describe('source auto refresh', () => {
     expect(resolveDueSources(sources, 60, nowMs).map(source => source.id)).toEqual(['source-due']);
   });
 
+  it('defaults the global interval to twenty four hours', () => {
+    const sources = [
+      { id: 'not-due', last_updated: '2026-06-21T11:00:00.000Z', update_interval: 0 },
+      { id: 'due', last_updated: '2026-06-20T11:59:00.000Z', update_interval: 0 },
+    ];
+
+    expect(resolveDueSources(sources, 0, nowMs).map(source => source.id)).toEqual(['due']);
+  });
+
   it('treats invalid timestamps as due', () => {
     expect(resolveDueSources([
       { id: 'source-1', last_updated: 'not-a-date', update_interval: 60 },

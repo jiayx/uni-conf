@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button/Button'
 import { Input } from '@/components/ui/Input/Input'
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
-import { DNS_MODE_PRESETS } from '@uni-conf/shared'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-conf/shared'
 import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
@@ -232,11 +232,11 @@ export function Settings() {
           min="5"
           value={autoRefreshInterval}
           onChange={e => {
-            const value = Math.max(5, Number(e.target.value) || 60)
+            const value = Math.max(5, Number(e.target.value) || DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES)
             setAutoRefreshInterval(value)
           }}
           onBlur={e => {
-            const value = Math.max(5, Number(e.target.value) || 60)
+            const value = Math.max(5, Number(e.target.value) || DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES)
             void persistSettings({ autoRefreshInterval: value })
           }}
           disabled={!enableAutoRefresh}

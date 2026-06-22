@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
   default_export_token TEXT,
   show_compatibility_warnings INTEGER NOT NULL DEFAULT 1,
   enable_auto_refresh INTEGER NOT NULL DEFAULT 1,
-  auto_refresh_interval INTEGER NOT NULL DEFAULT 60,
+  auto_refresh_interval INTEGER NOT NULL DEFAULT 1440,
   updated_at TEXT NOT NULL
 );
 

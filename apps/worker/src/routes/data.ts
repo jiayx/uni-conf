@@ -76,7 +76,7 @@ app.delete('/', async (c) => {
         default_export_token = NULL,
         show_compatibility_warnings = 1,
         enable_auto_refresh = 1,
-        auto_refresh_interval = 60,
+        auto_refresh_interval = 1440,
         updated_at = datetime('now')
        WHERE id = 'singleton'`
     ),

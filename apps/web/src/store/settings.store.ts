@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared'
 import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 
 interface SettingsState extends AppSettings {
@@ -24,7 +25,7 @@ export const useSettingsStore = create<SettingsState>()(
       exportNodeNamingMode: 'smart',
       showCompatibilityWarnings: true,
       enableAutoRefresh: true,
-      autoRefreshInterval: 60,
+      autoRefreshInterval: DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES,
 
       setLanguage: (language) => {
         set({ language })

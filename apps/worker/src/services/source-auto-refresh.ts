@@ -1,3 +1,4 @@
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared';
 import { getAppSettings } from './app-settings';
 import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
 
@@ -65,7 +66,7 @@ export function resolveDueSources(
   globalIntervalMinutes: number,
   nowMs: number
 ): AutoRefreshSourceRow[] {
-  const fallbackInterval = Math.max(5, globalIntervalMinutes || 60);
+  const fallbackInterval = Math.max(5, globalIntervalMinutes || DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES);
   return sources.filter((source) => {
     const interval = Math.max(5, source.update_interval && source.update_interval > 0
       ? source.update_interval
