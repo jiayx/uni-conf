@@ -4,7 +4,7 @@ import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import type { ProxyProtocol } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
 import { parseRawLines } from './sources';
-import { buildNodeRecognitionTags } from '@uni-conf/shared';
+import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -282,6 +282,7 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
   }
 
   if (!body.name || !body.protocol || !body.server || !body.port) return null;
+  const countryInfo = detectCountry(body.name);
 
   return {
     sourceId: body.sourceId,
@@ -289,8 +290,8 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
     protocol: body.protocol,
     server: body.server,
     port: body.port,
-    country: body.country,
-    countryCode: body.countryCode,
+    country: body.country ?? countryInfo?.country,
+    countryCode: body.countryCode ?? countryInfo?.countryCode,
     enabled: body.enabled,
     tags: body.tags ?? buildNodeRecognitionTags(body.name),
     notes: body.notes,

@@ -30,18 +30,36 @@ describe('manual node input', () => {
 
   it('keeps structured manual node input supported', () => {
     const input = resolveManualNodeInput({
-      name: 'Manual Trojan x1',
+      name: '🇩🇪 Manual DE Trojan x1',
       protocol: 'trojan',
       server: 'trojan.example.com',
       port: 443,
     });
 
     expect(input).toMatchObject({
-      name: 'Manual Trojan x1',
+      name: '🇩🇪 Manual DE Trojan x1',
       protocol: 'trojan',
       server: 'trojan.example.com',
       port: 443,
+      country: 'Germany',
+      countryCode: 'DE',
       tags: ['multiplier:1x'],
+    });
+  });
+
+  it('does not override explicit structured manual country fields', () => {
+    const input = resolveManualNodeInput({
+      name: '🇩🇪 Override Region',
+      protocol: 'trojan',
+      server: 'trojan.example.com',
+      port: 443,
+      country: 'Custom Region',
+      countryCode: 'CR',
+    });
+
+    expect(input).toMatchObject({
+      country: 'Custom Region',
+      countryCode: 'CR',
     });
   });
 
