@@ -114,10 +114,10 @@ All API endpoints are under `/api/`. Responses follow:
 | GET/POST | /api/rules | List/create rules |
 | GET/PUT/DELETE | /api/rules/:id | Get/update/delete rule |
 | POST | /api/rules/reorder | Reorder rules |
-| POST | /api/rules/batch | Batch create rules (template import) |
-| GET | /api/templates | List built-in templates |
-| GET | /api/templates/:id | Get template detail |
-| POST | /api/templates/:id/import | Import template to rules |
+| POST | /api/rules/batch | Batch create manual rules |
+| GET | /api/templates | List advanced local rule templates (not a primary UI route) |
+| GET | /api/templates/:id | Get local template detail |
+| POST | /api/templates/:id/import | Import local template to manual rules |
 | GET/POST | /api/export/configs | List/create export configs |
 | GET/PUT/DELETE | /api/export/configs/:id | Get/update/delete export config |
 | GET | /api/export/preview/:format | Generate and validate config preview in Worker (auth required) |

@@ -11,7 +11,6 @@
     "groups": "策略组",
     "rules": "自定义规则",
     "remote_rule_sets": "分流策略",
-    "templates": "规则模板",
     "export": "配置导出",
     "preview": "配置预览",
     "settings": "设置"
@@ -180,20 +179,6 @@
     "order": "序号",
     "payload_placeholder": "输入匹配内容",
     "name_optional": "规则名称（可选）"
-  },
-  "templates": {
-    "title": "规则模板",
-    "import": "导入模板",
-    "import_confirm": "将导入 {{count}} 条规则到当前规则列表，匹配后使用：{{group}}",
-    "select_group": "选择匹配后使用的策略组",
-    "category_ai": "AI 服务",
-    "category_streaming": "流媒体",
-    "category_social": "社交媒体",
-    "category_china": "国内直连",
-    "category_security": "安全拦截",
-    "rule_count": "{{count}} 条规则",
-    "import_success": "成功导入 {{count}} 条规则",
-    "all_categories": "全部"
   },
   "export": {
     "title": "配置导出",

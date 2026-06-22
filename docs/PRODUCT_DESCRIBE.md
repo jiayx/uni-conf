@@ -779,11 +779,11 @@ Google
 兜底代理
 ```
 
-## 十、内置规则模板
+## 十、预置分流策略与规则来源
 
-UniConf 应内置常用规则模板，让用户不用从零开始写规则。
+UniConf 应以内置远程规则集作为默认分流来源，让用户不用从零开始写规则。手动规则模板只作为高级补充能力，用于无法通过远程规则集表达的少量本地规则。
 
-### 推荐内置模板分类
+### 推荐预置规则分类
 
 ```text
 AI
@@ -815,7 +815,7 @@ Proxy
 Global
 ```
 
-### 规则模板来源
+### 规则来源
 
 可以参考和兼容常见规则集生态，例如：
 
@@ -1069,7 +1069,7 @@ tuic://
 4. Node Groups
 5. Groups
 6. Rules
-7. Templates
+7. Routing Policies
 8. Export
 9. Preview
 10. Settings
@@ -1151,23 +1151,15 @@ tuic://
 启用 / 禁用规则
 ```
 
-### Templates
+### Routing Policies
 
-选择内置模板：
+管理预置和自定义远程规则集：
 
 ```text
-AI
-Streaming
-Social
-Apple
-Google
-Microsoft
-Netflix
-YouTube
-Telegram
-China Direct
-Advertising
-Privacy
+查看默认分流策略
+开启 / 关闭规则集
+添加自定义远程规则集
+选择匹配后使用的出口 / 分流策略
 ```
 
 ### Export

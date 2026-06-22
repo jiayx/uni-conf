@@ -11,7 +11,6 @@
     "groups": "Groups",
     "rules": "Custom Rules",
     "remote_rule_sets": "Routing Policies",
-    "templates": "Templates",
     "export": "Export",
     "preview": "Preview",
     "settings": "Settings"
@@ -180,20 +179,6 @@
     "order": "Order",
     "payload_placeholder": "Enter match value",
     "name_optional": "Rule name (optional)"
-  },
-  "templates": {
-    "title": "Rule Templates",
-    "import": "Import Template",
-    "import_confirm": "Import {{count}} rules, use policy: {{group}}",
-    "select_group": "Select Policy to Use",
-    "category_ai": "AI Services",
-    "category_streaming": "Streaming",
-    "category_social": "Social Media",
-    "category_china": "China Direct",
-    "category_security": "Security Block",
-    "rule_count": "{{count}} rules",
-    "import_success": "Imported {{count}} rules",
-    "all_categories": "All"
   },
   "export": {
     "title": "Config Export",
