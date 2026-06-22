@@ -56,22 +56,22 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'application/json; charset=utf-8'
   } else if (filename === 'loon.conf') {
-    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (filename === 'surge.conf') {
-    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (filename === 'shadowrocket.conf') {
-    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (filename === 'quantumultx.conf') {
-    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (filename === 'stash.yaml') {
     content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
   } else if (filename === 'egern.yaml') {
-    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
   } else if (filename === 'nodes.txt') {
     content = generateNodeSubscriptionBase64(nodeRows)

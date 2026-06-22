@@ -137,22 +137,22 @@ exportRouter.get('/preview/:format', async (c) => {
     content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'application/json; charset=utf-8'
   } else if (format === 'loon') {
-    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (format === 'surge') {
-    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (format === 'shadowrocket') {
-    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (format === 'quantumultx') {
-    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
   } else if (format === 'stash') {
     content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
   } else if (format === 'egern') {
-    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
   } else if (format === 'nodes_base64') {
     content = generateNodeSubscriptionBase64(nodeRows)
@@ -187,19 +187,19 @@ exportRouter.get('/download/:format', async (c) => {
     contentType = 'application/json; charset=utf-8'
     filename = 'singbox.json'
   } else if (format === 'loon') {
-    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
     filename = 'loon.conf'
   } else if (format === 'surge') {
-    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
     filename = 'surge.conf'
   } else if (format === 'shadowrocket') {
-    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
     filename = 'shadowrocket.conf'
   } else if (format === 'quantumultx') {
-    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
     filename = 'quantumultx.conf'
   } else if (format === 'stash') {
@@ -207,7 +207,7 @@ exportRouter.get('/download/:format', async (c) => {
     contentType = 'text/yaml; charset=utf-8'
     filename = 'stash.yaml'
   } else if (format === 'egern') {
-    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows)
+    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
     filename = 'egern.yaml'
   } else if (format === 'nodes_base64') {

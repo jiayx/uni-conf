@@ -3,6 +3,7 @@
  * Generates a complete Loon .conf file
  */
 
+import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 
 function safeJson(text: unknown): Record<string, unknown> {
@@ -75,20 +76,12 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
 function groupToLoon(
   group: Record<string, unknown>,
   allGroups: Record<string, unknown>[],
-  nodeNames: string[]
+  nodeNames: string[],
+  collectionNodeNames: Record<string, string[]>
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const groupIds = (safeJson(group['group_ids'] as string) as unknown as string[]) ?? []
-  const builtins = (safeJson(group['builtins'] as string) as unknown as string[]) ?? []
-
-  // Collect referenced group names
-  const nestedGroupNames = groupIds.map((gid: string) => {
-    const g = allGroups.find(g => String(g['id']) === gid)
-    return g ? String(g['name']) : null
-  }).filter(Boolean) as string[]
-
-  const members = [...nodeNames, ...nestedGroupNames, ...builtins].join(', ')
+  const members = collectGroupMembers(group, allGroups, nodeNames, collectionNodeNames).join(', ')
 
   if (type === 'select') return `${name} = select, ${members}`
   if (type === 'url-test') {
@@ -139,7 +132,8 @@ export function generateLoon(
   nodes: Record<string, unknown>[],
   groups: Record<string, unknown>[],
   rules: Record<string, unknown>[],
-  remoteSets: Record<string, unknown>[]
+  remoteSets: Record<string, unknown>[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const lines: string[] = []
 
@@ -173,7 +167,7 @@ export function generateLoon(
   // [Proxy Group]
   lines.push('[Proxy Group]')
   for (const group of groups) {
-    const line = groupToLoon(group, groups, validNodes)
+    const line = groupToLoon(group, groups, validNodes, collectionNodeNames)
     lines.push(line)
   }
   lines.push('')

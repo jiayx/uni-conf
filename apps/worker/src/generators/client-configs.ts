@@ -1,5 +1,6 @@
 import yaml from 'js-yaml'
 import { generateMihomoYaml } from './mihomo'
+import { collectGroupMembers } from './group-members'
 import { nodeToSubscriptionUri } from './node-subscription'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { DnsMode, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
@@ -21,7 +22,8 @@ export function generateSurge(
   nodes: Row[],
   groups: Row[],
   rules: Row[],
-  remoteSets: Row[]
+  remoteSets: Row[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const lines = buildIniConfig({
     client: 'surge',
@@ -29,6 +31,7 @@ export function generateSurge(
     groups,
     rules,
     remoteSets,
+    collectionNodeNames,
     general: [
       '[General]',
       'loglevel = notify',
@@ -46,7 +49,8 @@ export function generateShadowrocket(
   nodes: Row[],
   groups: Row[],
   rules: Row[],
-  remoteSets: Row[]
+  remoteSets: Row[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const lines = buildIniConfig({
     client: 'shadowrocket',
@@ -54,6 +58,7 @@ export function generateShadowrocket(
     groups,
     rules,
     remoteSets,
+    collectionNodeNames,
     general: [
       '[General]',
       'bypass-system = true',
@@ -70,7 +75,8 @@ export function generateQuantumultX(
   nodes: Row[],
   groups: Row[],
   rules: Row[],
-  remoteSets: Row[]
+  remoteSets: Row[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const serializedNodes = nodes
     .map((node) => ({ node, uri: nodeToSubscriptionUri(node) }))
@@ -89,7 +95,7 @@ export function generateQuantumultX(
   ]
 
   for (const group of groups) {
-    lines.push(groupToQuantumultX(group, groups, nodeNames))
+    lines.push(groupToQuantumultX(group, groups, nodeNames, collectionNodeNames))
   }
 
   lines.push('', '[filter_remote]')
@@ -119,7 +125,8 @@ export function generateEgern(
   nodes: Row[],
   groups: Row[],
   rules: Row[],
-  remoteSets: Row[]
+  remoteSets: Row[],
+  collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const proxies = nodes
     .map(nodeToEgernProxy)
@@ -145,7 +152,7 @@ export function generateEgern(
     http_port: 3080,
     socks_port: 3081,
     proxies,
-    policy_groups: groups.map((group) => groupToEgern(group, groups, nodeNames)),
+    policy_groups: groups.map((group) => groupToEgern(group, groups, nodeNames, collectionNodeNames)),
     rule_sets: ruleSets,
     rules: [
       ...remoteSets
@@ -174,6 +181,7 @@ function buildIniConfig({
   groups,
   rules,
   remoteSets,
+  collectionNodeNames,
   general,
   remoteSection,
 }: {
@@ -182,6 +190,7 @@ function buildIniConfig({
   groups: Row[]
   rules: Row[]
   remoteSets: Row[]
+  collectionNodeNames: Record<string, string[]>
   general: string[]
   remoteSection: string
 }): string[] {
@@ -197,7 +206,7 @@ function buildIniConfig({
 
   lines.push('', '[Proxy Group]')
   for (const group of groups) {
-    lines.push(groupToIni(group, groups, validNodes))
+    lines.push(groupToIni(group, groups, validNodes, collectionNodeNames))
   }
 
   lines.push('', remoteSection)
@@ -270,10 +279,15 @@ function nodeToIniProxy(node: Row): string | null {
   return null
 }
 
-function groupToIni(group: Row, groups: Row[], nodeNames: string[]): string {
+function groupToIni(
+  group: Row,
+  groups: Row[],
+  nodeNames: string[],
+  collectionNodeNames: Record<string, string[]>
+): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const members = collectMembers(group, groups, nodeNames)
+  const members = collectGroupMembers(group, groups, nodeNames, collectionNodeNames)
   if (type === 'url-test') return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'fallback') return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'load-balance') return `${name} = load-balance, ${members.join(', ')}`
@@ -282,10 +296,15 @@ function groupToIni(group: Row, groups: Row[], nodeNames: string[]): string {
   return `${name} = select, ${members.join(', ')}`
 }
 
-function groupToQuantumultX(group: Row, groups: Row[], nodeNames: string[]): string {
+function groupToQuantumultX(
+  group: Row,
+  groups: Row[],
+  nodeNames: string[],
+  collectionNodeNames: Record<string, string[]>
+): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
-  const members = collectMembers(group, groups, nodeNames).join(',')
+  const members = collectGroupMembers(group, groups, nodeNames, collectionNodeNames).join(',')
   if (type === 'url-test') return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'fallback') return `fallback=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
   if (type === 'direct') return `static=${name}, DIRECT`
@@ -293,26 +312,20 @@ function groupToQuantumultX(group: Row, groups: Row[], nodeNames: string[]): str
   return `static=${name}, ${members}`
 }
 
-function groupToEgern(group: Row, groups: Row[], nodeNames: string[]): Record<string, unknown> {
+function groupToEgern(
+  group: Row,
+  groups: Row[],
+  nodeNames: string[],
+  collectionNodeNames: Record<string, string[]>
+): Record<string, unknown> {
   const type = String(group['type'] ?? 'select')
   return {
     name: String(group['name'] ?? ''),
     type: type === 'url-test' ? 'url_test' : type === 'load-balance' ? 'load_balance' : type,
-    policies: collectMembers(group, groups, nodeNames),
+    policies: collectGroupMembers(group, groups, nodeNames, collectionNodeNames),
     url: group['test_url'] ?? 'http://www.gstatic.com/generate_204',
     interval: Number(group['interval'] ?? 300),
   }
-}
-
-function collectMembers(group: Row, groups: Row[], nodeNames: string[]): string[] {
-  const groupIds = safeJsonArray(group['group_ids'])
-  const builtins = safeJsonArray(group['builtins'])
-  const nested = groupIds
-    .map((id) => groups.find((item) => String(item['id']) === id))
-    .filter((item): item is Row => Boolean(item))
-    .map((item) => String(item['name'] ?? ''))
-  const members = [...nodeNames, ...nested, ...builtins].filter(Boolean)
-  return [...new Set(members.length > 0 ? members : ['DIRECT'])]
 }
 
 function ruleToIni(rule: Row, groups: Row[]): string | null {
@@ -434,16 +447,6 @@ function safeJson(value: unknown): Record<string, unknown> {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
-}
-
-function safeJsonArray(value: unknown): string[] {
-  if (typeof value !== 'string') return []
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return Array.isArray(parsed) ? parsed.map(String) : []
-  } catch {
-    return []
-  }
 }
 
 function safeTag(name: string): string {
