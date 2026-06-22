@@ -231,6 +231,27 @@ describe('proxy group references', () => {
     expect(content).toContain('  - DOMAIN-SUFFIX,ads.example,REJECT')
   })
 
+  it('maps Mihomo nested native outlet groups to built-in policy names', () => {
+    const customNamedDirectGroup: ProxyGroup = {
+      ...directGroup,
+      name: 'DIRECT-GROUP',
+    }
+    const selector: ProxyGroup = {
+      ...autoGroup,
+      id: 'group-selector',
+      name: 'Selector',
+      type: 'select',
+      collectionIds: [],
+      groupIds: [customNamedDirectGroup.id],
+    }
+
+    const content = generateMihomoYaml([], [selector, customNamedDirectGroup], [], [])
+
+    expect(content).toContain('  - name: "Selector"')
+    expect(content).toContain('      - "DIRECT"')
+    expect(content).not.toContain('DIRECT-GROUP')
+  })
+
   it('maps sing-box DIRECT and REJECT targets to native outbounds', () => {
     const content = generateSingboxJson(
       [],

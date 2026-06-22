@@ -107,7 +107,7 @@ export function generateMihomoYaml(
   for (const { source: rs } of enabledRemoteSets) {
     const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     const group = groups.find((g) => g.id === rs.targetGroupId);
-    const targetGroup = group ? escapeName(group.name) : rs.targetGroupId;
+    const targetGroup = group ? resolveMihomoPolicyName(group) : rs.targetGroupId;
     lines.push(`  - RULE-SET,${safeName},${targetGroup}`);
   }
 
@@ -313,7 +313,7 @@ function groupToMihomo(
 
   for (const gid of group.groupIds) {
     const nestedGroup = allGroups.find((item) => item.id === gid);
-    if (nestedGroup) proxies.push(escapeName(nestedGroup.name));
+    if (nestedGroup) proxies.push(resolveMihomoPolicyName(nestedGroup));
   }
 
   const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? []);
@@ -353,7 +353,7 @@ function isMihomoProxyGroup(group: ProxyGroup): boolean {
 
 function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string {
   const group = groups.find((g) => g.id === rule.targetGroupId);
-  const groupName = group ? escapeName(group.name) : rule.targetGroupId;
+  const groupName = group ? resolveMihomoPolicyName(group) : rule.targetGroupId;
 
   if (rule.type === 'MATCH') {
     return `MATCH,${groupName}`;
@@ -364,15 +364,22 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string {
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string | undefined {
-  return groups.find((group) => group.name === '漏网之鱼')?.name
-    ?? groups.find((group) => group.name === 'PROXY')?.name
-    ?? groups[0]?.name;
+  const group = groups.find((item) => item.name === '漏网之鱼')
+    ?? groups.find((item) => item.name === 'PROXY')
+    ?? groups[0];
+  return group ? resolveMihomoPolicyName(group) : undefined;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function escapeName(name: string): string {
   return name.replace(/"/g, '\\"');
+}
+
+function resolveMihomoPolicyName(group: ProxyGroup): string {
+  if (group.type === 'direct') return 'DIRECT';
+  if (group.type === 'reject') return 'REJECT';
+  return escapeName(group.name);
 }
 
 function filterCollectionNodeNames(

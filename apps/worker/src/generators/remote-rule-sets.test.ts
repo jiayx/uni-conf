@@ -119,8 +119,8 @@ describe('remote rule set generators', () => {
 
     expect(content).toContain('Ads_List:');
     expect(content).toContain('url: "https://example.com/ads.yaml"');
-    expect(content).toContain('  - RULE-SET,Ads_List,DIRECT-GROUP');
-    expect(content.indexOf('  - RULE-SET,Ads_List,DIRECT-GROUP')).toBeLessThan(
+    expect(content).toContain('  - RULE-SET,Ads_List,DIRECT');
+    expect(content.indexOf('  - RULE-SET,Ads_List,DIRECT')).toBeLessThan(
       content.indexOf('  - MATCH,PROXY')
     );
     expect(content).not.toContain('ai.srs');
