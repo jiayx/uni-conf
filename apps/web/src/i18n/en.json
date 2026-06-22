@@ -71,7 +71,7 @@
     "node_count": "Node Count",
     "last_updated": "Last Updated",
     "update_interval": "Auto Update Interval",
-    "update_interval_hint": "minutes, 0 = manual only",
+    "update_interval_hint": "minutes, 0 = use global refresh interval",
     "user_agent": "User-Agent",
     "user_agent_hint": "Optional, custom request header",
     "refresh_now": "Refresh Now",

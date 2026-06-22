@@ -71,7 +71,7 @@
     "node_count": "节点数量",
     "last_updated": "上次更新",
     "update_interval": "自动更新间隔",
-    "update_interval_hint": "分钟，0 表示手动更新",
+    "update_interval_hint": "分钟，0 使用全局刷新间隔",
     "user_agent": "User-Agent",
     "user_agent_hint": "可选，自定义请求头",
     "refresh_now": "立即刷新",

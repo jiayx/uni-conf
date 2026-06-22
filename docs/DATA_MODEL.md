@@ -21,7 +21,7 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | node_count | INTEGER | Cached count |
 | last_updated | TEXT? | ISO timestamp of last refresh |
 | last_refresh_error | TEXT? | Latest refresh failure message, cleared after successful refresh |
-| update_interval | INTEGER | Minutes, 0=manual |
+| update_interval | INTEGER | Minutes, `0` uses global auto-refresh interval |
 | user_agent | TEXT? | Custom UA for fetching |
 | notes | TEXT? | User notes |
 | tags | TEXT | JSON array of strings |
