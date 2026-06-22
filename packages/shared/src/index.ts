@@ -47,8 +47,16 @@ export const EXPORT_FORMAT_FILENAMES: Record<ExportSubscriptionFormat, string> =
   nodes_raw: 'nodes-raw.txt',
 };
 
+export const EXPORT_FORMAT_BY_FILENAME: Record<string, ExportSubscriptionFormat> = Object.fromEntries(
+  Object.entries(EXPORT_FORMAT_FILENAMES).map(([format, filename]) => [filename, format])
+) as Record<string, ExportSubscriptionFormat>;
+
 export function getExportSubscriptionFilename(format: ExportSubscriptionFormat): string {
   return EXPORT_FORMAT_FILENAMES[format];
+}
+
+export function getExportFormatFromSubscriptionFilename(filename: string): ExportSubscriptionFormat | null {
+  return EXPORT_FORMAT_BY_FILENAME[filename] ?? null;
 }
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [

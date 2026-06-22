@@ -13,6 +13,7 @@ import {
 import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
 import { getAppSettings } from '../services/app-settings'
 import type { Env } from '../types'
+import { getExportFormatFromSubscriptionFilename } from '@uni-conf/shared'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -44,46 +45,49 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     collectionNodeNames,
   } = await buildExportData(c.env.DB, config)
   const settings = await getAppSettings(c.env.DB)
-
-  let content: string
-  let contentType: string
-
-  // Determine format from filename
-  if (filename === 'mihomo.yaml' || filename === 'clash.yaml') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'text/yaml; charset=utf-8'
-  } else if (filename === 'singbox.json') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'application/json; charset=utf-8'
-  } else if (filename === 'loon.conf') {
-    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (filename === 'surge.conf') {
-    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (filename === 'shadowrocket.conf') {
-    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (filename === 'quantumultx.conf') {
-    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (filename === 'stash.yaml') {
-    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'text/yaml; charset=utf-8'
-  } else if (filename === 'egern.yaml') {
-    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/yaml; charset=utf-8'
-  } else if (filename === 'nodes.txt') {
-    content = generateNodeSubscriptionBase64(nodeRows)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (filename === 'nodes-raw.txt') {
-    content = generateNodeSubscriptionRaw(nodeRows)
-    contentType = 'text/plain; charset=utf-8'
-  } else {
+  const format = getExportFormatFromSubscriptionFilename(filename)
+  if (!format) {
     return new Response(`# Unknown format: ${filename}\n`, {
       status: 400,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     })
+  }
+
+  let content: string
+  let contentType: string
+
+  if (format === 'mihomo' || format === 'clash') {
+    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
+    contentType = 'text/yaml; charset=utf-8'
+  } else if (format === 'singbox') {
+    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
+    contentType = 'application/json; charset=utf-8'
+  } else if (format === 'loon') {
+    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'surge') {
+    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'shadowrocket') {
+    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'quantumultx') {
+    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'stash') {
+    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
+    contentType = 'text/yaml; charset=utf-8'
+  } else if (format === 'egern') {
+    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
+    contentType = 'text/yaml; charset=utf-8'
+  } else if (format === 'nodes_base64') {
+    content = generateNodeSubscriptionBase64(nodeRows)
+    contentType = 'text/plain; charset=utf-8'
+  } else if (format === 'nodes_raw') {
+    content = generateNodeSubscriptionRaw(nodeRows)
+    contentType = 'text/plain; charset=utf-8'
+  } else {
+    return new Response(`# Unknown format: ${filename}\n`, { status: 400 })
   }
 
   return new Response(content, {

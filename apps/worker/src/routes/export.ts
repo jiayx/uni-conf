@@ -17,6 +17,7 @@ import { ensureDefaultExportConfig, generateExportToken } from '../services/defa
 import { resolveExportWarnings } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
+import { getExportSubscriptionFilename } from '@uni-conf/shared'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -181,43 +182,43 @@ exportRouter.get('/download/:format', async (c) => {
   if (format === 'mihomo' || format === 'clash') {
     content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
-    filename = 'mihomo.yaml'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'singbox') {
     content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'application/json; charset=utf-8'
-    filename = 'singbox.json'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'loon') {
     content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
-    filename = 'loon.conf'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'surge') {
     content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
-    filename = 'surge.conf'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'shadowrocket') {
     content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
-    filename = 'shadowrocket.conf'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'quantumultx') {
     content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/plain; charset=utf-8'
-    filename = 'quantumultx.conf'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'stash') {
     content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
     contentType = 'text/yaml; charset=utf-8'
-    filename = 'stash.yaml'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'egern') {
     content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
     contentType = 'text/yaml; charset=utf-8'
-    filename = 'egern.yaml'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'nodes_base64') {
     content = generateNodeSubscriptionBase64(nodeRows)
     contentType = 'text/plain; charset=utf-8'
-    filename = 'nodes.txt'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else if (format === 'nodes_raw') {
     content = generateNodeSubscriptionRaw(nodeRows)
     contentType = 'text/plain; charset=utf-8'
-    filename = 'nodes-raw.txt'
+    filename = getExportSubscriptionFilename(format as ExportFormat)
   } else {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
