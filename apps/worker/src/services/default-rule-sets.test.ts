@@ -21,6 +21,7 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'apple')?.targetGroupId).toBe('builtin-apple');
     expect(inserted.find((item) => item.presetId === 'microsoft')?.targetGroupId).toBe('builtin-microsoft');
     expect(inserted.find((item) => item.presetId === 'adrules')?.targetGroupId).toBe('builtin-reject');
+    expect(inserted.find((item) => item.presetId === 'httpdns')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'cn')?.targetGroupId).toBe('builtin-direct');
     expect(inserted.find((item) => item.presetId === 'adrules')?.sortOrder).toBe(20);
     expect(inserted.find((item) => item.presetId === 'ai')?.sortOrder).toBe(40);

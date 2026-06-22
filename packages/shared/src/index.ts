@@ -345,7 +345,7 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
 
 export const QUIXOTIC_RULE_SET_PRESETS: QuixoticRuleSetPreset[] = [
   { id: 'abema', name: 'Abema', description: 'abema 视频流媒体平台', category: 'streaming' },
-  { id: 'adrules', name: 'Advertising', description: '广告屏蔽规则 + HTTPDNS', category: 'privacy' },
+  { id: 'adrules', name: 'Advertising', description: '广告、追踪和恶意域名屏蔽规则', category: 'privacy' },
   { id: 'ai', name: 'AI', description: 'AI 规则集合，包含 OpenAI、Gemini、Copilot、Claude 等', category: 'ai' },
   { id: 'apns', name: 'APNs', description: 'Apple Push Notification Service 苹果推送服务', category: 'apple' },
   { id: 'apple-cn', name: 'Apple CN', description: 'Apple 在中国大陆备案的规则列表', category: 'apple' },

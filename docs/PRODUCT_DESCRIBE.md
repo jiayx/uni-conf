@@ -217,7 +217,7 @@ Telegram -> 新加坡自动、香港自动、日本自动、美国自动、自�
 
 ```text
 局域网 / 国内域名 / 国内 IP -> DIRECT
-广告 / HTTPDNS -> REJECT
+广告 / 追踪 / 恶意域名 / HTTPDNS -> REJECT
 AI 服务 -> AI
 流媒体 -> Streaming
 Telegram -> Telegram
@@ -233,13 +233,13 @@ Microsoft / OneDrive -> Microsoft
 
 如果当前组合没有启用某个专用策略组，规则集回退到 `PROXY`；如果没有显式 MATCH 规则，导出器优先用 `漏网之鱼` 作为兜底，未启用时再回退到 `PROXY`。这样用户切换组合时不会产生悬空规则。
 
-QuixoticHeart/rule-set 是默认远程规则包来源。对于 Quixotic 当前没有独立拆分的 Telegram，系统额外内置 MetaCubeX/meta-rules-dat 的 `geosite/telegram.list`，并把它分配到 `Telegram` 策略组。
+QuixoticHeart/rule-set 是默认远程规则包来源。第一版用 Quixotic 的 Advertising 与 HTTPDNS 规则承担广告、追踪、恶意域名和 HTTPDNS 拦截，并统一分配到 `REJECT`。对于 Quixotic 当前没有独立拆分的 Telegram，系统额外内置 MetaCubeX/meta-rules-dat 的 `geosite/telegram.list`，并把它分配到 `Telegram` 策略组。
 
 预置远程规则集还会自动写入稳定的优先级顺序，导出时按 `sort_order` 从小到大输出：
 
 ```text
 私有网络 / 本机规则
-广告 / HTTPDNS 拦截
+广告 / 追踪 / 恶意域名 / HTTPDNS 拦截
 国内直连
 AI
 Telegram
