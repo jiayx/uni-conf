@@ -33,6 +33,18 @@ type ExportSubscriptionFormat =
   | 'nodes_base64'
   | 'nodes_raw';
 
+type RuleSetFormat =
+  | 'mihomo'
+  | 'clash'
+  | 'singbox'
+  | 'surge'
+  | 'loon'
+  | 'shadowrocket'
+  | 'quantumultx'
+  | 'egern'
+  | 'stash'
+  | 'text';
+
 type RuleCompatibilityType =
   | 'DOMAIN'
   | 'DOMAIN-SUFFIX'
@@ -135,6 +147,29 @@ export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
     client: format,
     level: getRuleCompatibilityLevel(ruleType, format),
   }));
+}
+
+export const COMPATIBLE_RULE_SET_FORMATS: Partial<Record<ExportSubscriptionFormat, RuleSetFormat[]>> = {
+  mihomo: ['mihomo', 'clash', 'stash', 'text'],
+  clash: ['mihomo', 'clash', 'stash', 'text'],
+  singbox: ['singbox'],
+  loon: ['loon', 'surge', 'shadowrocket', 'text'],
+  surge: ['surge', 'text'],
+  shadowrocket: ['shadowrocket', 'surge', 'text'],
+  quantumultx: ['quantumultx', 'text'],
+  stash: ['stash', 'mihomo', 'clash', 'text'],
+  egern: ['egern', 'text'],
+};
+
+export function getCompatibleRuleSetFormats(format: ExportSubscriptionFormat): RuleSetFormat[] {
+  return COMPATIBLE_RULE_SET_FORMATS[format] ?? [];
+}
+
+export function isRuleSetFormatCompatible(
+  exportFormat: ExportSubscriptionFormat,
+  ruleSetFormat: string
+): boolean {
+  return getCompatibleRuleSetFormats(exportFormat).includes(ruleSetFormat as RuleSetFormat);
 }
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [

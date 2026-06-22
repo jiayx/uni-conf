@@ -1,3 +1,4 @@
+import { isRuleSetFormatCompatible } from '@uni-conf/shared';
 import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
@@ -74,7 +75,7 @@ export function generateMihomoYaml(
     .filter((rs) => rs.enabled)
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'mihomo') }))
     .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
-      Boolean(item.resolved) && isMihomoCompatibleRemoteSet(item.resolved!.format)
+      Boolean(item.resolved) && isRuleSetFormatCompatible('mihomo', item.resolved!.format)
     );
   if (enabledRemoteSets.length === 0) {
     lines.push('rule-providers: {}');
@@ -397,8 +398,4 @@ function filterCollectionNodeNames(
 function detectBehavior(format: string): string {
   if (format === 'text') return 'domain';
   return 'classical';
-}
-
-function isMihomoCompatibleRemoteSet(format: string): boolean {
-  return ['mihomo', 'clash', 'stash', 'text'].includes(format);
 }

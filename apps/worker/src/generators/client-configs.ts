@@ -1,4 +1,5 @@
 import yaml from 'js-yaml'
+import { isRuleSetFormatCompatible } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
 import { collectGroupMembers } from './group-members'
 import { nodeToSubscriptionUri } from './node-subscription'
@@ -102,7 +103,7 @@ export function generateQuantumultX(
   for (const rs of remoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, 'quantumultx')
-    if (!resolved || !isCompatibleRemoteSet('quantumultx', resolved.format)) continue
+    if (!resolved || !isRuleSetFormatCompatible('quantumultx', resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
     lines.push(`${resolved.url}, tag=${rs['name']}, force-policy=${target}, enabled=true`)
   }
@@ -136,7 +137,7 @@ export function generateEgern(
     .filter((rs) => rs['enabled'])
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetRowForExport(rs, 'egern') }))
     .filter((item): item is { source: Row; resolved: { url: string; format: string } } =>
-      Boolean(item.resolved) && isCompatibleRemoteSet('egern', item.resolved!.format)
+      Boolean(item.resolved) && isRuleSetFormatCompatible('egern', item.resolved!.format)
     )
     .map(({ source: rs, resolved }) => ({
       tag: safeTag(String(rs['name'] ?? 'remote')),
@@ -160,7 +161,7 @@ export function generateEgern(
         .filter((rs) => {
           if (!rs['enabled']) return false
           const resolved = resolveRemoteRuleSetRowForExport(rs, 'egern')
-          return Boolean(resolved && isCompatibleRemoteSet('egern', resolved.format))
+          return Boolean(resolved && isRuleSetFormatCompatible('egern', resolved.format))
         })
         .map((rs) => ({
           rule_set: safeTag(String(rs['name'] ?? 'remote')),
@@ -214,7 +215,7 @@ function buildIniConfig({
   for (const rs of remoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, client)
-    if (!resolved || !isCompatibleRemoteSet(client, resolved.format)) continue
+    if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
     lines.push(`${safeTag(String(rs['name'] ?? 'remote'))} = ${resolved.url}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`)
   }
@@ -223,7 +224,7 @@ function buildIniConfig({
   for (const rs of remoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, client)
-    if (!resolved || !isCompatibleRemoteSet(client, resolved.format)) continue
+    if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
     lines.push(`RULE-SET,${safeTag(String(rs['name'] ?? 'remote'))},${target}`)
   }
@@ -412,16 +413,6 @@ function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
     return { name, type: 'socks5', server, port }
   }
   return null
-}
-
-function isCompatibleRemoteSet(client: string, format: string): boolean {
-  const matrix: Record<string, string[]> = {
-    surge: ['surge', 'text'],
-    shadowrocket: ['shadowrocket', 'surge', 'text'],
-    quantumultx: ['quantumultx', 'text'],
-    egern: ['egern', 'text'],
-  }
-  return matrix[client]?.includes(format) ?? false
 }
 
 function resolveGroupName(groupId: string, groups: Row[]): string {

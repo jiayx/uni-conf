@@ -1,4 +1,5 @@
 import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import { isRuleSetFormatCompatible } from '@uni-conf/shared';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── sing-box JSON generator ──────────────────────────────────────────────────
@@ -497,7 +498,7 @@ function buildRoute(
     .filter((rs) => rs.enabled)
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'singbox') }))
     .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
-      Boolean(item.resolved) && item.resolved!.format === 'singbox'
+      Boolean(item.resolved) && isRuleSetFormatCompatible('singbox', item.resolved!.format)
     );
 
   for (const { source: rs, resolved } of enabledRemoteSets) {

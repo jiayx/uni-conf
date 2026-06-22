@@ -5,6 +5,7 @@
 
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
+import { isRuleSetFormatCompatible } from '@uni-conf/shared'
 
 function safeJson(text: unknown): Record<string, unknown> {
   if (typeof text !== 'string') return {}
@@ -189,7 +190,7 @@ export function generateLoon(
   for (const rs of remoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, 'loon')
-    if (!resolved || !isLoonCompatibleRemoteSet(resolved.format)) continue
+    if (!resolved || !isRuleSetFormatCompatible('loon', resolved.format)) continue
     const name = String(rs['name'] ?? '')
     const targetGroupId = String(rs['target_group_id'] ?? '')
     const targetGroup = groups.find(g => String(g['id']) === targetGroupId)
@@ -217,10 +218,6 @@ function defaultPolicy(groups: Array<Record<string, unknown>>): string {
       ?? groups[0]?.['name']
       ?? 'PROXY'
   )
-}
-
-function isLoonCompatibleRemoteSet(format: string): boolean {
-  return ['loon', 'surge', 'shadowrocket', 'text'].includes(format)
 }
 
 function nativePolicyName(group: Record<string, unknown>): string {

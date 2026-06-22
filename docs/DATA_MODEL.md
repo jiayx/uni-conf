@@ -377,7 +377,7 @@ Other - Manual - 01
 ]
 ```
 
-`rules.compatibility` is not user-authored. Rule creation, batch import, and template import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
+`rules.compatibility` is not user-authored. Rule creation, batch import, and template import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. Remote rule set format support is also centralized in `@uni-conf/shared`; the web compatibility UI, worker preview validation, and client generators use the same matrix. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
 
 ### Export Preview Warnings
 

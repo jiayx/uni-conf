@@ -1,5 +1,5 @@
 import type { CompatibilityWarning, DnsMode, ExportFormat } from '@uni-conf/types';
-import { getRuleCompatibilityLevel } from '@uni-conf/shared';
+import { getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared';
 import type { ExportData } from '../export-data';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 
@@ -182,7 +182,7 @@ function validateRemoteRuleSets(data: ExportData, format: ExportFormat): Compati
     }
 
     const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
-    if (!resolved || !isRemoteRuleSetFormatCompatible(format, resolved.format)) {
+    if (!resolved || !isRuleSetFormatCompatible(format, resolved.format)) {
       warnings.push({
         client: format,
         level: 'partial',
@@ -222,21 +222,6 @@ function formatDnsMode(dnsMode: DnsMode): string {
   if (dnsMode === 'smart') return '智能防污染';
   if (dnsMode === 'fake-ip') return '高级 fake-ip';
   return '兼容优先';
-}
-
-function isRemoteRuleSetFormatCompatible(format: ExportFormat, ruleSetFormat: string): boolean {
-  const matrix: Partial<Record<ExportFormat, string[]>> = {
-    mihomo: ['mihomo', 'clash', 'stash', 'text'],
-    clash: ['mihomo', 'clash', 'stash', 'text'],
-    singbox: ['singbox'],
-    loon: ['loon', 'surge', 'shadowrocket', 'text'],
-    surge: ['surge', 'text'],
-    shadowrocket: ['shadowrocket', 'surge', 'text'],
-    quantumultx: ['quantumultx', 'text'],
-    stash: ['stash', 'mihomo', 'clash', 'text'],
-    egern: ['egern', 'text'],
-  };
-  return matrix[format]?.includes(ruleSetFormat) ?? false;
 }
 
 function isDownloadableHttpUrl(value: string): boolean {
