@@ -118,7 +118,8 @@ pnpm --filter @uni-conf/types check:protocols
 See [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md).
 
 ### New Rule Template
-Add to the `BUILTIN_TEMPLATES` array in `apps/web/src/core/templates/index.ts`.
+Default routing should prefer remote rule set presets in `@uni-conf/shared` and `apps/worker/src/services/default-rule-sets.ts`.
+Only add local manual-rule templates when a rule cannot reasonably live in a remote rule set. Local templates are worker-owned in `apps/worker/src/routes/templates.ts`; the web app should fetch them through `/api/templates` instead of keeping a second template list.
 
 ## Debugging
 

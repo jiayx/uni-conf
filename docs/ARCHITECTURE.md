@@ -179,14 +179,13 @@ src/
 ├── app/
 │   ├── App.tsx              # Root: RouterProvider + i18n init + theme
 │   └── router.tsx           # Route definitions
-├── pages/                   # Page components (10 pages)
+├── pages/                   # Page components
 │   ├── Dashboard/
 │   ├── Sources/
 │   ├── Nodes/
 │   ├── Collections/
 │   ├── Groups/
 │   ├── Rules/
-│   ├── Templates/
 │   ├── Export/
 │   ├── Preview/
 │   └── Settings/
@@ -216,7 +215,7 @@ src/
 ├── core/                    # Pure business logic (testable)
 │   ├── parser/              # Subscription format parsers
 │   ├── filter/              # Node filtering/renaming/sorting
-│   ├── templates/           # Built-in rule templates
+│   ├── remote-rules/        # UI wrappers around shared remote rule set presets
 │   └── compatibility/       # UI wrappers around shared client compatibility data
 ├── lib/
 │   └── api.ts               # Typed API client
@@ -269,12 +268,12 @@ Theme preference stored in settings store, applied to `document.documentElement`
 See [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md) for detailed instructions.
 
 Quick summary:
-1. Create `src/core/exporter/<name>.exporter.ts` implementing `IExporter`
-2. Register in `src/core/exporter/registry.ts`
-3. Add format to `ExportFormat` union in `packages/types/src/index.ts`
-4. Add generator in `apps/worker/src/generators/<name>.ts`
-5. Add format to worker's export routes
-6. Add i18n strings for the new format name
+1. Add the format to `ExportFormat` in `packages/types/src/index.ts`
+2. Add subscription filename mapping in `packages/shared/src/index.ts` when applicable
+3. Add or extend a generator in `apps/worker/src/generators/`
+4. Wire worker preview, download, and public subscription routes
+5. Add shared compatibility metadata and UI labels
+6. Add worker generator and preview validation tests
 
 ---
 
@@ -283,7 +282,7 @@ Quick summary:
 | Layer | Tool | Coverage Target |
 |-------|------|----------------|
 | Core parsers | Vitest | ≥ 90% |
-| Core exporters | Vitest (snapshot) | ≥ 85% |
+| Worker generators | Vitest (snapshot/structural) | ≥ 85% |
 | Core filters | Vitest | ≥ 90% |
 | UI components | React Testing Library | Key interactions |
 | Worker routes | @cloudflare/vitest-pool-workers | ≥ 80% |
