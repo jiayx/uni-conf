@@ -13,8 +13,8 @@ import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule,
 import styles from './Export.module.css'
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
-  { value: 'mihomo', label: 'Mihomo / Clash YAML' },
-  { value: 'clash', label: 'Clash YAML' },
+  { value: 'mihomo', label: 'Mihomo / Clash Verge Rev / OpenClash YAML' },
+  { value: 'clash', label: 'Clash / Clash Verge Rev / OpenClash YAML' },
   { value: 'singbox', label: 'sing-box JSON' },
   { value: 'loon', label: 'Loon CONF' },
   { value: 'surge', label: 'Surge CONF' },
