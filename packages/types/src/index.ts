@@ -276,20 +276,6 @@ export interface RemoteRuleSet {
   updatedAt: string;
 }
 
-export interface RuleTemplate {
-  id: string;
-  name: string;
-  nameEn: string;
-  description: string;
-  descriptionEn: string;
-  category: string;
-  rules: Omit<ProxyRule, 'id' | 'targetGroupId' | 'createdAt' | 'updatedAt'>[];
-  remoteSets?: Omit<RemoteRuleSet, 'id' | 'targetGroupId' | 'createdAt' | 'updatedAt'>[];
-  suggestedGroupName?: string;
-  isBuiltin: boolean;
-  createdAt: string;
-}
-
 // ============================================================
 // Export Config
 // ============================================================

@@ -5,7 +5,6 @@ import nodesRouter from './routes/nodes'
 import collectionsRouter from './routes/collections'
 import groupsRouter from './routes/groups'
 import rulesRouter from './routes/rules'
-import templatesRouter from './routes/templates'
 import remoteRuleSetsRouter from './routes/remote-rule-sets'
 import dashboardRouter from './routes/dashboard'
 import settingsRouter from './routes/settings'
@@ -29,7 +28,6 @@ app.route('/api/nodes', nodesRouter)
 app.route('/api/collections', collectionsRouter)
 app.route('/api/groups', groupsRouter)
 app.route('/api/rules', rulesRouter)
-app.route('/api/templates', templatesRouter)
 app.route('/api/remote-rule-sets', remoteRuleSetsRouter)
 app.route('/api/export', exportRouter)
 app.route('/api/dashboard', dashboardRouter)
