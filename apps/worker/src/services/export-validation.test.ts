@@ -90,9 +90,32 @@ describe('export validation', () => {
     }));
   });
 
+  it('warns when the export format cannot include managed DNS settings', () => {
+    const warnings = validateExportData(makeExportData(), 'loon', { dnsMode: 'smart' });
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      client: 'loon',
+      level: 'partial',
+      message: expect.stringContaining('智能防污染'),
+    }));
+  });
+
+  it('does not warn about DNS for formats with managed DNS export support', () => {
+    expect(validateExportData(makeExportData(), 'mihomo', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('高级 fake-ip'),
+    }));
+    expect(validateExportData(makeExportData(), 'singbox', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('高级 fake-ip'),
+    }));
+    expect(validateExportData(makeExportData(), 'stash', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('高级 fake-ip'),
+    }));
+  });
+
   it('suppresses warnings when compatibility warnings are disabled', () => {
     const warnings = resolveExportWarnings(makeExportData({ nodes: [], rules: [] }), 'mihomo', {
       showCompatibilityWarnings: false,
+      dnsMode: 'fake-ip',
     });
 
     expect(warnings).toEqual([]);

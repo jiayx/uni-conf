@@ -125,6 +125,7 @@ exportRouter.get('/preview/:format', async (c) => {
   const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = exportData
   const warnings = resolveExportWarnings(exportData, format as ExportFormat, {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
+    dnsMode: settings.dnsMode,
   })
   let content: string
   let contentType: string

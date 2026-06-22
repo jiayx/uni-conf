@@ -1,22 +1,31 @@
-import type { CompatibilityWarning, ExportFormat } from '@uni-conf/types';
+import type { CompatibilityWarning, DnsMode, ExportFormat } from '@uni-conf/types';
 import type { ExportData } from '../export-data';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 
-export function validateExportData(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+interface ExportValidationOptions {
+  dnsMode?: DnsMode;
+}
+
+export function validateExportData(
+  data: ExportData,
+  format: ExportFormat,
+  options: ExportValidationOptions = {}
+): CompatibilityWarning[] {
   return [
     ...validateNodes(data, format),
     ...validateGroups(data, format),
     ...validateRules(data, format),
     ...validateRemoteRuleSets(data, format),
+    ...validateDns(format, options.dnsMode),
   ];
 }
 
 export function resolveExportWarnings(
   data: ExportData,
   format: ExportFormat,
-  options: { showCompatibilityWarnings: boolean }
+  options: { showCompatibilityWarnings: boolean } & ExportValidationOptions
 ): CompatibilityWarning[] {
-  return options.showCompatibilityWarnings ? validateExportData(data, format) : [];
+  return options.showCompatibilityWarnings ? validateExportData(data, format, options) : [];
 }
 
 function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
@@ -135,6 +144,27 @@ function validateRemoteRuleSets(data: ExportData, format: ExportFormat): Compati
     }
   }
   return warnings;
+}
+
+function validateDns(format: ExportFormat, dnsMode: DnsMode | undefined): CompatibilityWarning[] {
+  if (!dnsMode || dnsMode === 'compatible' || supportsManagedDns(format)) return [];
+
+  return [{
+    client: format,
+    level: 'partial',
+    message: `当前客户端 ${format} 不支持完整导出 ${formatDnsMode(dnsMode)} DNS，导出时会按客户端能力降级或跳过 DNS 字段`,
+    messageEn: `The ${format} export cannot fully include ${dnsMode} DNS settings. DNS fields will be downgraded or skipped during export.`,
+  }];
+}
+
+function supportsManagedDns(format: ExportFormat): boolean {
+  return format === 'mihomo' || format === 'clash' || format === 'singbox' || format === 'stash';
+}
+
+function formatDnsMode(dnsMode: DnsMode): string {
+  if (dnsMode === 'smart') return '智能防污染';
+  if (dnsMode === 'fake-ip') return '高级 fake-ip';
+  return '兼容优先';
 }
 
 function isRemoteRuleSetFormatCompatible(format: ExportFormat, ruleSetFormat: string): boolean {
