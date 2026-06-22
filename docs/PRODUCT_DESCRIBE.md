@@ -548,7 +548,7 @@ ShadowTLS
 例如：
 
 ```text
-Main
+默认代理节点
 流媒体节点
 AI 节点
 低倍率节点
@@ -1325,26 +1325,30 @@ Base64 节点订阅
 1. 添加远程订阅链接
 2. 添加手动节点
 3. 查看节点列表
-4. 创建一个默认节点组 Main
-5. 简单节点过滤
-6. 简单节点重命名
-7. 固定策略组：
+4. 远程订阅创建后默认刷新并解析节点
+5. 自动识别国家 / 地区、倍率和常见标签
+6. 自动生成国家 / 标签节点组
+7. 基础出口：
    - PROXY
+   - DIRECT
+   - REJECT
+   - 全部节点
+   - 节点选择
+   - 自动选择
+   - 故障切换
+8. 策略组组合：
    - AI
    - Streaming
+   - Telegram
    - Social
-   - Direct
-   - Reject
-8. 内置规则模板：
-   - AI
-   - Streaming
-   - Social
-   - China Direct
-   - Reject
-9. 导出完整 Mihomo / Clash 配置
-10. 导出 Loon 配置
-11. 导出 sing-box 配置
-12. 生成固定订阅链接
+   - GitHub
+   - Apple
+   - Microsoft
+   - 漏网之鱼
+9. 预置远程规则集并自动分配匹配后使用的出口 / 分流策略
+10. 配置预览和兼容性警告
+11. 导出完整 Mihomo / Clash、sing-box、Loon 等配置
+12. 生成默认固定订阅链接
 ```
 
 ### MVP 可以暂缓
