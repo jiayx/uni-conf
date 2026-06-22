@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { newId, now, jsonStringify } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
 import { getRuleCompatibility } from '@uni-conf/shared';
+import { isEnabledTargetGroup } from '../services/group-targets';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -643,12 +644,8 @@ app.post('/:id/import', async (c) => {
     return c.json({ success: false, error: 'targetGroupId is required' }, 400);
   }
 
-  // Verify group exists
-  const group = await c.env.DB.prepare('SELECT id FROM groups WHERE id = ?')
-    .bind(body.targetGroupId)
-    .first();
-  if (!group) {
-    return c.json({ success: false, error: 'Target group not found' }, 404);
+  if (!(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+    return c.json({ success: false, error: 'Target group is disabled or missing' }, 400);
   }
 
   const ts = now();
