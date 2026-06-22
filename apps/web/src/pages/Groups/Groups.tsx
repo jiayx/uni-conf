@@ -16,7 +16,7 @@ import styles from './Groups.module.css'
 
 type GroupForm = Omit<ProxyGroup, 'id' | 'createdAt' | 'updatedAt'>
 
-const GROUP_TYPES: GroupType[] = ['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']
+const USER_GROUP_TYPES: GroupType[] = ['select', 'url-test', 'fallback', 'load-balance']
 const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning' | 'error' | 'default'> = {
   select: 'purple',
   'url-test': 'info',
@@ -327,7 +327,7 @@ export function Groups() {
           <div>
             <label className={styles.selectLabel}>{t('common.type')}</label>
             <select className={styles.select} value={form.type} onChange={e => setFormValue('type', e.target.value as GroupType, setForm)}>
-              {GROUP_TYPES.map(type => <option key={type} value={type}>{typeLabel(type)}</option>)}
+              {USER_GROUP_TYPES.map(type => <option key={type} value={type}>{typeLabel(type)}</option>)}
             </select>
           </div>
           <Input label={t('groups.test_url')} value={form.testUrl ?? ''} onChange={e => setFormValue('testUrl', e.target.value, setForm)} />

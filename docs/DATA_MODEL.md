@@ -136,6 +136,8 @@ Built-in groups have two product roles:
 | Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
 | Business routing groups | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
 
+`DIRECT` and `REJECT` are system foundation outlets, not user-created policy group types. User-created groups may use `select`, `url-test`, `fallback`, or `load-balance`; the API rejects custom `direct` / `reject` groups so rules and generated exporters keep one canonical representation for direct and reject traffic.
+
 Business routing group `group_ids` are derived, not manually maintained. The system orders outlet candidates by intent:
 
 | Routing group | Preferred outlet order |

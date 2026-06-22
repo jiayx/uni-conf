@@ -5,6 +5,7 @@ import type { ProxyGroup } from '@uni-conf/types';
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups';
 
 const app = new Hono<{ Bindings: Env }>();
+const BUILTIN_ONLY_GROUP_TYPES = new Set(['direct', 'reject']);
 
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
@@ -50,6 +51,9 @@ app.post('/', async (c) => {
   const body = await c.req.json<Partial<ProxyGroup>>();
   if (!body.name || !body.type) {
     return c.json({ success: false, error: 'name and type are required' }, 400);
+  }
+  if (BUILTIN_ONLY_GROUP_TYPES.has(body.type)) {
+    return c.json({ success: false, error: 'DIRECT and REJECT are built-in foundation outlets' }, 400);
   }
 
   const id = newId();
@@ -115,6 +119,9 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<ProxyGroup>>();
   const ts = now();
+  if (!existing.is_builtin && body.type && BUILTIN_ONLY_GROUP_TYPES.has(body.type)) {
+    return c.json({ success: false, error: 'DIRECT and REJECT are built-in foundation outlets' }, 400);
+  }
 
   await c.env.DB.prepare(
     `UPDATE groups SET
