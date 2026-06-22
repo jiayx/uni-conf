@@ -271,65 +271,10 @@ export function Sources() {
       >
         {formError && <div className={styles.formError}>{formError}</div>}
         <Input
-          label={t('sources.name_optional')}
-          value={form.name}
-          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          placeholder={t('sources.name_auto_placeholder')}
-        />
-        <Input
           label={t('sources.url')}
           value={form.url}
           onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
           placeholder="https://example.com/sub?token=..."
-        />
-        <div>
-          <label className={styles.selectLabel}>{t('sources.format')}</label>
-          <select
-            className={styles.select}
-            value={form.format}
-            onChange={e => setForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
-          >
-            {FORMAT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-        <Input
-          label={t('sources.update_interval')}
-          type="number"
-          min="0"
-          value={form.updateInterval}
-          onChange={e => setForm(f => ({ ...f, updateInterval: Number(e.target.value) }))}
-          helperText={t('sources.update_interval_hint')}
-        />
-        <div>
-          <label className={styles.selectLabel}>User-Agent</label>
-          <select
-            className={styles.select}
-            value={form.userAgent}
-            onChange={e => setForm(f => ({ ...f, userAgent: e.target.value }))}
-          >
-            {USER_AGENT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <div className={styles.helperText}>
-            Some airports check User-Agent. Recommended: clash.meta (works with most airports).
-          </div>
-        </div>
-        {form.userAgent === 'custom' && (
-          <Input
-            label="Custom User-Agent"
-            value={form.customUserAgent}
-            onChange={e => setForm(f => ({ ...f, customUserAgent: e.target.value }))}
-            placeholder="YourClient/1.0.0"
-          />
-        )}
-        <Input
-          label={t('common.notes')}
-          value={form.notes}
-          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-          placeholder={t('common.notes')}
         />
         <label className={styles.checkboxRow}>
           <input
@@ -339,6 +284,63 @@ export function Sources() {
           />
           <span>{t('sources.refresh_now')}</span>
         </label>
+        <details className={styles.advanced}>
+          <summary>{t('sources.advanced_options')}</summary>
+          <div className={styles.advancedBody}>
+            <Input
+              label={t('sources.name_optional')}
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder={t('sources.name_auto_placeholder')}
+            />
+            <div>
+              <label className={styles.selectLabel}>{t('sources.format')}</label>
+              <select
+                className={styles.select}
+                value={form.format}
+                onChange={e => setForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
+              >
+                {FORMAT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label={t('sources.update_interval')}
+              type="number"
+              min="0"
+              value={form.updateInterval}
+              onChange={e => setForm(f => ({ ...f, updateInterval: Number(e.target.value) }))}
+              helperText={t('sources.update_interval_hint')}
+            />
+            <div>
+              <label className={styles.selectLabel}>User-Agent</label>
+              <select
+                className={styles.select}
+                value={form.userAgent}
+                onChange={e => setForm(f => ({ ...f, userAgent: e.target.value }))}
+              >
+                {USER_AGENT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            {form.userAgent === 'custom' && (
+              <Input
+                label="Custom User-Agent"
+                value={form.customUserAgent}
+                onChange={e => setForm(f => ({ ...f, customUserAgent: e.target.value }))}
+                placeholder="YourClient/1.0.0"
+              />
+            )}
+            <Input
+              label={t('common.notes')}
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder={t('common.notes')}
+            />
+          </div>
+        </details>
       </Modal>
 
       <Modal

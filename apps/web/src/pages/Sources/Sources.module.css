@@ -37,3 +37,6 @@
 .helperText { font-size: 0.75rem; color: var(--color-text-secondary); margin-top: 0.375rem; line-height: 1.4; }
 .subscriptionInfo { display: flex; gap: 1rem; font-size: 0.75rem; color: var(--color-text-secondary); flex-wrap: wrap; padding: 0.5rem 0.625rem; background: var(--color-surface2); border-radius: var(--radius-md); }
 .subscriptionInfo strong { color: var(--color-accent); font-weight: 600; }
+.advanced { border-top: 1px solid var(--color-border); padding-top: 0.75rem; }
+.advanced summary { cursor: pointer; color: var(--color-text-secondary); font-size: 0.8125rem; font-weight: 500; }
+.advancedBody { display: flex; flex-direction: column; gap: 0.875rem; padding-top: 0.75rem; }

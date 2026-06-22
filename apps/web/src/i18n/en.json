@@ -83,6 +83,7 @@
     "name_placeholder": "Source name",
     "name_optional": "Name (optional)",
     "name_auto_placeholder": "Leave empty to use the subscription domain",
+    "advanced_options": "Advanced options",
     "never_updated": "Never updated",
     "url_required": "URL is required",
     "name_required": "Name is required"
