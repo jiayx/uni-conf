@@ -13,6 +13,7 @@ export function validateExportData(
   options: ExportValidationOptions = {}
 ): CompatibilityWarning[] {
   return [
+    ...validateSources(data, format),
     ...validateNodes(data, format),
     ...validateGroups(data, format),
     ...validateRules(data, format),
@@ -27,6 +28,33 @@ export function resolveExportWarnings(
   options: { showCompatibilityWarnings: boolean } & ExportValidationOptions
 ): CompatibilityWarning[] {
   return options.showCompatibilityWarnings ? validateExportData(data, format, options) : [];
+}
+
+function validateSources(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  const warnings: CompatibilityWarning[] = [];
+
+  for (const source of data.sources) {
+    if (source.lastRefreshError) {
+      warnings.push({
+        client: format,
+        level: 'unsupported',
+        message: `订阅源 "${source.name}" 最近刷新失败：${source.lastRefreshError}`,
+        messageEn: `Source "${source.name}" failed during the latest refresh: ${source.lastRefreshError}`,
+      });
+      continue;
+    }
+
+    if (!source.lastUpdated && source.nodeCount === 0) {
+      warnings.push({
+        client: format,
+        level: 'partial',
+        message: `订阅源 "${source.name}" 尚未成功刷新，当前导出不会包含这个来源的节点`,
+        messageEn: `Source "${source.name}" has not refreshed successfully yet, so this export will not include nodes from it.`,
+      });
+    }
+  }
+
+  return warnings;
 }
 
 function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWarning[] {

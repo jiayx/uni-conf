@@ -3,6 +3,7 @@ import type {
   NodeCollection,
   NodeFilter,
   NodeRename,
+  ProxySource,
   ProxyGroup,
   ProxyNode,
   ProxyRule,
@@ -17,6 +18,7 @@ import {
   mapNode,
   mapRemoteRuleSet,
   mapRule,
+  mapSource,
   now,
 } from './db/helpers'
 import {
@@ -33,6 +35,8 @@ export interface ExportData {
   groupRows: Record<string, unknown>[]
   ruleRows: Record<string, unknown>[]
   remoteSetRows: Record<string, unknown>[]
+  sourceRows: Record<string, unknown>[]
+  sources: ProxySource[]
   nodes: ProxyNode[]
   groups: ProxyGroup[]
   rules: ProxyRule[]
@@ -98,6 +102,10 @@ export async function buildExportData(
     'SELECT * FROM remote_rule_sets WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC',
     config?.includeRemoteSetIds
   )
+  const sourceRows = await selectRows(
+    db,
+    "SELECT * FROM sources WHERE enabled = 1 AND type = 'url' ORDER BY created_at ASC"
+  )
 
   return {
     config,
@@ -105,6 +113,8 @@ export async function buildExportData(
     groupRows,
     ruleRows,
     remoteSetRows,
+    sourceRows,
+    sources: sourceRows.map(mapSource),
     nodes: exportNodeRows.map(mapNode),
     groups: groupRows.map(mapGroup),
     rules: ruleRows.map(mapRule),

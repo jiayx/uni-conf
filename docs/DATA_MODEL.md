@@ -370,6 +370,8 @@ The worker validates:
 |-------|-------|
 | No exported nodes | `unsupported` |
 | Duplicate node names | `partial` |
+| Source has latest refresh error | `unsupported` |
+| Source has never refreshed successfully | `partial` |
 | Missing nested group target | `unsupported` |
 | Missing rule target group | `unsupported` |
 | Rule type unsupported by target export format | `unsupported` |

@@ -25,6 +25,29 @@ describe('export validation', () => {
     }));
   });
 
+  it('warns when an enabled URL source has a refresh error', () => {
+    const warnings = validateExportData(makeExportData({
+      sources: [makeSource('source-1', 'Airport A', { lastRefreshError: 'HTTP 401' })],
+    }), 'mihomo');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      level: 'unsupported',
+      message: expect.stringContaining('Airport A'),
+      messageEn: expect.stringContaining('HTTP 401'),
+    }));
+  });
+
+  it('warns when an enabled URL source has never refreshed successfully', () => {
+    const warnings = validateExportData(makeExportData({
+      sources: [makeSource('source-1', 'Airport A', { nodeCount: 0, lastUpdated: undefined })],
+    }), 'mihomo');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      level: 'partial',
+      message: expect.stringContaining('尚未成功刷新'),
+    }));
+  });
+
   it('warns about missing group references from rules, remote sets, and nested groups', () => {
     const warnings = validateExportData(makeExportData({
       groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
@@ -173,11 +196,36 @@ function makeExportData(patch: Partial<ExportData> = {}): ExportData {
     groupRows: [],
     ruleRows: [],
     remoteSetRows: [],
+    sourceRows: [],
+    sources: patch.sources ?? [],
     nodes: patch.nodes ?? [makeNode('node-1', 'HK 01')],
     groups,
     rules: patch.rules ?? [makeRule('match', groups[0]!.id, 'MATCH', '')],
     remoteSets: patch.remoteSets ?? [],
     collectionNodeNames: {},
+    ...patch,
+  };
+}
+
+function makeSource(
+  id: string,
+  name: string,
+  patch: Partial<ExportData['sources'][number]> = {}
+): ExportData['sources'][number] {
+  return {
+    id,
+    name,
+    type: 'url',
+    url: `https://${id}.example.com/sub`,
+    format: 'auto',
+    enabled: true,
+    nodeCount: 1,
+    lastUpdated: createdAt,
+    updateInterval: 1440,
+    tags: [],
+    groups: [],
+    createdAt,
+    updatedAt: createdAt,
     ...patch,
   };
 }
