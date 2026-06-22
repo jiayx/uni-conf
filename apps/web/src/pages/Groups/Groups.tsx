@@ -26,7 +26,15 @@ const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning
   reject: 'error',
 }
 
-const FOUNDATION_GROUP_IDS = ['builtin-proxy', 'builtin-direct', 'builtin-reject']
+const FOUNDATION_GROUP_IDS = [
+  'builtin-proxy',
+  'builtin-direct',
+  'builtin-reject',
+  'builtin-all-nodes',
+  'builtin-node-select',
+  'builtin-auto-select',
+  'builtin-fallback-select',
+]
 
 function createEmptyForm(order: number): GroupForm {
   return {
@@ -245,7 +253,7 @@ export function Groups() {
           <div className={styles.foundationHeader}>
             <div>
               <div className={styles.foundationTitle}>基础出口</div>
-              <div className={styles.foundationMeta}>始终存在，规则可以直接命中；业务分流策略组会自动包含这些出口。</div>
+              <div className={styles.foundationMeta}>始终存在，用作规则目标或分流组候选；业务分流策略组会自动包含这些出口。</div>
             </div>
           </div>
           <div className={styles.foundationGrid}>
@@ -477,5 +485,9 @@ function describeFoundationGroup(group: ProxyGroup): string {
   if (group.name === 'PROXY') return '默认代理出口，自动聚合节点选择、自动选择、故障切换和全部节点。'
   if (group.name === 'DIRECT') return '直连出口，国内规则、局域网和无需代理的流量会命中这里。'
   if (group.name === 'REJECT') return '拒绝出口，广告、HTTPDNS 等拦截规则会命中这里。'
+  if (group.name === '全部节点') return '包含所有可用节点，适合需要完整节点池的手动选择场景。'
+  if (group.name === '节点选择') return '手动选择一个具体节点或节点组，适合用户临时指定出口。'
+  if (group.name === '自动选择') return '按延迟自动选择可用节点，作为默认代理出口的优先候选。'
+  if (group.name === '故障切换') return '当前节点不可用时自动切换到下一个可用节点。'
   return '系统内置基础出口。'
 }
