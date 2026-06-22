@@ -2,12 +2,15 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapNode, newId, now } from '../db/helpers';
 import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
+import { syncAutoNodeGroups } from '../services/auto-node-groups';
 
 const app = new Hono<{ Bindings: Env }>();
 
 // ─── List collections ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
+  await syncAutoNodeGroups(c.env.DB, now());
+
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM collections ORDER BY created_at DESC'
   ).all<Record<string, unknown>>();
