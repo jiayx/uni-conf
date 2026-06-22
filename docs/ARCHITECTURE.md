@@ -40,7 +40,7 @@ uni-conf/
 | Styling | Vanilla CSS + CSS Modules | Component styles with CSS variables |
 | i18n | i18next + react-i18next | Bilingual zh/en support |
 | Drag & Drop | @dnd-kit | Rule reordering |
-| Code Highlight | Shiki | Config file preview |
+| Code Highlight | Shiki | Config file preview display; generated content comes from Worker export APIs |
 | UI Primitives | Radix UI | Accessible component primitives |
 | Backend | Hono 4 + Cloudflare Workers | REST API |
 | Database | Cloudflare D1 (SQLite) | Persistent data storage |
@@ -120,7 +120,7 @@ All API endpoints are under `/api/`. Responses follow:
 | POST | /api/templates/:id/import | Import template to rules |
 | GET/POST | /api/export/configs | List/create export configs |
 | GET/PUT/DELETE | /api/export/configs/:id | Get/update/delete export config |
-| GET | /api/export/preview/:format | Preview config (auth required) |
+| GET | /api/export/preview/:format | Generate and validate config preview in Worker (auth required) |
 | GET | /api/export/download/:format | Download config (auth required) |
 | GET | /sub/:token/:filename | Public subscription endpoint |
 
