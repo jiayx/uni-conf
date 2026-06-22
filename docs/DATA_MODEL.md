@@ -353,6 +353,8 @@ Auto node group sync runs after subscription refreshes and manual node changes. 
 
 Export, collection preview, and auto node group sync only consider nodes whose node row is enabled and whose source row is enabled. Disabling a subscription source therefore removes its nodes from generated node pools and exported configs without deleting the cached node rows; re-enabling the source makes the cached nodes eligible again.
 
+Dashboard `enabledNodeCount` uses the same enabled-node query as export and auto node groups, so it counts only nodes whose node row and source row are both enabled. `nodeCount` remains the total cached node count.
+
 ### Default Export Node Names
 
 The `nodes.name` value remains the original subscription/manual node name in storage. During export, `buildExportData` first deduplicates the final node rows by full parsed config, then rewrites exported node names to:
