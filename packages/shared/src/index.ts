@@ -427,7 +427,7 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   },
   {
     id: 'common',
-    name: '默认智能模板',
+    name: '默认智能组合',
     description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Apple、Microsoft 和兜底分流。',
     recommendedDnsMode: 'smart',
     groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],

@@ -305,7 +305,7 @@ export function Groups() {
               </div>
             </Card>
           ))}
-          {visibleGroups.length === 0 && <EmptyState title="暂无自定义策略组" description="默认策略模板会自动生成；这里只需要添加额外业务策略。" action={{ label: '添加自定义策略组', onClick: openCreate }} />}
+          {visibleGroups.length === 0 && <EmptyState title="暂无自定义策略组" description="默认策略组合会自动生成；这里只需要添加额外业务策略。" action={{ label: '添加自定义策略组', onClick: openCreate }} />}
         </div>
       )}
 
