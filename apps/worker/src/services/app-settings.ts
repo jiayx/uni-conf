@@ -1,4 +1,4 @@
-import type { AppSettings, DnsMode, ExportNodeNamingMode } from '@uni-conf/types';
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode } from '@uni-conf/types';
 import { now } from '../db/helpers';
 
 const DNS_MODES = new Set<DnsMode>(['compatible', 'smart', 'fake-ip']);
@@ -8,6 +8,8 @@ const EXPORT_NODE_NAMING_MODES = new Set<ExportNodeNamingMode>([
   'source_region_sequence',
   'smart',
 ]);
+const AUTO_NODE_GROUP_TYPES = new Set<AutoNodeGroupType>(['select', 'url-test', 'fallback']);
+const DEFAULT_AUTO_NODE_GROUP_TYPES: AutoNodeGroupType[] = ['url-test'];
 
 export async function getAppSettings(db: D1Database): Promise<AppSettings> {
   const row = await db.prepare('SELECT * FROM app_settings WHERE id = ?')
@@ -32,6 +34,10 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     showCompatibilityWarnings: normalizeBooleanDefault(row.show_compatibility_warnings, true),
     enableAutoRefresh: normalizeBooleanDefault(row.enable_auto_refresh, true),
     autoRefreshInterval: normalizePositiveInteger(row.auto_refresh_interval, 1440),
+    autoNodeGroupsEnabled: normalizeBooleanDefault(row.auto_node_groups_enabled, true),
+    autoNodeGroupTypes: normalizeAutoNodeGroupTypes(row.auto_node_group_types),
+    autoNodeGroupKeys: normalizeOptionalStringList(row.auto_node_group_keys),
+    autoNodeGroupIncludeFlag: normalizeBooleanDefault(row.auto_node_group_include_flag, true),
   };
 }
 
@@ -60,4 +66,38 @@ export function normalizeBooleanDefault(value: unknown, defaultValue: boolean): 
 export function normalizePositiveInteger(value: unknown, defaultValue: number): number {
   const numberValue = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numberValue) && numberValue > 0 ? Math.floor(numberValue) : defaultValue;
+}
+
+export function normalizeAutoNodeGroupTypes(value: unknown): AutoNodeGroupType[] {
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? parseJsonArray(value)
+      : [];
+  const types = rawItems
+    .map((item) => typeof item === 'string' ? item : '')
+    .filter((item): item is AutoNodeGroupType => AUTO_NODE_GROUP_TYPES.has(item as AutoNodeGroupType));
+  const uniqueTypes = [...new Set(types)];
+  return uniqueTypes.length > 0 ? uniqueTypes : DEFAULT_AUTO_NODE_GROUP_TYPES;
+}
+
+export function normalizeOptionalStringList(value: unknown): string[] | undefined {
+  if (value === null || value === undefined) return undefined;
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? parseJsonArray(value)
+      : [];
+  return rawItems
+    .map((item) => typeof item === 'string' ? item.trim() : '')
+    .filter(Boolean);
+}
+
+function parseJsonArray(value: string): unknown[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }

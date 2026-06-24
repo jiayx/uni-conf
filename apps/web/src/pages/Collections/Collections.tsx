@@ -11,8 +11,9 @@ import { useCollectionsStore } from '@/store/collections.store'
 import { useGroupsStore } from '@/store/groups.store'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
+import { useSettingsStore } from '@/store/settings.store'
 import { api } from '@/lib/api'
-import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
+import { AUTO_NODE_GROUP_PREFIX, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
 import type {
   DedupStrategy,
   FilterOperator,
@@ -111,6 +112,7 @@ export function Collections() {
   const { groups, fetchGroups } = useGroupsStore()
   const { nodes, fetchNodes } = useNodesStore()
   const { sources, fetchSources } = useSourcesStore()
+  const { applySettings } = useSettingsStore()
   const [showModal, setShowModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<NodeCollection | null>(null)
   const [form, setForm] = useState<CollectionForm>(createEmptyForm)
@@ -181,16 +183,26 @@ export function Collections() {
     setShowModal(true)
   }
 
-  const openAutoGenerate = () => {
+  const openAutoGenerate = async () => {
+    const settings = await api.settings.get()
+    applySettings(settings)
+    const configuredTypes = settings.autoNodeGroupsEnabled ? settings.autoNodeGroupTypes : []
     const existingKeys = new Set(
       collections
         .map(collection => parseAutoNodeGroupMarker(collection.notes)?.key)
         .filter((key): key is string => Boolean(key))
     )
-    const defaultKeys = existingKeys.size > 0
-      ? existingKeys
-      : new Set(countrySuggestions.map(item => makeAutoNodeGroupKey(item.countryCode, 'url-test')))
-    const defaultTypes = new Set<GeneratedGroupType>()
+    const configuredKeys = settings.autoNodeGroupKeys !== undefined
+      ? new Set(settings.autoNodeGroupKeys)
+      : null
+    const defaultKeys = !settings.autoNodeGroupsEnabled
+      ? new Set<string>()
+      : configuredKeys ?? (existingKeys.size > 0
+          ? existingKeys
+          : new Set(countrySuggestions.flatMap(item =>
+              (configuredTypes.length > 0 ? configuredTypes : (['url-test'] as GeneratedGroupType[])).map(type => makeAutoNodeGroupKey(item.countryCode, type))
+            )))
+    const defaultTypes = new Set<GeneratedGroupType>(configuredTypes.filter(isGeneratedGroupType))
     for (const key of defaultKeys) {
       const marker = parseAutoNodeGroupKey(key)
       if (marker) defaultTypes.add(marker.type)
@@ -198,7 +210,7 @@ export function Collections() {
     setSelectedAutoKeys(defaultKeys)
     setSelectedAutoTypes(defaultTypes.size > 0 ? defaultTypes : new Set(['url-test']))
     setSelectedSourceGroupKeys(new Set())
-    setAutoNamesIncludeFlag(true)
+    setAutoNamesIncludeFlag(settings.autoNodeGroupIncludeFlag)
     setShowAutoModal(true)
   }
 
@@ -298,60 +310,17 @@ export function Collections() {
   const applyAutoGenerate = async () => {
     setAutoApplying(true)
     try {
-      const existingAutoCollections = collections
-        .map(collection => ({ collection, marker: parseAutoNodeGroupMarker(collection.notes) }))
-        .filter((item): item is { collection: NodeCollection; marker: AutoNodeGroupMarker } => Boolean(item.marker))
-      const existingByKey = new Map(existingAutoCollections.map(item => [item.marker.key, item.collection]))
+      const selectedTypes = [...selectedAutoTypes]
+      const selectedKeys = [...selectedAutoKeys]
+
+      const updatedSettings = await api.settings.update({
+        autoNodeGroupsEnabled: selectedKeys.length > 0 && selectedTypes.length > 0,
+        autoNodeGroupTypes: selectedTypes.length > 0 ? selectedTypes : ['url-test'],
+        autoNodeGroupKeys: selectedKeys,
+        autoNodeGroupIncludeFlag: autoNamesIncludeFlag,
+      })
+      applySettings(updatedSettings)
       const groups = await api.groups.list()
-
-      for (const item of existingAutoCollections) {
-        if (selectedAutoKeys.has(item.marker.key)) continue
-        const linkedGroups = groups.filter(group => group.collectionIds.includes(item.collection.id))
-        for (const group of linkedGroups) {
-          if (!group.isBuiltin) await api.groups.remove(group.id)
-        }
-        await deleteCollection(item.collection.id)
-      }
-
-      for (const key of selectedAutoKeys) {
-        const marker = parseAutoNodeGroupKey(key)
-        if (!marker) continue
-        if (marker.scope !== 'country' || !marker.countryCode) continue
-        const suggestion = countrySuggestions.find(item => item.countryCode === marker.countryCode)
-        if (!suggestion) continue
-        const name = makeAutoGroupName(marker.countryCode, marker.type, autoNamesIncludeFlag)
-        const existingCollection = existingByKey.get(key)
-
-        if (existingCollection) {
-          if (existingCollection.name !== name) {
-            await api.collections.update(existingCollection.id, { name })
-          }
-          const linkedGroups = groups.filter(group => group.collectionIds.includes(existingCollection.id) && !group.isBuiltin)
-          await Promise.all(linkedGroups.map(group => group.name === name ? Promise.resolve() : api.groups.update(group.id, { name })))
-          continue
-        }
-
-        const collection = await api.collections.create({
-          name,
-          sourceIds: [],
-          nodeIds: [],
-          filters: [{
-            id: `auto-country-${marker.countryCode.toLowerCase()}`,
-            field: 'countryCode',
-            operator: 'equals',
-            value: marker.countryCode,
-            enabled: true,
-          }],
-          renames: [],
-          dedup: 'full_config',
-          sort: 'name',
-          sortCountryOrder: [],
-          enabled: true,
-          notes: makeAutoNodeGroupMarker(marker.countryCode, marker.type),
-        })
-
-        await createLinkedGroup(collection, marker.type, groups.length + 1)
-      }
 
       for (const key of selectedSourceGroupKeys) {
         const suggestion = sourceGroupSuggestions.find(item => item.key === key)
@@ -385,7 +354,7 @@ export function Collections() {
       <PageHeader
         title={t('collections.title')}
         description={`按国家/地区等条件生成出口节点组，共 ${collections.length} 个`}
-        actions={<><Button variant="secondary" onClick={openAutoGenerate}>自动生成</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
+        actions={<><Button variant="secondary" onClick={() => void openAutoGenerate()}>自动生成</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
       />
       {loading && collections.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
@@ -882,10 +851,6 @@ function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
   return null
 }
 
-function makeAutoNodeGroupMarker(countryCode: string, type: GeneratedGroupType): string {
-  return `${AUTO_NODE_GROUP_PREFIX} ${makeAutoNodeGroupKey(countryCode, type)}`
-}
-
 function parseAutoNodeGroupMarker(notes?: string): AutoNodeGroupMarker | null {
   if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null
   return parseAutoNodeGroupKey(notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim())
@@ -967,13 +932,6 @@ function mapUpstreamGroupType(type?: string): GeneratedGroupType {
 
 function isGeneratedGroupType(value: string | undefined): value is GeneratedGroupType {
   return value === 'select' || value === 'url-test' || value === 'fallback'
-}
-
-function makeAutoGroupName(countryCode: string, type: GeneratedGroupType, includeFlag = false): string {
-  const suffix = GENERATED_GROUP_TYPES.find(item => item.value === type)?.suffix ?? type
-  const normalizedCode = countryCode.trim().toUpperCase()
-  const flag = includeFlag ? countryCodeToFlag(normalizedCode) : undefined
-  return [flag, normalizedCode, suffix].filter(Boolean).join(' ')
 }
 
 function toggleSet<T>(source: Set<T>, value: T): Set<T> {

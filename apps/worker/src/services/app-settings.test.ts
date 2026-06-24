@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeBooleanDefault, normalizeDnsMode, normalizeExportNodeNamingMode, normalizePositiveInteger } from './app-settings'
+import {
+  normalizeAutoNodeGroupTypes,
+  normalizeBooleanDefault,
+  normalizeDnsMode,
+  normalizeExportNodeNamingMode,
+  normalizeOptionalStringList,
+  normalizePositiveInteger,
+} from './app-settings'
 
 describe('app settings normalization', () => {
   it('defaults nullable boolean settings to the product defaults', () => {
@@ -16,5 +23,13 @@ describe('app settings normalization', () => {
     expect(normalizePositiveInteger('30', 1440)).toBe(30)
     expect(normalizeDnsMode('unknown')).toBe('smart')
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')
+  })
+
+  it('normalizes auto node group settings', () => {
+    expect(normalizeAutoNodeGroupTypes(null)).toEqual(['url-test'])
+    expect(normalizeAutoNodeGroupTypes('["select","url-test","invalid","select"]')).toEqual(['select', 'url-test'])
+    expect(normalizeOptionalStringList(null)).toBeUndefined()
+    expect(normalizeOptionalStringList('[]')).toEqual([])
+    expect(normalizeOptionalStringList('["country:US:url-test",""]')).toEqual(['country:US:url-test'])
   })
 })

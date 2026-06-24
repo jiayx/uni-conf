@@ -159,6 +159,10 @@ CREATE TABLE IF NOT EXISTS app_settings (
   show_compatibility_warnings INTEGER NOT NULL DEFAULT 1,
   enable_auto_refresh INTEGER NOT NULL DEFAULT 1,
   auto_refresh_interval INTEGER NOT NULL DEFAULT 1440,
+  auto_node_groups_enabled INTEGER NOT NULL DEFAULT 1,
+  auto_node_group_types TEXT NOT NULL DEFAULT '["url-test"]',
+  auto_node_group_keys TEXT,
+  auto_node_group_include_flag INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL
 );
 

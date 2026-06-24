@@ -82,6 +82,10 @@ app.delete('/', async (c) => {
         show_compatibility_warnings = 1,
         enable_auto_refresh = 1,
         auto_refresh_interval = 1440,
+        auto_node_groups_enabled = 1,
+        auto_node_group_types = '["url-test"]',
+        auto_node_group_keys = NULL,
+        auto_node_group_include_flag = 1,
         updated_at = ?
        WHERE id = 'singleton'`
     ).bind(ts),

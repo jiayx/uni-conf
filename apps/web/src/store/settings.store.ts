@@ -26,6 +26,9 @@ export const useSettingsStore = create<SettingsState>()(
       showCompatibilityWarnings: true,
       enableAutoRefresh: true,
       autoRefreshInterval: DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES,
+      autoNodeGroupsEnabled: true,
+      autoNodeGroupTypes: ['url-test'],
+      autoNodeGroupIncludeFlag: true,
 
       setLanguage: (language) => {
         set({ language })

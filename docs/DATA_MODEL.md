@@ -78,6 +78,8 @@ Manual node creation accepts either structured fields (`name`, `protocol`, `serv
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
+Generated node groups are regular `collections` plus one linked non-built-in `groups` row. Their `notes` start with `[uni-conf:auto-node-group]` and use the explicit marker format `country:{countryCode}:{type}` or `tag:{tagKey}:{type}`. There is no legacy marker compatibility.
+
 ### `groups` — Proxy Strategy Groups
 
 | Column | Type | Description |
@@ -261,9 +263,13 @@ Dashboard stats, export preview/download, settings reads, group reads, and remot
 | show_compatibility_warnings | INTEGER | 1/0 |
 | enable_auto_refresh | INTEGER | 1/0, default `1` |
 | auto_refresh_interval | INTEGER | Minutes, default `1440` |
+| auto_node_groups_enabled | INTEGER | 1/0, default `1` |
+| auto_node_group_types | TEXT | JSON array of `select` \| `url-test` \| `fallback`, default `["url-test"]` |
+| auto_node_group_keys | TEXT? | Optional JSON array of selected generated auto group keys |
+| auto_node_group_include_flag | INTEGER | 1/0, default `1` |
 | updated_at | TEXT | |
 
-Settings reads normalize nullable or invalid values back to product defaults: compatibility warnings on, auto refresh on, 24-hour refresh interval, smart DNS, and smart node naming. This keeps imported or partially initialized data on the zero-setup path.
+Settings reads normalize nullable or invalid values back to product defaults: compatibility warnings on, auto refresh on, 24-hour refresh interval, smart DNS, smart node naming, auto node groups on, `url-test` auto group type, and flag-based country auto group names. This keeps imported or partially initialized data on the zero-setup path.
 
 Auto refresh is enabled by default and driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
 
@@ -345,15 +351,22 @@ Node recognition writes derived metadata into `nodes.tags` when it does not need
 
 This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes, create low-cost pools, or build streaming/residential/native candidate pools without changing the node schema. Generated auto node groups add `tag not_in ["high-multiplier"]` by default, while manually created node groups remain fully user-controlled. Auto group sync uses the same exclusion when deciding whether a generated group should exist, so countries or tag pools that only contain high-multiplier nodes do not produce empty default outlets.
 
-Auto node group sync creates these generated collections and linked policy groups when matching nodes exist:
+Auto node group sync is driven by `app_settings`:
+
+- `auto_node_groups_enabled`: when false, generated auto node groups and their linked policy groups are removed.
+- `auto_node_group_types`: JSON array of enabled generated policy types, default `["url-test"]`; supported values are `select`, `url-test`, and `fallback`.
+- `auto_node_group_keys`: optional JSON array of exact generated keys. `NULL` means include every recognized country/tag candidate; `[]` means include none.
+- `auto_node_group_include_flag`: default `1`; controls whether country auto group names include emoji flags.
+
+Auto node group sync creates these generated collections and linked policy groups when matching nodes exist and the generated key is selected:
 
 | Generated group | Collection filter | Used first by |
 |-----------------|-------------------|---------------|
-| `{flag} {countryCode} Auto` | `countryCode equals {countryCode}` + `tag not_in ["high-multiplier"]` | Country-aware routing preferences |
-| `Streaming Auto` | `tag in ["streaming", "unlock"]` + `tag not_in ["high-multiplier"]` | Streaming |
-| `Native Auto` | `tag in ["residential", "native-ip"]` + `tag not_in ["high-multiplier"]` | AI, Streaming |
+| `{flag?} {countryCode} Auto/Select/Fallback` | `countryCode equals {countryCode}` + `tag not_in ["high-multiplier"]` | Country-aware routing preferences |
+| `Streaming Auto/Select/Fallback` | `tag in ["streaming", "unlock"]` + `tag not_in ["high-multiplier"]` | Streaming |
+| `Native Auto/Select/Fallback` | `tag in ["residential", "native-ip"]` + `tag not_in ["high-multiplier"]` | AI, Streaming |
 
-Auto node group sync runs after subscription refreshes and manual node changes. The collections list endpoint also performs a read-time sync so the node group page reflects the current node inventory.
+Auto node group sync runs after subscription refreshes, manual node changes, collections reads, and auto node group setting changes. The node group page persists the user's selected generated keys; selecting nothing disables generated auto groups so the backend does not recreate them on the next sync.
 
 Export, collection preview, and auto node group sync only consider nodes whose node row is enabled and whose source row is enabled. Disabling a subscription source therefore removes its nodes from generated node pools and exported configs without deleting the cached node rows; re-enabling the source makes the cached nodes eligible again.
 

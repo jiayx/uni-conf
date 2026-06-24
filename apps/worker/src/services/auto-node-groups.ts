@@ -2,15 +2,15 @@ import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag, DEFAULT_HEALTH_CHECK } from 
 import { jsonStringify, newId } from '../db/helpers';
 import { enabledNodeRowsQuery } from './enabled-node-rows';
 import { syncRoutingPolicyGroups } from './routing-policy-groups';
-
-const AUTO_GROUP_TYPE = 'url-test';
+import { getAppSettings } from './app-settings';
+import type { AutoNodeGroupType } from '@uni-conf/types';
 
 interface AutoNodeGroupMarker {
   key: string;
   scope: 'country' | 'tag';
   countryCode?: string;
   tagKey?: string;
-  type: string;
+  type: AutoNodeGroupType;
 }
 
 interface CountrySummary {
@@ -21,6 +21,7 @@ interface CountrySummary {
 interface AutoNodeGroupPlan {
   key: string;
   name: string;
+  type: AutoNodeGroupType;
   filters: Array<Record<string, unknown>>;
   markerText: string;
 }
@@ -48,21 +49,32 @@ const TAG_GROUPS = [
 ] as const;
 
 export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<void> {
-  const countries = await listCountriesWithNodes(db);
-  const tagKeys = await listTagGroupKeysWithNodes(db);
-  const plans = buildAutoNodeGroupPlans(countries, tagKeys);
-  const planKeys = new Set(plans.map((plan) => plan.key));
+  const settings = await getAppSettings(db);
+  const enabledTypes = settings.autoNodeGroupsEnabled ? settings.autoNodeGroupTypes : [];
   const autoCollections = await listAutoCollections(db);
 
+  if (enabledTypes.length === 0) {
+    for (const item of autoCollections) {
+      await deleteCollectionAndLinkedGroups(db, item.id);
+    }
+    await syncRoutingPolicyGroups(db, ts);
+    return;
+  }
+
+  const countries = await listCountriesWithNodes(db);
+  const tagKeys = await listTagGroupKeysWithNodes(db);
+  const selectedKeys = settings.autoNodeGroupKeys !== undefined ? new Set(settings.autoNodeGroupKeys) : null;
+  const plans = buildAutoNodeGroupPlans(countries, tagKeys, enabledTypes, settings.autoNodeGroupIncludeFlag)
+    .filter((plan) => selectedKeys === null || selectedKeys.has(plan.key));
+  const planKeys = new Set(plans.map((plan) => plan.key));
+
   for (const item of autoCollections) {
-    if (item.marker.type === AUTO_GROUP_TYPE && planKeys.has(item.marker.key)) continue;
+    if (planKeys.has(item.marker.key)) continue;
     await deleteCollectionAndLinkedGroups(db, item.id);
   }
 
   const existingByKey = new Map(
-    autoCollections
-      .filter((item) => item.marker.type === AUTO_GROUP_TYPE)
-      .map((item) => [item.marker.key, item])
+    autoCollections.map((item) => [item.marker.key, item])
   );
 
   for (const plan of plans) {
@@ -70,11 +82,11 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
 
     if (existing) {
       await updateAutoCollection(db, existing.id, plan.name, plan.filters, plan.markerText, ts);
-      await ensureLinkedGroup(db, existing.id, plan.name, ts);
+      await ensureLinkedGroup(db, existing.id, plan.name, plan.type, ts);
     } else {
       const collectionId = newId();
       await createAutoCollection(db, collectionId, plan.name, plan.filters, plan.markerText, ts);
-      await createLinkedGroup(db, collectionId, plan.name, ts);
+      await createLinkedGroup(db, collectionId, plan.name, plan.type, ts);
     }
   }
 
@@ -116,30 +128,38 @@ async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
 
 export function buildAutoNodeGroupPlans(
   countries: CountrySummary[],
-  tagKeys: string[]
+  tagKeys: string[],
+  groupTypes: AutoNodeGroupType[] = ['url-test'],
+  includeFlag = true
 ): AutoNodeGroupPlan[] {
-  const countryPlans = countries.map((country) => {
-    const marker = makeCountryAutoNodeGroupMarker(country.countryCode);
-    return {
-      key: marker.key,
-      name: makeAutoGroupName(country.countryCode),
-      filters: withDefaultAutoFilters([makeCountryFilter(country.countryCode)]),
-      markerText: marker.text,
-    };
-  });
-
-  const tagKeySet = new Set(tagKeys);
-  const tagPlans = TAG_GROUPS
-    .filter((group) => tagKeySet.has(group.key))
-    .map((group) => {
-      const marker = makeTagAutoNodeGroupMarker(group.key);
+  const countryPlans = groupTypes.flatMap((type) =>
+    countries.map((country) => {
+      const marker = makeCountryAutoNodeGroupMarker(country.countryCode, type);
       return {
         key: marker.key,
-        name: group.name,
-        filters: withDefaultAutoFilters([makeTagFilter(group.key, group.tags)]),
+        name: makeAutoGroupName(country.countryCode, type, includeFlag),
+        type,
+        filters: withDefaultAutoFilters([makeCountryFilter(country.countryCode)]),
         markerText: marker.text,
       };
-    });
+    })
+  );
+
+  const tagKeySet = new Set(tagKeys);
+  const tagPlans = groupTypes.flatMap((type) =>
+    TAG_GROUPS
+      .filter((group) => tagKeySet.has(group.key))
+      .map((group) => {
+        const marker = makeTagAutoNodeGroupMarker(group.key, type);
+        return {
+          key: marker.key,
+          name: makeTagAutoGroupName(group.name, type),
+          type,
+          filters: withDefaultAutoFilters([makeTagFilter(group.key, group.tags)]),
+          markerText: marker.text,
+        };
+      })
+  );
 
   return [...countryPlans, ...tagPlans];
 }
@@ -197,6 +217,7 @@ async function createLinkedGroup(
   db: D1Database,
   collectionId: string,
   name: string,
+  type: AutoNodeGroupType,
   ts: string
 ): Promise<void> {
   const maxRow = await db
@@ -213,7 +234,7 @@ async function createLinkedGroup(
     .bind(
       newId(),
       name,
-      AUTO_GROUP_TYPE,
+      type,
       jsonStringify([collectionId]),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
@@ -230,6 +251,7 @@ async function ensureLinkedGroup(
   db: D1Database,
   collectionId: string,
   name: string,
+  type: AutoNodeGroupType,
   ts: string
 ): Promise<void> {
   const row = await db
@@ -238,7 +260,7 @@ async function ensureLinkedGroup(
     .first<{ id: string }>();
 
   if (!row) {
-    await createLinkedGroup(db, collectionId, name, ts);
+    await createLinkedGroup(db, collectionId, name, type, ts);
     return;
   }
 
@@ -251,7 +273,7 @@ async function ensureLinkedGroup(
     )
     .bind(
       name,
-      AUTO_GROUP_TYPE,
+      type,
       jsonStringify([collectionId]),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
@@ -293,21 +315,21 @@ function withDefaultAutoFilters(filters: Array<Record<string, unknown>>): Array<
   return [...filters, { ...EXCLUDE_HIGH_MULTIPLIER_FILTER }];
 }
 
-function makeCountryAutoNodeGroupKey(countryCode: string): string {
-  return `country:${countryCode.trim().toUpperCase()}:${AUTO_GROUP_TYPE}`;
+function makeCountryAutoNodeGroupKey(countryCode: string, type: AutoNodeGroupType): string {
+  return `country:${countryCode.trim().toUpperCase()}:${type}`;
 }
 
-function makeTagAutoNodeGroupKey(tagKey: string): string {
-  return `tag:${tagKey}:${AUTO_GROUP_TYPE}`;
+function makeTagAutoNodeGroupKey(tagKey: string, type: AutoNodeGroupType): string {
+  return `tag:${tagKey}:${type}`;
 }
 
-function makeCountryAutoNodeGroupMarker(countryCode: string): { key: string; text: string } {
-  const key = makeCountryAutoNodeGroupKey(countryCode);
+function makeCountryAutoNodeGroupMarker(countryCode: string, type: AutoNodeGroupType): { key: string; text: string } {
+  const key = makeCountryAutoNodeGroupKey(countryCode, type);
   return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
 }
 
-function makeTagAutoNodeGroupMarker(tagKey: string): { key: string; text: string } {
-  const key = makeTagAutoNodeGroupKey(tagKey);
+function makeTagAutoNodeGroupMarker(tagKey: string, type: AutoNodeGroupType): { key: string; text: string } {
+  const key = makeTagAutoNodeGroupKey(tagKey, type);
   return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
 }
 
@@ -315,38 +337,47 @@ function parseAutoNodeGroupMarker(notes?: string | null): AutoNodeGroupMarker | 
   if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null;
   const rawKey = notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim();
   const parts = rawKey.split(':');
-  if (parts.length === 2) {
-    const [countryCode, type] = parts;
-    if (!countryCode || !type) return null;
-    const normalizedCode = countryCode.trim().toUpperCase();
-    const key = makeCountryAutoNodeGroupKey(normalizedCode);
-    return { scope: 'country', countryCode: normalizedCode, type, key };
-  }
   if (parts.length !== 3) return null;
 
   const [scope, value, type] = parts;
-  if (scope === 'country' && value && type) {
+  if (!isAutoNodeGroupType(type)) return null;
+  if (scope === 'country' && value) {
     const normalizedCode = value.trim().toUpperCase();
     return {
       scope,
       countryCode: normalizedCode,
       type,
-      key: makeCountryAutoNodeGroupKey(normalizedCode),
+      key: makeCountryAutoNodeGroupKey(normalizedCode, type),
     };
   }
-  if (scope === 'tag' && value && type) {
+  if (scope === 'tag' && value) {
     return {
       scope,
       tagKey: value,
       type,
-      key: makeTagAutoNodeGroupKey(value),
+      key: makeTagAutoNodeGroupKey(value, type),
     };
   }
   return null;
 }
 
-function makeAutoGroupName(countryCode: string): string {
+function makeAutoGroupName(countryCode: string, type: AutoNodeGroupType, includeFlag: boolean): string {
   const normalizedCode = countryCode.trim().toUpperCase();
-  const flag = countryCodeToFlag(normalizedCode);
-  return [flag, normalizedCode, 'Auto'].filter(Boolean).join(' ');
+  const flag = includeFlag ? countryCodeToFlag(normalizedCode) : undefined;
+  return [flag, normalizedCode, autoGroupTypeSuffix(type)].filter(Boolean).join(' ');
+}
+
+function makeTagAutoGroupName(baseName: string, type: AutoNodeGroupType): string {
+  if (type === 'url-test') return baseName;
+  return `${baseName.replace(/\s+Auto$/, '')} ${autoGroupTypeSuffix(type)}`;
+}
+
+function autoGroupTypeSuffix(type: AutoNodeGroupType): string {
+  if (type === 'select') return 'Select';
+  if (type === 'fallback') return 'Fallback';
+  return 'Auto';
+}
+
+function isAutoNodeGroupType(value: string | undefined): value is AutoNodeGroupType {
+  return value === 'select' || value === 'url-test' || value === 'fallback';
 }

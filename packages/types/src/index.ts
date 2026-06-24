@@ -312,6 +312,7 @@ export type RoutingPolicyTemplateId =
   | 'extended';
 export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
 export type ExportNodeNamingMode = 'original' | 'region_sequence' | 'source_region_sequence' | 'smart';
+export type AutoNodeGroupType = 'select' | 'url-test' | 'fallback';
 
 export interface AppSettings {
   language: Language;
@@ -324,6 +325,10 @@ export interface AppSettings {
   showCompatibilityWarnings: boolean;
   enableAutoRefresh: boolean;
   autoRefreshInterval: number; // minutes
+  autoNodeGroupsEnabled: boolean;
+  autoNodeGroupTypes: AutoNodeGroupType[];
+  autoNodeGroupKeys?: string[];
+  autoNodeGroupIncludeFlag: boolean;
 }
 
 // ============================================================
