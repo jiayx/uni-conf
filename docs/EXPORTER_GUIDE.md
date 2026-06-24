@@ -37,14 +37,14 @@ The generator should accept:
 
 Use `apps/worker/src/generators/group-members.ts` for generic group member resolution when possible. For Mihomo-compatible YAML, remember that `DIRECT` and `REJECT` are client built-in policies; do not emit invalid `type: direct` or `type: reject` proxy-groups.
 
-## Step 3: Wire Preview and Download
+## Step 3: Wire Preview, Download, and Public Subscription
 
-Update worker routing in:
+Add the format branch in `apps/worker/src/generators/export-renderer.ts`. Worker routes must call that shared renderer instead of branching per route:
 
 - `apps/worker/src/routes/export.ts`
 - `apps/worker/src/routes/subscription.ts`
 
-Preview and subscription/download paths must use the same generator semantics. Any proxy name rewrite, dedupe, node group scoping, DNS downgrade, or compatibility warning should be visible in preview before download.
+Preview, download, and public subscription paths must use the same generator semantics. Any proxy name rewrite, dedupe, node group scoping, DNS downgrade, or compatibility warning should be visible in preview before download and public subscription use.
 
 ## Step 4: Add Compatibility Rules
 

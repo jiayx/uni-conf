@@ -1,17 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { mapExportConfig, newId, now } from '../db/helpers'
 import { buildExportData, getExportConfigById } from '../export-data'
-import { generateMihomoYaml } from '../generators/mihomo'
-import { generateSingboxJson } from '../generators/singbox'
-import { generateLoon } from '../generators/loon'
-import { generateNodeSubscriptionBase64, generateNodeSubscriptionRaw } from '../generators/node-subscription'
-import {
-  generateEgern,
-  generateQuantumultX,
-  generateShadowrocket,
-  generateStashYaml,
-  generateSurge,
-} from '../generators/client-configs'
+import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
 import { resolveExportWarnings } from '../services/export-validation'
@@ -123,49 +113,16 @@ exportRouter.get('/preview/:format', async (c) => {
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config)
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = exportData
+  const rendered = renderExportData(exportData, format as ExportFormat, { dnsMode: settings.dnsMode })
+  if (!rendered) {
+    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+  }
   const warnings = resolveExportWarnings(exportData, format as ExportFormat, {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
     dnsMode: settings.dnsMode,
   })
-  let content: string
-  let contentType: string
 
-  if (format === 'mihomo' || format === 'clash') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'text/yaml; charset=utf-8'
-  } else if (format === 'singbox') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'application/json; charset=utf-8'
-  } else if (format === 'loon') {
-    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (format === 'surge') {
-    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (format === 'shadowrocket') {
-    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (format === 'quantumultx') {
-    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (format === 'stash') {
-    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'text/yaml; charset=utf-8'
-  } else if (format === 'egern') {
-    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/yaml; charset=utf-8'
-  } else if (format === 'nodes_base64') {
-    content = generateNodeSubscriptionBase64(nodeRows)
-    contentType = 'text/plain; charset=utf-8'
-  } else if (format === 'nodes_raw') {
-    content = generateNodeSubscriptionRaw(nodeRows)
-    contentType = 'text/plain; charset=utf-8'
-  } else {
-    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
-  }
-
-  return c.json({ success: true, data: { content, contentType, format, warnings } })
+  return c.json({ success: true, data: { ...rendered, format, warnings } })
 })
 
 // GET /api/export/download/:format
@@ -174,58 +131,16 @@ exportRouter.get('/download/:format', async (c) => {
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = await buildExportData(c.env.DB, config)
-  let content: string
-  let contentType: string
-  let filename: string
-
-  if (format === 'mihomo' || format === 'clash') {
-    content = generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'text/yaml; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'singbox') {
-    content = generateSingboxJson(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'application/json; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'loon') {
-    content = generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'surge') {
-    content = generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'shadowrocket') {
-    content = generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'quantumultx') {
-    content = generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/plain; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'stash') {
-    content = generateStashYaml(nodes, groups, rules, remoteSets, collectionNodeNames, { dnsMode: settings.dnsMode })
-    contentType = 'text/yaml; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'egern') {
-    content = generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames)
-    contentType = 'text/yaml; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'nodes_base64') {
-    content = generateNodeSubscriptionBase64(nodeRows)
-    contentType = 'text/plain; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else if (format === 'nodes_raw') {
-    content = generateNodeSubscriptionRaw(nodeRows)
-    contentType = 'text/plain; charset=utf-8'
-    filename = getExportSubscriptionFilename(format as ExportFormat)
-  } else {
+  const exportData = await buildExportData(c.env.DB, config)
+  const rendered = renderExportData(exportData, format as ExportFormat, { dnsMode: settings.dnsMode })
+  if (!rendered) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
+  const filename = getExportSubscriptionFilename(format as ExportFormat)
 
-  return new Response(content, {
+  return new Response(rendered.content, {
     headers: {
-      'Content-Type': contentType,
+      'Content-Type': rendered.contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,
     },
   })

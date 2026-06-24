@@ -387,6 +387,8 @@ Other - Manual - 01
 
 `GET /api/export/preview/:format` returns `warnings: CompatibilityWarning[]` alongside the generated content.
 
+Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points.
+
 The worker validates:
 
 | Check | Level |
