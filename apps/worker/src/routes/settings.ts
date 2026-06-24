@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings } from '@uni-conf/types'
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, ThemePreference } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig } from '../services/default-export-config'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { DNS_MODE_PRESETS, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -22,6 +23,9 @@ app.put('/', async (c) => {
   const body = await c.req.json<Partial<AppSettings>>()
   const current = await getSettings(c.env.DB)
   const ts = now()
+  const validationError = validateSettingsPatch(body)
+  if (validationError) return c.json({ success: false, error: validationError }, 400)
+
   await c.env.DB.prepare(
     `UPDATE app_settings SET
       language = ?,
@@ -81,6 +85,41 @@ app.put('/', async (c) => {
 
 async function getSettings(db: D1Database): Promise<AppSettings> {
   return getAppSettings(db)
+}
+
+const LANGUAGES: ReadonlySet<Language> = new Set(['zh', 'en'])
+const THEMES: ReadonlySet<ThemePreference> = new Set(['system', 'light', 'dark'])
+const ROUTING_POLICY_TEMPLATE_IDS: ReadonlySet<RoutingPolicyTemplateId> = new Set(
+  ROUTING_POLICY_TEMPLATES.map((template) => template.id as RoutingPolicyTemplateId)
+)
+const DNS_MODES: ReadonlySet<DnsMode> = new Set(DNS_MODE_PRESETS.map((preset) => preset.id as DnsMode))
+const EXPORT_NODE_NAMING_MODES: ReadonlySet<ExportNodeNamingMode> = new Set([
+  'original',
+  'region_sequence',
+  'source_region_sequence',
+  'smart',
+])
+const AUTO_NODE_GROUP_TYPES: ReadonlySet<AutoNodeGroupType> = new Set(['select', 'url-test', 'fallback'])
+
+export function validateSettingsPatch(body: Partial<AppSettings>): string | null {
+  if (body.language !== undefined && !LANGUAGES.has(body.language)) return 'invalid language'
+  if (body.theme !== undefined && !THEMES.has(body.theme)) return 'invalid theme'
+  if (body.routingPolicyTemplate !== undefined && !ROUTING_POLICY_TEMPLATE_IDS.has(body.routingPolicyTemplate)) {
+    return 'invalid routing policy template'
+  }
+  if (body.dnsMode !== undefined && !DNS_MODES.has(body.dnsMode)) return 'invalid DNS mode'
+  if (body.exportNodeNamingMode !== undefined && !EXPORT_NODE_NAMING_MODES.has(body.exportNodeNamingMode)) {
+    return 'invalid export node naming mode'
+  }
+  if (body.autoNodeGroupTypes !== undefined) {
+    if (!Array.isArray(body.autoNodeGroupTypes) || body.autoNodeGroupTypes.some((type) => !AUTO_NODE_GROUP_TYPES.has(type))) {
+      return 'invalid auto node group type'
+    }
+  }
+  if (body.autoRefreshInterval !== undefined && (!Number.isFinite(body.autoRefreshInterval) || body.autoRefreshInterval <= 0)) {
+    return 'invalid auto refresh interval'
+  }
+  return null
 }
 
 export default app
