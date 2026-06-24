@@ -337,7 +337,7 @@ If refresh fails, the created source remains stored and `refreshError` contains 
 
 Public subscription responses aggregate cached `subscription-userinfo` from enabled URL sources. `upload`, `download`, and `total` are summed; `expire` uses the earliest cached expiry. If no source has cached userinfo, UniConf returns a stable default header so clients that display subscription traffic still have a valid value.
 
-Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, and export configs, then immediately restores the default export config, built-in routing policy groups, and managed remote rule sets. This keeps the reset state ready for the zero-setup flow: paste a subscription URL and export a usable config.
+Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, and export configs, then immediately restores the default export config, automatic node group settings, built-in routing policy groups, and managed remote rule sets. This keeps the reset state ready for the zero-setup flow: paste a subscription URL and export a usable config.
 
 Default cleanup excludes subscription info nodes such as official site, user center, subscription renewal, remaining/used/total traffic, package/plan/quota, expiry, reset, and multiplier hint entries. It also skips parsed nodes whose protocol maps to `unknown`.
 

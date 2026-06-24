@@ -3,7 +3,7 @@ import type { Env } from '../types'
 import { now } from '../db/helpers'
 import { ensureDefaultExportConfig } from '../services/default-export-config'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
-import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
+import { syncAutoNodeGroups } from '../services/auto-node-groups'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -98,7 +98,7 @@ app.delete('/', async (c) => {
 
 export async function restoreDefaultData(db: D1Database, ts: string): Promise<void> {
   await ensureDefaultExportConfig(db, ts)
-  await syncRoutingPolicyGroups(db, ts)
+  await syncAutoNodeGroups(db, ts)
   await ensureDefaultRemoteRuleSets(db, ts)
 }
 
