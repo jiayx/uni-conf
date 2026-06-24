@@ -142,6 +142,11 @@ export function Sources() {
     const finalUserAgent = form.userAgent === 'custom'
       ? form.customUserAgent
       : form.userAgent
+    const shouldRefreshAfterUpdate = editingSource.type === 'url' && (
+      form.url !== (editingSource.url || '')
+      || form.format !== editingSource.format
+      || (finalUserAgent || undefined) !== editingSource.userAgent
+    )
     await updateSource(editingSource.id, {
       name: form.name,
       url: form.url,
@@ -150,6 +155,9 @@ export function Sources() {
       userAgent: finalUserAgent || undefined,
       notes: form.notes,
     })
+    if (shouldRefreshAfterUpdate) {
+      await handleRefresh(editingSource.id)
+    }
     setShowEditModal(false)
     setEditingSource(null)
     setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })
