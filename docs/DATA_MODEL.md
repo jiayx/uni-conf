@@ -328,6 +328,8 @@ If refresh fails, the created source remains stored and `refreshError` contains 
 
 Public subscription responses aggregate cached `subscription-userinfo` from enabled URL sources. `upload`, `download`, and `total` are summed; `expire` uses the earliest cached expiry. If no source has cached userinfo, UniConf returns a stable default header so clients that display subscription traffic still have a valid value.
 
+Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, and export configs, then immediately restores the default export config, built-in routing policy groups, and managed remote rule sets. This keeps the reset state ready for the zero-setup flow: paste a subscription URL and export a usable config.
+
 Default cleanup excludes subscription info nodes such as official site, user center, subscription renewal, remaining/used/total traffic, package/plan/quota, expiry, reset, and multiplier hint entries. It also skips parsed nodes whose protocol maps to `unknown`.
 
 Country and region recognition is shared by subscription parsing, manual URI input, manual structured node creation, node group auto-generation, and routing outlet ordering. It recognizes emoji flags, standalone region codes, common English names, Chinese names, and major city aliases such as Hong Kong / 香港, Japan / Tokyo / Osaka / 日本 / 东京 / 大阪, Singapore / 新加坡 / 狮城, US / LA / Los Angeles / San Jose / 美国 / 洛杉矶 / 圣何塞, Taiwan / 台北, Korea / Seoul, United Kingdom / London, Germany / Frankfurt, France / Paris, Netherlands / Amsterdam, Australia / Sydney / Melbourne, and Canada / Toronto / Vancouver.

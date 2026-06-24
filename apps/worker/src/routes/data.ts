@@ -1,5 +1,9 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
+import { now } from '../db/helpers'
+import { ensureDefaultExportConfig } from '../services/default-export-config'
+import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
+import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -58,6 +62,7 @@ app.post('/import', async (c) => {
 })
 
 app.delete('/', async (c) => {
+  const ts = now()
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM export_configs'),
     c.env.DB.prepare('DELETE FROM remote_rule_sets'),
@@ -77,13 +82,21 @@ app.delete('/', async (c) => {
         show_compatibility_warnings = 1,
         enable_auto_refresh = 1,
         auto_refresh_interval = 1440,
-        updated_at = datetime('now')
+        updated_at = ?
        WHERE id = 'singleton'`
-    ),
+    ).bind(ts),
   ])
+
+  await restoreDefaultData(c.env.DB, ts)
 
   return c.json({ success: true, data: null })
 })
+
+export async function restoreDefaultData(db: D1Database, ts: string): Promise<void> {
+  await ensureDefaultExportConfig(db, ts)
+  await syncRoutingPolicyGroups(db, ts)
+  await ensureDefaultRemoteRuleSets(db, ts)
+}
 
 function insertRow(db: D1Database, table: TableName, row: Record<string, unknown>): D1PreparedStatement {
   const entries = Object.entries(row)
