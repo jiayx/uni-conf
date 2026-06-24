@@ -68,7 +68,7 @@ export function Preview() {
           ))}
         </div>
         <select className={styles.select} value={configId} onChange={e => setConfigId(e.target.value)}>
-          <option value="">全部数据 / All data</option>
+          <option value="">{t('preview.default_config')}</option>
           {configs.map(config => (
             <option key={config.id} value={config.id}>
               {config.name} ({config.format})

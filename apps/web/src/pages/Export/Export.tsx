@@ -97,7 +97,7 @@ export function Export() {
 
   const handleSave = async () => {
     const payload = {
-      name: form.name || 'Default Export',
+      name: form.name.trim() || undefined,
       format: form.format,
       enabled: form.enabled,
       includeCollectionIds: form.includeCollectionIds,

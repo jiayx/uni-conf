@@ -214,6 +214,7 @@
   "preview": {
     "title": "Config Preview",
     "select_format": "Select Format",
+    "default_config": "Default export config",
     "warnings": "Compatibility Warnings",
     "line_count": "{{count}} lines",
     "copy_success": "Config copied",

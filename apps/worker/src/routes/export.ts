@@ -30,7 +30,7 @@ exportRouter.post('/configs', async (c) => {
      VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
-    body.name ?? 'Default Export',
+    resolveExportConfigName(body.name, body.format),
     body.format ?? 'mihomo',
     token,
     JSON.stringify(body.includeCollectionIds ?? []),
@@ -44,6 +44,24 @@ exportRouter.post('/configs', async (c) => {
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) }, 201)
 })
+
+export function resolveExportConfigName(name: unknown, format: ExportConfig['format'] | undefined): string {
+  if (typeof name === 'string' && name.trim()) return name.trim()
+  const labels: Partial<Record<ExportConfig['format'], string>> = {
+    mihomo: 'Mihomo',
+    clash: 'Clash / OpenClash',
+    singbox: 'sing-box',
+    loon: 'Loon',
+    surge: 'Surge',
+    shadowrocket: 'Shadowrocket',
+    quantumultx: 'Quantumult X',
+    stash: 'Stash',
+    egern: 'Egern',
+    nodes_base64: '节点订阅 Base64',
+    nodes_raw: '节点订阅明文',
+  }
+  return `默认 ${labels[format ?? 'mihomo'] ?? 'Mihomo'} 配置`
+}
 
 // GET /api/export/configs/:id
 exportRouter.get('/configs/:id', async (c) => {

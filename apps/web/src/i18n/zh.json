@@ -214,6 +214,7 @@
   "preview": {
     "title": "配置预览",
     "select_format": "选择格式",
+    "default_config": "默认导出配置",
     "warnings": "兼容性警告",
     "line_count": "共 {{count}} 行",
     "copy_success": "配置已复制",

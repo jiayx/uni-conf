@@ -17,6 +17,10 @@ import type {
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
+type ExportConfigCreateInput = Omit<ExportConfig, 'id' | 'token' | 'createdAt' | 'updatedAt' | 'name'> & {
+  name?: string
+}
+
 // ============================================================
 // Core Request Helper
 // ============================================================
@@ -172,7 +176,7 @@ const remoteRuleSets = {
 const exportApi = {
   listConfigs: (): Promise<ExportConfig[]> => get('/export/configs'),
   getConfig: (id: string): Promise<ExportConfig> => get(`/export/configs/${id}`),
-  createConfig: (data: Omit<ExportConfig, 'id' | 'token' | 'createdAt' | 'updatedAt'>): Promise<ExportConfig> =>
+  createConfig: (data: ExportConfigCreateInput): Promise<ExportConfig> =>
     post('/export/configs', data),
   updateConfig: (id: string, data: Partial<ExportConfig>): Promise<ExportConfig> =>
     put(`/export/configs/${id}`, data),
