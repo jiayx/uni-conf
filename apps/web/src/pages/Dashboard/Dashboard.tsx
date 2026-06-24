@@ -54,7 +54,8 @@ export function Dashboard() {
     },
   ]
 
-  const isEmpty = !loading && (stats?.sourceCount ?? 0) === 0
+  const hasUsableNodes = (stats?.enabledNodeCount ?? 0) > 0
+  const needsSetup = !loading && !hasUsableNodes
   const defaultSubscriptionUrl = stats?.defaultExportToken && stats.defaultExportFormat
     ? `${window.location.origin}/sub/${stats.defaultExportToken}/${getExportSubscriptionFilename(stats.defaultExportFormat)}`
     : ''
@@ -117,10 +118,12 @@ export function Dashboard() {
       </div>
 
       {/* Getting Started */}
-      {isEmpty && (
+      {needsSetup && (
         <Card className={styles.gettingStarted}>
           <h2 className={styles.sectionTitle}>{t('dashboard.getting_started')}</h2>
-          <p className={styles.sectionDescription}>{t('dashboard.no_data')}</p>
+          <p className={styles.sectionDescription}>{t(
+            (stats?.sourceCount ?? 0) > 0 ? 'dashboard.no_usable_nodes' : 'dashboard.no_data'
+          )}</p>
           <form className={styles.sourceForm} onSubmit={createSourceFromDashboard}>
             <Input
               label={t('sources.url')}
@@ -145,7 +148,7 @@ export function Dashboard() {
       )}
 
       {/* Quick Export */}
-      {!isEmpty && (
+      {hasUsableNodes && (
         <Card className={styles.quickExport}>
           <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
           {defaultSubscriptionUrl && (

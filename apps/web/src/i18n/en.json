@@ -266,6 +266,7 @@
     "step2": "Auto Generate Config",
     "step3": "Copy Default Link",
     "no_data": "Paste one subscription URL; node groups, policy groups, rules, and export config are prepared automatically",
+    "no_usable_nodes": "There are no exportable nodes yet. Add or replace a subscription URL to continue.",
     "source_refresh_failed": "Source saved, but refresh failed: {{error}}",
     "step1_desc": "Paste an airport or self-hosted subscription URL",
     "step2_desc": "Detect nodes, generate node groups, and enable default routing policies automatically",
