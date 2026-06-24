@@ -263,6 +263,8 @@ Dashboard stats, export preview/download, settings reads, group reads, and remot
 | auto_refresh_interval | INTEGER | Minutes, default `1440` |
 | updated_at | TEXT | |
 
+Settings reads normalize nullable or invalid values back to product defaults: compatibility warnings on, auto refresh on, 24-hour refresh interval, smart DNS, and smart node naming. This keeps imported or partially initialized data on the zero-setup path.
+
 Auto refresh is enabled by default and driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
 
 - Source `update_interval > 0` overrides the global interval.

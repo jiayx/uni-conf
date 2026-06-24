@@ -29,9 +29,9 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     dnsMode: normalizeDnsMode(row.dns_mode),
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
     defaultExportToken: (row.default_export_token as string | null) ?? undefined,
-    showCompatibilityWarnings: Boolean(row.show_compatibility_warnings),
-    enableAutoRefresh: Boolean(row.enable_auto_refresh),
-    autoRefreshInterval: row.auto_refresh_interval as number,
+    showCompatibilityWarnings: normalizeBooleanDefault(row.show_compatibility_warnings, true),
+    enableAutoRefresh: normalizeBooleanDefault(row.enable_auto_refresh, true),
+    autoRefreshInterval: normalizePositiveInteger(row.auto_refresh_interval, 1440),
   };
 }
 
@@ -43,4 +43,21 @@ export function normalizeExportNodeNamingMode(value: unknown): ExportNodeNamingM
   return typeof value === 'string' && EXPORT_NODE_NAMING_MODES.has(value as ExportNodeNamingMode)
     ? value as ExportNodeNamingMode
     : 'smart';
+}
+
+export function normalizeBooleanDefault(value: unknown, defaultValue: boolean): boolean {
+  if (value === null || value === undefined) return defaultValue;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return defaultValue;
+}
+
+export function normalizePositiveInteger(value: unknown, defaultValue: number): number {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numberValue) && numberValue > 0 ? Math.floor(numberValue) : defaultValue;
 }
