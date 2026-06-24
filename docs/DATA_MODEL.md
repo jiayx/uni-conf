@@ -250,7 +250,7 @@ The system ensures a built-in default export config exists:
 
 `app_settings.default_export_token` points to this default config token unless the user explicitly changes it.
 
-Dashboard stats, export preview/download, settings reads, group reads, and remote rule set reads are initialization points for the zero-setup path. They ensure the default export config, foundation/routing policy groups, and built-in remote rule sets exist before returning user-facing state, so the first screen can show the same defaults that export will use.
+Dashboard stats, export preview/download, settings reads, group reads, and remote rule set reads are initialization points for the zero-setup path. They ensure the default export config, foundation/routing policy groups, automatic node groups, and built-in remote rule sets exist before returning user-facing state, so the first screen can show the same defaults that export will use.
 
 ### `app_settings` — Application Settings (Singleton)
 
