@@ -200,7 +200,7 @@ export function Export() {
         title={editingId ? '编辑导出配置' : t('export.new_config')}
         footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleSave()}>{t('common.save')}</Button></>}
       >
-        <Input label={t('common.name')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="My Export" />
+        <Input label="名称（可选）" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="留空时使用默认导出名称" />
         <div>
           <label className={styles.selectLabel}>{t('export.format')}</label>
           <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as ExportFormat)}>
@@ -211,50 +211,55 @@ export function Export() {
           <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
           <span>启用此配置</span>
         </label>
-        <MultiSelect
-          label="节点组"
-          emptyText="未选择时导出所有启用节点组"
-          options={collections.map(item => ({ id: item.id, label: item.name }))}
-          value={form.includeCollectionIds}
-          onChange={includeCollectionIds => setForm(f => ({ ...f, includeCollectionIds }))}
-        />
-        <MultiSelect
-          label="策略组"
-          emptyText="未选择时导出所有启用策略组"
-          options={groups.map(item => ({ id: item.id, label: item.name }))}
-          value={form.includeGroupIds}
-          onChange={includeGroupIds => setForm(f => ({ ...f, includeGroupIds }))}
-        />
-        <MultiSelect
-          label="自定义分流规则"
-          emptyText="未选择时导出所有启用自定义规则"
-          options={rules.map(item => ({ id: item.id, label: `${item.type}, ${item.payload}` }))}
-          value={form.includeRuleIds}
-          onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
-        />
-        <MultiSelect
-          label="分流策略规则集"
-          emptyText="未选择时导出所有兼容规则集"
-          hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
-          options={remoteSets.map(item => {
-            const compatible = isRemoteRuleSetCompatible(form.format, item)
-            const formatLabel = item.presetSource === 'quixotic'
-              ? '预置 · 动态格式'
-              : item.presetSource === 'uni-conf'
-                ? `内置 · ${item.format}`
-                : item.format
-            return {
-              id: item.id,
-              label: item.name,
-              description: compatible
-                ? `${formatLabel} · 会用于 ${form.format} 导出`
-                : `${formatLabel} · 不兼容 ${form.format}，导出时会跳过`,
-              disabled: !compatible,
-            }
-          })}
-          value={form.includeRemoteSetIds}
-          onChange={includeRemoteSetIds => setForm(f => ({ ...f, includeRemoteSetIds }))}
-        />
+        <details className={styles.advanced}>
+          <summary>高级范围设置</summary>
+          <div className={styles.advancedBody}>
+            <MultiSelect
+              label="节点组"
+              emptyText="未选择时导出所有启用节点组"
+              options={collections.map(item => ({ id: item.id, label: item.name }))}
+              value={form.includeCollectionIds}
+              onChange={includeCollectionIds => setForm(f => ({ ...f, includeCollectionIds }))}
+            />
+            <MultiSelect
+              label="策略组"
+              emptyText="未选择时导出所有启用策略组"
+              options={groups.map(item => ({ id: item.id, label: item.name }))}
+              value={form.includeGroupIds}
+              onChange={includeGroupIds => setForm(f => ({ ...f, includeGroupIds }))}
+            />
+            <MultiSelect
+              label="自定义分流规则"
+              emptyText="未选择时导出所有启用自定义规则"
+              options={rules.map(item => ({ id: item.id, label: `${item.type}, ${item.payload}` }))}
+              value={form.includeRuleIds}
+              onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
+            />
+            <MultiSelect
+              label="分流策略规则集"
+              emptyText="未选择时导出所有兼容规则集"
+              hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
+              options={remoteSets.map(item => {
+                const compatible = isRemoteRuleSetCompatible(form.format, item)
+                const formatLabel = item.presetSource === 'quixotic'
+                  ? '预置 · 动态格式'
+                  : item.presetSource === 'uni-conf'
+                    ? `内置 · ${item.format}`
+                    : item.format
+                return {
+                  id: item.id,
+                  label: item.name,
+                  description: compatible
+                    ? `${formatLabel} · 会用于 ${form.format} 导出`
+                    : `${formatLabel} · 不兼容 ${form.format}，导出时会跳过`,
+                  disabled: !compatible,
+                }
+              })}
+              value={form.includeRemoteSetIds}
+              onChange={includeRemoteSetIds => setForm(f => ({ ...f, includeRemoteSetIds }))}
+            />
+          </div>
+        </details>
       </Modal>
     </div>
   )
