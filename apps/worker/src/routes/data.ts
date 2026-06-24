@@ -58,6 +58,7 @@ app.post('/import', async (c) => {
   }
 
   await c.env.DB.batch(stmts)
+  await restoreDefaultData(c.env.DB, now())
   return c.json({ success: true, data: null })
 })
 
