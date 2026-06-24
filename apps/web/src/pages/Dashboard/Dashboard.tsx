@@ -5,19 +5,14 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { Input } from '@/components/ui/Input/Input'
+import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { api } from '@/lib/api'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
-import type { DashboardStats, ExportFormat } from '@uni-conf/types'
+import type { DashboardStats } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3']
 const STEP_PATHS = ['/sources', '/sources', '/']
-const QUICK_EXPORTS: Array<{ format: ExportFormat; label: string }> = [
-  { format: 'mihomo', label: 'Mihomo YAML' },
-  { format: 'clash', label: 'Clash / OpenClash YAML' },
-  { format: 'singbox', label: 'sing-box JSON' },
-  { format: 'loon', label: 'Loon CONF' },
-]
 
 export function Dashboard() {
   const { t } = useTranslation()
@@ -162,12 +157,12 @@ export function Dashboard() {
             </div>
           )}
           <div className={styles.exportButtons}>
-            {QUICK_EXPORTS.map(item => (
+            {QUICK_EXPORT_OPTIONS.map(item => (
               <Button
-                key={item.format}
+                key={item.value}
                 variant="secondary"
                 size="sm"
-                onClick={() => window.open(`/api/export/download/${item.format}`, '_blank')}
+                onClick={() => window.open(`/api/export/download/${item.value}`, '_blank')}
               >
                 {item.label}
               </Button>

@@ -8,24 +8,11 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
+import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
 import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import styles from './Export.module.css'
-
-const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
-  { value: 'mihomo', label: 'Mihomo / Clash Verge Rev / OpenClash YAML' },
-  { value: 'clash', label: 'Clash / Clash Verge Rev / OpenClash YAML' },
-  { value: 'singbox', label: 'sing-box JSON' },
-  { value: 'loon', label: 'Loon CONF' },
-  { value: 'surge', label: 'Surge CONF' },
-  { value: 'shadowrocket', label: 'Shadowrocket CONF' },
-  { value: 'quantumultx', label: 'Quantumult X CONF' },
-  { value: 'stash', label: 'Stash YAML' },
-  { value: 'egern', label: 'Egern YAML' },
-  { value: 'nodes_base64', label: 'Node Subscription (Base64)' },
-  { value: 'nodes_raw', label: 'Node Subscription (Raw)' },
-]
 
 const BASE_URL = window.location.origin
 
@@ -217,7 +204,7 @@ export function Export() {
         <div>
           <label className={styles.selectLabel}>{t('export.format')}</label>
           <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as ExportFormat)}>
-            {FORMAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {EXPORT_FORMAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <label className={styles.checkboxRow}>

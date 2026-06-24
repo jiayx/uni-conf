@@ -2,23 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
+import { PREVIEW_FORMATS } from '@/core/export/formats'
 import { api } from '@/lib/api'
 import type { CompatibilityWarning, ExportConfig, ExportFormat } from '@uni-conf/types'
 import styles from './Preview.module.css'
-
-const FORMATS: ExportFormat[] = [
-  'mihomo',
-  'clash',
-  'singbox',
-  'loon',
-  'surge',
-  'shadowrocket',
-  'quantumultx',
-  'stash',
-  'egern',
-  'nodes_base64',
-  'nodes_raw',
-]
 
 export function Preview() {
   const { t } = useTranslation()
@@ -74,7 +61,7 @@ export function Preview() {
       <PageHeader title={t('preview.title')} />
       <div className={styles.toolbar}>
         <div className={styles.tabs}>
-          {FORMATS.map(f => (
+          {PREVIEW_FORMATS.map(f => (
             <button key={f} className={`${styles.tab} ${format === f ? styles.active : ''}`} onClick={() => setFormat(f)}>
               {t(`export.formats.${f}`)}
             </button>
