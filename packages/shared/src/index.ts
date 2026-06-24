@@ -204,10 +204,11 @@ export function resolveRemoteRuleSetForExport(
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
   /官网|官方网站|用户中心|客户中心|订阅|更新订阅/,
-  /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|流量[:：]/,
+  /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|总.*流量|流量.*总量|流量[:：]/,
   /套餐|到期|过期|有效期|重置/,
-  /\b(expire|expired|traffic|remaining|used|total|reset|官网|subscription)\b/i,
-  /倍率.*(说明|规则|提示)|倍数.*(说明|规则|提示)/,
+  /\b(expire|expired|expires|expiry|traffic|remaining|used|total|reset|subscription|sub|package|plan|quota)\b/i,
+  /\b(user\s*center|account\s*center|official\s*site|renew)\b/i,
+  /倍率.*(说明|规则|提示)|倍数.*(说明|规则|提示)|高倍率.*(说明|规则|提示)/,
 ];
 
 export function isSubscriptionInfoNodeName(name: string): boolean {

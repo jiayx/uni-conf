@@ -128,8 +128,16 @@ proxy-groups:
     expect(isSubscriptionInfoNodeName('剩余流量：111 GB')).toBe(true)
     expect(isSubscriptionInfoNodeName('套餐到期：2026-12-31')).toBe(true)
     expect(isSubscriptionInfoNodeName('Traffic Used: 12 GB')).toBe(true)
+    expect(isSubscriptionInfoNodeName('用户中心：https://example.com')).toBe(true)
+    expect(isSubscriptionInfoNodeName('官网：https://example.com')).toBe(true)
+    expect(isSubscriptionInfoNodeName('重置时间：明天 00:00')).toBe(true)
+    expect(isSubscriptionInfoNodeName('Expire Date: 2026-12-31')).toBe(true)
+    expect(isSubscriptionInfoNodeName('Plan Quota Total: 1024 GB')).toBe(true)
+    expect(isSubscriptionInfoNodeName('倍率说明：高倍率节点会扣更多流量')).toBe(true)
     expect(isSubscriptionInfoNodeName('🇭🇰 HK IEPL 2x')).toBe(false)
     expect(isSubscriptionInfoNodeName('US｜Los Angeles｜x1')).toBe(false)
+    expect(isSubscriptionInfoNodeName('新加坡-流媒体')).toBe(false)
+    expect(isSubscriptionInfoNodeName('香港 0.5x 家宽')).toBe(false)
   })
 
   it('should filter subscription info nodes and unsupported protocols before refresh persistence', () => {
