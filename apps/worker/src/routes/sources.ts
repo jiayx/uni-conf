@@ -262,7 +262,8 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
   }
 
   // Detect format and parse nodes
-  const { nodes: rawParsedNodes, groups: rawParsedGroups, format } = detectAndParse(rawContent);
+  const sourceFormat = isValidSourceFormat(row.format) ? row.format : 'auto';
+  const { nodes: rawParsedNodes, groups: rawParsedGroups, format } = detectAndParse(rawContent, sourceFormat);
   const { nodes: parsedNodes, groups: parsedGroups, excludedCount } = filterUsableParsedContent(
     rawParsedNodes,
     rawParsedGroups
@@ -558,8 +559,13 @@ function recognitionTags(name: string): Pick<ParsedNodeRaw, 'tags'> {
   return { tags: buildNodeRecognitionTags(name) };
 }
 
-function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; format: string } {
+export function detectAndParse(
+  raw: string,
+  hint: SourceFormat = 'auto'
+): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; format: SourceFormat } {
   const trimmed = raw.trim();
+
+  if (hint !== 'auto') return parseBySourceFormat(trimmed, hint);
 
   // Try YAML (Clash/Mihomo format)
   if (trimmed.startsWith('proxies:') || trimmed.includes('\nproxies:')) {
@@ -594,6 +600,51 @@ function detectAndParse(raw: string): { nodes: ParsedNodeRaw[]; groups: SourceNo
   const lines = trimmed.split('\n').filter((l) => l.trim().length > 0);
   const nodes = parseRawLines(lines);
   return { nodes, groups: [], format: 'raw' };
+}
+
+function parseBySourceFormat(
+  trimmed: string,
+  format: Exclude<SourceFormat, 'auto'>
+): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; format: SourceFormat } {
+  if (format === 'clash' || format === 'mihomo') {
+    return {
+      nodes: parseClashYaml(trimmed),
+      groups: parseClashGroups(trimmed),
+      format,
+    };
+  }
+
+  if (format === 'singbox') {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      return {
+        nodes: parseSingboxJson(parsed),
+        groups: parseSingboxGroups(parsed),
+        format,
+      };
+    } catch {
+      return { nodes: [], groups: [], format };
+    }
+  }
+
+  if (format === 'base64') {
+    try {
+      const decoded = atob(trimmed.replace(/\s/g, ''));
+      return {
+        nodes: parseRawLines(decoded.split('\n').filter((line) => line.trim().length > 0)),
+        groups: [],
+        format,
+      };
+    } catch {
+      return { nodes: [], groups: [], format };
+    }
+  }
+
+  return {
+    nodes: parseRawLines(trimmed.split('\n').filter((line) => line.trim().length > 0)),
+    groups: [],
+    format,
+  };
 }
 
 function shouldUpdateNode(

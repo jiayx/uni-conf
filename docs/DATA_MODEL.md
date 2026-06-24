@@ -325,6 +325,8 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 
 Source writes validate `type`, `format`, and URL shape before persistence. URL sources must use an `http` or `https` subscription URL, and source formats are limited to the supported parser set (`auto`, Clash/Mihomo, sing-box, base64, Surge, Loon, Quantumult X, Shadowrocket, or raw URI lines). Invalid input is rejected before it can break scheduled refresh or default export generation.
 
+During refresh, `format = auto` uses content detection. Any explicit source format is treated as a parser hint and is tried first: Clash/Mihomo as YAML, sing-box as JSON, base64 as encoded URI lines, and raw/client-line formats as URI lines. This keeps the advanced format selector meaningful while preserving the one-link default path.
+
 The response data is:
 
 ```ts

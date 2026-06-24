@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import {
   deriveSourceName,
+  detectAndParse,
   filterUsableParsedContent,
   isHttpUrl,
   isValidSourceFormat,
@@ -63,6 +64,23 @@ describe('Clash YAML Parser', () => {
     expect(isHttpUrl('http://example.com/sub')).toBe(true)
     expect(isHttpUrl('file:///tmp/sub.yaml')).toBe(false)
     expect(isHttpUrl('not a url')).toBe(false)
+  })
+
+  it('uses explicit source format hints before auto detection', () => {
+    const singbox = JSON.stringify({
+      outbounds: [
+        { tag: 'SG', type: 'trojan', server: 'sg.example.com', server_port: 443, password: 'pwd' },
+      ],
+    })
+
+    expect(detectAndParse(singbox, 'singbox')).toMatchObject({
+      format: 'singbox',
+      nodes: [expect.objectContaining({ name: 'SG', protocol: 'trojan' })],
+    })
+    expect(detectAndParse(singbox, 'mihomo')).toMatchObject({
+      format: 'mihomo',
+      nodes: [],
+    })
   })
 
   it('should parse inline format nodes (flow-style)', () => {
