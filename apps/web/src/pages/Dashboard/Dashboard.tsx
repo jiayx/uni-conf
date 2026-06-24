@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
+import { Input } from '@/components/ui/Input/Input'
 import { api } from '@/lib/api'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
 import type { DashboardStats } from '@uni-conf/types'
@@ -18,14 +19,19 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [sourceError, setSourceError] = useState<string | null>(null)
+  const [creatingSource, setCreatingSource] = useState(false)
+
+  const loadStats = async () => {
+    const nextStats = await api.dashboard.stats()
+    setStats(nextStats)
+    setError(null)
+  }
 
   useEffect(() => {
     queueMicrotask(() => {
-      void api.dashboard.stats()
-        .then(nextStats => {
-          setStats(nextStats)
-          setError(null)
-        })
+      void loadStats()
         .catch(e => setError((e as Error).message))
         .finally(() => setLoading(false))
     })
@@ -59,11 +65,44 @@ export function Dashboard() {
     window.setTimeout(() => setCopied(false), 2000)
   }
 
+  const createSourceFromDashboard = async (event: FormEvent) => {
+    event.preventDefault()
+    const url = sourceUrl.trim()
+    if (!url) {
+      setSourceError(t('sources.url_required'))
+      return
+    }
+
+    setCreatingSource(true)
+    setSourceError(null)
+    try {
+      const result = await api.sources.create({
+        type: 'url',
+        url,
+        format: 'auto',
+        enabled: true,
+        tags: [],
+        updateInterval: 0,
+        refreshAfterCreate: true,
+      })
+      setSourceUrl('')
+      if (result.refreshError) {
+        setSourceError(t('dashboard.source_refresh_failed', { error: result.refreshError }))
+      }
+      await loadStats()
+    } catch (e) {
+      setSourceError((e as Error).message)
+    } finally {
+      setCreatingSource(false)
+    }
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader title={t('dashboard.title')} description="UniConf — Manage once, export everywhere." />
 
       {error && <div className={styles.error}>{error}</div>}
+      {sourceError && <div className={styles.inlineError}>{sourceError}</div>}
 
       {/* Stats */}
       <div className={styles.statsGrid}>
@@ -81,6 +120,15 @@ export function Dashboard() {
         <Card className={styles.gettingStarted}>
           <h2 className={styles.sectionTitle}>{t('dashboard.getting_started')}</h2>
           <p className={styles.sectionDescription}>{t('dashboard.no_data')}</p>
+          <form className={styles.sourceForm} onSubmit={createSourceFromDashboard}>
+            <Input
+              label={t('sources.url')}
+              value={sourceUrl}
+              onChange={event => setSourceUrl(event.target.value)}
+              placeholder={t('sources.url_placeholder')}
+            />
+            <Button type="submit" loading={creatingSource}>{t('sources.add_url')}</Button>
+          </form>
           <div className={styles.steps}>
             {STEPS.map((step, i) => (
               <Link key={step} to={STEP_PATHS[i] ?? '/'} className={styles.step}>

@@ -83,6 +83,23 @@
 .stepLabel { color: var(--color-text-primary); overflow-wrap: anywhere; }
 .stepDescription { color: var(--color-text-secondary); font-size: 0.75rem; line-height: 1.4; font-weight: 400; overflow-wrap: anywhere; }
 
+.sourceForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.inlineError {
+  margin-bottom: 1rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--color-error-subtle);
+  color: var(--color-error);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
 .exportButtons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .subscriptionRow {
   display: grid;
@@ -108,5 +125,6 @@
 
 @media (max-width: 640px) {
   .statCard.wide { grid-column: auto; }
+  .sourceForm { grid-template-columns: 1fr; align-items: stretch; }
   .subscriptionRow { grid-template-columns: 1fr; }
 }

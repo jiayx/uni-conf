@@ -138,7 +138,7 @@ All API endpoints are under `/api/`. Responses follow:
 ### Subscription Refresh
 
 ```
-1. User adds subscription URL in Sources page
+1. User adds subscription URL from Dashboard or Sources page
 2. Backend refreshes URL sources during creation when refreshAfterCreate is enabled
 3. User can also click "Refresh" manually
 4. Worker scheduled handler runs every 5 minutes and refreshes due URL sources when auto refresh is enabled
