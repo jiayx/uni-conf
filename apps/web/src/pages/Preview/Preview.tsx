@@ -114,6 +114,9 @@ export function Preview() {
               ))}
             </div>
           )}
+          {!loading && warnings.length === 0 && (
+            <div className={`${styles.warning} ${styles.full}`}>{t('preview.no_warnings')}</div>
+          )}
           <pre className={styles.code}>{content}</pre>
         </>
       ) : (
