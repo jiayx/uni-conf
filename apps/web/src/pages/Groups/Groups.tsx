@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
-import { DEFAULT_HEALTH_CHECK, ROUTING_POLICY_TEMPLATES, buildRoutingPolicyTemplateGroupNames } from '@uni-conf/shared'
+import { DEFAULT_HEALTH_CHECK, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
@@ -82,22 +82,18 @@ export function Groups() {
   const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate)
     ?? ROUTING_POLICY_TEMPLATES.find(template => template.id === 'common')
     ?? ROUTING_POLICY_TEMPLATES[0]
-  const activeTemplateGroupNames = useMemo(
-    () => buildRoutingPolicyTemplateGroupNames(activeTemplateConfig),
-    [activeTemplateConfig]
-  )
   const templateGroups = useMemo(
-    () => activeTemplateGroupNames.map(name => ({
+    () => activeTemplateConfig.groupNames.map(name => ({
       name,
       group: groups.find(group => group.name === name),
     })),
-    [activeTemplateGroupNames, groups]
+    [activeTemplateConfig, groups]
   )
   const templateOptions = useMemo(
     () => ROUTING_POLICY_TEMPLATES.map(template => ({
       ...template,
       active: template.id === activeTemplate,
-      displayGroupNames: buildRoutingPolicyTemplateGroupNames(template),
+      displayGroupNames: template.groupNames,
     })),
     [activeTemplate]
   )
@@ -218,7 +214,7 @@ export function Groups() {
         <div className={styles.templateHeader}>
           <div>
             <div className={styles.templateTitle}>策略组组合</div>
-            <div className={styles.templateMeta}>选择一个默认组合后，系统会维护对应策略组和默认规则关联；自定义策略组会保留。</div>
+            <div className={styles.templateMeta}>选择一个默认组合后，系统会维护对应业务分流组和默认规则关联；基础出口 PROXY / DIRECT / REJECT 始终保留。</div>
           </div>
           <Button variant="secondary" onClick={() => void fetchGroups()} loading={savingTemplate}>{t('common.refresh')}</Button>
         </div>
@@ -233,19 +229,28 @@ export function Groups() {
             >
               <div className={styles.templateItemTop}>
                 <span className={styles.templateName}>{template.name}</span>
-                <Badge variant={template.active ? 'success' : 'default'}>{template.active ? '当前' : `${template.displayGroupNames.length} 组`}</Badge>
+                <Badge variant={template.active ? 'success' : 'default'}>
+                  {template.active ? '当前' : formatTemplateCount(template.displayGroupNames.length)}
+                </Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
-              <div className={styles.templateMembers}>{template.displayGroupNames.join(' / ')}</div>
+              <div className={styles.templateMembers}>
+                {template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : '不启用额外业务分流组'}
+              </div>
             </button>
           ))}
         </div>
         <div className={styles.activeTemplateGroups}>
-          {(templateGroups ?? []).map(item => (
-            <Badge key={item.name} variant={item.group?.enabled ? 'purple' : 'default'}>
-              {item.name}
-            </Badge>
-          ))}
+          <span className={styles.activeTemplateLabel}>当前业务分流组</span>
+          {templateGroups.length === 0 ? (
+            <Badge variant="default">无额外业务分流组</Badge>
+          ) : (
+            templateGroups.map(item => (
+              <Badge key={item.name} variant={item.group?.enabled ? 'purple' : 'default'}>
+                {item.name}
+              </Badge>
+            ))
+          )}
         </div>
       </section>
       {foundationGroups.length > 0 && (
@@ -463,6 +468,10 @@ function isRoutingPolicyGroup(group: ProxyGroup): boolean {
 
 function isCustomRoutingGroup(group: ProxyGroup): boolean {
   return !group.isBuiltin && !isOutletGroup(group)
+}
+
+function formatTemplateCount(count: number): string {
+  return count > 0 ? `${count} 个业务组` : '仅基础出口'
 }
 
 function PlusIcon() {
