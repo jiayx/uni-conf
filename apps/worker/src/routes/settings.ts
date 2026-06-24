@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import type { Env } from '../types'
 import type { AppSettings } from '@uni-conf/types'
 import { now } from '../db/helpers'
-import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig } from '../services/default-export-config'
@@ -13,7 +12,7 @@ const app = new Hono<{ Bindings: Env }>()
 app.get('/', async (c) => {
   const ts = now()
   await ensureDefaultExportConfig(c.env.DB, ts)
-  await syncRoutingPolicyGroups(c.env.DB, ts)
+  await syncAutoNodeGroups(c.env.DB, ts)
   await ensureDefaultRemoteRuleSets(c.env.DB, ts)
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })
@@ -74,7 +73,6 @@ app.put('/', async (c) => {
     .run()
 
   await syncAutoNodeGroups(c.env.DB, ts)
-  await syncRoutingPolicyGroups(c.env.DB, ts)
   await ensureDefaultRemoteRuleSets(c.env.DB, ts)
 
   const settings = await getSettings(c.env.DB)
