@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
-import type { RemoteRuleSet } from '@uni-conf/types'
+import type { RemoteRuleSet, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
@@ -27,6 +27,9 @@ app.post('/', async (c) => {
       { success: false, error: 'name, url, format, behavior, and targetGroupId are required' },
       400
     )
+  }
+  if (!isValidRuleSetFormat(body.format) || !isValidRuleSetBehavior(body.behavior)) {
+    return c.json({ success: false, error: 'invalid rule set format or behavior' }, 400)
   }
   if (!(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
@@ -77,6 +80,9 @@ app.post('/batch', async (c) => {
 
   for (const set of sets) {
     if (!set.name || !set.url || !set.format || !set.behavior || !set.targetGroupId) continue
+    if (!isValidRuleSetFormat(set.format) || !isValidRuleSetBehavior(set.behavior)) {
+      return c.json({ success: false, error: `invalid rule set format or behavior: ${set.name}` }, 400)
+    }
     if (!enabledTargetGroupIds.has(set.targetGroupId)) {
       return c.json({ success: false, error: `target group is disabled or missing: ${set.targetGroupId}` }, 400)
     }
@@ -139,6 +145,12 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<RemoteRuleSet>>()
   const ts = now()
+  if (body.format !== undefined && !isValidRuleSetFormat(body.format)) {
+    return c.json({ success: false, error: 'invalid rule set format' }, 400)
+  }
+  if (body.behavior !== undefined && !isValidRuleSetBehavior(body.behavior)) {
+    return c.json({ success: false, error: 'invalid rule set behavior' }, 400)
+  }
   if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
@@ -193,6 +205,29 @@ export interface ManagedRemoteRuleSetFields {
 
 export function isManagedRemoteRuleSet(row: ManagedRemoteRuleSetFields): boolean {
   return Boolean(row.preset_source && row.preset_id)
+}
+
+const RULE_SET_FORMATS: ReadonlySet<RuleSetFormat> = new Set([
+  'clash',
+  'mihomo',
+  'singbox',
+  'surge',
+  'loon',
+  'shadowrocket',
+  'quantumultx',
+  'egern',
+  'stash',
+  'text',
+])
+
+const RULE_SET_BEHAVIORS: ReadonlySet<RuleSetBehavior> = new Set(['domain', 'ipcidr', 'classical'])
+
+export function isValidRuleSetFormat(value: unknown): value is RuleSetFormat {
+  return RULE_SET_FORMATS.has(value as RuleSetFormat)
+}
+
+export function isValidRuleSetBehavior(value: unknown): value is RuleSetBehavior {
+  return RULE_SET_BEHAVIORS.has(value as RuleSetBehavior)
 }
 
 export default app
