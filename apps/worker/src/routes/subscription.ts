@@ -13,6 +13,13 @@ export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 subscriptionRouter.get('/sub/:token/:filename', async (c) => {
   const token = c.req.param('token')
   const filename = c.req.param('filename')
+  const format = getExportFormatFromSubscriptionFilename(filename)
+  if (!format) {
+    return new Response(`# Unknown format: ${filename}\n`, {
+      status: 400,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
+  }
 
   // Look up export config by token
   const config = await getEnabledExportConfigByToken(c.env.DB, token)
@@ -26,14 +33,6 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
 
   const exportData = await buildExportData(c.env.DB, config)
   const settings = await getAppSettings(c.env.DB)
-  const format = getExportFormatFromSubscriptionFilename(filename)
-  if (!format) {
-    return new Response(`# Unknown format: ${filename}\n`, {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    })
-  }
-
   const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
   if (!rendered) {
     return new Response(`# Unknown format: ${filename}\n`, { status: 400 })

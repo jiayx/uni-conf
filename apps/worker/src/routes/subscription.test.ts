@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ProxySource } from '@uni-conf/types'
+import { getExportFormatFromSubscriptionFilename, getExportSubscriptionFilename } from '@uni-conf/shared'
 import { buildSubscriptionUserInfoHeader } from './subscription'
 
 const baseSource: ProxySource = {
@@ -40,5 +41,11 @@ describe('subscription route helpers', () => {
     expect(buildSubscriptionUserInfoHeader([baseSource])).toBe(
       'upload=0; download=0; total=10737418240; expire=4099680000'
     )
+  })
+
+  it('uses the canonical public filename for sing-box subscriptions', () => {
+    expect(getExportSubscriptionFilename('singbox')).toBe('singbox.json')
+    expect(getExportFormatFromSubscriptionFilename('singbox.json')).toBe('singbox')
+    expect(getExportFormatFromSubscriptionFilename('sing-box.json')).toBeNull()
   })
 })

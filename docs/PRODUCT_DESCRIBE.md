@@ -1278,7 +1278,7 @@ Base64 节点订阅
 ```text
 /sub/abc123/mihomo.yaml
 /sub/abc123/clash.yaml
-/sub/abc123/sing-box.json
+/sub/abc123/singbox.json
 /sub/abc123/surge.conf
 /sub/abc123/loon.conf
 /sub/abc123/shadowrocket.conf
