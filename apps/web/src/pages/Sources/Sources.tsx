@@ -173,7 +173,7 @@ export function Sources() {
         <EmptyState
           icon={<SubscriptionIcon />}
           title="暂无订阅源 / No subscriptions"
-          description="添加机场订阅链接或手动节点来开始使用 / Add a subscription URL or manual nodes to get started"
+          description="粘贴一个订阅链接即可自动生成配置 / Paste one subscription URL to generate a config"
           action={{ label: t('sources.add_url'), onClick: () => setShowAddModal(true) }}
         />
       ) : (
