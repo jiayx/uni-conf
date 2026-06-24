@@ -125,4 +125,4 @@ sing-box export:
 2. Change manual node forms to render from the registry.
 3. Change parsers to output `StoredNodeConfig` instead of only `NormalizedProxyConfig`.
 4. Change exporters to prefer native config objects.
-5. Keep `parsed_config` backward compatible by treating old records as `sourceFormat: 'unknown'` and converting through the current normalized fields.
+5. Store newly parsed or manually entered nodes in the current native-plus-normalized shape directly; UniConf is a new product and does not carry legacy node record compatibility branches.
