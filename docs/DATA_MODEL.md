@@ -323,6 +323,8 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 
 `POST /api/sources` accepts `refreshAfterCreate?: boolean`. For URL sources it defaults to `true`, so API callers can create a subscription and immediately populate nodes in one request. `name` is optional on create and update; when omitted or submitted as a blank string, the worker derives it from the subscription URL host so the zero-setup path only requires the subscription link and editing a source cannot create an empty display name.
 
+Source writes validate `type`, `format`, and URL shape before persistence. URL sources must use an `http` or `https` subscription URL, and source formats are limited to the supported parser set (`auto`, Clash/Mihomo, sing-box, base64, Surge, Loon, Quantumult X, Shadowrocket, or raw URI lines). Invalid input is rejected before it can break scheduled refresh or default export generation.
+
 The response data is:
 
 ```ts

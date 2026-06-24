@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
-import { deriveSourceName, filterUsableParsedContent, parseClashGroups, parseClashYaml, resolveSourceNameInput } from './sources'
+import {
+  deriveSourceName,
+  filterUsableParsedContent,
+  isHttpUrl,
+  isValidSourceFormat,
+  isValidSourceType,
+  parseClashGroups,
+  parseClashYaml,
+  resolveSourceNameInput,
+} from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -41,6 +50,19 @@ describe('Clash YAML Parser', () => {
     expect(resolveSourceNameInput('  My Airport  ', 'https://example.com/sub')).toBe('My Airport')
     expect(resolveSourceNameInput('', 'https://www.example.com/sub')).toBe('example.com')
     expect(resolveSourceNameInput('   ', 'https://airport.example/sub')).toBe('airport.example')
+  })
+
+  it('validates source input enums and subscription URLs', () => {
+    expect(isValidSourceType('url')).toBe(true)
+    expect(isValidSourceType('manual')).toBe(true)
+    expect(isValidSourceType('remote')).toBe(false)
+    expect(isValidSourceFormat('auto')).toBe(true)
+    expect(isValidSourceFormat('singbox')).toBe(true)
+    expect(isValidSourceFormat('yaml')).toBe(false)
+    expect(isHttpUrl('https://example.com/sub')).toBe(true)
+    expect(isHttpUrl('http://example.com/sub')).toBe(true)
+    expect(isHttpUrl('file:///tmp/sub.yaml')).toBe(false)
+    expect(isHttpUrl('not a url')).toBe(false)
   })
 
   it('should parse inline format nodes (flow-style)', () => {

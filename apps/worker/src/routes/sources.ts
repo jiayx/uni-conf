@@ -9,7 +9,7 @@ import {
 } from '../db/helpers';
 import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { ProxyProtocol, NormalizedProxyConfig, SourceNodeGroup, SourceRefreshResult } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -48,8 +48,18 @@ app.post('/', async (c) => {
   if (!body.type) {
     return c.json({ success: false, error: 'type is required' }, 400);
   }
+  if (!isValidSourceType(body.type)) {
+    return c.json({ success: false, error: 'invalid source type' }, 400);
+  }
+  const format = body.format ?? 'auto';
+  if (!isValidSourceFormat(format)) {
+    return c.json({ success: false, error: 'invalid source format' }, 400);
+  }
   if (body.type === 'url' && !body.url) {
     return c.json({ success: false, error: 'url is required' }, 400);
+  }
+  if (body.type === 'url' && !isHttpUrl(body.url)) {
+    return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
   }
 
   const id = newId();
@@ -65,7 +75,7 @@ app.post('/', async (c) => {
       sourceName,
       body.type,
       body.url ?? null,
-      body.format ?? 'auto',
+      format,
       body.enabled !== false ? 1 : 0,
       body.updateInterval ?? 0,
       body.userAgent ?? null,
@@ -118,6 +128,22 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Record<string, unknown>>();
   const ts = now();
+  const nextType = body.type !== undefined ? String(body.type) : String(existing.type);
+  const nextUrl = body.url !== undefined ? String(body.url ?? '') : String(existing.url ?? '');
+  const nextFormat = body.format !== undefined ? String(body.format) : String(existing.format ?? 'auto');
+
+  if (!isValidSourceType(nextType)) {
+    return c.json({ success: false, error: 'invalid source type' }, 400);
+  }
+  if (!isValidSourceFormat(nextFormat)) {
+    return c.json({ success: false, error: 'invalid source format' }, 400);
+  }
+  if (nextType === 'url' && !nextUrl) {
+    return c.json({ success: false, error: 'url is required' }, 400);
+  }
+  if (nextType === 'url' && !isHttpUrl(nextUrl)) {
+    return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
+  }
 
   await c.env.DB.prepare(
     `UPDATE sources SET
@@ -127,11 +153,11 @@ app.put('/:id', async (c) => {
   )
     .bind(
       'name' in body
-        ? resolveSourceNameInput(body.name, body.url !== undefined ? String(body.url ?? '') : String(existing.url ?? ''))
+        ? resolveSourceNameInput(body.name, nextUrl)
         : existing.name,
-      body.type ?? existing.type,
-      body.url !== undefined ? body.url : existing.url,
-      body.format ?? existing.format,
+      nextType,
+      nextUrl || null,
+      nextFormat,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.updateInterval !== undefined ? body.updateInterval : existing.update_interval,
       // Allow explicitly setting to null or empty string to clear user_agent
@@ -418,6 +444,38 @@ export function deriveSourceName(url: string | undefined): string {
 
 export function resolveSourceNameInput(name: unknown, url: string | undefined): string {
   return typeof name === 'string' && name.trim() ? name.trim() : deriveSourceName(url);
+}
+
+const SOURCE_TYPES: ReadonlySet<SourceType> = new Set(['url', 'manual', 'file', 'clipboard']);
+const SOURCE_FORMATS: ReadonlySet<SourceFormat> = new Set([
+  'clash',
+  'mihomo',
+  'singbox',
+  'base64',
+  'surge',
+  'loon',
+  'quantumultx',
+  'shadowrocket',
+  'raw',
+  'auto',
+]);
+
+export function isValidSourceType(value: unknown): value is SourceType {
+  return SOURCE_TYPES.has(value as SourceType);
+}
+
+export function isValidSourceFormat(value: unknown): value is SourceFormat {
+  return SOURCE_FORMATS.has(value as SourceFormat);
+}
+
+export function isHttpUrl(value: unknown): boolean {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function parseSubscriptionUserInfo(header: string | null): {
