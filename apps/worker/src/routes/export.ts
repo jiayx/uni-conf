@@ -7,7 +7,7 @@ import { ensureDefaultExportConfig, generateExportToken } from '../services/defa
 import { resolveExportWarnings } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
-import { getExportSubscriptionFilename } from '@uni-conf/shared'
+import { EXPORT_SUBSCRIPTION_FORMATS, getExportSubscriptionFilename } from '@uni-conf/shared'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -21,6 +21,9 @@ exportRouter.get('/configs', async (c) => {
 // POST /api/export/configs - create export config
 exportRouter.post('/configs', async (c) => {
   const body = await c.req.json<Partial<ExportConfig>>()
+  if (body.format !== undefined && !isValidExportFormat(body.format)) {
+    return c.json({ success: false, error: 'invalid export format' }, 400)
+  }
   const id = newId()
   const token = generateExportToken()
   const ts = now()
@@ -78,6 +81,9 @@ exportRouter.put('/configs/:id', async (c) => {
 
   const existing = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
+  if (body.format !== undefined && !isValidExportFormat(body.format)) {
+    return c.json({ success: false, error: 'invalid export format' }, 400)
+  }
 
   const fields: string[] = []
   const values: unknown[] = []
@@ -127,11 +133,14 @@ exportRouter.post('/configs/:id/reset-token', async (c) => {
 // GET /api/export/preview/:format
 exportRouter.get('/preview/:format', async (c) => {
   const format = c.req.param('format')
+  if (!isValidExportFormat(format)) {
+    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+  }
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config)
-  const rendered = renderExportData(exportData, format as ExportFormat, { dnsMode: settings.dnsMode })
+  const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
   if (!rendered) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
@@ -146,15 +155,18 @@ exportRouter.get('/preview/:format', async (c) => {
 // GET /api/export/download/:format
 exportRouter.get('/download/:format', async (c) => {
   const format = c.req.param('format')
+  if (!isValidExportFormat(format)) {
+    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+  }
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config)
-  const rendered = renderExportData(exportData, format as ExportFormat, { dnsMode: settings.dnsMode })
+  const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
   if (!rendered) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
-  const filename = getExportSubscriptionFilename(format as ExportFormat)
+  const filename = getExportSubscriptionFilename(format)
 
   return new Response(rendered.content, {
     headers: {
@@ -172,4 +184,10 @@ async function resolveConfig(c: Context<{ Bindings: Env }>) {
   if (!config) return c.json({ success: false, error: 'Export config not found' }, 404)
   if (!config.enabled) return c.json({ success: false, error: 'Export config is disabled' }, 403)
   return config
+}
+
+const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set(EXPORT_SUBSCRIPTION_FORMATS as ExportFormat[])
+
+export function isValidExportFormat(value: unknown): value is ExportFormat {
+  return EXPORT_FORMATS.has(value as ExportFormat)
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveExportConfigName } from './export'
+import { isValidExportFormat, resolveExportConfigName } from './export'
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
@@ -10,5 +10,13 @@ describe('export route helpers', () => {
 
   it('trims user-provided export config names', () => {
     expect(resolveExportConfigName('  Router Config  ', 'mihomo')).toBe('Router Config')
+  })
+
+  it('validates export formats from the shared subscription format list', () => {
+    expect(isValidExportFormat('mihomo')).toBe(true)
+    expect(isValidExportFormat('singbox')).toBe(true)
+    expect(isValidExportFormat('nodes_raw')).toBe(true)
+    expect(isValidExportFormat('sing-box')).toBe(false)
+    expect(isValidExportFormat('yaml')).toBe(false)
   })
 })
