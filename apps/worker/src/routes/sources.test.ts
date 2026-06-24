@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
-import { deriveSourceName, filterUsableParsedContent, parseClashGroups, parseClashYaml } from './sources'
+import { deriveSourceName, filterUsableParsedContent, parseClashGroups, parseClashYaml, resolveSourceNameInput } from './sources'
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -35,6 +35,12 @@ describe('Clash YAML Parser', () => {
     expect(deriveSourceName('https://airport.example/sub')).toBe('airport.example')
     expect(deriveSourceName('not a valid url')).toBe('not a valid url')
     expect(deriveSourceName(undefined)).toBe('订阅源')
+  })
+
+  it('resolves blank source names from the subscription URL', () => {
+    expect(resolveSourceNameInput('  My Airport  ', 'https://example.com/sub')).toBe('My Airport')
+    expect(resolveSourceNameInput('', 'https://www.example.com/sub')).toBe('example.com')
+    expect(resolveSourceNameInput('   ', 'https://airport.example/sub')).toBe('airport.example')
   })
 
   it('should parse inline format nodes (flow-style)', () => {

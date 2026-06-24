@@ -310,7 +310,7 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 
 ### SourceCreateInput / SourceCreateResult
 
-`POST /api/sources` accepts `refreshAfterCreate?: boolean`. For URL sources it defaults to `true`, so API callers can create a subscription and immediately populate nodes in one request. `name` is optional on create; when omitted, the worker derives it from the subscription URL host so the zero-setup path only requires the subscription link.
+`POST /api/sources` accepts `refreshAfterCreate?: boolean`. For URL sources it defaults to `true`, so API callers can create a subscription and immediately populate nodes in one request. `name` is optional on create and update; when omitted or submitted as a blank string, the worker derives it from the subscription URL host so the zero-setup path only requires the subscription link and editing a source cannot create an empty display name.
 
 The response data is:
 

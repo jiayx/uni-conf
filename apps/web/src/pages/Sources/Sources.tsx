@@ -134,7 +134,6 @@ export function Sources() {
 
   const handleUpdate = async () => {
     if (!editingSource) return
-    if (!form.name) { setFormError(t('sources.name_required')); return }
     if (!form.url) { setFormError(t('sources.url_required')); return }
     setFormError('')
     // When userAgent is empty string (Default), explicitly pass empty string to clear it
@@ -356,10 +355,10 @@ export function Sources() {
       >
         {formError && <div className={styles.formError}>{formError}</div>}
         <Input
-          label={t('common.name')}
+          label={t('sources.name_optional')}
           value={form.name}
           onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          placeholder="My Airport"
+          placeholder={t('sources.name_auto_placeholder')}
         />
         <Input
           label={t('sources.url')}

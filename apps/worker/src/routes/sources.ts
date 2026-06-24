@@ -54,7 +54,7 @@ app.post('/', async (c) => {
 
   const id = newId();
   const ts = now();
-  const sourceName = body.name?.trim() || deriveSourceName(body.url);
+  const sourceName = resolveSourceNameInput(body.name, body.url);
 
   await c.env.DB.prepare(
     `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
@@ -126,7 +126,9 @@ app.put('/:id', async (c) => {
      WHERE id = ?`
   )
     .bind(
-      body.name ?? existing.name,
+      'name' in body
+        ? resolveSourceNameInput(body.name, body.url !== undefined ? String(body.url ?? '') : String(existing.url ?? ''))
+        : existing.name,
       body.type ?? existing.type,
       body.url !== undefined ? body.url : existing.url,
       body.format ?? existing.format,
@@ -412,6 +414,10 @@ export function deriveSourceName(url: string | undefined): string {
   } catch {
     return value.length > 32 ? `${value.slice(0, 32)}...` : value;
   }
+}
+
+export function resolveSourceNameInput(name: unknown, url: string | undefined): string {
+  return typeof name === 'string' && name.trim() ? name.trim() : deriveSourceName(url);
 }
 
 function parseSubscriptionUserInfo(header: string | null): {
