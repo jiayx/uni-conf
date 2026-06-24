@@ -17,7 +17,7 @@ import {
 } from '@/core/remote-rules/quixotic-presets'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
-import type { RemoteRuleSet, RuleSetFormat } from '@uni-conf/types'
+import type { RemoteRuleSet, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import styles from './RemoteRuleSets.module.css'
 
 type RemoteSetForm = Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>
@@ -36,11 +36,18 @@ const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> 
   general: 'General',
 }
 
+const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; label: string }> = [
+  { value: 'domain', label: '域名' },
+  { value: 'ipcidr', label: 'IP CIDR' },
+  { value: 'classical', label: 'Mihomo classical' },
+]
+
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
   return {
     name: '',
     url: '',
     format: 'text',
+    behavior: 'domain',
     targetGroupId,
     updateInterval: 24,
     enabled: true,
@@ -107,6 +114,7 @@ export function RemoteRuleSets() {
       name: set.name,
       url: set.url,
       format: set.format,
+      behavior: set.behavior,
       targetGroupId: set.targetGroupId,
       updateInterval: set.updateInterval,
       enabled: set.enabled,
@@ -136,6 +144,7 @@ export function RemoteRuleSets() {
       name: preset.name,
       url: buildQuixoticRuleSetUrl(preset.id, format),
       format,
+      behavior: 'classical',
       presetSource: 'quixotic',
       presetId: preset.id,
       targetGroupId: findSuggestedGroupId(preset),
@@ -240,6 +249,7 @@ export function RemoteRuleSets() {
                     </div>
                     <div className={styles.meta}>
                       <Badge variant="info">{ruleSetBadgeLabel(set)}</Badge>
+                      <Badge variant="default">{ruleSetBehaviorLabel(set.behavior)}</Badge>
                       <Badge variant="default">{set.updateInterval}h</Badge>
                     </div>
                     <div className={styles.url}>{set.url}</div>
@@ -310,6 +320,13 @@ export function RemoteRuleSets() {
                 <div className={styles.helperText}>适用导出目标：{selectedFormatOption.exportTargets}</div>
               )}
             </div>
+            <div>
+              <label className={styles.label}>匹配内容</label>
+              <select className={styles.select} value={form.behavior} onChange={e => setFormValue('behavior', e.target.value as RuleSetBehavior, setForm)}>
+                {RULE_SET_BEHAVIOR_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <div className={styles.helperText}>用于 Mihomo rule-provider behavior；纯域名列表选“域名”，完整规则行选 classical。</div>
+            </div>
           </>
         )}
 
@@ -350,6 +367,10 @@ function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>):
   if (set.presetSource === 'quixotic') return '预置'
   if (set.presetSource === 'uni-conf') return '内置'
   return set.format
+}
+
+function ruleSetBehaviorLabel(behavior: RuleSetBehavior): string {
+  return RULE_SET_BEHAVIOR_OPTIONS.find(option => option.value === behavior)?.label ?? behavior
 }
 
 function canDeleteRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {

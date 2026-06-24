@@ -15,6 +15,7 @@ const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
   name: string;
   url: string;
   format: RemoteRuleSet['format'];
+  behavior: RemoteRuleSet['behavior'];
   targetGroupName: string;
   sortOrder: number;
   notes: string;
@@ -25,6 +26,7 @@ const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
     name: 'Telegram',
     url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.list',
     format: 'text',
+    behavior: 'domain',
     targetGroupName: 'Telegram',
     sortOrder: 50,
     notes: 'UniConf built-in: MetaCubeX/meta-rules-dat geosite telegram domain list',
@@ -49,8 +51,8 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
       return db
         .prepare(
           `INSERT INTO remote_rule_sets
-            (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-           VALUES (?, ?, ?, 'mihomo', 'quixotic', ?, ?, 24, 1, ?, NULL, ?, ?, ?)`
+            (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+           VALUES (?, ?, ?, 'mihomo', 'classical', 'quixotic', ?, ?, 24, 1, ?, NULL, ?, ?, ?)`
         )
         .bind(
           newId(),
@@ -77,22 +79,24 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
           && existing.sort_order === preset.sortOrder
           && existing.url === preset.url
           && existing.format === preset.format
+          && existing.behavior === preset.behavior
         ) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
-          .bind(preset.url, preset.format, targetGroupId, preset.sortOrder, ts, existing.id);
+          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+          .bind(preset.url, preset.format, preset.behavior, targetGroupId, preset.sortOrder, ts, existing.id);
       }
       return db
         .prepare(
           `INSERT INTO remote_rule_sets
-            (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 24, 1, ?, NULL, ?, ?, ?)`
+            (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 24, 1, ?, NULL, ?, ?, ?)`
         )
         .bind(
           newId(),
           preset.name,
           preset.url,
           preset.format,
+          preset.behavior,
           preset.presetSource,
           preset.presetId,
           targetGroupId,
@@ -121,15 +125,17 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
   id: string;
   url: string;
   format: RemoteRuleSet['format'];
+  behavior: RemoteRuleSet['behavior'];
   target_group_id: string;
   sort_order: number;
 }>> {
   const { results } = await db
-    .prepare("SELECT id, url, format, preset_source, preset_id, target_group_id, sort_order FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
+    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, sort_order FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
     .all<{
       id: string;
       url: string;
       format: RemoteRuleSet['format'];
+      behavior: RemoteRuleSet['behavior'];
       preset_source: PresetSource;
       preset_id: string;
       target_group_id: string;
@@ -142,6 +148,7 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       id: row.id,
       url: row.url,
       format: row.format,
+      behavior: row.behavior,
       target_group_id: row.target_group_id,
       sort_order: row.sort_order ?? 0,
     },

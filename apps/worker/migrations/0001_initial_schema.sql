@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   format TEXT NOT NULL,
+  behavior TEXT NOT NULL DEFAULT 'classical',
   preset_source TEXT,
   preset_id TEXT,
   target_group_id TEXT NOT NULL,

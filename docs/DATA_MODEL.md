@@ -192,6 +192,7 @@ Export data applies the same rule again after resolving the final exported group
 | name | TEXT | Display name |
 | url | TEXT | Remote URL |
 | format | TEXT | `clash` \| `mihomo` \| `singbox` \| `surge` \| `text` |
+| behavior | TEXT | `domain` \| `ipcidr` \| `classical` |
 | preset_source | TEXT? | Built-in preset provider: `quixotic` or `uni-conf` |
 | preset_id | TEXT? | Provider-specific preset id |
 | target_group_id | TEXT FK→groups | |
@@ -204,6 +205,8 @@ Export data applies the same rule again after resolving the final exported group
 | updated_at | TEXT | |
 
 Built-in remote rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority. `preset_source = 'quixotic'` means the URL is resolved dynamically per export format from QuixoticHeart/rule-set; `preset_source = 'uni-conf'` means a UniConf-maintained built-in rule set. The Telegram default is `uni-conf:telegram`, backed by MetaCubeX/meta-rules-dat `geosite/telegram.list`, because the Quixotic preset list currently folds Telegram into `socialmedia`.
+
+Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`; the UniConf Telegram domain list uses `domain`.
 
 Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but deletion is reserved for custom remote rule sets so a refresh cannot silently recreate a row the UI appeared to delete.
 

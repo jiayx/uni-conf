@@ -259,11 +259,14 @@ export type RuleSetFormat =
   | 'stash'
   | 'text';
 
+export type RuleSetBehavior = 'domain' | 'ipcidr' | 'classical';
+
 export interface RemoteRuleSet {
   id: string;
   name: string;
   url: string;
   format: RuleSetFormat;
+  behavior: RuleSetBehavior;
   presetSource?: 'quixotic' | 'uni-conf';
   presetId?: string;
   targetGroupId: string;

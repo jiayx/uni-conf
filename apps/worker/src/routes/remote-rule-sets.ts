@@ -22,9 +22,9 @@ app.get('/', async (c) => {
 
 app.post('/', async (c) => {
   const body = await c.req.json<Partial<RemoteRuleSet>>()
-  if (!body.name || !body.url || !body.format || !body.targetGroupId) {
+  if (!body.name || !body.url || !body.format || !body.behavior || !body.targetGroupId) {
     return c.json(
-      { success: false, error: 'name, url, format, and targetGroupId are required' },
+      { success: false, error: 'name, url, format, behavior, and targetGroupId are required' },
       400
     )
   }
@@ -36,14 +36,15 @@ app.post('/', async (c) => {
   const ts = now()
   await c.env.DB.prepare(
     `INSERT INTO remote_rule_sets
-      (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
       body.name,
       body.url,
       body.format,
+      body.behavior,
       body.presetSource ?? null,
       body.presetId ?? null,
       body.targetGroupId,
@@ -75,7 +76,7 @@ app.post('/batch', async (c) => {
   const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB)
 
   for (const set of sets) {
-    if (!set.name || !set.url || !set.format || !set.targetGroupId) continue
+    if (!set.name || !set.url || !set.format || !set.behavior || !set.targetGroupId) continue
     if (!enabledTargetGroupIds.has(set.targetGroupId)) {
       return c.json({ success: false, error: `target group is disabled or missing: ${set.targetGroupId}` }, 400)
     }
@@ -83,14 +84,15 @@ app.post('/batch', async (c) => {
     createdIds.push(id)
     await c.env.DB.prepare(
       `INSERT INTO remote_rule_sets
-        (id, name, url, format, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
         set.name,
         set.url,
         set.format,
+        set.behavior,
         set.presetSource ?? null,
         set.presetId ?? null,
         set.targetGroupId,
@@ -142,7 +144,7 @@ app.put('/:id', async (c) => {
   }
   await c.env.DB.prepare(
     `UPDATE remote_rule_sets SET
-      name = ?, url = ?, format = ?, preset_source = ?, preset_id = ?, target_group_id = ?, update_interval = ?,
+      name = ?, url = ?, format = ?, behavior = ?, preset_source = ?, preset_id = ?, target_group_id = ?, update_interval = ?,
       enabled = ?, sort_order = ?, last_updated = ?, notes = ?, updated_at = ?
      WHERE id = ?`
   )
@@ -150,6 +152,7 @@ app.put('/:id', async (c) => {
       body.name ?? existing.name,
       body.url ?? existing.url,
       body.format ?? existing.format,
+      body.behavior ?? existing.behavior,
       body.presetSource !== undefined ? body.presetSource : existing.preset_source,
       body.presetId !== undefined ? body.presetId : existing.preset_id,
       body.targetGroupId ?? existing.target_group_id,

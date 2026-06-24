@@ -13,8 +13,12 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'ai')?.targetGroupId).toBe('builtin-ai');
     expect(inserted.find((item) => item.presetSource === 'uni-conf' && item.presetId === 'telegram')).toMatchObject({
       format: 'text',
+      behavior: 'domain',
       targetGroupId: 'builtin-telegram',
       sortOrder: 50,
+    });
+    expect(inserted.find((item) => item.presetId === 'ai')).toMatchObject({
+      behavior: 'classical',
     });
     expect(inserted.find((item) => item.presetId === 'netflix')?.targetGroupId).toBe('builtin-streaming');
     expect(inserted.find((item) => item.presetId === 'gits')?.targetGroupId).toBe('builtin-github');
@@ -37,6 +41,7 @@ describe('default remote rule sets', () => {
         preset_id: preset.id,
         url: `https://example.com/${preset.id}.list`,
         format: 'mihomo',
+        behavior: 'classical',
         target_group_id: expectedTargetGroupId(preset.id),
         sort_order: resolveQuixoticRuleSetSortOrder(preset.id),
       })).concat({
@@ -45,6 +50,7 @@ describe('default remote rule sets', () => {
         preset_id: 'telegram',
         url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.list',
         format: 'text',
+        behavior: 'domain',
         target_group_id: 'builtin-telegram',
         sort_order: 50,
       }),
@@ -59,7 +65,7 @@ describe('default remote rule sets', () => {
   it('retargets existing presets when the active template adds a specific group', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', target_group_id: 'builtin-proxy', sort_order: 0 }],
+      existingPresets: [{ id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-proxy', sort_order: 0 }],
       inserted,
     });
 
@@ -77,9 +83,9 @@ describe('default remote rule sets', () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
       existingPresets: [
-        { id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', target_group_id: 'builtin-crypto', sort_order: 120 },
-        { id: 'preset-cn', preset_source: 'quixotic', preset_id: 'cn', target_group_id: 'builtin-direct', sort_order: 30 },
-        { id: 'preset-adrules', preset_source: 'quixotic', preset_id: 'adrules', target_group_id: 'builtin-reject', sort_order: 20 },
+        { id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-crypto', sort_order: 120 },
+        { id: 'preset-cn', preset_source: 'quixotic', preset_id: 'cn', behavior: 'classical', target_group_id: 'builtin-direct', sort_order: 30 },
+        { id: 'preset-adrules', preset_source: 'quixotic', preset_id: 'adrules', behavior: 'classical', target_group_id: 'builtin-reject', sort_order: 20 },
       ],
       groups: listGroups().filter((group) => !['builtin-crypto', 'builtin-gaming', 'builtin-developer'].includes(group.id)),
       inserted,
@@ -100,7 +106,7 @@ describe('default remote rule sets', () => {
   it('retains target but fixes stale preset sort order', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-ai', preset_source: 'quixotic', preset_id: 'ai', target_group_id: 'builtin-ai', sort_order: 900 }],
+      existingPresets: [{ id: 'preset-ai', preset_source: 'quixotic', preset_id: 'ai', behavior: 'classical', target_group_id: 'builtin-ai', sort_order: 900 }],
       inserted,
     });
 
@@ -123,6 +129,7 @@ describe('default remote rule sets', () => {
         preset_id: 'telegram',
         url: 'https://example.com/old-telegram.list',
         format: 'mihomo',
+        behavior: 'classical',
         target_group_id: 'builtin-proxy',
         sort_order: 900,
       }],
@@ -136,6 +143,7 @@ describe('default remote rule sets', () => {
       id: 'preset-telegram',
       url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.list',
       format: 'text',
+      behavior: 'domain',
       targetGroupId: 'builtin-telegram',
       sortOrder: 50,
     });
@@ -153,6 +161,7 @@ function createMockDb({
     preset_id: string;
     url?: string;
     format?: string;
+    behavior: string;
     target_group_id: string;
     sort_order?: number;
   }>;
@@ -187,30 +196,33 @@ function createMockDb({
         const args = statement.__args ?? [];
         if (args.length === 4) {
           inserted.push({ operation: 'update', targetGroupId: args[0], sortOrder: args[1], id: args[3] });
-        } else if (args.length === 6) {
+        } else if (args.length === 7) {
           inserted.push({
             operation: 'update',
             url: args[0],
             format: args[1],
-            targetGroupId: args[2],
-            sortOrder: args[3],
-            id: args[5],
+            behavior: args[2],
+            targetGroupId: args[3],
+            sortOrder: args[4],
+            id: args[6],
           });
-        } else if (args.length === 11) {
+        } else if (args.length === 12) {
           inserted.push({
             operation: 'insert',
             name: args[1],
             url: args[2],
             format: args[3],
-            presetSource: args[4],
-            presetId: args[5],
-            targetGroupId: args[6],
-            sortOrder: args[7],
+            behavior: args[4],
+            presetSource: args[5],
+            presetId: args[6],
+            targetGroupId: args[7],
+            sortOrder: args[8],
           });
         } else {
           inserted.push({
             operation: 'insert',
             name: args[1],
+            behavior: 'classical',
             presetSource: 'quixotic',
             presetId: args[3],
             targetGroupId: args[4],

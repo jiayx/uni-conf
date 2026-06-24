@@ -850,10 +850,13 @@ Cats-Team/AdRules
 规则集名称
 规则集 URL
 规则集类型
+匹配内容类型
 匹配后使用的出口 / 分流策略
 更新周期
 是否启用
 ```
+
+`规则集类型` 表达来源格式和兼容客户端，例如 Mihomo、sing-box、Surge 或纯文本；`匹配内容类型` 表达规则内容语义，例如域名、IP CIDR 或 Mihomo classical。两者不能混在一个字段里，否则纯文本域名列表和 classical 规则列表会在 Mihomo `rule-provider` 导出时被错误地写成同一种 `behavior`。
 
 远程规则集可以用于：
 

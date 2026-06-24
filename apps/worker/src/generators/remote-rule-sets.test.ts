@@ -53,6 +53,7 @@ const remoteSet: RemoteRuleSet = {
   name: 'Ads List',
   url: 'https://example.com/ads.yaml',
   format: 'mihomo',
+  behavior: 'classical',
   targetGroupId: directGroup.id,
   updateInterval: 12,
   enabled: true,
@@ -118,12 +119,29 @@ describe('remote rule set generators', () => {
     const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
 
     expect(content).toContain('Ads_List:');
+    expect(content).toContain('behavior: classical');
     expect(content).toContain('url: "https://example.com/ads.yaml"');
     expect(content).toContain('  - RULE-SET,Ads_List,DIRECT');
     expect(content.indexOf('  - RULE-SET,Ads_List,DIRECT')).toBeLessThan(
       content.indexOf('  - MATCH,PROXY')
     );
     expect(content).not.toContain('ai.srs');
+  });
+
+  it('uses explicit Mihomo rule-provider behavior for plain domain lists', () => {
+    const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [
+      {
+        ...remoteSet,
+        name: 'Telegram Domains',
+        url: 'https://example.com/telegram.list',
+        format: 'text',
+        behavior: 'domain',
+      },
+    ]);
+
+    expect(content).toContain('Telegram_Domains:');
+    expect(content).toContain('behavior: domain');
+    expect(content).toContain('url: "https://example.com/telegram.list"');
   });
 
   it('uses the catch-all policy group when MATCH is not configured', () => {

@@ -85,7 +85,7 @@ export function generateMihomoYaml(
       const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
       lines.push(`  ${safeName}:`);
       lines.push(`    type: http`);
-      lines.push(`    behavior: ${detectBehavior(resolved.format)}`);
+      lines.push(`    behavior: ${rs.behavior}`);
       lines.push(`    url: "${resolved.url}"`);
       lines.push(`    path: ./ruleset/${safeName}.yaml`);
       lines.push(`    interval: ${rs.updateInterval * 3600}`);
@@ -393,9 +393,4 @@ function filterCollectionNodeNames(
       names.filter((name) => allowedNames.has(name)),
     ])
   );
-}
-
-function detectBehavior(format: string): string {
-  if (format === 'text') return 'domain';
-  return 'classical';
 }

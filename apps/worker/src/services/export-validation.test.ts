@@ -304,6 +304,7 @@ function makeRemoteSet(
     name: 'Remote',
     url: 'https://example.com/remote.list',
     format: 'mihomo',
+    behavior: 'classical',
     targetGroupId,
     updateInterval: 24,
     enabled: true,

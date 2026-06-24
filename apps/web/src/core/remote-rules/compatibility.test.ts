@@ -28,6 +28,7 @@ describe('remote rule set compatibility', () => {
       name: 'AI',
       url: buildQuixoticRuleSetUrl('ai', 'mihomo'),
       format: 'mihomo',
+      behavior: 'classical',
       presetSource: 'quixotic',
       presetId: 'ai',
       sortOrder: 40,
