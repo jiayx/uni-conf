@@ -161,7 +161,7 @@ Business routing group `group_ids` are derived, not manually maintained. The sys
 
 When the user changes the scenario template, the web app saves both `routing_policy_template` and the template's recommended `dns_mode`. Users can still override DNS later in Settings.
 
-Remote rule sets, manual rules, and advanced local template imports target enabled groups only. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled or missing targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
+Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is an enabled foundation or business policy group with no direct `collection_ids`; country auto groups and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled, missing, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
 
 Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
 
@@ -381,7 +381,7 @@ Other - Manual - 01
 ]
 ```
 
-`rules.compatibility` is not user-authored. Rule creation, batch import, and template import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. Remote rule set format support and preset URL resolution are also centralized in `@uni-conf/shared`; the web compatibility UI, worker preview validation, and client generators use the same matrix and resolver. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
+`rules.compatibility` is not user-authored. Rule creation and batch import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. Remote rule set format support and preset URL resolution are also centralized in `@uni-conf/shared`; the web compatibility UI, worker preview validation, and client generators use the same matrix and resolver. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
 
 ### Export Preview Warnings
 

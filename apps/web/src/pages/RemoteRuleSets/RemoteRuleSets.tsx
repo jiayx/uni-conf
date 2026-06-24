@@ -71,8 +71,9 @@ export function RemoteRuleSets() {
     return () => { cancelled = true }
   }, [fetchGroups])
 
-  const enabledGroups = groups.filter(group => group.enabled)
-  const targetGroups = enabledGroups.length > 0 ? enabledGroups : groups
+  const ruleTargetGroups = groups.filter(isRuleTargetGroup)
+  const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
+  const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
   const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? ''
   const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
@@ -355,8 +356,13 @@ function canDeleteRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'prese
   return !(set.presetSource && set.presetId)
 }
 
-function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string }>) {
+function isRuleTargetGroup(group: { collectionIds: string[] }): boolean {
+  return group.collectionIds.length === 0
+}
+
+function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number }>) {
   const byId = new Map(groups.map(group => [group.id, group.name]))
+  const orderById = new Map(groups.map((group, index) => [group.id, group.order ?? index]))
   const sections = new Map<string, { groupId: string; groupName: string; sets: RemoteRuleSet[] }>()
 
   for (const set of sets) {
@@ -369,7 +375,7 @@ function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: strin
 
   return [...sections.values()]
     .map(section => ({ ...section, sets: section.sets.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)) }))
-    .sort((a, b) => a.groupName.localeCompare(b.groupName))
+    .sort((a, b) => (orderById.get(a.groupId) ?? 9999) - (orderById.get(b.groupId) ?? 9999) || a.groupName.localeCompare(b.groupName))
 }
 
 function PlusIcon() {

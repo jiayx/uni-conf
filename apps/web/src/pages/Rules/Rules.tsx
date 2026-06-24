@@ -75,8 +75,9 @@ export function Rules() {
     void fetchGroups()
   }, [fetchRules, fetchGroups])
 
-  const enabledGroups = groups.filter(group => group.enabled)
-  const targetGroups = enabledGroups.length > 0 ? enabledGroups : groups
+  const ruleTargetGroups = groups.filter(isRuleTargetGroup)
+  const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
+  const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
   const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? ''
 
   const openCreate = () => {
@@ -385,6 +386,10 @@ function parseRuleLine(
 function resolveGroupId(target: string | undefined, groups: Array<{ id: string; name: string }>): string | undefined {
   if (!target || target.toLowerCase() === 'no-resolve') return undefined
   return groups.find(group => group.id === target || group.name === target)?.id
+}
+
+function isRuleTargetGroup(group: { collectionIds: string[] }): boolean {
+  return group.collectionIds.length === 0
 }
 
 function PlusIcon() {
