@@ -13,11 +13,15 @@ import styles from './Sources.module.css'
 
 const FORMAT_OPTIONS: { value: SourceFormat; label: string }[] = [
   { value: 'auto', label: 'Auto detect' },
-  { value: 'clash', label: 'Clash / Mihomo' },
+  { value: 'mihomo', label: 'Mihomo / Clash.Meta' },
+  { value: 'clash', label: 'Clash' },
   { value: 'singbox', label: 'sing-box' },
   { value: 'base64', label: 'Base64 nodes' },
   { value: 'surge', label: 'Surge' },
   { value: 'loon', label: 'Loon' },
+  { value: 'quantumultx', label: 'Quantumult X' },
+  { value: 'shadowrocket', label: 'Shadowrocket' },
+  { value: 'raw', label: 'Raw URI lines' },
 ]
 
 const USER_AGENT_OPTIONS = [

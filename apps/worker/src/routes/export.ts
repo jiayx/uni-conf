@@ -24,6 +24,10 @@ exportRouter.post('/configs', async (c) => {
   if (body.format !== undefined && !isValidExportFormat(body.format)) {
     return c.json({ success: false, error: 'invalid export format' }, 400)
   }
+  const selection = validateExportConfigSelection(body)
+  if (!selection.valid) {
+    return c.json({ success: false, error: selection.error }, 400)
+  }
   const id = newId()
   const token = generateExportToken()
   const ts = now()
@@ -36,10 +40,10 @@ exportRouter.post('/configs', async (c) => {
     resolveExportConfigName(body.name, body.format),
     body.format ?? 'mihomo',
     token,
-    JSON.stringify(body.includeCollectionIds ?? []),
-    JSON.stringify(body.includeGroupIds ?? []),
-    JSON.stringify(body.includeRuleIds ?? []),
-    JSON.stringify(body.includeRemoteSetIds ?? []),
+    JSON.stringify(selection.includeCollectionIds),
+    JSON.stringify(selection.includeGroupIds),
+    JSON.stringify(selection.includeRuleIds),
+    JSON.stringify(selection.includeRemoteSetIds),
     body.extraConfig ? JSON.stringify(body.extraConfig) : null,
     ts, ts
   ).run()
@@ -84,6 +88,10 @@ exportRouter.put('/configs/:id', async (c) => {
   if (body.format !== undefined && !isValidExportFormat(body.format)) {
     return c.json({ success: false, error: 'invalid export format' }, 400)
   }
+  const selection = validateExportConfigSelection(body)
+  if (!selection.valid) {
+    return c.json({ success: false, error: selection.error }, 400)
+  }
 
   const fields: string[] = []
   const values: unknown[] = []
@@ -91,10 +99,10 @@ exportRouter.put('/configs/:id', async (c) => {
   if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name) }
   if (body.format !== undefined) { fields.push('format = ?'); values.push(body.format) }
   if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0) }
-  if (body.includeCollectionIds !== undefined) { fields.push('include_collection_ids = ?'); values.push(JSON.stringify(body.includeCollectionIds)) }
-  if (body.includeGroupIds !== undefined) { fields.push('include_group_ids = ?'); values.push(JSON.stringify(body.includeGroupIds)) }
-  if (body.includeRuleIds !== undefined) { fields.push('include_rule_ids = ?'); values.push(JSON.stringify(body.includeRuleIds)) }
-  if (body.includeRemoteSetIds !== undefined) { fields.push('include_remote_set_ids = ?'); values.push(JSON.stringify(body.includeRemoteSetIds)) }
+  if (body.includeCollectionIds !== undefined) { fields.push('include_collection_ids = ?'); values.push(JSON.stringify(selection.includeCollectionIds)) }
+  if (body.includeGroupIds !== undefined) { fields.push('include_group_ids = ?'); values.push(JSON.stringify(selection.includeGroupIds)) }
+  if (body.includeRuleIds !== undefined) { fields.push('include_rule_ids = ?'); values.push(JSON.stringify(selection.includeRuleIds)) }
+  if (body.includeRemoteSetIds !== undefined) { fields.push('include_remote_set_ids = ?'); values.push(JSON.stringify(selection.includeRemoteSetIds)) }
   if (body.extraConfig !== undefined) { fields.push('extra_config = ?'); values.push(JSON.stringify(body.extraConfig)) }
 
   // Reset token if requested
@@ -190,4 +198,49 @@ const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set(EXPORT_SUBSCRIPTION_FO
 
 export function isValidExportFormat(value: unknown): value is ExportFormat {
   return EXPORT_FORMATS.has(value as ExportFormat)
+}
+
+type ExportSelectionValidation =
+  | {
+      valid: true
+      includeCollectionIds: string[]
+      includeGroupIds: string[]
+      includeRuleIds: string[]
+      includeRemoteSetIds: string[]
+    }
+  | { valid: false; error: string }
+
+export function validateExportConfigSelection(body: Partial<ExportConfig>): ExportSelectionValidation {
+  const includeCollectionIds = normalizeIdList(body.includeCollectionIds, 'includeCollectionIds')
+  if (!includeCollectionIds.valid) return includeCollectionIds
+  const includeGroupIds = normalizeIdList(body.includeGroupIds, 'includeGroupIds')
+  if (!includeGroupIds.valid) return includeGroupIds
+  const includeRuleIds = normalizeIdList(body.includeRuleIds, 'includeRuleIds')
+  if (!includeRuleIds.valid) return includeRuleIds
+  const includeRemoteSetIds = normalizeIdList(body.includeRemoteSetIds, 'includeRemoteSetIds')
+  if (!includeRemoteSetIds.valid) return includeRemoteSetIds
+
+  return {
+    valid: true,
+    includeCollectionIds: includeCollectionIds.value,
+    includeGroupIds: includeGroupIds.value,
+    includeRuleIds: includeRuleIds.value,
+    includeRemoteSetIds: includeRemoteSetIds.value,
+  }
+}
+
+type IdListValidation = { valid: true; value: string[] } | { valid: false; error: string }
+
+function normalizeIdList(value: unknown, field: string): IdListValidation {
+  if (value === undefined) return { valid: true, value: [] }
+  if (!Array.isArray(value)) return { valid: false, error: `${field} must be an array` }
+
+  const ids: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string' || item.trim() === '') {
+      return { valid: false, error: `${field} must only contain non-empty strings` }
+    }
+    ids.push(item.trim())
+  }
+  return { valid: true, value: [...new Set(ids)] }
 }

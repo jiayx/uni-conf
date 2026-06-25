@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidExportFormat, resolveExportConfigName } from './export'
+import { isValidExportFormat, resolveExportConfigName, validateExportConfigSelection } from './export'
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
@@ -18,5 +18,31 @@ describe('export route helpers', () => {
     expect(isValidExportFormat('nodes_raw')).toBe(true)
     expect(isValidExportFormat('sing-box')).toBe(false)
     expect(isValidExportFormat('yaml')).toBe(false)
+  })
+
+  it('normalizes export config include lists', () => {
+    expect(validateExportConfigSelection({
+      includeCollectionIds: [' collection-1 ', 'collection-1', 'collection-2'],
+      includeGroupIds: ['group-1'],
+      includeRuleIds: undefined,
+      includeRemoteSetIds: ['remote-1'],
+    })).toEqual({
+      valid: true,
+      includeCollectionIds: ['collection-1', 'collection-2'],
+      includeGroupIds: ['group-1'],
+      includeRuleIds: [],
+      includeRemoteSetIds: ['remote-1'],
+    })
+  })
+
+  it('rejects malformed export config include lists', () => {
+    expect(validateExportConfigSelection({ includeCollectionIds: 'collection-1' as never })).toEqual({
+      valid: false,
+      error: 'includeCollectionIds must be an array',
+    })
+    expect(validateExportConfigSelection({ includeGroupIds: ['group-1', ''] })).toEqual({
+      valid: false,
+      error: 'includeGroupIds must only contain non-empty strings',
+    })
   })
 })

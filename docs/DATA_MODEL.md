@@ -250,6 +250,8 @@ The system ensures a built-in default export config exists:
 
 `app_settings.default_export_token` points to this default config token unless the user explicitly changes it.
 
+Export config writes validate the advanced include filters before persistence. `include_collection_ids`, `include_group_ids`, `include_rule_ids`, and `include_remote_set_ids` must be arrays of non-empty string IDs; values are trimmed and de-duplicated. Empty arrays keep the zero-setup behavior by exporting all enabled data of that kind.
+
 Dashboard stats, export preview/download, settings reads, group reads, and remote rule set reads are initialization points for the zero-setup path. They ensure the default export config, foundation/routing policy groups, automatic node groups, and built-in remote rule sets exist before returning user-facing state, so the first screen can show the same defaults that export will use.
 
 ### `app_settings` — Application Settings (Singleton)
