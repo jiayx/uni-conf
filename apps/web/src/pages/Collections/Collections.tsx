@@ -361,7 +361,7 @@ export function Collections() {
       ) : collections.length === 0 ? (
         <EmptyState
           title="暂无节点组"
-          description="节点组用于定义一组节点过滤条件和选择方式，自动生成的节点组会同步创建对应策略组"
+          description="节点组用于定义一组节点过滤条件和选择方式，并作为业务分流组可选择的出口候选"
           action={{ label: t('collections.new'), onClick: openCreate }}
         />
       ) : (
@@ -598,7 +598,7 @@ export function Collections() {
             )}
           </div>
           <div className={styles.inlineEmpty}>
-            默认只生成自动测速节点组。取消某个国家/地区后，已自动生成的对应节点组和策略组会被移除；订阅源节点组会按成员节点直接导入。
+            默认只生成自动测速节点组。取消某个国家/地区后，已自动生成的对应节点组会被移除；订阅源节点组会按成员节点直接导入。
           </div>
         </div>
       </Modal>
