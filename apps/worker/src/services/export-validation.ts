@@ -13,12 +13,8 @@ export function validateExportData(
   options: ExportValidationOptions = {}
 ): CompatibilityWarning[] {
   return [
-    ...validateSources(data, format),
-    ...validateNodes(data, format),
-    ...validateGroups(data, format),
-    ...validateRules(data, format),
-    ...validateRemoteRuleSets(data, format),
-    ...validateDns(format, options.dnsMode),
+    ...validateExportReadiness(data, format),
+    ...validateExportCompatibility(data, format, options),
   ];
 }
 
@@ -27,7 +23,35 @@ export function resolveExportWarnings(
   format: ExportFormat,
   options: { showCompatibilityWarnings: boolean } & ExportValidationOptions
 ): CompatibilityWarning[] {
-  return options.showCompatibilityWarnings ? validateExportData(data, format, options) : [];
+  const readinessWarnings = validateExportReadiness(data, format);
+  if (!options.showCompatibilityWarnings) return readinessWarnings;
+  return [
+    ...readinessWarnings,
+    ...validateExportCompatibility(data, format, options),
+  ];
+}
+
+export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  return [
+    ...validateSources(data, format),
+    ...validateNodes(data, format),
+    ...validateGroups(data, format),
+    ...validateRuleTargets(data, format),
+    ...validateRemoteRuleSetTargets(data, format),
+    ...validateRemoteRuleSetUrls(data, format),
+  ];
+}
+
+export function validateExportCompatibility(
+  data: ExportData,
+  format: ExportFormat,
+  options: ExportValidationOptions = {}
+): CompatibilityWarning[] {
+  return [
+    ...validateRuleCompatibility(data, format),
+    ...validateRemoteRuleSetCompatibility(data, format),
+    ...validateDns(format, options.dnsMode),
+  ];
 }
 
 function validateSources(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
@@ -104,6 +128,13 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
 }
 
 function validateRules(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  return [
+    ...validateRuleTargets(data, format),
+    ...validateRuleCompatibility(data, format),
+  ];
+}
+
+function validateRuleTargets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const groupIds = new Set(data.groups.map((group) => group.id));
   const warnings: CompatibilityWarning[] = [];
   const enabledRules = [...data.rules].filter((rule) => rule.enabled).sort((a, b) => a.order - b.order);
@@ -118,7 +149,16 @@ function validateRules(data: ExportData, format: ExportFormat): CompatibilityWar
         messageEn: `Rule ${rule.type}${rule.payload ? `,${rule.payload}` : ''} targets a missing or non-exported group ${rule.targetGroupId}.`,
       });
     }
+  }
 
+  return warnings;
+}
+
+function validateRuleCompatibility(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  const warnings: CompatibilityWarning[] = [];
+  const enabledRules = [...data.rules].filter((rule) => rule.enabled).sort((a, b) => a.order - b.order);
+
+  for (const rule of enabledRules) {
     const compatibility = getExportRuleCompatibility(rule.type, format);
     if (compatibility === 'unsupported') {
       warnings.push({
@@ -162,6 +202,14 @@ function getExportRuleCompatibility(
 }
 
 function validateRemoteRuleSets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  return [
+    ...validateRemoteRuleSetTargets(data, format),
+    ...validateRemoteRuleSetCompatibility(data, format),
+    ...validateRemoteRuleSetUrls(data, format),
+  ];
+}
+
+function validateRemoteRuleSetTargets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const groupIds = new Set(data.groups.map((group) => group.id));
   const warnings: CompatibilityWarning[] = [];
   for (const ruleSet of data.remoteSets) {
@@ -173,7 +221,13 @@ function validateRemoteRuleSets(data: ExportData, format: ExportFormat): Compati
         messageEn: `Remote rule set "${ruleSet.name}" targets a missing or non-exported group ${ruleSet.targetGroupId}.`,
       });
     }
+  }
+  return warnings;
+}
 
+function validateRemoteRuleSetCompatibility(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  const warnings: CompatibilityWarning[] = [];
+  for (const ruleSet of data.remoteSets) {
     const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
     if (!resolved || !isRuleSetFormatCompatible(format, resolved.format)) {
       warnings.push({
@@ -183,7 +237,14 @@ function validateRemoteRuleSets(data: ExportData, format: ExportFormat): Compati
         messageEn: `Remote rule set "${ruleSet.name}" is not compatible with ${format} and will be skipped during export.`,
       });
     }
+  }
+  return warnings;
+}
 
+function validateRemoteRuleSetUrls(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  const warnings: CompatibilityWarning[] = [];
+  for (const ruleSet of data.remoteSets) {
+    const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
     if (resolved && !isDownloadableHttpUrl(resolved.url)) {
       warnings.push({
         client: format,

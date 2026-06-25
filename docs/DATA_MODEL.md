@@ -417,6 +417,8 @@ Other - Manual - 01
 
 Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points.
 
+The worker separates readiness checks from client compatibility checks. Readiness warnings are always returned because they indicate a config that may be empty or structurally broken. The `show_compatibility_warnings` setting only hides client capability warnings such as DNS downgrade or rule-format support.
+
 The worker validates:
 
 | Check | Level |

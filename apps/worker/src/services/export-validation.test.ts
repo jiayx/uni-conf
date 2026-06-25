@@ -189,13 +189,27 @@ describe('export validation', () => {
     }));
   });
 
-  it('suppresses warnings when compatibility warnings are disabled', () => {
-    const warnings = resolveExportWarnings(makeExportData({ nodes: [], rules: [] }), 'mihomo', {
+  it('keeps readiness warnings when compatibility warnings are disabled', () => {
+    const warnings = resolveExportWarnings(makeExportData({
+      nodes: [],
+      rules: [
+        makeRule('process', 'proxy', 'PROCESS-NAME', 'Example.app', 0),
+        makeRule('match', 'proxy', 'MATCH', '', 999),
+      ],
+    }), 'shadowrocket', {
       showCompatibilityWarnings: false,
       dnsMode: 'fake-ip',
     });
 
-    expect(warnings).toEqual([]);
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('没有可导出的节点') }),
+    ]));
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('PROCESS-NAME 不兼容 shadowrocket'),
+    }));
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('高级 fake-ip'),
+    }));
   });
 });
 
