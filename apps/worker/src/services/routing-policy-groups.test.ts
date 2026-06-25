@@ -172,6 +172,24 @@ const groupRows = [
     is_builtin: 0,
   },
   {
+    id: 'custom-downloads',
+    name: 'Downloads',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '[]',
+    enabled: 1,
+    is_builtin: 0,
+  },
+  {
+    id: 'disabled-custom',
+    name: 'Disabled Custom',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '[]',
+    enabled: 0,
+    is_builtin: 0,
+  },
+  {
     id: 'disabled-exit',
     name: 'Disabled Auto',
     type: 'url-test',
@@ -359,7 +377,7 @@ describe('routing policy group sync', () => {
     ]);
   });
 
-  it('resolves builtin non-node select groups as routing policy groups', () => {
+  it('resolves builtin and custom non-node select groups as routing policy groups', () => {
     expect(resolveRoutingGroupIds(groupRows)).toEqual([
       'builtin-proxy',
       'builtin-ai',
@@ -367,6 +385,7 @@ describe('routing policy group sync', () => {
       'builtin-github',
       'builtin-telegram',
       'builtin-final',
+      'custom-downloads',
     ]);
   });
 
@@ -391,6 +410,10 @@ describe('routing policy group sync', () => {
     expect(rows.find((row) => row.id === 'builtin-final')?.group_ids).toBe(
       '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
     );
+    expect(rows.find((row) => row.id === 'custom-downloads')?.group_ids).toBe(
+      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
+    );
+    expect(rows.find((row) => row.id === 'disabled-custom')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'builtin-direct')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'builtin-all-nodes')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'us-auto')?.group_ids).toBe('[]');

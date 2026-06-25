@@ -113,7 +113,6 @@ export function resolveRoutingGroupIds(groupRows: GroupRow[]): string[] {
   const defaultOutletIds = new Set(DEFAULT_MEMBER_GROUP_IDS);
   return groupRows
     .filter((row) => Boolean(row.enabled))
-    .filter((row) => Boolean(row.is_builtin))
     .filter((row) => !defaultOutletIds.has(String(row.id)) || String(row.id) === DEFAULT_PROXY_GROUP_ID)
     .filter((row) => !['direct', 'reject'].includes(String(row.type)))
     .filter((row) => parseIds(row.collection_ids).length === 0)
