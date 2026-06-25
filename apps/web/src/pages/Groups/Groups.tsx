@@ -97,13 +97,6 @@ export function Groups() {
     })),
     [activeTemplate]
   )
-  const groupOptions = useMemo(
-    () => groups
-      .filter(group => group.id !== editingGroup?.id)
-      .map(group => ({ id: group.id, label: group.name })),
-    [editingGroup?.id, groups]
-  )
-
   const openCreate = () => {
     setEditingGroup(null)
     setForm(createEmptyForm(visibleGroups.length))
@@ -135,6 +128,9 @@ export function Groups() {
     const payload: GroupForm = {
       ...form,
       name: form.name.trim(),
+      collectionIds: [],
+      groupIds: [],
+      builtins: [],
       testUrl: form.testUrl?.trim() || undefined,
       interval: Number(form.interval) || DEFAULT_HEALTH_CHECK.interval,
       tolerance: Number(form.tolerance) || DEFAULT_HEALTH_CHECK.tolerance,
@@ -198,10 +194,6 @@ export function Groups() {
     direct: t('groups.type_direct'),
     reject: t('groups.type_reject'),
   }[type] ?? type)
-
-  const getGroupNames = (ids: string[]) => ids
-    .map(id => groups.find(group => group.id === id)?.name ?? id)
-    .join(', ')
 
   return (
     <div className={styles.page}>
@@ -296,12 +288,9 @@ export function Groups() {
                 <div className={styles.groupMeta}>
                   <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
                   {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
-                  {group.groupIds.length > 0 && <Badge variant="purple">{group.groupIds.length} 嵌套</Badge>}
-                  {group.builtins.length > 0 && <Badge variant="warning">{group.builtins.join(' / ')}</Badge>}
+                  <Badge variant="purple">自动出口候选</Badge>
                 </div>
-                <div className={styles.summary}>
-                  {group.groupIds.length > 0 ? getGroupNames(group.groupIds) : t('groups.no_collections')}
-                </div>
+                <div className={styles.summary}>{describeRoutingGroupMembers(group)}</div>
               </div>
               <div className={styles.cardActions}>
                 <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
@@ -359,81 +348,13 @@ export function Groups() {
           </label>
         </div>
 
-        <MultiSelect
-          label={t('groups.nested_groups')}
-          emptyText="不嵌套其他策略组"
-          options={groupOptions}
-          value={form.groupIds}
-          onChange={groupIds => setForm(current => ({ ...current, groupIds }))}
-        />
-
-        <BuiltinsSelector
-          value={form.builtins}
-          onChange={builtins => setForm(current => ({ ...current, builtins }))}
-        />
-      </Modal>
-    </div>
-  )
-}
-
-function MultiSelect({ label, emptyText, options, value, onChange }: {
-  label: string
-  emptyText: string
-  options: Array<{ id: string; label: string }>
-  value: string[]
-  onChange: (value: string[]) => void
-}) {
-  const selected = new Set(value)
-  const toggle = (id: string) => {
-    onChange(selected.has(id) ? value.filter(item => item !== id) : [...value, id])
-  }
-
-  return (
-    <div className={styles.selector}>
-      <div className={styles.selectorHeader}>
-        <span className={styles.selectLabel}>{label}</span>
-        {value.length > 0 && <button type="button" className={styles.clearButton} onClick={() => onChange([])}>清空</button>}
-      </div>
-      {options.length === 0 ? (
-        <div className={styles.selectorEmpty}>暂无可选项</div>
-      ) : (
-        <div className={styles.optionList}>
-          <label className={styles.optionItem}>
-            <input type="checkbox" checked={value.length === 0} onChange={() => onChange([])} />
-            <span>{emptyText}</span>
-          </label>
-          {options.map(option => (
-            <label key={option.id} className={styles.optionItem}>
-              <input type="checkbox" checked={selected.has(option.id)} onChange={() => toggle(option.id)} />
-              <span>{option.label}</span>
-            </label>
-          ))}
+        <div className={styles.autoMembersInfo}>
+          <div className={styles.autoMembersTitle}>出口候选自动维护</div>
+          <div className={styles.autoMembersText}>
+            保存后系统会自动加入 PROXY、DIRECT、REJECT、全部节点、节点选择、自动选择、故障切换，以及当前可用的国家 / 标签节点组。
+          </div>
         </div>
-      )}
-    </div>
-  )
-}
-
-function BuiltinsSelector({ value, onChange }: {
-  value: ProxyGroup['builtins']
-  onChange: (value: ProxyGroup['builtins']) => void
-}) {
-  const selected = new Set(value)
-  const toggle = (item: ProxyGroup['builtins'][number]) => {
-    onChange(selected.has(item) ? value.filter(current => current !== item) : [...value, item])
-  }
-
-  return (
-    <div className={styles.selector}>
-      <span className={styles.selectLabel}>内置出口</span>
-      <div className={styles.optionListCompact}>
-        {(['DIRECT', 'REJECT'] as const).map(item => (
-          <label key={item} className={styles.optionItem}>
-            <input type="checkbox" checked={selected.has(item)} onChange={() => toggle(item)} />
-            <span>{item}</span>
-          </label>
-        ))}
-      </div>
+      </Modal>
     </div>
   )
 }
@@ -499,4 +420,9 @@ function describeFoundationGroup(group: ProxyGroup): string {
   if (group.name === '自动选择') return '按延迟自动选择可用节点，作为默认代理出口的优先候选。'
   if (group.name === '故障切换') return '当前节点不可用时自动切换到下一个可用节点。'
   return '系统内置基础出口。'
+}
+
+function describeRoutingGroupMembers(group: ProxyGroup): string {
+  if (group.name === 'PROXY') return '默认代理出口，自动聚合节点选择、自动选择、故障切换和节点组。'
+  return '自动包含基础出口、全局节点出口和可用节点组。'
 }

@@ -59,27 +59,13 @@
 }
 .select:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
 .checkboxRow { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-primary); font-size: 0.875rem; }
-.selector { display: flex; flex-direction: column; gap: 0.625rem; }
-.selectorHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.clearButton {
-  border: none; background: transparent; color: var(--color-accent); cursor: pointer;
-  font: inherit; font-size: 0.8125rem; padding: 0.125rem 0;
+.autoMembersInfo {
+  display: flex; flex-direction: column; gap: 0.375rem;
+  padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface2);
 }
-.optionList, .optionListCompact {
-  display: grid; gap: 0.5rem; padding: 0.625rem;
-  border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface2);
-}
-.optionList { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 10rem; overflow: auto; }
-.optionListCompact { grid-template-columns: repeat(2, minmax(0, 10rem)); }
-.optionItem {
-  display: flex; align-items: center; gap: 0.5rem; min-width: 0;
-  color: var(--color-text-primary); font-size: 0.8125rem; line-height: 1.4;
-}
-.optionItem span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.selectorEmpty {
-  padding: 0.75rem; border: 1px dashed var(--color-border); border-radius: var(--radius-md);
-  color: var(--color-text-secondary); font-size: 0.8125rem;
-}
+.autoMembersTitle { color: var(--color-text-primary); font-size: 0.8125rem; font-weight: 600; }
+.autoMembersText { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
 .formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
 @media (max-width: 760px) {
   .groupCard { grid-template-columns: 1fr; align-items: stretch; }
@@ -88,6 +74,6 @@
   .templateHeader { align-items: flex-start; flex-direction: column; }
   .templateGrid { grid-template-columns: 1fr; }
   .foundationGrid { grid-template-columns: 1fr; }
-  .formGrid, .optionList { grid-template-columns: 1fr; }
+  .formGrid { grid-template-columns: 1fr; }
   .summary { white-space: normal; }
 }

@@ -146,7 +146,7 @@ Built-in groups have two product roles:
 
 Group writes validate the group graph before persistence. `type` must be one of the supported group types, user-created groups cannot use `direct` or `reject`, `collection_ids` and `group_ids` must be arrays of non-empty string IDs, `builtins` can only contain `DIRECT` or `REJECT`, and a group cannot include itself in `group_ids`. IDs are trimmed and de-duplicated on write so manual advanced edits cannot corrupt the generated routing structure.
 
-Business routing group `group_ids` are derived, not manually maintained. The system orders outlet candidates by intent:
+Business routing group `group_ids` are derived, not manually maintained. The web form for policy groups only edits the group identity, enabled state, type, and health-check behavior; outlet candidates are shown as automatically maintained and are not submitted as user-authored relationships. The system orders outlet candidates by intent:
 
 | Routing group | Preferred outlet order |
 |---------------|------------------------|
