@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapNode, newId, now } from '../db/helpers';
-import type { ProxyProtocol } from '@uni-conf/types';
+import { PROXY_PROTOCOL_REGISTRY, type ProxyProtocol } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
 import { parseRawLines } from './sources';
 import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared';
@@ -189,6 +189,10 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Node not found' }, 404);
 
   const body = await c.req.json<Record<string, unknown>>();
+  const validation = validateManualNodeUpdate(body);
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
+  }
   const ts = now();
 
   await c.env.DB.prepare(
@@ -198,17 +202,17 @@ app.put('/:id', async (c) => {
      WHERE id = ?`
   )
     .bind(
-      body.name ?? existing.name,
-      body.protocol ?? existing.protocol,
-      body.server ?? existing.server,
-      body.port ?? existing.port,
-      body.country !== undefined ? body.country : existing.country,
-      body.countryCode !== undefined ? body.countryCode : existing.country_code,
-      body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
-      body.tags !== undefined ? jsonStringify(body.tags) : existing.tags,
-      body.notes !== undefined ? body.notes : existing.notes,
-      body.rawConfig !== undefined ? jsonStringify(body.rawConfig) : existing.raw_config,
-      body.parsedConfig !== undefined ? jsonStringify(body.parsedConfig) : existing.parsed_config,
+      validation.name ?? existing.name,
+      validation.protocol ?? existing.protocol,
+      validation.server ?? existing.server,
+      validation.port ?? existing.port,
+      validation.country !== undefined ? validation.country : existing.country,
+      validation.countryCode !== undefined ? validation.countryCode : existing.country_code,
+      validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
+      validation.tags !== undefined ? jsonStringify(validation.tags) : existing.tags,
+      validation.notes !== undefined ? validation.notes : existing.notes,
+      validation.rawConfig !== undefined ? jsonStringify(validation.rawConfig) : existing.raw_config,
+      validation.parsedConfig !== undefined ? jsonStringify(validation.parsedConfig) : existing.parsed_config,
       ts,
       id
     )
@@ -260,17 +264,23 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
   if (uri) {
     const parsed = parseRawLines(uri.split(/\r?\n/))[0];
     if (!parsed) return null;
+    const name = normalizeNonEmptyText(body.name) ?? parsed.name;
+    const protocol = body.protocol ?? parsed.protocol;
+    const server = normalizeNonEmptyText(body.server) ?? parsed.server;
+    const port = body.port !== undefined ? normalizePort(body.port) : parsed.port;
+    const tags = body.tags !== undefined ? normalizeStringList(body.tags) : parsed.tags;
+    if (!name || !isUsableProxyProtocol(protocol) || !server || port === null || !tags) return null;
 
     return {
       sourceId: body.sourceId,
-      name: body.name || parsed.name,
-      protocol: body.protocol ?? parsed.protocol,
-      server: body.server || parsed.server,
-      port: body.port || parsed.port,
+      name,
+      protocol,
+      server,
+      port,
       country: body.country ?? parsed.country,
       countryCode: body.countryCode ?? parsed.countryCode,
       enabled: body.enabled,
-      tags: body.tags ?? parsed.tags,
+      tags,
       notes: body.notes,
       rawConfig: body.rawConfig ?? {
         ...parsed.rawConfig,
@@ -281,23 +291,140 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
     };
   }
 
-  if (!body.name || !body.protocol || !body.server || !body.port) return null;
-  const countryInfo = detectCountry(body.name);
+  const name = normalizeNonEmptyText(body.name);
+  const server = normalizeNonEmptyText(body.server);
+  const port = normalizePort(body.port);
+  if (!name || !isUsableProxyProtocol(body.protocol) || !server || port === null) return null;
+  const countryInfo = detectCountry(name);
 
   return {
     sourceId: body.sourceId,
-    name: body.name,
+    name,
     protocol: body.protocol,
-    server: body.server,
-    port: body.port,
+    server,
+    port,
     country: body.country ?? countryInfo?.country,
     countryCode: body.countryCode ?? countryInfo?.countryCode,
     enabled: body.enabled,
-    tags: body.tags ?? buildNodeRecognitionTags(body.name),
+    tags: normalizeStringList(body.tags) ?? buildNodeRecognitionTags(name),
     notes: body.notes,
     rawConfig: body.rawConfig,
     parsedConfig: body.parsedConfig,
   };
+}
+
+type ManualNodeUpdateValidation =
+  | {
+      valid: true;
+      name?: string;
+      protocol?: ProxyProtocol;
+      server?: string;
+      port?: number;
+      country?: string | null;
+      countryCode?: string | null;
+      enabled?: boolean;
+      tags?: string[];
+      notes?: string | null;
+      rawConfig?: Record<string, unknown>;
+      parsedConfig?: Record<string, unknown>;
+    }
+  | { valid: false; error: string };
+
+export function validateManualNodeUpdate(body: Record<string, unknown>): ManualNodeUpdateValidation {
+  const name = body.name !== undefined ? normalizeNonEmptyText(body.name) : undefined;
+  if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
+
+  const server = body.server !== undefined ? normalizeNonEmptyText(body.server) : undefined;
+  if (body.server !== undefined && !server) return { valid: false, error: 'server is required' };
+
+  let protocol: ProxyProtocol | undefined;
+  if (body.protocol !== undefined) {
+    if (!isUsableProxyProtocol(body.protocol)) return { valid: false, error: 'invalid proxy protocol' };
+    protocol = body.protocol;
+  }
+
+  let port: number | undefined;
+  if (body.port !== undefined) {
+    const normalizedPort = normalizePort(body.port);
+    if (normalizedPort === null) return { valid: false, error: 'port must be an integer between 1 and 65535' };
+    port = normalizedPort;
+  }
+
+  let tags: string[] | undefined;
+  if (body.tags !== undefined) {
+    const normalizedTags = normalizeStringList(body.tags);
+    if (!normalizedTags) return { valid: false, error: 'tags must be an array of strings' };
+    tags = normalizedTags;
+  }
+
+  let rawConfig: Record<string, unknown> | undefined;
+  if (body.rawConfig !== undefined) {
+    const normalizedRawConfig = normalizeRecord(body.rawConfig);
+    if (!normalizedRawConfig) return { valid: false, error: 'rawConfig must be an object' };
+    rawConfig = normalizedRawConfig;
+  }
+  let parsedConfig: Record<string, unknown> | undefined;
+  if (body.parsedConfig !== undefined) {
+    const normalizedParsedConfig = normalizeRecord(body.parsedConfig);
+    if (!normalizedParsedConfig) return { valid: false, error: 'parsedConfig must be an object' };
+    parsedConfig = normalizedParsedConfig;
+  }
+
+  return {
+    valid: true,
+    name,
+    protocol,
+    server,
+    port,
+    country: body.country !== undefined ? normalizeNullableText(body.country) : undefined,
+    countryCode: body.countryCode !== undefined ? normalizeNullableText(body.countryCode)?.toUpperCase() ?? null : undefined,
+    enabled: body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+    tags,
+    notes: body.notes !== undefined ? normalizeNullableText(body.notes) : undefined,
+    rawConfig,
+    parsedConfig,
+  };
+}
+
+function isUsableProxyProtocol(value: unknown): value is ProxyProtocol {
+  return typeof value === 'string'
+    && value in PROXY_PROTOCOL_REGISTRY
+    && PROXY_PROTOCOL_REGISTRY[value as ProxyProtocol].mainstream === true;
+}
+
+function normalizeNonEmptyText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return text || undefined;
+}
+
+function normalizeNullableText(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return text || null;
+}
+
+function normalizePort(value: unknown): number | null {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+  return port;
+}
+
+function normalizeStringList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const items: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') return null;
+    const text = item.trim();
+    if (text) items.push(text);
+  }
+  return [...new Set(items)];
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
 
 export default app;

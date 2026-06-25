@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveManualNodeInput } from './nodes';
+import { resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
 
 describe('manual node input', () => {
   it('resolves a node from a share URI', () => {
@@ -66,5 +66,65 @@ describe('manual node input', () => {
   it('rejects invalid manual input', () => {
     expect(resolveManualNodeInput({ uri: 'not-a-node' })).toBeNull();
     expect(resolveManualNodeInput({ name: 'Missing fields' })).toBeNull();
+    expect(resolveManualNodeInput({
+      name: 'Bad Protocol',
+      protocol: 'unknown',
+      server: 'example.com',
+      port: 443,
+    })).toBeNull();
+    expect(resolveManualNodeInput({
+      name: 'Bad Port',
+      protocol: 'trojan',
+      server: 'example.com',
+      port: 70000,
+    })).toBeNull();
+    expect(resolveManualNodeInput({
+      uri: 'trojan://password@example.com:443#OK',
+      protocol: 'direct',
+    })).toBeNull();
+  });
+
+  it('validates manual node updates', () => {
+    expect(validateManualNodeUpdate({
+      name: '  HK Manual  ',
+      protocol: 'trojan',
+      server: ' hk.example.com ',
+      port: '443',
+      countryCode: 'hk',
+      tags: [' streaming ', 'streaming', ''],
+      notes: ' note ',
+      rawConfig: { type: 'trojan' },
+      parsedConfig: { protocol: 'trojan' },
+    })).toEqual({
+      valid: true,
+      name: 'HK Manual',
+      protocol: 'trojan',
+      server: 'hk.example.com',
+      port: 443,
+      country: undefined,
+      countryCode: 'HK',
+      enabled: undefined,
+      tags: ['streaming'],
+      notes: 'note',
+      rawConfig: { type: 'trojan' },
+      parsedConfig: { protocol: 'trojan' },
+    });
+
+    expect(validateManualNodeUpdate({ protocol: 'unknown' })).toEqual({
+      valid: false,
+      error: 'invalid proxy protocol',
+    });
+    expect(validateManualNodeUpdate({ port: 0 })).toEqual({
+      valid: false,
+      error: 'port must be an integer between 1 and 65535',
+    });
+    expect(validateManualNodeUpdate({ tags: ['ok', 1] })).toEqual({
+      valid: false,
+      error: 'tags must be an array of strings',
+    });
+    expect(validateManualNodeUpdate({ parsedConfig: [] })).toEqual({
+      valid: false,
+      error: 'parsedConfig must be an object',
+    });
   });
 });
