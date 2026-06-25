@@ -55,10 +55,11 @@ app.post('/', async (c) => {
   if (!isValidSourceFormat(format)) {
     return c.json({ success: false, error: 'invalid source format' }, 400);
   }
+  const normalizedUrl = normalizeHttpUrl(body.url);
   if (body.type === 'url' && !body.url) {
     return c.json({ success: false, error: 'url is required' }, 400);
   }
-  if (body.type === 'url' && !isHttpUrl(body.url)) {
+  if (body.type === 'url' && !normalizedUrl) {
     return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
   }
   const sourceFields = validateSourceMutableFields(body);
@@ -68,7 +69,7 @@ app.post('/', async (c) => {
 
   const id = newId();
   const ts = now();
-  const sourceName = resolveSourceNameInput(body.name, body.url);
+  const sourceName = resolveSourceNameInput(body.name, normalizedUrl ?? body.url);
 
   await c.env.DB.prepare(
     `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
@@ -78,7 +79,7 @@ app.post('/', async (c) => {
       id,
       sourceName,
       body.type,
-      body.url ?? null,
+      normalizedUrl ?? null,
       format,
       body.enabled !== false ? 1 : 0,
       sourceFields.updateInterval ?? 0,
@@ -133,7 +134,7 @@ app.put('/:id', async (c) => {
   const body = await c.req.json<Record<string, unknown>>();
   const ts = now();
   const nextType = body.type !== undefined ? String(body.type) : String(existing.type);
-  const nextUrl = body.url !== undefined ? String(body.url ?? '') : String(existing.url ?? '');
+  const nextUrl = body.url !== undefined ? normalizeHttpUrl(body.url) ?? String(body.url ?? '').trim() : String(existing.url ?? '');
   const nextFormat = body.format !== undefined ? String(body.format) : String(existing.format ?? 'auto');
 
   if (!isValidSourceType(nextType)) {
@@ -478,12 +479,17 @@ export function isValidSourceFormat(value: unknown): value is SourceFormat {
 }
 
 export function isHttpUrl(value: unknown): boolean {
-  if (typeof value !== 'string' || !value.trim()) return false;
+  return Boolean(normalizeHttpUrl(value));
+}
+
+function normalizeHttpUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
   try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
+    const text = value.trim();
+    const url = new URL(text);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? text : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 

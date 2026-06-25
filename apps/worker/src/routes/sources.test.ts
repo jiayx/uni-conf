@@ -62,6 +62,7 @@ describe('Clash YAML Parser', () => {
     expect(isValidSourceFormat('singbox')).toBe(true)
     expect(isValidSourceFormat('yaml')).toBe(false)
     expect(isHttpUrl('https://example.com/sub')).toBe(true)
+    expect(isHttpUrl('  https://example.com/sub  ')).toBe(true)
     expect(isHttpUrl('http://example.com/sub')).toBe(true)
     expect(isHttpUrl('file:///tmp/sub.yaml')).toBe(false)
     expect(isHttpUrl('not a url')).toBe(false)
