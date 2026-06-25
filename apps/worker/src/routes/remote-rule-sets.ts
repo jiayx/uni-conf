@@ -22,16 +22,12 @@ app.get('/', async (c) => {
 
 app.post('/', async (c) => {
   const body = await c.req.json<Partial<RemoteRuleSet>>()
-  if (!body.name || !body.url || !body.format || !body.behavior || !body.targetGroupId) {
-    return c.json(
-      { success: false, error: 'name, url, format, behavior, and targetGroupId are required' },
-      400
-    )
+  const validation = validateRemoteRuleSetWrite(body, { create: true })
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400)
   }
-  if (!isValidRuleSetFormat(body.format) || !isValidRuleSetBehavior(body.behavior)) {
-    return c.json({ success: false, error: 'invalid rule set format or behavior' }, 400)
-  }
-  if (!(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+  const createInput = requireCreateRemoteRuleSet(validation)
+  if (!(await isEnabledTargetGroup(c.env.DB, createInput.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
 
@@ -44,18 +40,18 @@ app.post('/', async (c) => {
   )
     .bind(
       id,
-      body.name,
-      body.url,
-      body.format,
-      body.behavior,
-      body.presetSource ?? null,
-      body.presetId ?? null,
-      body.targetGroupId,
-      body.updateInterval ?? 24,
-      body.enabled !== false ? 1 : 0,
-      body.sortOrder ?? 500,
-      body.lastUpdated ?? null,
-      body.notes ?? null,
+      createInput.name,
+      createInput.url,
+      createInput.format,
+      createInput.behavior,
+      null,
+      null,
+      createInput.targetGroupId,
+      createInput.updateInterval,
+      createInput.enabled ? 1 : 0,
+      createInput.sortOrder,
+      createInput.lastUpdated ?? null,
+      createInput.notes ?? null,
       ts,
       ts
     )
@@ -78,13 +74,14 @@ app.post('/batch', async (c) => {
   const createdIds: string[] = []
   const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB)
 
-  for (const set of sets) {
-    if (!set.name || !set.url || !set.format || !set.behavior || !set.targetGroupId) continue
-    if (!isValidRuleSetFormat(set.format) || !isValidRuleSetBehavior(set.behavior)) {
-      return c.json({ success: false, error: `invalid rule set format or behavior: ${set.name}` }, 400)
+  for (const [index, set] of sets.entries()) {
+    const validation = validateRemoteRuleSetWrite(set, { create: true })
+    if (!validation.valid) {
+      return c.json({ success: false, error: `invalid remote rule set at index ${index}: ${validation.error}` }, 400)
     }
-    if (!enabledTargetGroupIds.has(set.targetGroupId)) {
-      return c.json({ success: false, error: `target group is disabled or missing: ${set.targetGroupId}` }, 400)
+    const createInput = requireCreateRemoteRuleSet(validation)
+    if (!enabledTargetGroupIds.has(createInput.targetGroupId)) {
+      return c.json({ success: false, error: `target group is disabled or missing: ${createInput.targetGroupId}` }, 400)
     }
     const id = newId()
     createdIds.push(id)
@@ -95,18 +92,18 @@ app.post('/batch', async (c) => {
     )
       .bind(
         id,
-        set.name,
-        set.url,
-        set.format,
-        set.behavior,
-        set.presetSource ?? null,
-        set.presetId ?? null,
-        set.targetGroupId,
-        set.updateInterval ?? 24,
-        set.enabled !== false ? 1 : 0,
-        set.sortOrder ?? 500,
-        set.lastUpdated ?? null,
-        set.notes ?? null,
+        createInput.name,
+        createInput.url,
+        createInput.format,
+        createInput.behavior,
+        null,
+        null,
+        createInput.targetGroupId,
+        createInput.updateInterval,
+        createInput.enabled ? 1 : 0,
+        createInput.sortOrder,
+        createInput.lastUpdated ?? null,
+        createInput.notes ?? null,
         ts,
         ts
       )
@@ -145,13 +142,11 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<RemoteRuleSet>>()
   const ts = now()
-  if (body.format !== undefined && !isValidRuleSetFormat(body.format)) {
-    return c.json({ success: false, error: 'invalid rule set format' }, 400)
+  const validation = validateRemoteRuleSetWrite(body, { create: false })
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400)
   }
-  if (body.behavior !== undefined && !isValidRuleSetBehavior(body.behavior)) {
-    return c.json({ success: false, error: 'invalid rule set behavior' }, 400)
-  }
-  if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+  if (validation.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, validation.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
   await c.env.DB.prepare(
@@ -161,18 +156,18 @@ app.put('/:id', async (c) => {
      WHERE id = ?`
   )
     .bind(
-      body.name ?? existing.name,
-      body.url ?? existing.url,
-      body.format ?? existing.format,
-      body.behavior ?? existing.behavior,
-      body.presetSource !== undefined ? body.presetSource : existing.preset_source,
-      body.presetId !== undefined ? body.presetId : existing.preset_id,
-      body.targetGroupId ?? existing.target_group_id,
-      body.updateInterval ?? existing.update_interval,
-      body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
-      body.sortOrder ?? existing.sort_order ?? 500,
-      body.lastUpdated !== undefined ? body.lastUpdated : existing.last_updated,
-      body.notes !== undefined ? body.notes : existing.notes,
+      validation.name ?? existing.name,
+      validation.url ?? existing.url,
+      validation.format ?? existing.format,
+      validation.behavior ?? existing.behavior,
+      existing.preset_source,
+      existing.preset_id,
+      validation.targetGroupId ?? existing.target_group_id,
+      validation.updateInterval ?? existing.update_interval,
+      validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
+      validation.sortOrder ?? existing.sort_order ?? 500,
+      validation.lastUpdated !== undefined ? validation.lastUpdated : existing.last_updated,
+      validation.notes !== undefined ? validation.notes : existing.notes,
       ts,
       id
     )
@@ -228,6 +223,126 @@ export function isValidRuleSetFormat(value: unknown): value is RuleSetFormat {
 
 export function isValidRuleSetBehavior(value: unknown): value is RuleSetBehavior {
   return RULE_SET_BEHAVIORS.has(value as RuleSetBehavior)
+}
+
+type RemoteRuleSetWriteValidation =
+  | {
+      valid: true
+      name?: string
+      url?: string
+      format?: RuleSetFormat
+      behavior?: RuleSetBehavior
+      targetGroupId?: string
+      updateInterval?: number
+      enabled?: boolean
+      sortOrder?: number
+      lastUpdated?: string | null
+      notes?: string | null
+    }
+  | { valid: false; error: string }
+
+type CreateRemoteRuleSetInput = Extract<RemoteRuleSetWriteValidation, { valid: true }> & {
+  name: string
+  url: string
+  format: RuleSetFormat
+  behavior: RuleSetBehavior
+  targetGroupId: string
+  updateInterval: number
+  enabled: boolean
+  sortOrder: number
+}
+
+function requireCreateRemoteRuleSet(
+  validation: Extract<RemoteRuleSetWriteValidation, { valid: true }>
+): CreateRemoteRuleSetInput {
+  return validation as CreateRemoteRuleSetInput
+}
+
+export function validateRemoteRuleSetWrite(
+  body: Partial<RemoteRuleSet>,
+  options: { create: boolean }
+): RemoteRuleSetWriteValidation {
+  const name = normalizeOptionalText(body.name)
+  if (options.create && !name) return { valid: false, error: 'name is required' }
+  if (body.name !== undefined && !name) return { valid: false, error: 'name is required' }
+
+  const url = body.url !== undefined ? normalizeHttpUrl(body.url) : undefined
+  if (options.create && !url) return { valid: false, error: 'url is required' }
+  if (body.url !== undefined && !url) return { valid: false, error: 'url must be an http(s) URL' }
+
+  if (options.create && !body.format) return { valid: false, error: 'format is required' }
+  if (body.format !== undefined && !isValidRuleSetFormat(body.format)) {
+    return { valid: false, error: 'invalid rule set format' }
+  }
+
+  if (options.create && !body.behavior) return { valid: false, error: 'behavior is required' }
+  if (body.behavior !== undefined && !isValidRuleSetBehavior(body.behavior)) {
+    return { valid: false, error: 'invalid rule set behavior' }
+  }
+
+  const targetGroupId = normalizeOptionalText(body.targetGroupId)
+  if (options.create && !targetGroupId) return { valid: false, error: 'targetGroupId is required' }
+  if (body.targetGroupId !== undefined && !targetGroupId) return { valid: false, error: 'targetGroupId is required' }
+
+  const updateInterval = body.updateInterval !== undefined ? normalizePositiveInteger(body.updateInterval) : undefined
+  if (body.updateInterval !== undefined && updateInterval === undefined) {
+    return { valid: false, error: 'updateInterval must be a positive integer' }
+  }
+  const sortOrder = body.sortOrder !== undefined ? normalizeInteger(body.sortOrder) : undefined
+  if (body.sortOrder !== undefined && sortOrder === undefined) {
+    return { valid: false, error: 'sortOrder must be an integer' }
+  }
+
+  return {
+    valid: true,
+    name,
+    url,
+    format: body.format,
+    behavior: body.behavior,
+    targetGroupId,
+    updateInterval: options.create ? updateInterval ?? 24 : updateInterval,
+    enabled: options.create ? body.enabled !== false : body.enabled,
+    sortOrder: options.create ? sortOrder ?? 500 : sortOrder,
+    lastUpdated: body.lastUpdated !== undefined ? normalizeNullableText(body.lastUpdated) : undefined,
+    notes: body.notes !== undefined ? normalizeNullableText(body.notes) : undefined,
+  }
+}
+
+function normalizeOptionalText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  return text || undefined
+}
+
+function normalizeNullableText(value: unknown): string | null {
+  if (value === null) return null
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  return text || null
+}
+
+function normalizeHttpUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  try {
+    const url = new URL(text)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
+    return text
+  } catch {
+    return undefined
+  }
+}
+
+function normalizePositiveInteger(value: unknown): number | undefined {
+  const numberValue = Number(value)
+  if (!Number.isInteger(numberValue) || numberValue <= 0) return undefined
+  return numberValue
+}
+
+function normalizeInteger(value: unknown): number | undefined {
+  const numberValue = Number(value)
+  if (!Number.isInteger(numberValue)) return undefined
+  return numberValue
 }
 
 export default app

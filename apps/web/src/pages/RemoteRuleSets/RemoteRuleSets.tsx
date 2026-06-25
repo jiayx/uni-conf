@@ -164,7 +164,7 @@ export function RemoteRuleSets() {
   }
 
   const handleSave = async () => {
-    const payload: RemoteSetForm = {
+    const formPayload: RemoteSetForm = {
       ...form,
       name: form.name.trim(),
       url: form.url.trim(),
@@ -172,6 +172,7 @@ export function RemoteRuleSets() {
       updateInterval: Number(form.updateInterval) || 24,
       sortOrder: Number(form.sortOrder) || 500,
     }
+    const { presetSource: _presetSource, presetId: _presetId, ...payload } = formPayload
 
     if (!payload.name || !payload.url || !payload.targetGroupId) {
       setFormError('名称、规则集来源和匹配后使用的策略组必填')
@@ -306,7 +307,7 @@ export function RemoteRuleSets() {
         {formPresetId ? (
           <div>
             <label className={styles.label}>规则集来源</label>
-            <div className={styles.helperText}>QuixoticHeart/rule-set:{formPresetId}，导出时按目标平台动态生成 URL。</div>
+            <div className={styles.helperText}>已从 QuixoticHeart/rule-set:{formPresetId} 按当前格式填充 URL；保存后作为可删除的自定义规则集。</div>
           </div>
         ) : (
           <>
