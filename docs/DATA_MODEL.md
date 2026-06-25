@@ -140,6 +140,8 @@ Built-in groups have two product roles:
 
 `DIRECT` and `REJECT` are system foundation outlets, not user-created policy group types. User-created groups may use `select`, `url-test`, `fallback`, or `load-balance`; the API rejects custom `direct` / `reject` groups so rules and generated exporters keep one canonical representation for direct and reject traffic. Exporters do not emit `DIRECT` / `REJECT` as ordinary policy groups. Mihomo-compatible and text-based clients reference the native `DIRECT` / `REJECT` policies directly whenever rules or nested groups target a `direct` / `reject` row; sing-box maps the same rows to `direct` / `block` outbounds.
 
+Group writes validate the group graph before persistence. `type` must be one of the supported group types, user-created groups cannot use `direct` or `reject`, `collection_ids` and `group_ids` must be arrays of non-empty string IDs, `builtins` can only contain `DIRECT` or `REJECT`, and a group cannot include itself in `group_ids`. IDs are trimmed and de-duplicated on write so manual advanced edits cannot corrupt the generated routing structure.
+
 Business routing group `group_ids` are derived, not manually maintained. The system orders outlet candidates by intent:
 
 | Routing group | Preferred outlet order |

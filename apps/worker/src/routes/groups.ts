@@ -5,7 +5,9 @@ import type { ProxyGroup } from '@uni-conf/types';
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups';
 
 const app = new Hono<{ Bindings: Env }>();
-const BUILTIN_ONLY_GROUP_TYPES = new Set(['direct', 'reject']);
+const GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']);
+const BUILTIN_ONLY_GROUP_TYPES = new Set<ProxyGroup['type']>(['direct', 'reject']);
+const BUILTIN_POLICIES = new Set(['DIRECT', 'REJECT']);
 
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
@@ -49,11 +51,9 @@ app.post('/reorder', async (c) => {
 
 app.post('/', async (c) => {
   const body = await c.req.json<Partial<ProxyGroup>>();
-  if (!body.name || !body.type) {
-    return c.json({ success: false, error: 'name and type are required' }, 400);
-  }
-  if (BUILTIN_ONLY_GROUP_TYPES.has(body.type)) {
-    return c.json({ success: false, error: 'DIRECT and REJECT are built-in foundation outlets' }, 400);
+  const validation = validateGroupWrite(body, { create: true, isBuiltin: false });
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
   }
 
   const id = newId();
@@ -71,16 +71,16 @@ app.post('/', async (c) => {
   )
     .bind(
       id,
-      body.name,
-      body.type,
-      jsonStringify(body.collectionIds ?? []),
-      jsonStringify(body.groupIds ?? []),
-      jsonStringify(body.builtins ?? []),
-      body.testUrl ?? null,
-      body.interval ?? 300,
-      body.tolerance ?? 150,
-      body.lazy !== false ? 1 : 0,
-      body.enabled !== false ? 1 : 0,
+      validation.name,
+      validation.type,
+      jsonStringify(validation.collectionIds ?? []),
+      jsonStringify(validation.groupIds ?? []),
+      jsonStringify(validation.builtins ?? []),
+      validation.testUrl ?? null,
+      validation.interval,
+      validation.tolerance,
+      validation.lazy ? 1 : 0,
+      validation.enabled ? 1 : 0,
       sortOrder,
       ts,
       ts
@@ -119,8 +119,13 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<ProxyGroup>>();
   const ts = now();
-  if (!existing.is_builtin && body.type && BUILTIN_ONLY_GROUP_TYPES.has(body.type)) {
-    return c.json({ success: false, error: 'DIRECT and REJECT are built-in foundation outlets' }, 400);
+  const validation = validateGroupWrite(body, {
+    create: false,
+    id,
+    isBuiltin: Boolean(existing.is_builtin),
+  });
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
   }
 
   await c.env.DB.prepare(
@@ -131,18 +136,18 @@ app.put('/:id', async (c) => {
      WHERE id = ?`
   )
     .bind(
-      body.name ?? existing.name,
-      body.type ?? existing.type,
-      body.collectionIds !== undefined
-        ? jsonStringify(body.collectionIds)
+      validation.name ?? existing.name,
+      validation.type ?? existing.type,
+      validation.collectionIds !== undefined
+        ? jsonStringify(validation.collectionIds)
         : existing.collection_ids,
-      body.groupIds !== undefined ? jsonStringify(body.groupIds) : existing.group_ids,
-      body.builtins !== undefined ? jsonStringify(body.builtins) : existing.builtins,
-      body.testUrl !== undefined ? body.testUrl : existing.test_url,
-      body.interval !== undefined ? body.interval : existing.interval,
-      body.tolerance !== undefined ? body.tolerance : existing.tolerance,
-      body.lazy !== undefined ? (body.lazy ? 1 : 0) : existing.lazy,
-      body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
+      validation.groupIds !== undefined ? jsonStringify(validation.groupIds) : existing.group_ids,
+      validation.builtins !== undefined ? jsonStringify(validation.builtins) : existing.builtins,
+      validation.testUrl !== undefined ? validation.testUrl : existing.test_url,
+      validation.interval !== undefined ? validation.interval : existing.interval,
+      validation.tolerance !== undefined ? validation.tolerance : existing.tolerance,
+      validation.lazy !== undefined ? (validation.lazy ? 1 : 0) : existing.lazy,
+      validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
       ts,
       id
     )
@@ -176,3 +181,125 @@ app.delete('/:id', async (c) => {
 });
 
 export default app;
+
+type GroupWriteValidation =
+  | {
+      valid: true;
+      name?: string;
+      type?: ProxyGroup['type'];
+      collectionIds?: string[];
+      groupIds?: string[];
+      builtins?: ProxyGroup['builtins'];
+      testUrl?: string | null;
+      interval?: number;
+      tolerance?: number;
+      lazy?: boolean;
+      enabled?: boolean;
+    }
+  | { valid: false; error: string };
+
+export function validateGroupWrite(
+  body: Partial<ProxyGroup>,
+  options: { create: boolean; id?: string; isBuiltin: boolean }
+): GroupWriteValidation {
+  const name = normalizeOptionalText(body.name);
+  if (options.create && !name) return { valid: false, error: 'name is required' };
+  if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
+
+  const type = body.type;
+  if (options.create && !type) return { valid: false, error: 'type is required' };
+  if (type !== undefined && !isValidGroupType(type)) return { valid: false, error: 'invalid group type' };
+  if (!options.isBuiltin && type !== undefined && BUILTIN_ONLY_GROUP_TYPES.has(type)) {
+    return { valid: false, error: 'DIRECT and REJECT are built-in foundation outlets' };
+  }
+
+  const collectionIds = normalizeIdList(body.collectionIds, 'collectionIds');
+  if (!collectionIds.valid) return collectionIds;
+  const groupIds = normalizeIdList(body.groupIds, 'groupIds');
+  if (!groupIds.valid) return groupIds;
+  if (options.id && groupIds.value?.includes(options.id)) {
+    return { valid: false, error: 'groupIds cannot include the group itself' };
+  }
+
+  const builtins = normalizeBuiltins(body.builtins);
+  if (!builtins.valid) return builtins;
+  const interval = normalizePositiveNumber(body.interval, 'interval');
+  if (!interval.valid) return interval;
+  const tolerance = normalizeNonNegativeNumber(body.tolerance, 'tolerance');
+  if (!tolerance.valid) return tolerance;
+
+  return {
+    valid: true,
+    name,
+    type,
+    collectionIds: collectionIds.value,
+    groupIds: groupIds.value,
+    builtins: builtins.value,
+    testUrl: body.testUrl !== undefined ? normalizeOptionalText(body.testUrl) ?? null : undefined,
+    interval: options.create ? interval.value ?? 300 : interval.value,
+    tolerance: options.create ? tolerance.value ?? 150 : tolerance.value,
+    lazy: options.create ? body.lazy !== false : body.lazy,
+    enabled: options.create ? body.enabled !== false : body.enabled,
+  };
+}
+
+function isValidGroupType(value: unknown): value is ProxyGroup['type'] {
+  return GROUP_TYPES.has(value as ProxyGroup['type']);
+}
+
+function normalizeOptionalText(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return text || undefined;
+}
+
+type IdListValidation = { valid: true; value?: string[] } | { valid: false; error: string };
+
+function normalizeIdList(value: unknown, field: string): IdListValidation {
+  if (value === undefined) return { valid: true };
+  if (!Array.isArray(value)) return { valid: false, error: `${field} must be an array` };
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || item.trim() === '') {
+      return { valid: false, error: `${field} must only contain non-empty strings` };
+    }
+    ids.push(item.trim());
+  }
+  return { valid: true, value: [...new Set(ids)] };
+}
+
+type BuiltinsValidation = { valid: true; value?: ProxyGroup['builtins'] } | { valid: false; error: string };
+
+function normalizeBuiltins(value: unknown): BuiltinsValidation {
+  if (value === undefined) return { valid: true };
+  if (!Array.isArray(value)) return { valid: false, error: 'builtins must be an array' };
+  const builtins: ProxyGroup['builtins'] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || !BUILTIN_POLICIES.has(item)) {
+      return { valid: false, error: 'builtins must only contain DIRECT or REJECT' };
+    }
+    builtins.push(item as ProxyGroup['builtins'][number]);
+  }
+  return { valid: true, value: [...new Set(builtins)] as ProxyGroup['builtins'] };
+}
+
+type NumberValidation = { valid: true; value?: number } | { valid: false; error: string };
+
+function normalizePositiveNumber(value: unknown, field: string): NumberValidation {
+  if (value === undefined) return { valid: true };
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    return { valid: false, error: `${field} must be a positive number` };
+  }
+  return { valid: true, value: numberValue };
+}
+
+function normalizeNonNegativeNumber(value: unknown, field: string): NumberValidation {
+  if (value === undefined) return { valid: true };
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < 0) {
+    return { valid: false, error: `${field} must be a non-negative number` };
+  }
+  return { valid: true, value: numberValue };
+}
