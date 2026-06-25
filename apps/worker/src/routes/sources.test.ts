@@ -10,6 +10,7 @@ import {
   parseClashGroups,
   parseClashYaml,
   resolveSourceNameInput,
+  validateSourceMutableFields,
 } from './sources'
 
 // Mock Clash YAML with multiple node formats
@@ -64,6 +65,47 @@ describe('Clash YAML Parser', () => {
     expect(isHttpUrl('http://example.com/sub')).toBe(true)
     expect(isHttpUrl('file:///tmp/sub.yaml')).toBe(false)
     expect(isHttpUrl('not a url')).toBe(false)
+  })
+
+  it('normalizes mutable source fields', () => {
+    expect(validateSourceMutableFields({
+      updateInterval: '60',
+      userAgent: '  Clash.Meta  ',
+      notes: ' note ',
+      tags: [' airport ', 'airport', ''],
+    })).toEqual({
+      valid: true,
+      updateInterval: 60,
+      userAgent: 'Clash.Meta',
+      notes: 'note',
+      tags: ['airport'],
+    })
+    expect(validateSourceMutableFields({
+      userAgent: '',
+      notes: null,
+      tags: [],
+    })).toEqual({
+      valid: true,
+      updateInterval: undefined,
+      userAgent: null,
+      notes: null,
+      tags: [],
+    })
+  })
+
+  it('rejects malformed mutable source fields', () => {
+    expect(validateSourceMutableFields({ updateInterval: -1 })).toEqual({
+      valid: false,
+      error: 'updateInterval must be a non-negative integer',
+    })
+    expect(validateSourceMutableFields({ updateInterval: 1.5 })).toEqual({
+      valid: false,
+      error: 'updateInterval must be a non-negative integer',
+    })
+    expect(validateSourceMutableFields({ tags: ['ok', 1] })).toEqual({
+      valid: false,
+      error: 'tags must be an array of strings',
+    })
   })
 
   it('uses explicit source format hints before auto detection', () => {

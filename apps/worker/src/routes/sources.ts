@@ -61,6 +61,10 @@ app.post('/', async (c) => {
   if (body.type === 'url' && !isHttpUrl(body.url)) {
     return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
   }
+  const sourceFields = validateSourceMutableFields(body);
+  if (!sourceFields.valid) {
+    return c.json({ success: false, error: sourceFields.error }, 400);
+  }
 
   const id = newId();
   const ts = now();
@@ -77,10 +81,10 @@ app.post('/', async (c) => {
       body.url ?? null,
       format,
       body.enabled !== false ? 1 : 0,
-      body.updateInterval ?? 0,
-      body.userAgent ?? null,
-      body.notes ?? null,
-      jsonStringify(body.tags ?? []),
+      sourceFields.updateInterval ?? 0,
+      sourceFields.userAgent ?? null,
+      sourceFields.notes ?? null,
+      jsonStringify(sourceFields.tags ?? []),
       ts,
       ts
     )
@@ -144,6 +148,10 @@ app.put('/:id', async (c) => {
   if (nextType === 'url' && !isHttpUrl(nextUrl)) {
     return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
   }
+  const sourceFields = validateSourceMutableFields(body);
+  if (!sourceFields.valid) {
+    return c.json({ success: false, error: sourceFields.error }, 400);
+  }
 
   await c.env.DB.prepare(
     `UPDATE sources SET
@@ -159,11 +167,11 @@ app.put('/:id', async (c) => {
       nextUrl || null,
       nextFormat,
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
-      body.updateInterval !== undefined ? body.updateInterval : existing.update_interval,
+      sourceFields.updateInterval !== undefined ? sourceFields.updateInterval : existing.update_interval,
       // Allow explicitly setting to null or empty string to clear user_agent
-      'userAgent' in body ? (body.userAgent || null) : existing.user_agent,
-      body.notes !== undefined ? body.notes : existing.notes,
-      body.tags !== undefined ? jsonStringify(body.tags) : existing.tags,
+      'userAgent' in body ? sourceFields.userAgent ?? null : existing.user_agent,
+      body.notes !== undefined ? sourceFields.notes : existing.notes,
+      body.tags !== undefined ? jsonStringify(sourceFields.tags) : existing.tags,
       ts,
       id
     )
@@ -477,6 +485,67 @@ export function isHttpUrl(value: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+type SourceMutableFieldsValidation =
+  | {
+      valid: true;
+      updateInterval?: number;
+      userAgent?: string | null;
+      notes?: string | null;
+      tags?: string[];
+    }
+  | { valid: false; error: string };
+
+export function validateSourceMutableFields(body: {
+  updateInterval?: unknown;
+  userAgent?: unknown;
+  notes?: unknown;
+  tags?: unknown;
+}): SourceMutableFieldsValidation {
+  const updateInterval = body.updateInterval !== undefined ? normalizeNonNegativeInteger(body.updateInterval) : undefined;
+  if (body.updateInterval !== undefined && updateInterval === undefined) {
+    return { valid: false, error: 'updateInterval must be a non-negative integer' };
+  }
+
+  let tags: string[] | undefined;
+  if (body.tags !== undefined) {
+    const normalizedTags = normalizeStringList(body.tags);
+    if (!normalizedTags) return { valid: false, error: 'tags must be an array of strings' };
+    tags = normalizedTags;
+  }
+
+  return {
+    valid: true,
+    updateInterval,
+    userAgent: body.userAgent !== undefined ? normalizeNullableText(body.userAgent) : undefined,
+    notes: body.notes !== undefined ? normalizeNullableText(body.notes) : undefined,
+    tags,
+  };
+}
+
+function normalizeNonNegativeInteger(value: unknown): number | undefined {
+  const numberValue = Number(value);
+  if (!Number.isInteger(numberValue) || numberValue < 0) return undefined;
+  return numberValue;
+}
+
+function normalizeNullableText(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return text || null;
+}
+
+function normalizeStringList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const items: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') return null;
+    const text = item.trim();
+    if (text) items.push(text);
+  }
+  return [...new Set(items)];
 }
 
 function parseSubscriptionUserInfo(header: string | null): {
