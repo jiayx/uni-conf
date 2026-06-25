@@ -6,6 +6,11 @@ import { syncAutoNodeGroups } from '../services/auto-node-groups';
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows';
 
 const app = new Hono<{ Bindings: Env }>();
+const FILTER_FIELDS = new Set<NodeFilter['field']>(['name', 'server', 'protocol', 'country', 'countryCode', 'tag', 'sourceId']);
+const FILTER_OPERATORS = new Set<NodeFilter['operator']>(['contains', 'not_contains', 'regex', 'not_regex', 'equals', 'not_equals', 'in', 'not_in']);
+const RENAME_TYPES = new Set<NodeRename['type']>(['replace', 'regex', 'prefix', 'suffix', 'strip_emoji', 'standardize_country', 'auto_number']);
+const DEDUP_STRATEGIES = new Set<NodeCollection['dedup']>(['name', 'server_port', 'protocol_server_port', 'full_config']);
+const SORT_STRATEGIES = new Set<NodeCollection['sort']>(['country', 'name', 'source', 'protocol', 'manual']);
 
 // ─── List collections ─────────────────────────────────────────────────────────
 
@@ -23,8 +28,9 @@ app.get('/', async (c) => {
 
 app.post('/', async (c) => {
   const body = await c.req.json<Partial<NodeCollection>>();
-  if (!body.name) {
-    return c.json({ success: false, error: 'name is required' }, 400);
+  const validation = validateCollectionWrite(body, { create: true });
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
   }
 
   const id = newId();
@@ -36,16 +42,16 @@ app.post('/', async (c) => {
   )
     .bind(
       id,
-      body.name,
-      jsonStringify(body.sourceIds ?? []),
-      jsonStringify(body.nodeIds ?? []),
-      jsonStringify(body.filters ?? []),
-      jsonStringify(body.renames ?? []),
-      body.dedup ?? 'name',
-      body.sort ?? 'country',
-      body.sortCountryOrder ? jsonStringify(body.sortCountryOrder) : null,
-      body.enabled !== false ? 1 : 0,
-      body.notes ?? null,
+      validation.name,
+      jsonStringify(validation.sourceIds ?? []),
+      jsonStringify(validation.nodeIds ?? []),
+      jsonStringify(validation.filters ?? []),
+      jsonStringify(validation.renames ?? []),
+      validation.dedup,
+      validation.sort,
+      validation.sortCountryOrder ? jsonStringify(validation.sortCountryOrder) : null,
+      validation.enabled ? 1 : 0,
+      validation.notes ?? null,
       ts,
       ts
     )
@@ -80,6 +86,10 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Collection not found' }, 404);
 
   const body = await c.req.json<Partial<NodeCollection>>();
+  const validation = validateCollectionWrite(body, { create: false });
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
+  }
   const ts = now();
 
   await c.env.DB.prepare(
@@ -89,18 +99,18 @@ app.put('/:id', async (c) => {
      WHERE id = ?`
   )
     .bind(
-      body.name ?? existing.name,
-      body.sourceIds !== undefined ? jsonStringify(body.sourceIds) : existing.source_ids,
-      body.nodeIds !== undefined ? jsonStringify(body.nodeIds) : existing.node_ids,
-      body.filters !== undefined ? jsonStringify(body.filters) : existing.filters,
-      body.renames !== undefined ? jsonStringify(body.renames) : existing.renames,
-      body.dedup ?? existing.dedup,
-      body.sort ?? existing.sort,
-      body.sortCountryOrder !== undefined
-        ? jsonStringify(body.sortCountryOrder)
+      validation.name ?? existing.name,
+      validation.sourceIds !== undefined ? jsonStringify(validation.sourceIds) : existing.source_ids,
+      validation.nodeIds !== undefined ? jsonStringify(validation.nodeIds) : existing.node_ids,
+      validation.filters !== undefined ? jsonStringify(validation.filters) : existing.filters,
+      validation.renames !== undefined ? jsonStringify(validation.renames) : existing.renames,
+      validation.dedup ?? existing.dedup,
+      validation.sort ?? existing.sort,
+      validation.sortCountryOrder !== undefined
+        ? jsonStringify(validation.sortCountryOrder)
         : existing.sort_country_order,
-      body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
-      body.notes !== undefined ? body.notes : existing.notes,
+      validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
+      validation.notes !== undefined ? validation.notes : existing.notes,
       ts,
       id
     )
@@ -415,6 +425,178 @@ function applySort(
       break;
   }
   return sorted;
+}
+
+type CollectionWriteValidation =
+  | {
+      valid: true;
+      name?: string;
+      sourceIds?: string[];
+      nodeIds?: string[];
+      filters?: NodeFilter[];
+      renames?: NodeRename[];
+      dedup?: NodeCollection['dedup'];
+      sort?: NodeCollection['sort'];
+      sortCountryOrder?: string[] | null;
+      enabled?: boolean;
+      notes?: string | null;
+    }
+  | { valid: false; error: string };
+
+export function validateCollectionWrite(
+  body: Partial<NodeCollection>,
+  options: { create: boolean }
+): CollectionWriteValidation {
+  const name = normalizeOptionalText(body.name);
+  if (options.create && !name) return { valid: false, error: 'name is required' };
+  if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
+
+  const sourceIds = normalizeIdList(body.sourceIds, 'sourceIds');
+  if (!sourceIds.valid) return sourceIds;
+  const nodeIds = normalizeIdList(body.nodeIds, 'nodeIds');
+  if (!nodeIds.valid) return nodeIds;
+  const sortCountryOrder = normalizeIdList(body.sortCountryOrder, 'sortCountryOrder');
+  if (!sortCountryOrder.valid) return sortCountryOrder;
+
+  const filters = normalizeFilters(body.filters);
+  if (!filters.valid) return filters;
+  const renames = normalizeRenames(body.renames);
+  if (!renames.valid) return renames;
+
+  if (body.dedup !== undefined && !DEDUP_STRATEGIES.has(body.dedup)) {
+    return { valid: false, error: 'invalid dedup strategy' };
+  }
+  if (body.sort !== undefined && !SORT_STRATEGIES.has(body.sort)) {
+    return { valid: false, error: 'invalid sort strategy' };
+  }
+
+  return {
+    valid: true,
+    name,
+    sourceIds: sourceIds.value,
+    nodeIds: nodeIds.value,
+    filters: filters.value,
+    renames: renames.value,
+    dedup: options.create ? body.dedup ?? 'name' : body.dedup,
+    sort: options.create ? body.sort ?? 'country' : body.sort,
+    sortCountryOrder: body.sortCountryOrder !== undefined ? sortCountryOrder.value ?? [] : undefined,
+    enabled: options.create ? body.enabled !== false : body.enabled,
+    notes: body.notes !== undefined ? normalizeOptionalText(body.notes) ?? null : undefined,
+  };
+}
+
+function normalizeOptionalText(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return text || undefined;
+}
+
+type IdListValidation = { valid: true; value?: string[] } | { valid: false; error: string };
+
+function normalizeIdList(value: unknown, field: string): IdListValidation {
+  if (value === undefined) return { valid: true };
+  if (!Array.isArray(value)) return { valid: false, error: `${field} must be an array` };
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || item.trim() === '') {
+      return { valid: false, error: `${field} must only contain non-empty strings` };
+    }
+    ids.push(item.trim());
+  }
+  return { valid: true, value: [...new Set(ids)] };
+}
+
+type FiltersValidation = { valid: true; value?: NodeFilter[] } | { valid: false; error: string };
+
+function normalizeFilters(value: unknown): FiltersValidation {
+  if (value === undefined) return { valid: true };
+  if (!Array.isArray(value)) return { valid: false, error: 'filters must be an array' };
+
+  const filters: NodeFilter[] = [];
+  for (const [index, filter] of value.entries()) {
+    if (!filter || typeof filter !== 'object') return { valid: false, error: `invalid filter at index ${index}` };
+    const item = filter as Partial<NodeFilter>;
+    const id = normalizeOptionalText(item.id) ?? `filter-${index}`;
+    if (!FILTER_FIELDS.has(item.field as NodeFilter['field'])) {
+      return { valid: false, error: `invalid filter field at index ${index}` };
+    }
+    if (!FILTER_OPERATORS.has(item.operator as NodeFilter['operator'])) {
+      return { valid: false, error: `invalid filter operator at index ${index}` };
+    }
+    const filterValue = normalizeFilterValue(item.value, item.operator as NodeFilter['operator']);
+    if (!filterValue.valid) return { valid: false, error: `${filterValue.error} at index ${index}` };
+    if ((item.operator === 'regex' || item.operator === 'not_regex') && !isValidRegex(firstValue(filterValue.value))) {
+      return { valid: false, error: `invalid filter regex at index ${index}` };
+    }
+    filters.push({
+      id,
+      field: item.field as NodeFilter['field'],
+      operator: item.operator as NodeFilter['operator'],
+      value: filterValue.value,
+      enabled: item.enabled !== false,
+    });
+  }
+  return { valid: true, value: filters };
+}
+
+type FilterValueValidation = { valid: true; value: string | string[] } | { valid: false; error: string };
+
+function normalizeFilterValue(value: unknown, operator: NodeFilter['operator']): FilterValueValidation {
+  const listOperator = operator === 'in' || operator === 'not_in';
+  if (Array.isArray(value)) {
+    const items = value.map((item) => typeof item === 'string' ? item.trim() : '').filter(Boolean);
+    if (items.length === 0) return { valid: false, error: 'filter value is required' };
+    return { valid: true, value: listOperator ? [...new Set(items)] : items[0]! };
+  }
+  if (typeof value !== 'string' || value.trim() === '') return { valid: false, error: 'filter value is required' };
+  if (!listOperator) return { valid: true, value: value.trim() };
+  const items = value.split(',').map((item) => item.trim()).filter(Boolean);
+  if (items.length === 0) return { valid: false, error: 'filter value is required' };
+  return { valid: true, value: [...new Set(items)] };
+}
+
+type RenamesValidation = { valid: true; value?: NodeRename[] } | { valid: false; error: string };
+
+function normalizeRenames(value: unknown): RenamesValidation {
+  if (value === undefined) return { valid: true };
+  if (!Array.isArray(value)) return { valid: false, error: 'renames must be an array' };
+
+  const renames: NodeRename[] = [];
+  for (const [index, rename] of value.entries()) {
+    if (!rename || typeof rename !== 'object') return { valid: false, error: `invalid rename at index ${index}` };
+    const item = rename as Partial<NodeRename>;
+    const type = item.type as NodeRename['type'];
+    if (!RENAME_TYPES.has(type)) return { valid: false, error: `invalid rename type at index ${index}` };
+    if ((type === 'replace' || type === 'regex') && !normalizeOptionalText(item.pattern)) {
+      return { valid: false, error: `rename pattern is required at index ${index}` };
+    }
+    if (type === 'regex' && !isValidRegex(item.pattern ?? '')) {
+      return { valid: false, error: `invalid rename regex at index ${index}` };
+    }
+    renames.push({
+      id: normalizeOptionalText(item.id) ?? `rename-${index}`,
+      type,
+      pattern: normalizeOptionalText(item.pattern),
+      replacement: item.replacement !== undefined ? String(item.replacement) : undefined,
+      enabled: item.enabled !== false,
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : index,
+    });
+  }
+  return { valid: true, value: renames };
+}
+
+function firstValue(value: string | string[]): string {
+  return Array.isArray(value) ? value[0] ?? '' : value;
+}
+
+function isValidRegex(pattern: string): boolean {
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export default app;

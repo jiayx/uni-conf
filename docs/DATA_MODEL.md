@@ -80,6 +80,8 @@ Manual node creation accepts either structured fields (`name`, `protocol`, `serv
 
 Generated node groups are regular `collections` plus one linked non-built-in `groups` row. Their `notes` start with `[uni-conf:auto-node-group]` and use the explicit marker format `country:{countryCode}:{type}` or `tag:{tagKey}:{type}`. There is no legacy marker compatibility.
 
+Collection writes validate the node filtering model before persistence. Names are required, `source_ids`, `node_ids`, and `sort_country_order` must be arrays of non-empty string IDs/country codes, `filters` must use supported fields and operators, regex filters and regex renames must compile, `dedup` and `sort` must be known strategies, and list filters are trimmed and de-duplicated. This keeps advanced manual node groups from corrupting the generated outlet pools used by default policy groups.
+
 ### `groups` — Proxy Strategy Groups
 
 | Column | Type | Description |
