@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapRule, newId, now } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
-import { getRuleCompatibility } from '@uni-conf/shared';
+import { getRuleCompatibility, RULE_COMPATIBILITY } from '@uni-conf/shared';
 import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -62,8 +62,11 @@ app.post('/batch', async (c) => {
   let nextOrder = (maxRow?.max_order ?? -1) + 1;
   const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB);
 
-  for (const rule of body.rules) {
-    if (!rule.type || !hasRequiredPayload(rule) || !rule.targetGroupId) continue;
+  for (const [index, rule] of body.rules.entries()) {
+    const error = validateRuleInput(rule);
+    if (error) {
+      return c.json({ success: false, error: `invalid rule at index ${index}: ${error}` }, 400);
+    }
     if (!enabledTargetGroupIds.has(rule.targetGroupId)) {
       return c.json({ success: false, error: `target group is disabled or missing: ${rule.targetGroupId}` }, 400);
     }
@@ -104,13 +107,14 @@ app.post('/batch', async (c) => {
 
 app.post('/', async (c) => {
   const body = await c.req.json<Partial<ProxyRule>>();
-  if (!body.type || !hasRequiredPayload(body) || !body.targetGroupId) {
-    return c.json(
-      { success: false, error: 'type, payload, and targetGroupId are required' },
-      400
-    );
+  const error = validateRuleInput(body);
+  if (error) {
+    return c.json({ success: false, error }, 400);
   }
-  if (!(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+  const ruleType = body.type as ProxyRule['type'];
+  const targetGroupId = body.targetGroupId as string;
+  const payload = body.payload ?? '';
+  if (!(await isEnabledTargetGroup(c.env.DB, targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
   }
 
@@ -129,14 +133,14 @@ app.post('/', async (c) => {
     .bind(
       id,
       body.name ?? null,
-      body.type,
-      body.payload ?? '',
+      ruleType,
+      payload,
       body.noResolve ? 1 : 0,
-      body.targetGroupId,
+      targetGroupId,
       body.enabled !== false ? 1 : 0,
       sortOrder,
       body.notes ?? null,
-      jsonStringify(getRuleCompatibility(body.type)),
+      jsonStringify(getRuleCompatibility(ruleType)),
       ts,
       ts
     )
@@ -172,6 +176,17 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<ProxyRule>>();
   const ts = now();
+  const nextType = (body.type ?? existing.type) as ProxyRule['type'];
+  const nextPayload = (body.payload ?? existing.payload) as string;
+  if (!isValidRuleType(nextType)) {
+    return c.json({ success: false, error: 'invalid rule type' }, 400);
+  }
+  if (!hasRequiredPayload({ type: nextType, payload: nextPayload })) {
+    return c.json({ success: false, error: 'payload is required unless type is MATCH' }, 400);
+  }
+  if (body.targetGroupId !== undefined && !isNonEmptyString(body.targetGroupId)) {
+    return c.json({ success: false, error: 'targetGroupId is required' }, 400);
+  }
   if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
   }
@@ -192,7 +207,7 @@ app.put('/:id', async (c) => {
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.order !== undefined ? body.order : existing.sort_order,
       body.notes !== undefined ? body.notes : existing.notes,
-      jsonStringify(getRuleCompatibility((body.type ?? existing.type) as ProxyRule['type'])),
+      jsonStringify(getRuleCompatibility(nextType)),
       ts,
       id
     )
@@ -218,6 +233,25 @@ app.delete('/:id', async (c) => {
 
 export default app;
 
+const RULE_TYPES: ReadonlySet<ProxyRule['type']> = new Set(
+  Object.keys(RULE_COMPATIBILITY) as ProxyRule['type'][]
+);
+
+export function isValidRuleType(value: unknown): value is ProxyRule['type'] {
+  return RULE_TYPES.has(value as ProxyRule['type']);
+}
+
+export function validateRuleInput(rule: Partial<ProxyRule>): string | null {
+  if (!isValidRuleType(rule.type)) return 'invalid rule type';
+  if (!hasRequiredPayload(rule)) return 'payload is required unless type is MATCH';
+  if (!isNonEmptyString(rule.targetGroupId)) return 'targetGroupId is required';
+  return null;
+}
+
 function hasRequiredPayload(rule: Pick<Partial<ProxyRule>, 'type' | 'payload'>): boolean {
   return rule.type === 'MATCH' || Boolean(rule.payload);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
 }

@@ -184,6 +184,8 @@ Export data applies the same rule again after resolving the final exported group
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
+Manual rules are an advanced override path. Writes validate `type` against the shared rule compatibility matrix, require a payload for every rule except `MATCH`, and require an enabled rule-target group. Batch imports fail fast on the first invalid row instead of silently dropping malformed rules.
+
 ### `remote_rule_sets` — Remote Rule Set References
 
 | Column | Type | Description |
