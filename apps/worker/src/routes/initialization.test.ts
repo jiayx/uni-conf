@@ -64,6 +64,21 @@ describe('zero-setup route initialization', () => {
     expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
     expect(getAppSettings).toHaveBeenCalledOnce()
   })
+
+  it('syncs automatic node groups and default rule sets after updating settings', async () => {
+    const db = createStatsDb()
+
+    const response = await settingsApp.request('/', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ routingPolicyTemplate: 'empty', dnsMode: 'smart' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(getAppSettings).toHaveBeenCalledTimes(2)
+  })
 })
 
 function createStatsDb(): D1Database {
