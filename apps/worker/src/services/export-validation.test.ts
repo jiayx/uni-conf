@@ -81,6 +81,33 @@ describe('export validation', () => {
     ]));
   });
 
+  it('warns when a policy group node collection has no exportable nodes', () => {
+    const warnings = validateExportData(makeExportData({
+      groups: [makeGroup('empty-auto', 'US Auto', [], { collectionIds: ['collection-us'] })],
+      collectionNodeNames: {},
+    }), 'mihomo');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      groupId: 'empty-auto',
+      level: 'partial',
+      message: expect.stringContaining('没有可导出的节点'),
+    }));
+  });
+
+  it('warns when a policy group references node names missing from the final proxies', () => {
+    const warnings = validateExportData(makeExportData({
+      nodes: [makeNode('node-1', 'HK 01')],
+      groups: [makeGroup('hk-auto', 'HK Auto', [], { collectionIds: ['collection-hk'] })],
+      collectionNodeNames: { 'collection-hk': ['HK 01', 'HK Missing'] },
+    }), 'mihomo');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      groupId: 'hk-auto',
+      level: 'unsupported',
+      message: expect.stringContaining('HK Missing'),
+    }));
+  });
+
   it('warns when MATCH is not the final rule', () => {
     const warnings = validateExportData(makeExportData({
       rules: [
@@ -281,7 +308,12 @@ function makeNode(id: string, name: string): ExportData['nodes'][number] {
   };
 }
 
-function makeGroup(id: string, name: string, groupIds: string[] = []): ExportData['groups'][number] {
+function makeGroup(
+  id: string,
+  name: string,
+  groupIds: string[] = [],
+  patch: Partial<ExportData['groups'][number]> = {}
+): ExportData['groups'][number] {
   return {
     id,
     name,
@@ -294,6 +326,7 @@ function makeGroup(id: string, name: string, groupIds: string[] = []): ExportDat
     isBuiltin: false,
     createdAt,
     updatedAt: createdAt,
+    ...patch,
   };
 }
 

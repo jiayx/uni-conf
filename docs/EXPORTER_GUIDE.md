@@ -75,7 +75,7 @@ Add focused worker tests for:
 - preview validation warnings
 - unsupported node/protocol filtering
 
-If UI compatibility behavior changes, also update the web compatibility tests. Snapshot-style checks are useful, but include structural assertions for references such as “every group member exists as a proxy, built-in policy, or emitted group”.
+If UI compatibility behavior changes, also update the web compatibility tests. Snapshot-style checks are useful, but include structural assertions for references such as “every group member exists as a proxy, built-in policy, or emitted group”. Worker preview validation should also warn when a node-backed policy group has no final exported nodes, or when its collection member names are not present in the final proxy / outbound list after filtering and renaming.
 
 ## Compatibility Matrix Reference
 

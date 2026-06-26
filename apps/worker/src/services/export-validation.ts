@@ -124,6 +124,7 @@ function emptyNodeExportWarning(format: ExportFormat): CompatibilityWarning {
 
 function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const groupIds = new Set(data.groups.map((group) => group.id));
+  const nodeNames = new Set(data.nodes.map((node) => node.name));
   const warnings: CompatibilityWarning[] = [];
   for (const group of data.groups) {
     for (const childId of group.groupIds) {
@@ -135,6 +136,31 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
         message: `策略组 "${group.name}" 引用了不存在或未导出的策略组 ${childId}`,
         messageEn: `Policy group "${group.name}" references a missing or non-exported group ${childId}.`,
       });
+    }
+
+    for (const collectionId of group.collectionIds) {
+      const memberNames = data.collectionNodeNames[collectionId] ?? [];
+      if (memberNames.length === 0) {
+        warnings.push({
+          groupId: group.id,
+          client: format,
+          level: 'partial',
+          message: `策略组 "${group.name}" 绑定的节点组 ${collectionId} 没有可导出的节点，导出时会回退到 DIRECT`,
+          messageEn: `Policy group "${group.name}" uses node group ${collectionId}, but it has no exportable nodes. The export will fall back to DIRECT.`,
+        });
+        continue;
+      }
+
+      for (const nodeName of memberNames) {
+        if (nodeNames.has(nodeName)) continue;
+        warnings.push({
+          groupId: group.id,
+          client: format,
+          level: 'unsupported',
+          message: `策略组 "${group.name}" 引用了不存在或未导出的节点 "${nodeName}"`,
+          messageEn: `Policy group "${group.name}" references missing or non-exported node "${nodeName}".`,
+        });
+      }
     }
   }
   return warnings;
