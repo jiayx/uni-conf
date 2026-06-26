@@ -37,6 +37,8 @@ The generator should accept:
 
 Use `apps/worker/src/generators/group-members.ts` for generic group member resolution when possible. For Mihomo-compatible YAML, remember that `DIRECT` and `REJECT` are client built-in policies; do not emit invalid `type: direct` or `type: reject` proxy-groups.
 
+Mihomo-compatible full configs should keep the zero-setup baseline aligned with the default smart template: `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`. Do not reintroduce separate `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
+
 ## Step 3: Wire Preview, Download, and Public Subscription
 
 Add the format branch in `apps/worker/src/generators/export-renderer.ts`. Worker routes must call that shared renderer instead of branching per route:

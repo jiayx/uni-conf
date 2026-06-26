@@ -111,6 +111,17 @@ const rejectGroup: ProxyGroup = {
 }
 
 describe('proxy group references', () => {
+  it('uses the default smart client baseline for Mihomo configs', () => {
+    const content = generateMihomoYaml([], [], [], [])
+
+    expect(content).toContain('mixed-port: 7890')
+    expect(content).toContain('allow-lan: false')
+    expect(content).toContain('mode: rule')
+    expect(content).toContain('log-level: warning')
+    expect(content).not.toContain('socks-port:')
+    expect(content).not.toContain('redir-port:')
+  })
+
   it('uses smart DNS mode by default for Mihomo configs', () => {
     const content = generateMihomoYaml([], [], [], [])
 

@@ -33,13 +33,11 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Basic settings ──────────────────────────────────────────────────────────
-  lines.push('port: 7890');
-  lines.push('socks-port: 7891');
-  lines.push('redir-port: 7892');
+  lines.push('mixed-port: 7890');
   lines.push('allow-lan: false');
   lines.push('bind-address: "*"');
   lines.push('mode: rule');
-  lines.push('log-level: info');
+  lines.push('log-level: warning');
   lines.push('ipv6: false');
   lines.push('external-controller: 127.0.0.1:9090');
   lines.push('');
