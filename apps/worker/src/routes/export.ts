@@ -4,7 +4,7 @@ import { buildExportData, getExportConfigById } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
-import { resolveExportWarnings } from '../services/export-validation'
+import { findEmptyNodeExportWarning, resolveExportWarnings } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import { EXPORT_SUBSCRIPTION_FORMATS, getExportSubscriptionFilename } from '@uni-conf/shared'
@@ -170,6 +170,10 @@ exportRouter.get('/download/:format', async (c) => {
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config)
+  const blockingWarning = findEmptyNodeExportWarning(exportData, format)
+  if (blockingWarning) {
+    return c.json({ success: false, error: blockingWarning.message, warnings: [blockingWarning] }, 409)
+  }
   const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
   if (!rendered) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)

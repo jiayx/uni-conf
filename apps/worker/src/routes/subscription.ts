@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
+import { findEmptyNodeExportWarning } from '../services/export-validation'
 import type { Env } from '../types'
 import { getExportFormatFromSubscriptionFilename } from '@uni-conf/shared'
 import type { ProxySource } from '@uni-conf/types'
@@ -33,6 +34,17 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
 
   const exportData = await buildExportData(c.env.DB, config)
   const settings = await getAppSettings(c.env.DB)
+  const blockingWarning = findEmptyNodeExportWarning(exportData, format)
+  if (blockingWarning) {
+    return new Response(`# ${blockingWarning.message}\n`, {
+      status: 409,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Subscription-Userinfo': buildSubscriptionUserInfoHeader(exportData.sources),
+      },
+    })
+  }
   const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
   if (!rendered) {
     return new Response(`# Unknown format: ${filename}\n`, { status: 400 })

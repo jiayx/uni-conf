@@ -42,6 +42,15 @@ export function validateExportReadiness(data: ExportData, format: ExportFormat):
   ];
 }
 
+export function findEmptyNodeExportWarning(
+  data: ExportData,
+  format: ExportFormat
+): CompatibilityWarning | null {
+  return data.nodes.length === 0
+    ? emptyNodeExportWarning(format)
+    : null;
+}
+
 export function validateExportCompatibility(
   data: ExportData,
   format: ExportFormat,
@@ -84,12 +93,7 @@ function validateSources(data: ExportData, format: ExportFormat): CompatibilityW
 function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const warnings: CompatibilityWarning[] = [];
   if (data.nodes.length === 0) {
-    warnings.push({
-      client: format,
-      level: 'unsupported',
-      message: '没有可导出的节点，请先刷新订阅或检查节点过滤条件',
-      messageEn: 'No nodes are available for export. Refresh subscriptions or check node filters.',
-    });
+    warnings.push(emptyNodeExportWarning(format));
     return warnings;
   }
 
@@ -107,6 +111,15 @@ function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWar
     });
   }
   return warnings;
+}
+
+function emptyNodeExportWarning(format: ExportFormat): CompatibilityWarning {
+  return {
+    client: format,
+    level: 'unsupported',
+    message: '没有可导出的节点，请先刷新订阅或检查节点过滤条件',
+    messageEn: 'No nodes are available for export. Refresh subscriptions or check node filters.',
+  };
 }
 
 function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWarning[] {

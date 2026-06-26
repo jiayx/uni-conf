@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportData } from '../export-data';
-import { resolveExportWarnings, validateExportData } from './export-validation';
+import { findEmptyNodeExportWarning, resolveExportWarnings, validateExportData } from './export-validation';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -14,6 +14,15 @@ describe('export validation', () => {
     expect(warnings).not.toContainEqual(expect.objectContaining({
       message: expect.stringContaining('缺少 MATCH'),
     }));
+  });
+
+  it('exposes empty node exports as a blocking download condition', () => {
+    expect(findEmptyNodeExportWarning(makeExportData({ nodes: [] }), 'mihomo')).toEqual(expect.objectContaining({
+      client: 'mihomo',
+      level: 'unsupported',
+      message: expect.stringContaining('没有可导出的节点'),
+    }));
+    expect(findEmptyNodeExportWarning(makeExportData(), 'mihomo')).toBeNull();
   });
 
   it('does not warn when MATCH is omitted because exporters add the fallback', () => {
