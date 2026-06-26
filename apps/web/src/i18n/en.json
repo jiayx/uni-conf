@@ -265,7 +265,7 @@
     "step1": "Paste Subscription URL",
     "step2": "Auto Generate Config",
     "step3": "Copy Default Link",
-    "no_data": "Paste one or more subscription URLs; node groups, policy groups, rules, and export config are prepared automatically",
+    "no_data": "Paste one or more subscription URLs; node groups, routing policies, rules, and export config are prepared automatically",
     "no_usable_nodes": "There are no exportable nodes yet. Add or replace a subscription URL to continue.",
     "source_refresh_failed": "Source saved, but refresh failed: {{error}}",
     "step1_desc": "Paste airport or self-hosted subscription URLs, one per line",

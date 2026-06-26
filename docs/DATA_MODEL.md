@@ -80,7 +80,7 @@ Manual node writes validate the runtime shape before persistence. Protocols must
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
-Generated node groups are regular `collections` plus one linked non-built-in `groups` row. Their `notes` start with `[uni-conf:auto-node-group]` and use the explicit marker format `country:{countryCode}:{type}` or `tag:{tagKey}:{type}`. There is no legacy marker compatibility.
+Generated node groups are regular `collections` plus one node-backed outlet `groups` row. Product UI treats the pair as one node group outlet; users do not manually link a collection to a policy group. Generated collection `notes` start with `[uni-conf:auto-node-group]` and use the explicit marker format `country:{countryCode}:{type}` or `tag:{tagKey}:{type}`. There is no legacy marker compatibility.
 
 Collection writes validate the node filtering model before persistence. Names are required, `source_ids`, `node_ids`, and `sort_country_order` must be arrays of non-empty string IDs/country codes, `filters` must use supported fields and operators, regex filters and regex renames must compile, `dedup` and `sort` must be known strategies, and list filters are trimmed and de-duplicated. This keeps advanced manual node groups from corrupting the generated outlet pools used by default policy groups.
 
@@ -104,7 +104,7 @@ Collection writes validate the node filtering model before persistence. Names ar
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
-Newly generated built-in groups, auto node groups, and UI-created linked node groups use `DEFAULT_HEALTH_CHECK` from `@uni-conf/shared`:
+Newly generated built-in groups, auto node group outlets, and UI-created node group outlets use `DEFAULT_HEALTH_CHECK` from `@uni-conf/shared`:
 
 ```text
 testUrl: http://www.gstatic.com/generate_204
@@ -407,7 +407,7 @@ US - Airport A - 02
 Other - Manual - 01
 ```
 
-`collectionNodeNames` is built from the rewritten names, so generated policy groups reference the same names that appear in the exported `proxies` / `outbounds` list.
+`collectionNodeNames` is built from the rewritten names, so node-backed outlet groups reference the same names that appear in the exported `proxies` / `outbounds` list.
 
 ### ClientCompatibility (stored in `rules.compatibility`)
 ```json
