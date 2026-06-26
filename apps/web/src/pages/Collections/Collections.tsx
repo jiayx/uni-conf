@@ -13,6 +13,12 @@ import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { useSettingsStore } from '@/store/settings.store'
 import { api } from '@/lib/api'
+import {
+  buildSourceGroupSuggestions,
+  makeSourceNodeGroupMarker,
+  mapUpstreamGroupType,
+  parseSourceNodeGroupMarker,
+} from '@/core/collections/source-group-suggestions'
 import { AUTO_NODE_GROUP_PREFIX, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
 import type {
   DedupStrategy,
@@ -23,7 +29,6 @@ import type {
   NodeRename,
   ProxyNode,
   ProxySource,
-  SourceNodeGroup,
   SortStrategy,
 } from '@uni-conf/types'
 import styles from './Collections.module.css'
@@ -36,8 +41,6 @@ const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; label: string; s
   { value: 'url-test', label: '自动测速', suffix: 'Auto' },
   { value: 'fallback', label: '故障转移', suffix: 'Fallback' },
 ]
-const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]'
-
 const FILTER_FIELDS: Array<{ value: NodeFilter['field']; label: string }> = [
   { value: 'name', label: '名称' },
   { value: 'server', label: '服务器' },
@@ -858,76 +861,6 @@ function parseAutoNodeGroupMarker(notes?: string): AutoNodeGroupMarker | null {
 
 function isAutoNodeGroup(collection: NodeCollection): boolean {
   return parseAutoNodeGroupMarker(collection.notes) !== null
-}
-
-interface SourceGroupSuggestion {
-  key: string
-  sourceId: string
-  sourceName: string
-  groupName: string
-  name: string
-  group: SourceNodeGroup
-  nodeIds: string[]
-  exists: boolean
-}
-
-function buildSourceGroupSuggestions(
-  sources: ProxySource[],
-  nodes: ProxyNode[],
-  collections: NodeCollection[],
-): SourceGroupSuggestion[] {
-  const nodesBySourceAndName = new Map<string, ProxyNode>()
-  for (const node of nodes) {
-    nodesBySourceAndName.set(makeSourceNodeKey(node.sourceId, node.name), node)
-  }
-
-  const existingMarkers = new Set(
-    collections
-      .map(collection => parseSourceNodeGroupMarker(collection.notes))
-      .filter((marker): marker is string => Boolean(marker))
-  )
-
-  return sources.flatMap(source => (source.groups ?? []).map(group => {
-    const key = makeSourceNodeGroupKey(source.id, group.name)
-    const nodeIds = group.memberNames
-      .map(name => nodesBySourceAndName.get(makeSourceNodeKey(source.id, name))?.id)
-      .filter((id): id is string => Boolean(id))
-
-    return {
-      key,
-      sourceId: source.id,
-      sourceName: source.name,
-      groupName: group.name,
-      name: `${source.name} / ${group.name}`,
-      group,
-      nodeIds,
-      exists: existingMarkers.has(key),
-    }
-  })).sort((a, b) => a.sourceName.localeCompare(b.sourceName) || a.groupName.localeCompare(b.groupName))
-}
-
-function makeSourceNodeKey(sourceId: string, nodeName: string): string {
-  return `${sourceId}\n${nodeName}`
-}
-
-function makeSourceNodeGroupKey(sourceId: string, groupName: string): string {
-  return `${sourceId}:${encodeURIComponent(groupName)}`
-}
-
-function makeSourceNodeGroupMarker(sourceId: string, groupName: string): string {
-  return `${SOURCE_NODE_GROUP_PREFIX} ${makeSourceNodeGroupKey(sourceId, groupName)}`
-}
-
-function parseSourceNodeGroupMarker(notes?: string): string | null {
-  if (!notes?.startsWith(SOURCE_NODE_GROUP_PREFIX)) return null
-  return notes.slice(SOURCE_NODE_GROUP_PREFIX.length).trim() || null
-}
-
-function mapUpstreamGroupType(type?: string): GeneratedGroupType {
-  const normalized = type?.toLowerCase()
-  if (normalized === 'select' || normalized === 'selector') return 'select'
-  if (normalized === 'fallback') return 'fallback'
-  return 'url-test'
 }
 
 function isGeneratedGroupType(value: string | undefined): value is GeneratedGroupType {
