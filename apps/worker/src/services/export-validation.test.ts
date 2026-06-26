@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportData } from '../export-data';
-import { findEmptyNodeExportWarning, resolveExportWarnings, validateExportData } from './export-validation';
+import { findBlockingNodeExportWarning, findEmptyNodeExportWarning, resolveExportWarnings, validateExportData } from './export-validation';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -23,6 +23,20 @@ describe('export validation', () => {
       message: expect.stringContaining('没有可导出的节点'),
     }));
     expect(findEmptyNodeExportWarning(makeExportData(), 'mihomo')).toBeNull();
+  });
+
+  it('blocks downloads when no node protocol can be rendered for the target format', () => {
+    expect(findBlockingNodeExportWarning(makeExportData({
+      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+    }), 'mihomo')).toEqual(expect.objectContaining({
+      client: 'mihomo',
+      level: 'unsupported',
+      message: expect.stringContaining('没有可导出到 mihomo 的节点'),
+    }));
+
+    expect(findBlockingNodeExportWarning(makeExportData({
+      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+    }), 'singbox')).toBeNull();
   });
 
   it('does not warn when MATCH is omitted because exporters add the fallback', () => {

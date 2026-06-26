@@ -58,6 +58,18 @@ export function findEmptyNodeExportWarning(
     : null;
 }
 
+export function findBlockingNodeExportWarning(
+  data: ExportData,
+  format: ExportFormat
+): CompatibilityWarning | null {
+  const emptyWarning = findEmptyNodeExportWarning(data, format);
+  if (emptyWarning) return emptyWarning;
+
+  return data.nodes.some((node) => isNodeProtocolSupportedByExport(node.protocol, format))
+    ? null
+    : noSupportedNodeExportWarning(format);
+}
+
 export function validateExportCompatibility(
   data: ExportData,
   format: ExportFormat,
@@ -131,6 +143,15 @@ function emptyNodeExportWarning(format: ExportFormat): CompatibilityWarning {
     level: 'unsupported',
     message: '没有可导出的节点，请先刷新订阅或检查节点过滤条件',
     messageEn: 'No nodes are available for export. Refresh subscriptions or check node filters.',
+  };
+}
+
+function noSupportedNodeExportWarning(format: ExportFormat): CompatibilityWarning {
+  return {
+    client: format,
+    level: 'unsupported',
+    message: `没有可导出到 ${format} 的节点，当前节点协议均不受该客户端导出器支持`,
+    messageEn: `No nodes can be exported to ${format}. All current node protocols are unsupported by this exporter.`,
   };
 }
 

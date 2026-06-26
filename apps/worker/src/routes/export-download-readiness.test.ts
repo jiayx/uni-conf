@@ -74,6 +74,37 @@ describe('export download readiness', () => {
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
+  it('blocks authenticated downloads when all nodes are unsupported by the target exporter', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [
+        {
+          id: 'node-wireguard',
+          sourceId: 'source-1',
+          name: 'WG 01',
+          protocol: 'wireguard',
+          server: 'wg.example.com',
+          port: 51820,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig: { protocol: 'wireguard', server: 'wg.example.com', port: 51820, extra: {} },
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const response = await exportRouter.request('/download/mihomo', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('没有可导出到 mihomo 的节点'),
+    })
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
   it('blocks public subscriptions when no nodes are exportable', async () => {
     const db = createMockDb()
     const response = await subscriptionRouter.request('/sub/token/mihomo.yaml', {}, { DB: db })
@@ -82,6 +113,34 @@ describe('export download readiness', () => {
     await expect(response.text()).resolves.toContain('没有可导出的节点')
     expect(response.headers.get('Subscription-Userinfo')).toBe('upload=0; download=0; total=10737418240; expire=4099680000')
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('blocks public subscriptions when all nodes are unsupported by the target exporter', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [
+        {
+          id: 'node-wireguard',
+          sourceId: 'source-1',
+          name: 'WG 01',
+          protocol: 'wireguard',
+          server: 'wg.example.com',
+          port: 51820,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig: { protocol: 'wireguard', server: 'wg.example.com', port: 51820, extra: {} },
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const response = await subscriptionRouter.request('/sub/token/mihomo.yaml', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(409)
+    await expect(response.text()).resolves.toContain('没有可导出到 mihomo 的节点')
     expect(renderExportData).not.toHaveBeenCalled()
   })
 })
