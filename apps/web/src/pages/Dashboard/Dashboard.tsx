@@ -94,9 +94,12 @@ export function Dashboard() {
         .map(result => result.value)
       const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
       const refreshFailure = successes.find(result => result.refreshError)
+      const failedUrls = results.flatMap((result, index) => result.status === 'rejected' ? [urls[index]] : [])
 
       if (failures.length === 0) {
         setSourceUrl('')
+      } else {
+        setSourceUrl(failedUrls.filter(Boolean).join('\n'))
       }
       if (failures.length > 0) {
         setSourceError(`${failures.length} 个订阅源保存失败：${failures[0]?.reason instanceof Error ? failures[0].reason.message : 'unknown error'}`)
