@@ -15,6 +15,7 @@ export function Preview() {
   const [content, setContent] = useState('')
   const [contentType, setContentType] = useState('')
   const [warnings, setWarnings] = useState<CompatibilityWarning[]>([])
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -34,15 +35,17 @@ export function Preview() {
 
   const handlePreview = useCallback(async () => {
     setLoading(true)
+    setPreviewError(null)
     try {
       const result = await api.export.previewFormat(format, configId || undefined)
       setContent(result.content)
       setContentType(result.contentType)
       setWarnings(result.warnings ?? [])
     } catch (e) {
-      setContent(`# Error: ${(e as Error).message}`)
-      setContentType('text/plain')
+      setContent('')
+      setContentType('')
       setWarnings([])
+      setPreviewError((e as Error).message)
     } finally { setLoading(false) }
   }, [configId, format])
 
@@ -86,6 +89,12 @@ export function Preview() {
           )}
         </div>
       </div>
+      {previewError && (
+        <div className={styles.error}>
+          <strong>{t('preview.error')}</strong>
+          <span>{previewError}</span>
+        </div>
+      )}
       {content ? (
         <>
           <div className={styles.meta}>
@@ -101,14 +110,14 @@ export function Preview() {
               ))}
             </div>
           )}
-          {!loading && warnings.length === 0 && (
+          {!loading && !previewError && warnings.length === 0 && (
             <div className={`${styles.warning} ${styles.full}`}>{t('preview.no_warnings')}</div>
           )}
           <pre className={styles.code}>{content}</pre>
         </>
       ) : (
         <div className={styles.empty}>
-          <div className={styles.emptyText}>{loading ? '正在生成配置...' : '暂无预览内容'}</div>
+          <div className={styles.emptyText}>{loading ? t('preview.generating') : t('preview.empty')}</div>
         </div>
       )}
     </div>

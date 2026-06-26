@@ -219,7 +219,9 @@
     "line_count": "共 {{count}} 行",
     "copy_success": "配置已复制",
     "no_warnings": "无兼容性问题",
-    "generating": "正在生成配置..."
+    "generating": "正在生成配置...",
+    "empty": "暂无预览内容",
+    "error": "预览生成失败"
   },
   "settings": {
     "title": "设置",
