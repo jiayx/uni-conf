@@ -269,6 +269,7 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
   } catch (err) {
     throw new SourceRefreshError(`Failed to fetch URL: ${String(err)}`, 502);
   }
+  await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, now());
 
   // Detect format and parse nodes
   const sourceFormat = isValidSourceFormat(row.format) ? row.format : 'auto';
@@ -436,6 +437,40 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
 export async function recordSourceRefreshError(db: D1Database, id: string, error: string): Promise<void> {
   await db.prepare('UPDATE sources SET last_refresh_error = ?, updated_at = ? WHERE id = ?')
     .bind(error, now(), id)
+    .run();
+}
+
+async function cacheFetchedSourceContent(
+  db: D1Database,
+  id: string,
+  rawContent: string,
+  subscriptionInfo: {
+    uploadBytes?: number;
+    downloadBytes?: number;
+    totalBytes?: number;
+    expireTime?: number;
+  },
+  ts: string
+): Promise<void> {
+  await db.prepare(
+    `UPDATE sources SET
+      raw_content = ?,
+      upload_bytes = ?,
+      download_bytes = ?,
+      total_bytes = ?,
+      expire_time = ?,
+      updated_at = ?
+     WHERE id = ?`
+  )
+    .bind(
+      rawContent,
+      subscriptionInfo.uploadBytes ?? null,
+      subscriptionInfo.downloadBytes ?? null,
+      subscriptionInfo.totalBytes ?? null,
+      subscriptionInfo.expireTime ?? null,
+      ts,
+      id
+    )
     .run();
 }
 

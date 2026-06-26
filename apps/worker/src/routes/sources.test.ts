@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import {
   deriveSourceName,
@@ -9,7 +9,9 @@ import {
   isValidSourceType,
   parseClashGroups,
   parseClashYaml,
+  refreshSourceById,
   resolveSourceNameInput,
+  SourceRefreshError,
   validateSourceMutableFields,
 } from './sources'
 
@@ -41,6 +43,10 @@ proxy-groups:
 `
 
 describe('Clash YAML Parser', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('derives source names from subscription URLs', () => {
     expect(deriveSourceName('https://www.example.com/api/sub?token=abc')).toBe('example.com')
     expect(deriveSourceName('https://airport.example/sub')).toBe('airport.example')
@@ -346,4 +352,72 @@ proxies:
     // Should return empty array instead of throwing
     expect(Array.isArray(nodes)).toBe(true)
   })
+
+  it('caches fetched raw subscription content before parse validation fails', async () => {
+    const db = createRefreshMockDb()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: (name: string) => name === 'subscription-userinfo' ? 'upload=10; download=20; total=100; expire=1893456000' : null },
+      text: async () => 'this is not a supported proxy subscription yet',
+    })))
+
+    await expect(refreshSourceById(db, 'source-1')).rejects.toMatchObject({
+      message: expect.stringContaining('No usable proxy nodes parsed'),
+      status: 422,
+    } satisfies Partial<SourceRefreshError>)
+
+    expect(db.operations).toContainEqual({
+      operation: 'cache-raw-content',
+      rawContent: 'this is not a supported proxy subscription yet',
+      uploadBytes: 10,
+      downloadBytes: 20,
+      totalBytes: 100,
+      expireTime: 1893456000,
+      id: 'source-1',
+    })
+  })
 })
+
+function createRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
+  const operations: Array<Record<string, unknown>> = []
+  return {
+    operations,
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
+            return {
+              id: args[0],
+              url: 'https://example.com/sub',
+              format: 'auto',
+              user_agent: null,
+            }
+          }
+          return null
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          if (sql.includes('raw_content = ?')) {
+            operations.push({
+              operation: 'cache-raw-content',
+              rawContent: args[0],
+              uploadBytes: args[1],
+              downloadBytes: args[2],
+              totalBytes: args[3],
+              expireTime: args[4],
+              id: args[6],
+            })
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
+}

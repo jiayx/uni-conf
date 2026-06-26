@@ -337,6 +337,8 @@ Subscription refresh returns counts for the default node cleanup pipeline:
 
 Source writes validate `type`, `format`, URL shape, refresh interval, and tags before persistence. URL sources must use an `http` or `https` subscription URL and are stored after trimming surrounding whitespace. Source formats are limited to the supported parser set (`auto`, Clash/Mihomo, sing-box, base64, Surge, Loon, Quantumult X, Shadowrocket, or raw URI lines), `update_interval` must be a non-negative integer, and `tags` must be a string array that is trimmed and de-duplicated. Invalid input is rejected before it can break scheduled refresh or default export generation.
 
+Refresh caches fetched `raw_content` and `subscription-userinfo` immediately after a successful HTTP response, before node parsing validates usable proxies. This preserves complete upstream configs for future parser/export reuse even when the current parser cannot yet turn the content into usable nodes.
+
 During refresh, `format = auto` uses content detection. Any explicit source format is treated as a parser hint and is tried first: Clash/Mihomo as YAML, sing-box as JSON, base64 as encoded URI lines, and raw/client-line formats as URI lines. This keeps the advanced format selector meaningful while preserving the one-link default path.
 
 The response data is:
