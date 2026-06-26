@@ -8,12 +8,15 @@ import type {
   ProxyRule,
   RemoteRuleSet,
   ExportConfig,
+  ExportFormat,
   SourceRefreshResult,
   ExportResult,
   DashboardStats,
   AppSettings,
   PaginatedResponse,
 } from '@uni-conf/types'
+import { parseContentDispositionFilename, type ExportDownloadFile } from '@/core/export/download-file'
+import { getExportSubscriptionFilename, type ExportSubscriptionFormat } from '@uni-conf/shared'
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
@@ -184,11 +187,33 @@ const exportApi = {
   resetToken: (id: string): Promise<ExportConfig> => post(`/export/configs/${id}/reset-token`),
   previewFormat: (format: string, configId?: string): Promise<ExportResult> =>
     get(`/export/preview/${format}${configId ? `?configId=${configId}` : ''}`),
-  downloadFormat: (format: string, configId?: string): Promise<Blob> =>
-    fetch(
+  downloadFormat: async (format: ExportFormat, configId?: string): Promise<ExportDownloadFile> => {
+    const res = await fetch(
       `${BASE}/export/download/${format}${configId ? `?configId=${configId}` : ''}`,
       { method: 'GET' }
-    ).then(r => r.blob()),
+    )
+    if (!res.ok) throw new Error(await readDownloadError(res))
+    const fallback = getExportSubscriptionFilename(format as ExportSubscriptionFormat)
+    return {
+      blob: await res.blob(),
+      filename: parseContentDispositionFilename(res.headers.get('content-disposition'), fallback),
+    }
+  },
+}
+
+async function readDownloadError(res: Response): Promise<string> {
+  const contentType = res.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    try {
+      const json = await res.json() as { error?: string }
+      if (json.error) return json.error
+    } catch {
+      return 'Download failed'
+    }
+  }
+
+  const text = await res.text()
+  return text.replace(/^#\s*/, '').trim() || 'Download failed'
 }
 
 // ============================================================

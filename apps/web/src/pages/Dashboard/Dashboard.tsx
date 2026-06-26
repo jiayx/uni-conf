@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
+import { saveExportDownload } from '@/core/export/download-file'
 import { api } from '@/lib/api'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
 import type { DashboardStats } from '@uni-conf/types'
@@ -23,6 +24,8 @@ export function Dashboard() {
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [creatingSource, setCreatingSource] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null)
 
   const loadStats = async () => {
     const nextStats = await api.dashboard.stats()
@@ -114,12 +117,25 @@ export function Dashboard() {
     }
   }
 
+  const downloadQuickExport = async (format: typeof QUICK_EXPORT_OPTIONS[number]['value']) => {
+    setDownloadingFormat(format)
+    setDownloadError(null)
+    try {
+      saveExportDownload(await api.export.downloadFormat(format))
+    } catch (e) {
+      setDownloadError((e as Error).message)
+    } finally {
+      setDownloadingFormat(null)
+    }
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader title={t('dashboard.title')} description="UniConf — Manage once, export everywhere." />
 
       {error && <div className={styles.error}>{error}</div>}
       {sourceError && <div className={styles.inlineError}>{sourceError}</div>}
+      {downloadError && <div className={styles.inlineError}>{downloadError}</div>}
 
       {/* Stats */}
       <div className={styles.statsGrid}>
@@ -183,7 +199,8 @@ export function Dashboard() {
                 key={item.value}
                 variant="secondary"
                 size="sm"
-                onClick={() => window.open(`/api/export/download/${item.value}`, '_blank')}
+                loading={downloadingFormat === item.value}
+                onClick={() => void downloadQuickExport(item.value)}
               >
                 {item.label}
               </Button>

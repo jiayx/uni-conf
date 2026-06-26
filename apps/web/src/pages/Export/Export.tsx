@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
+import { saveExportDownload } from '@/core/export/download-file'
 import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
@@ -48,6 +49,8 @@ export function Export() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ExportForm>(EMPTY_FORM)
   const [copied, setCopied] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -122,6 +125,18 @@ export function Export() {
     await load()
   }
 
+  const handleDownload = async (config: ExportConfig) => {
+    setDownloadingId(config.id)
+    setDownloadError(null)
+    try {
+      saveExportDownload(await api.export.downloadFormat(config.format, config.id))
+    } catch (e) {
+      setDownloadError((e as Error).message)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   const copyUrl = (url: string, id: string) => {
     void navigator.clipboard.writeText(url)
     setCopied(id)
@@ -145,6 +160,7 @@ export function Export() {
         title={t('export.title')}
         actions={<Button onClick={openCreate} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}>{t('export.new_config')}</Button>}
       />
+      {downloadError && <div className={styles.error}>{downloadError}</div>}
       {loading ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : configs.length === 0 ? (
@@ -172,7 +188,8 @@ export function Export() {
                     </Button>
                     <Button
                       variant="secondary" size="sm"
-                      onClick={() => window.open(`/api/export/download/${cfg.format}?configId=${cfg.id}`, '_blank')}
+                      loading={downloadingId === cfg.id}
+                      onClick={() => void handleDownload(cfg)}
                     >{t('common.download')}</Button>
                     <Button variant="danger" size="sm" onClick={() => void handleDelete(cfg.id)}>
                       {t('common.delete')}

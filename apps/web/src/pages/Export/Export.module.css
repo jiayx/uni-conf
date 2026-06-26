@@ -1,5 +1,6 @@
 .page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeIn var(--transition-normal) ease; }
 .loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
+.error { padding: 0.75rem 1rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.875rem; line-height: 1.45; }
 .list { display: flex; flex-direction: column; gap: 1rem; }
 .configCard { display: flex; flex-direction: column; gap: 1rem; }
 .configHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
