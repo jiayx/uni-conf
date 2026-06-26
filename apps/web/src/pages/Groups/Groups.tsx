@@ -10,7 +10,12 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
-import { DEFAULT_HEALTH_CHECK, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import {
+  DEFAULT_HEALTH_CHECK,
+  GLOBAL_NODE_OUTLET_GROUP_IDS,
+  ROUTING_POLICY_TEMPLATES,
+  RULE_TARGET_FOUNDATION_GROUP_IDS,
+} from '@uni-conf/shared'
 import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
@@ -25,16 +30,10 @@ const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning
   direct: 'default',
   reject: 'error',
 }
-
-const FOUNDATION_GROUP_IDS = [
-  'builtin-proxy',
-  'builtin-direct',
-  'builtin-reject',
-  'builtin-all-nodes',
-  'builtin-node-select',
-  'builtin-auto-select',
-  'builtin-fallback-select',
-]
+const DEFAULT_OUTLET_GROUP_ID_SET = new Set<string>([
+  ...RULE_TARGET_FOUNDATION_GROUP_IDS,
+  ...GLOBAL_NODE_OUTLET_GROUP_IDS,
+])
 
 function createEmptyForm(order: number): GroupForm {
   return {
@@ -73,10 +72,23 @@ export function Groups() {
     () => groups.filter(group => (isRoutingPolicyGroup(group) && group.enabled) || isCustomRoutingGroup(group)),
     [groups]
   )
-  const foundationGroups = useMemo(
-    () => FOUNDATION_GROUP_IDS
-      .map(id => groups.find(group => group.id === id))
-      .filter((group): group is ProxyGroup => Boolean(group)),
+  const foundationSections = useMemo(
+    () => [
+      {
+        title: '规则基础目标',
+        description: '规则可以直接命中，用于默认代理、直连和拒绝。',
+        groups: RULE_TARGET_FOUNDATION_GROUP_IDS
+          .map(id => groups.find(group => group.id === id))
+          .filter((group): group is ProxyGroup => Boolean(group)),
+      },
+      {
+        title: '全局节点出口',
+        description: '作为业务分流组里的出口候选，不直接作为规则目标。',
+        groups: GLOBAL_NODE_OUTLET_GROUP_IDS
+          .map(id => groups.find(group => group.id === id))
+          .filter((group): group is ProxyGroup => Boolean(group)),
+      },
+    ].filter(section => section.groups.length > 0),
     [groups]
   )
   const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate)
@@ -245,25 +257,33 @@ export function Groups() {
           )}
         </div>
       </section>
-      {foundationGroups.length > 0 && (
+      {foundationSections.length > 0 && (
         <section className={styles.foundationPanel}>
           <div className={styles.foundationHeader}>
             <div>
               <div className={styles.foundationTitle}>基础出口</div>
-              <div className={styles.foundationMeta}>始终存在，用作规则目标或分流组候选；业务分流策略组会自动包含这些出口。</div>
+              <div className={styles.foundationMeta}>始终存在；业务分流策略组会自动包含这些基础目标和节点出口。</div>
             </div>
           </div>
-          <div className={styles.foundationGrid}>
-            {foundationGroups.map(group => (
-              <div key={group.id} className={styles.foundationItem}>
-                <div className={styles.foundationItemTop}>
-                  <span className={styles.foundationName}>{group.name}</span>
-                  <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
-                </div>
-                <div className={styles.foundationSummary}>{describeFoundationGroup(group)}</div>
+          {foundationSections.map(section => (
+            <div key={section.title} className={styles.foundationSection}>
+              <div className={styles.foundationSectionHeader}>
+                <div className={styles.foundationSectionTitle}>{section.title}</div>
+                <div className={styles.foundationSectionDesc}>{section.description}</div>
               </div>
-            ))}
-          </div>
+              <div className={styles.foundationGrid}>
+                {section.groups.map(group => (
+                  <div key={group.id} className={styles.foundationItem}>
+                    <div className={styles.foundationItemTop}>
+                      <span className={styles.foundationName}>{group.name}</span>
+                      <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
+                    </div>
+                    <div className={styles.foundationSummary}>{describeFoundationGroup(group)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
       )}
       {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
@@ -372,15 +392,7 @@ function isOutletGroup(group: ProxyGroup): boolean {
 }
 
 function isDefaultOutletGroup(group: ProxyGroup): boolean {
-  return [
-    'builtin-proxy',
-    'builtin-direct',
-    'builtin-reject',
-    'builtin-all-nodes',
-    'builtin-node-select',
-    'builtin-auto-select',
-    'builtin-fallback-select',
-  ].includes(group.id)
+  return DEFAULT_OUTLET_GROUP_ID_SET.has(group.id)
 }
 
 function isRoutingPolicyGroup(group: ProxyGroup): boolean {
