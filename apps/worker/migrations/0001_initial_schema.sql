@@ -172,7 +172,7 @@ INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES ('singleton', datetim
 
 -- Insert default builtin groups
 INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtins, enabled, sort_order, is_builtin, created_at, updated_at) VALUES
-  ('builtin-proxy',     'PROXY',     'select',   '[]', '[]', '["DIRECT"]', 1, 0,  1, datetime('now'), datetime('now')),
+  ('builtin-proxy',     'PROXY',     'select',   '[]', '[]', '[]',         1, 0,  1, datetime('now'), datetime('now')),
   ('builtin-ai',        'AI',        'select',   '[]', '["builtin-proxy"]', '[]', 1, 1,  1, datetime('now'), datetime('now')),
   ('builtin-streaming', 'Streaming', 'select',   '[]', '["builtin-proxy"]', '[]', 1, 2,  1, datetime('now'), datetime('now')),
   ('builtin-telegram',  'Telegram',  'select',   '[]', '["builtin-proxy"]', '[]', 1, 3,  1, datetime('now'), datetime('now')),

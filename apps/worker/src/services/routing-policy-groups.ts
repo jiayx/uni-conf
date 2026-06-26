@@ -186,7 +186,7 @@ function tagGroupKeyFromGroup(row: GroupRow | undefined): string | undefined {
 }
 
 async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise<void> {
-  const statements = DEFAULT_GENERATED_GROUPS.map((group) =>
+  const insertStatements = DEFAULT_GENERATED_GROUPS.map((group) =>
     db.prepare(
       `INSERT OR IGNORE INTO groups
         (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
@@ -205,8 +205,37 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
       ts
     )
   );
+  const canonicalStatements = DEFAULT_GENERATED_GROUPS.map((group) =>
+    db.prepare(
+      `UPDATE groups SET
+        name = ?,
+        type = ?,
+        collection_ids = '[]',
+        builtins = ?,
+        test_url = ?,
+        interval = ?,
+        tolerance = ?,
+        lazy = ?,
+        sort_order = ?,
+        is_builtin = 1,
+        updated_at = ?
+       WHERE id = ?`
+    ).bind(
+      group.name,
+      group.type,
+      jsonStringify(group.builtins),
+      DEFAULT_HEALTH_CHECK.testUrl,
+      DEFAULT_HEALTH_CHECK.interval,
+      DEFAULT_HEALTH_CHECK.tolerance,
+      DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
+      group.sortOrder,
+      ts,
+      group.id
+    )
+  );
 
-  await db.batch(statements);
+  await db.batch(insertStatements);
+  await db.batch(canonicalStatements);
 }
 
 async function applyActiveTemplate(db: D1Database, ts: string): Promise<void> {

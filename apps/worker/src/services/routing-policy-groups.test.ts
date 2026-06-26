@@ -337,7 +337,7 @@ describe('routing policy group sync', () => {
     ]);
   });
 
-  it('creates PROXY without a hard-coded DIRECT builtin while preserving native foundation outlets', async () => {
+  it('normalizes foundation outlet builtins to the canonical model', async () => {
     const batches: Array<Array<{ sql: string; args: unknown[] }>> = [];
     const db = createSyncMockDb(batches);
 
@@ -347,10 +347,17 @@ describe('routing policy group sync', () => {
       .flat()
       .filter((statement) => statement.sql.includes('INSERT OR IGNORE INTO groups'));
     const byId = new Map(insertedGroups.map((statement) => [statement.args[0], statement.args]));
+    const normalizedGroups = batches
+      .flat()
+      .filter((statement) => statement.sql.includes('UPDATE groups SET') && statement.sql.includes('builtins = ?'));
+    const normalizedById = new Map(normalizedGroups.map((statement) => [statement.args[9], statement.args]));
 
     expect(byId.get('builtin-proxy')?.[3]).toBe('[]');
     expect(byId.get('builtin-direct')?.[3]).toBe('["DIRECT"]');
     expect(byId.get('builtin-reject')?.[3]).toBe('["REJECT"]');
+    expect(normalizedById.get('builtin-proxy')?.[2]).toBe('[]');
+    expect(normalizedById.get('builtin-direct')?.[2]).toBe('["DIRECT"]');
+    expect(normalizedById.get('builtin-reject')?.[2]).toBe('["REJECT"]');
   });
 
   it('manages every generated foundation and business group through templates', () => {
