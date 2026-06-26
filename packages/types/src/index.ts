@@ -389,6 +389,7 @@ export interface ExportResult {
 export interface CompatibilityWarning {
   ruleId?: string;
   groupId?: string;
+  nodeId?: string;
   client: ExportFormat;
   level: CompatibilityLevel;
   message: string;

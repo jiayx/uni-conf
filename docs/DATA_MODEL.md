@@ -150,7 +150,7 @@ Business routing group `group_ids` are derived, not manually maintained. The web
 
 Export preview, authenticated download, and public subscription generation explicitly synchronize automatic node groups and routing policy groups before loading remote rule sets. This keeps the foundation outlets (`PROXY`, `DIRECT`, `REJECT`) and their derived `group_ids` available even when the user only pasted subscription URLs and never opened the policy group page.
 
-Readiness validation checks the final export graph, not only stored IDs. A policy group that references a missing child group is reported as unsupported, and a node-backed policy group whose collection has no final exported nodes is reported before download. If a collection member name is not present in the final `proxies` / outbound node list after filtering, dedupe, renaming, or protocol compatibility filtering, preview returns a warning instead of silently producing a group that points at a missing proxy.
+Readiness validation checks the final export graph, not only stored IDs. A policy group that references a missing child group is reported as unsupported, and a node-backed policy group whose collection has no final exported nodes is reported before download. Compatibility validation also checks node protocol support for the selected exporter. If a collection member name is not present in the final `proxies` / outbound node list after filtering, dedupe, renaming, or protocol compatibility filtering, preview returns a warning instead of silently producing a group that points at a missing proxy.
 
 | Routing group | Preferred outlet order |
 |---------------|------------------------|

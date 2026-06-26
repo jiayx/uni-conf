@@ -108,6 +108,46 @@ describe('export validation', () => {
     }));
   });
 
+  it('warns when a node protocol is not supported by the target exporter', () => {
+    const warnings = validateExportData(makeExportData({
+      nodes: [
+        makeNode('node-ss', 'HK 01'),
+        makeNode('node-wg', 'WG 01', { protocol: 'wireguard' }),
+      ],
+      groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
+      collectionNodeNames: { 'collection-auto': ['HK 01', 'WG 01'] },
+    }), 'mihomo');
+
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        nodeId: 'node-wg',
+        level: 'partial',
+        message: expect.stringContaining('wireguard'),
+      }),
+      expect.objectContaining({
+        groupId: 'auto',
+        level: 'unsupported',
+        message: expect.stringContaining('WG 01'),
+      }),
+    ]));
+  });
+
+  it('does not warn about WireGuard for sing-box exports', () => {
+    const warnings = validateExportData(makeExportData({
+      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+      groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
+      collectionNodeNames: { 'collection-auto': ['WG 01'] },
+    }), 'singbox');
+
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      nodeId: 'node-wg',
+    }));
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      groupId: 'auto',
+      message: expect.stringContaining('WG 01'),
+    }));
+  });
+
   it('warns when MATCH is not the final rule', () => {
     const warnings = validateExportData(makeExportData({
       rules: [
@@ -290,21 +330,27 @@ function makeSource(
   };
 }
 
-function makeNode(id: string, name: string): ExportData['nodes'][number] {
+function makeNode(
+  id: string,
+  name: string,
+  patch: Partial<ExportData['nodes'][number]> = {}
+): ExportData['nodes'][number] {
+  const protocol = patch.protocol ?? 'trojan';
   return {
     id,
     sourceId: 'source-1',
     name,
-    protocol: 'trojan',
+    protocol,
     server: `${id}.example.com`,
     port: 443,
     enabled: true,
     tags: [],
     rawConfig: {},
-    parsedConfig: { protocol: 'trojan', server: `${id}.example.com`, port: 443, extra: {} },
+    parsedConfig: { protocol, server: `${id}.example.com`, port: 443, extra: {} },
     isManual: false,
     createdAt,
     updatedAt: createdAt,
+    ...patch,
   };
 }
 

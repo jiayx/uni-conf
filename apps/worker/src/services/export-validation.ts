@@ -57,6 +57,7 @@ export function validateExportCompatibility(
   options: ExportValidationOptions = {}
 ): CompatibilityWarning[] {
   return [
+    ...validateNodeCompatibility(data, format),
     ...validateRuleCompatibility(data, format),
     ...validateRemoteRuleSetCompatibility(data, format),
     ...validateDns(format, options.dnsMode),
@@ -124,7 +125,7 @@ function emptyNodeExportWarning(format: ExportFormat): CompatibilityWarning {
 
 function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const groupIds = new Set(data.groups.map((group) => group.id));
-  const nodeNames = new Set(data.nodes.map((node) => node.name));
+  const nodeNames = supportedNodeNameSet(data, format);
   const warnings: CompatibilityWarning[] = [];
   for (const group of data.groups) {
     for (const childId of group.groupIds) {
@@ -165,6 +166,90 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
   }
   return warnings;
 }
+
+function validateNodeCompatibility(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  const warnings: CompatibilityWarning[] = [];
+  for (const node of data.nodes) {
+    if (isNodeProtocolSupportedByExport(node.protocol, format)) continue;
+    warnings.push({
+      nodeId: node.id,
+      client: format,
+      level: 'partial',
+      message: `节点 "${node.name}" 使用的协议 ${node.protocol} 暂不支持导出到 ${format}，导出时会跳过`,
+      messageEn: `Node "${node.name}" uses protocol ${node.protocol}, which is not currently supported by the ${format} exporter and will be skipped.`,
+    });
+  }
+  return warnings;
+}
+
+function supportedNodeNameSet(data: ExportData, format: ExportFormat): Set<string> {
+  return new Set(
+    data.nodes
+      .filter((node) => isNodeProtocolSupportedByExport(node.protocol, format))
+      .map((node) => node.name)
+  );
+}
+
+function isNodeProtocolSupportedByExport(protocol: string, format: ExportFormat): boolean {
+  if (format === 'mihomo' || format === 'clash' || format === 'stash') {
+    return MIHOMO_EXPORT_NODE_PROTOCOLS.has(protocol);
+  }
+  if (format === 'singbox') return SINGBOX_EXPORT_NODE_PROTOCOLS.has(protocol);
+  if (format === 'nodes_base64' || format === 'nodes_raw') return NODE_SUBSCRIPTION_PROTOCOLS.has(protocol);
+  return TEXT_CLIENT_EXPORT_NODE_PROTOCOLS.has(protocol);
+}
+
+const MIHOMO_EXPORT_NODE_PROTOCOLS = new Set([
+  'ss',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
+]);
+
+const SINGBOX_EXPORT_NODE_PROTOCOLS = new Set([
+  'ss',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'shadowtls',
+  'ssh',
+  'socks5',
+  'http',
+  'https',
+  'wireguard',
+]);
+
+const TEXT_CLIENT_EXPORT_NODE_PROTOCOLS = new Set([
+  'ss',
+  'vmess',
+  'trojan',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
+]);
+
+const NODE_SUBSCRIPTION_PROTOCOLS = new Set([
+  'ss',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'socks5',
+]);
 
 function validateRules(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   return [
