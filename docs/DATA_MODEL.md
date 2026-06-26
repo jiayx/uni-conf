@@ -347,6 +347,8 @@ Refresh caches fetched `raw_content` and `subscription-userinfo` immediately aft
 
 During refresh, `format = auto` uses content detection. Any explicit source format is treated as a parser hint and is tried first: Clash/Mihomo as YAML, sing-box as JSON, base64 as encoded URI lines, and raw/client-line formats as URI lines. This keeps the advanced format selector meaningful while preserving the one-link default path.
 
+Source refresh, enable/disable, and deletion all resynchronize automatic node groups and derived routing policy group members. Source deletion explicitly removes nodes for that source before removing the source row, so export readiness and generated node groups do not depend on database-level foreign-key cascade behavior.
+
 Upstream source groups parsed from full subscription configs are stored in `sources.source_groups`. The node group page can import them as explicit-node collections by matching member names against nodes from the same source only. Imported collections use notes marker `[uni-conf:source-node-group] {sourceId}:{encodedGroupName}` so the UI can show already-imported groups and avoid creating duplicate node pools.
 
 The response data is:

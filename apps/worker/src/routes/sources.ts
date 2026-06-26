@@ -191,16 +191,23 @@ app.put('/:id', async (c) => {
 
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id FROM sources WHERE id = ?')
+  const deleted = await deleteSourceById(c.env.DB, id);
+  if (!deleted) return c.json({ success: false, error: 'Source not found' }, 404);
+  return c.json({ success: true, data: { id } });
+});
+
+export async function deleteSourceById(db: D1Database, id: string, ts = now()): Promise<boolean> {
+  const existing = await db.prepare('SELECT id FROM sources WHERE id = ?')
     .bind(id)
     .first();
 
-  if (!existing) return c.json({ success: false, error: 'Source not found' }, 404);
+  if (!existing) return false;
 
-  await c.env.DB.prepare('DELETE FROM sources WHERE id = ?').bind(id).run();
-  await syncAutoNodeGroups(c.env.DB, now());
-  return c.json({ success: true, data: { id } });
-});
+  await db.prepare('DELETE FROM nodes WHERE source_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM sources WHERE id = ?').bind(id).run();
+  await syncAutoNodeGroups(db, ts);
+  return true;
+}
 
 // ─── Refresh source ───────────────────────────────────────────────────────────
 

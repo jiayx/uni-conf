@@ -1,6 +1,8 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import { syncAutoNodeGroups } from '../services/auto-node-groups'
 import {
+  deleteSourceById,
   deriveSourceName,
   detectAndParse,
   filterUsableParsedContent,
@@ -14,6 +16,10 @@ import {
   SourceRefreshError,
   validateSourceMutableFields,
 } from './sources'
+
+vi.mock('../services/auto-node-groups', () => ({
+  syncAutoNodeGroups: vi.fn(async () => undefined),
+}))
 
 // Mock Clash YAML with multiple node formats
 const MOCK_CLASH_YAML = `
@@ -45,6 +51,7 @@ proxy-groups:
 describe('Clash YAML Parser', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.clearAllMocks()
   })
 
   it('derives source names from subscription URLs', () => {
@@ -378,6 +385,27 @@ proxies:
       id: 'source-1',
     })
   })
+
+  it('explicitly deletes source nodes before deleting the source', async () => {
+    const db = createDeleteMockDb(true)
+
+    await expect(deleteSourceById(db, 'source-1', '2026-01-01T00:00:00.000Z')).resolves.toBe(true)
+
+    expect(db.operations).toEqual([
+      { operation: 'delete-nodes', sourceId: 'source-1' },
+      { operation: 'delete-source', sourceId: 'source-1' },
+    ])
+    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z')
+  })
+
+  it('does not sync automatic node groups when deleting a missing source', async () => {
+    const db = createDeleteMockDb(false)
+
+    await expect(deleteSourceById(db, 'missing-source', '2026-01-01T00:00:00.000Z')).resolves.toBe(false)
+
+    expect(db.operations).toEqual([])
+    expect(syncAutoNodeGroups).not.toHaveBeenCalled()
+  })
 })
 
 function createRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
@@ -409,6 +437,38 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
               expireTime: args[4],
               id: args[6],
             })
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
+}
+
+function createDeleteMockDb(hasSource: boolean): D1Database & { operations: Array<Record<string, unknown>> } {
+  const operations: Array<Record<string, unknown>> = []
+  return {
+    operations,
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT id FROM sources WHERE id = ?')) {
+            return hasSource ? { id: args[0] } : null
+          }
+          return null
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          if (sql.includes('DELETE FROM nodes WHERE source_id = ?')) {
+            operations.push({ operation: 'delete-nodes', sourceId: args[0] })
+          }
+          if (sql.includes('DELETE FROM sources WHERE id = ?')) {
+            operations.push({ operation: 'delete-source', sourceId: args[0] })
           }
           return { success: true }
         },
