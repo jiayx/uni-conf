@@ -413,8 +413,17 @@ describe('routing policy group sync', () => {
     ]);
   });
 
-  it('links every routing policy group to all outlet groups for preview/export', () => {
+  it('links every routing policy group to foundation and node outlet groups for preview/export', () => {
     const rows = applyRoutingPolicyGroupLinks(groupRows);
+    const routingGroupIds = [
+      'builtin-proxy',
+      'builtin-ai',
+      'builtin-streaming',
+      'builtin-github',
+      'builtin-telegram',
+      'builtin-final',
+      'custom-downloads',
+    ];
 
     expect(rows.find((row) => row.id === 'builtin-proxy')?.group_ids).toBe(
       '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
@@ -437,8 +446,14 @@ describe('routing policy group sync', () => {
     expect(rows.find((row) => row.id === 'custom-downloads')?.group_ids).toBe(
       '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
     );
+    for (const id of routingGroupIds) {
+      const groupIds = JSON.parse(String(rows.find((row) => row.id === id)?.group_ids ?? '[]')) as string[];
+      expect(groupIds).toContain('builtin-direct');
+      expect(groupIds).toContain('builtin-reject');
+    }
     expect(rows.find((row) => row.id === 'disabled-custom')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'builtin-direct')?.group_ids).toBe('[]');
+    expect(rows.find((row) => row.id === 'builtin-reject')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'builtin-all-nodes')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'us-auto')?.group_ids).toBe('[]');
   });

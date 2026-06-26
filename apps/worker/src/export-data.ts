@@ -24,6 +24,7 @@ import {
 import {
   ALL_NODE_OUTLET_GROUP_IDS,
   applyRoutingPolicyGroupLinks,
+  syncRoutingPolicyGroups,
 } from './services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
 import { syncAutoNodeGroups } from './services/auto-node-groups'
@@ -73,6 +74,7 @@ export async function buildExportData(
 ): Promise<ExportData> {
   const ts = now()
   await syncAutoNodeGroups(db, ts)
+  await syncRoutingPolicyGroups(db, ts)
   await ensureDefaultRemoteRuleSets(db, ts)
 
   const allNodeRows = await selectRows(db, enabledNodeRowsQuery())

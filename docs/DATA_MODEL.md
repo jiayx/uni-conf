@@ -148,6 +148,8 @@ Group writes validate the group graph before persistence. `type` must be one of 
 
 Business routing group `group_ids` are derived, not manually maintained. The web form for policy groups only edits the group identity, enabled state, type, and health-check behavior; outlet candidates are shown as automatically maintained and are not submitted as user-authored relationships. The system orders outlet candidates by intent:
 
+Export preview, authenticated download, and public subscription generation explicitly synchronize automatic node groups and routing policy groups before loading remote rule sets. This keeps the foundation outlets (`PROXY`, `DIRECT`, `REJECT`) and their derived `group_ids` available even when the user only pasted subscription URLs and never opened the policy group page.
+
 | Routing group | Preferred outlet order |
 |---------------|------------------------|
 | AI | Native Auto, then US, JP, SG country auto groups, then 自动选择 / 节点选择 / 故障切换 |
