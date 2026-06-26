@@ -120,6 +120,9 @@ function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWar
     warnings.push(emptyNodeExportWarning(format));
     return warnings;
   }
+  if (!data.nodes.some((node) => isNodeProtocolSupportedByExport(node.protocol, format))) {
+    warnings.push(noSupportedNodeExportWarning(format));
+  }
 
   const counts = new Map<string, number>();
   for (const node of data.nodes) {

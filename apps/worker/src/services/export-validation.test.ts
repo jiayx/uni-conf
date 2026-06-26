@@ -39,6 +39,25 @@ describe('export validation', () => {
     }), 'singbox')).toBeNull();
   });
 
+  it('keeps no-supported-node readiness warnings when compatibility warnings are disabled', () => {
+    const warnings = resolveExportWarnings(makeExportData({
+      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+    }), 'mihomo', {
+      showCompatibilityWarnings: false,
+      dnsMode: 'smart',
+    });
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      client: 'mihomo',
+      level: 'unsupported',
+      message: expect.stringContaining('没有可导出到 mihomo 的节点'),
+    }));
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      nodeId: 'node-wg',
+      message: expect.stringContaining('wireguard'),
+    }));
+  });
+
   it('does not warn when MATCH is omitted because exporters add the fallback', () => {
     const warnings = validateExportData(makeExportData({ rules: [] }), 'mihomo');
 
