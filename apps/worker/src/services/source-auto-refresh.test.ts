@@ -1,9 +1,30 @@
-import { describe, expect, it } from 'vitest';
-import { resolveDueSources } from './source-auto-refresh';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { refreshDueSources, resolveDueSources } from './source-auto-refresh';
+
+vi.mock('./app-settings', () => ({
+  getAppSettings: vi.fn(async () => ({
+    enableAutoRefresh: true,
+    autoRefreshInterval: 60,
+  })),
+}));
+
+vi.mock('../routes/sources', () => ({
+  refreshSourceById: vi.fn(async (_db: D1Database, id: string) => {
+    if (id === 'source-fail') throw new Error('network failed');
+    return { sourceId: id, success: true, nodeCount: 1 };
+  }),
+  recordSourceRefreshError: vi.fn(async () => undefined),
+}));
+
+import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
 
 const nowMs = Date.parse('2026-06-21T12:00:00.000Z');
 
 describe('source auto refresh', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('refreshes never-updated sources', () => {
     expect(resolveDueSources([
       { id: 'source-1', last_updated: null, update_interval: 0 },
@@ -43,4 +64,44 @@ describe('source auto refresh', () => {
 
     expect(resolveDueSources(sources, 1, nowMs).map(source => source.id)).toEqual(['due']);
   });
+
+  it('continues refreshing due sources and records per-source failures', async () => {
+    const db = createMockDb([
+      { id: 'source-ok', last_updated: null, update_interval: 0 },
+      { id: 'source-fail', last_updated: null, update_interval: 0 },
+      { id: 'source-later', last_updated: '2026-06-21T11:30:00.000Z', update_interval: 60 },
+    ]);
+
+    const result = await refreshDueSources(db, nowMs);
+
+    expect(refreshSourceById).toHaveBeenCalledTimes(2);
+    expect(refreshSourceById).toHaveBeenNthCalledWith(1, db, 'source-ok');
+    expect(refreshSourceById).toHaveBeenNthCalledWith(2, db, 'source-fail');
+    expect(recordSourceRefreshError).toHaveBeenCalledWith(db, 'source-fail', 'network failed');
+    expect(result).toMatchObject({
+      checkedCount: 3,
+      refreshedCount: 1,
+      failedCount: 1,
+      skipped: false,
+      refreshedSourceIds: ['source-ok'],
+      errors: [{ sourceId: 'source-fail', error: 'network failed' }],
+    });
+  });
 });
+
+function createMockDb(rows: Array<{ id: string; last_updated: string | null; update_interval: number | null }>): D1Database {
+  return {
+    prepare: vi.fn(() => ({
+      all: async () => ({ results: rows }),
+      bind: vi.fn(() => ({
+        all: async () => ({ results: rows }),
+        first: async () => null,
+        run: async () => ({ success: true }),
+        raw: async () => [],
+      })),
+      first: async () => null,
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database;
+}
