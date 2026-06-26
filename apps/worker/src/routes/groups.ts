@@ -3,11 +3,16 @@ import type { Env } from '../types';
 import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
 import type { ProxyGroup } from '@uni-conf/types';
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups';
+import { FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 const GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']);
 const BUILTIN_ONLY_GROUP_TYPES = new Set<ProxyGroup['type']>(['direct', 'reject']);
 const BUILTIN_POLICIES = new Set(['DIRECT', 'REJECT']);
+const BUILTIN_GROUP_NAMES = new Set<string>([
+  ...FOUNDATION_POLICY_GROUP_NAMES,
+  ...ROUTING_POLICY_TEMPLATES.flatMap((template) => template.groupNames),
+].map((name) => name.toUpperCase()));
 
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
@@ -205,6 +210,9 @@ export function validateGroupWrite(
   const name = normalizeOptionalText(body.name);
   if (options.create && !name) return { valid: false, error: 'name is required' };
   if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
+  if (!options.isBuiltin && name && BUILTIN_GROUP_NAMES.has(name.toUpperCase())) {
+    return { valid: false, error: 'custom group name conflicts with a built-in policy group' };
+  }
 
   const type = body.type;
   if (options.create && !type) return { valid: false, error: 'type is required' };

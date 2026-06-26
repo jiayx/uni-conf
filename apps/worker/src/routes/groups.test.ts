@@ -46,12 +46,20 @@ describe('groups route helpers', () => {
       valid: false,
       error: 'groupIds cannot include the group itself',
     })
+    expect(validateGroupWrite({ name: ' AI ', type: 'select' }, { create: true, isBuiltin: false })).toEqual({
+      valid: false,
+      error: 'custom group name conflicts with a built-in policy group',
+    })
+    expect(validateGroupWrite({ name: 'direct' }, { create: false, id: 'custom-1', isBuiltin: false })).toEqual({
+      valid: false,
+      error: 'custom group name conflicts with a built-in policy group',
+    })
   })
 
   it('allows built-in foundation types only for built-in group maintenance', () => {
-    expect(validateGroupWrite({ type: 'reject' }, { create: false, id: 'builtin-reject', isBuiltin: true })).toEqual({
+    expect(validateGroupWrite({ name: 'REJECT', type: 'reject' }, { create: false, id: 'builtin-reject', isBuiltin: true })).toEqual({
       valid: true,
-      name: undefined,
+      name: 'REJECT',
       type: 'reject',
       collectionIds: undefined,
       groupIds: undefined,
