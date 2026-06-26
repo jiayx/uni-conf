@@ -321,6 +321,7 @@ export interface AppSettings {
   language: Language;
   theme: ThemePreference;
   routingPolicyTemplate: RoutingPolicyTemplateId;
+  routingOutletPreferences?: Record<string, string>;
   dnsMode: DnsMode;
   exportNodeNamingMode: ExportNodeNamingMode;
   defaultExportToken?: string;

@@ -31,6 +31,7 @@ app.put('/', async (c) => {
       language = ?,
       theme = ?,
       routing_policy_template = ?,
+      routing_outlet_preferences = ?,
       dns_mode = ?,
       export_node_naming_mode = ?,
       default_export_token = ?,
@@ -48,6 +49,11 @@ app.put('/', async (c) => {
       body.language ?? current.language,
       body.theme ?? current.theme,
       body.routingPolicyTemplate ?? current.routingPolicyTemplate,
+      body.routingOutletPreferences !== undefined
+        ? JSON.stringify(body.routingOutletPreferences)
+        : current.routingOutletPreferences !== undefined
+          ? JSON.stringify(current.routingOutletPreferences)
+          : null,
       body.dnsMode ?? current.dnsMode,
       body.exportNodeNamingMode ?? current.exportNodeNamingMode,
       body.defaultExportToken !== undefined
@@ -106,6 +112,16 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
   if (body.theme !== undefined && !THEMES.has(body.theme)) return 'invalid theme'
   if (body.routingPolicyTemplate !== undefined && !ROUTING_POLICY_TEMPLATE_IDS.has(body.routingPolicyTemplate)) {
     return 'invalid routing policy template'
+  }
+  if (body.routingOutletPreferences !== undefined) {
+    if (
+      !body.routingOutletPreferences
+      || typeof body.routingOutletPreferences !== 'object'
+      || Array.isArray(body.routingOutletPreferences)
+      || Object.entries(body.routingOutletPreferences).some(([key, value]) => !key.trim() || typeof value !== 'string' || !value.trim())
+    ) {
+      return 'invalid routing outlet preferences'
+    }
   }
   if (body.dnsMode !== undefined && !DNS_MODES.has(body.dnsMode)) return 'invalid DNS mode'
   if (body.exportNodeNamingMode !== undefined && !EXPORT_NODE_NAMING_MODES.has(body.exportNodeNamingMode)) {

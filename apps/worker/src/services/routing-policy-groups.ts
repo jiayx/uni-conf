@@ -7,6 +7,7 @@ import {
   type RoutingPolicyTemplate,
 } from '@uni-conf/shared';
 import { jsonParse, jsonStringify } from '../db/helpers';
+import { getAppSettings } from './app-settings';
 
 type GroupRow = Record<string, unknown>;
 
@@ -70,6 +71,7 @@ export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promi
     .all<GroupRow>();
 
   const routingGroupIds = resolveRoutingGroupIds(results);
+  const outletPreferences = await getRoutingOutletPreferences(db);
 
   if (routingGroupIds.length === 0) return;
 
@@ -77,17 +79,20 @@ export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promi
     routingGroupIds.map((id) =>
       db
         .prepare('UPDATE groups SET group_ids = ?, updated_at = ? WHERE id = ?')
-        .bind(jsonStringify(resolveRoutingMemberGroupIds(results, id)), ts, id)
+        .bind(jsonStringify(resolveRoutingMemberGroupIds(results, id, outletPreferences)), ts, id)
     )
   );
 }
 
-export function applyRoutingPolicyGroupLinks<T extends GroupRow>(groupRows: T[]): T[] {
+export function applyRoutingPolicyGroupLinks<T extends GroupRow>(
+  groupRows: T[],
+  outletPreferences: Record<string, string> = {}
+): T[] {
   const routingGroupIds = new Set(resolveRoutingGroupIds(groupRows));
 
   return groupRows.map((row) => (
     routingGroupIds.has(String(row.id))
-      ? { ...row, group_ids: jsonStringify(resolveRoutingMemberGroupIds(groupRows, String(row.id))) }
+      ? { ...row, group_ids: jsonStringify(resolveRoutingMemberGroupIds(groupRows, String(row.id), outletPreferences)) }
       : row
   ));
 }
@@ -116,11 +121,16 @@ export function resolveRoutingGroupIds(groupRows: GroupRow[]): string[] {
     .filter(Boolean);
 }
 
-export function resolveRoutingMemberGroupIds(groupRows: GroupRow[], routingGroupId: string): string[] {
+export function resolveRoutingMemberGroupIds(
+  groupRows: GroupRow[],
+  routingGroupId: string,
+  outletPreferences: Record<string, string> = {}
+): string[] {
   return sortRoutingMemberGroupIds(
     resolveOutletGroupIds(groupRows).filter((id) => id !== routingGroupId),
     groupRows,
-    routingGroupId
+    routingGroupId,
+    outletPreferences
   );
 }
 
@@ -136,10 +146,16 @@ export function resolveManagedTemplateGroupNames(): Set<string> {
   );
 }
 
-function sortRoutingMemberGroupIds(outletIds: string[], groupRows: GroupRow[], routingGroupId: string): string[] {
+function sortRoutingMemberGroupIds(
+  outletIds: string[],
+  groupRows: GroupRow[],
+  routingGroupId: string,
+  outletPreferences: Record<string, string>
+): string[] {
   const rowsById = new Map(groupRows.map((row) => [String(row.id), row]));
   const routingGroupName = String(rowsById.get(routingGroupId)?.name ?? routingGroupId).toUpperCase();
   const countryPreferences = ROUTING_COUNTRY_PREFERENCES[routingGroupName] ?? [];
+  const preferredOutletId = outletPreferences[routingGroupId];
   const used = new Set<string>();
   const ordered: string[] = [];
 
@@ -148,6 +164,8 @@ function sortRoutingMemberGroupIds(outletIds: string[], groupRows: GroupRow[], r
     ordered.push(id);
     used.add(id);
   };
+
+  if (preferredOutletId) push(preferredOutletId);
 
   for (const tagKey of ROUTING_TAG_GROUP_PREFERENCES[routingGroupName] ?? []) {
     for (const id of outletIds) {
@@ -250,12 +268,14 @@ async function applyActiveTemplate(db: D1Database, ts: string): Promise<void> {
 }
 
 async function getActiveTemplate(db: D1Database) {
-  const row = await db
-    .prepare("SELECT routing_policy_template FROM app_settings WHERE id = 'singleton'")
-    .first<{ routing_policy_template: string | null }>();
-  return ROUTING_POLICY_TEMPLATES.find((template) => template.id === row?.routing_policy_template)
+  const settings = await getAppSettings(db);
+  return ROUTING_POLICY_TEMPLATES.find((template) => template.id === settings.routingPolicyTemplate)
     ?? ROUTING_POLICY_TEMPLATES.find((template) => template.id === 'common')
     ?? ROUTING_POLICY_TEMPLATES[0]!;
+}
+
+async function getRoutingOutletPreferences(db: D1Database): Promise<Record<string, string>> {
+  return (await getAppSettings(db)).routingOutletPreferences ?? {};
 }
 
 function parseIds(value: unknown): string[] {

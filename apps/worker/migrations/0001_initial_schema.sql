@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
   language TEXT NOT NULL DEFAULT 'zh',
   theme TEXT NOT NULL DEFAULT 'system',
   routing_policy_template TEXT NOT NULL DEFAULT 'common',
+  routing_outlet_preferences TEXT,
   dns_mode TEXT NOT NULL DEFAULT 'smart',
   export_node_naming_mode TEXT NOT NULL DEFAULT 'smart',
   default_export_token TEXT,

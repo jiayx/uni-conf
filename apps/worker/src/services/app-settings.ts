@@ -28,6 +28,7 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     language: row.language as AppSettings['language'],
     theme: row.theme as AppSettings['theme'],
     routingPolicyTemplate: (row.routing_policy_template as AppSettings['routingPolicyTemplate'] | null) ?? 'common',
+    routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
     dnsMode: normalizeDnsMode(row.dns_mode),
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
     defaultExportToken: (row.default_export_token as string | null) ?? undefined,
@@ -93,11 +94,35 @@ export function normalizeOptionalStringList(value: unknown): string[] | undefine
     .filter(Boolean);
 }
 
+export function normalizeOptionalStringMap(value: unknown): Record<string, string> | undefined {
+  if (value === null || value === undefined) return undefined;
+  const parsed = typeof value === 'string' ? parseJsonObject(value) : value;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+  const entries = Object.entries(parsed)
+    .map(([key, item]) => [
+      key.trim(),
+      typeof item === 'string' ? item.trim() : '',
+    ])
+    .filter(([key, item]) => key && item);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 function parseJsonArray(value: string): unknown[] {
   try {
     const parsed = JSON.parse(value) as unknown;
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function parseJsonObject(value: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    return undefined;
   }
 }

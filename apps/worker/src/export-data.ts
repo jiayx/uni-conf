@@ -76,11 +76,13 @@ export async function buildExportData(
   await syncAutoNodeGroups(db, ts)
   await syncRoutingPolicyGroups(db, ts)
   await ensureDefaultRemoteRuleSets(db, ts)
+  const settings = await getAppSettings(db)
 
   const allNodeRows = await selectRows(db, enabledNodeRowsQuery())
   const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
   const allGroupRows = applyRoutingPolicyGroupLinks(
-    await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC')
+    await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC'),
+    settings.routingOutletPreferences
   )
   const groupRows = expandReferencedGroupRows(allGroupRows, config?.includeGroupIds)
   const collectionScopeIds = resolveCollectionScopeIds(config, groupRows)
@@ -88,7 +90,6 @@ export async function buildExportData(
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
   const sourceNameById = await buildSourceNameById(db)
-  const settings = await getAppSettings(db)
   const exportNodeRows = applyExportNodeNames(
     applyDefaultExportDedup(nodeRows),
     sourceNameById,

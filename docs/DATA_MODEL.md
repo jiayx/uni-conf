@@ -146,7 +146,7 @@ Built-in groups have distinct product roles:
 
 Group writes validate the group graph before persistence. `type` must be one of the supported group types, user-created groups cannot use `direct` or `reject`, and user-created group names cannot collide with built-in policy group names such as `AI`, `Streaming`, `DIRECT`, or `自动选择`. `collection_ids` and `group_ids` must be arrays of non-empty string IDs, `builtins` can only contain `DIRECT` or `REJECT`, and a group cannot include itself in `group_ids`. IDs are trimmed and de-duplicated on write so manual advanced edits cannot corrupt the generated routing structure.
 
-Business routing group `group_ids` are derived, not manually maintained. The web form for policy groups only edits the group identity, enabled state, type, and health-check behavior; outlet candidates are shown as automatically maintained and are not submitted as user-authored relationships. The system orders outlet candidates by intent:
+Business routing group `group_ids` are derived, not manually maintained. The web form for policy groups edits the group identity, enabled state, type, health-check behavior, and an optional default outlet preference. Outlet candidates are shown as automatically maintained and are not submitted as user-authored relationships. When a default outlet preference exists, sync moves that outlet to the front of the derived member list and keeps the rest of the system-generated candidates after it. This lets users answer intent-level questions such as “AI 走美国” without manually linking every policy group to every node group. Without a saved preference, the system orders outlet candidates by intent:
 
 Export preview, authenticated download, and public subscription generation explicitly synchronize automatic node groups and routing policy groups before loading remote rule sets. This keeps the foundation outlets (`PROXY`, `DIRECT`, `REJECT`) and their derived `group_ids` available even when the user only pasted subscription URLs and never opened the policy group page.
 
@@ -278,6 +278,7 @@ Dashboard stats, export preview/download, settings reads, group reads, and remot
 | language | TEXT | `zh` \| `en` |
 | theme | TEXT | `system` \| `light` \| `dark` |
 | routing_policy_template | TEXT | `empty` \| `minimal` \| `common` \| `ai` \| `streaming` \| `router` \| `extended` |
+| routing_outlet_preferences | TEXT? | JSON object `{ routingGroupId: outletGroupId }` used to move a preferred outlet to the front of generated policy members |
 | dns_mode | TEXT | `compatible` \| `smart` \| `fake-ip` |
 | export_node_naming_mode | TEXT | `original` \| `region_sequence` \| `source_region_sequence` \| `smart` |
 | default_export_token | TEXT? | Token of the default export config |
@@ -290,7 +291,7 @@ Dashboard stats, export preview/download, settings reads, group reads, and remot
 | auto_node_group_include_flag | INTEGER | 1/0, default `1` |
 | updated_at | TEXT | |
 
-Settings reads normalize nullable or invalid values back to product defaults: compatibility warnings on, auto refresh on, 24-hour refresh interval, smart DNS, smart node naming, auto node groups on, `url-test` auto group type, and flag-based country auto group names. Settings writes reject invalid enum values for language, theme, routing policy template, DNS mode, export node naming mode, and automatic node group type so normal UI/API updates cannot persist an unreachable zero-setup state.
+Settings reads normalize nullable or invalid values back to product defaults: compatibility warnings on, auto refresh on, 24-hour refresh interval, smart DNS, smart node naming, auto node groups on, `url-test` auto group type, flag-based country auto group names, and no routing outlet overrides. Settings writes reject invalid enum values for language, theme, routing policy template, DNS mode, export node naming mode, automatic node group type, and malformed routing outlet preference maps so normal UI/API updates cannot persist an unreachable zero-setup state.
 
 Auto refresh is enabled by default and driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
 

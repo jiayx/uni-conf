@@ -61,11 +61,16 @@ export function Groups() {
   const [form, setForm] = useState<GroupForm>(() => createEmptyForm(0))
   const [formError, setFormError] = useState('')
   const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
+  const [outletPreferences, setOutletPreferences] = useState<Record<string, string>>({})
   const [savingTemplate, setSavingTemplate] = useState(false)
+  const [savingPreferenceId, setSavingPreferenceId] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchGroups()
-    void api.settings.get().then(settings => setActiveTemplate(settings.routingPolicyTemplate))
+    void api.settings.get().then(settings => {
+      setActiveTemplate(settings.routingPolicyTemplate)
+      setOutletPreferences(settings.routingOutletPreferences ?? {})
+    })
   }, [fetchGroups])
 
   const visibleGroups = useMemo(
@@ -174,9 +179,28 @@ export function Groups() {
       })
       applySettings(updated)
       setActiveTemplate(updated.routingPolicyTemplate)
+      setOutletPreferences(updated.routingOutletPreferences ?? {})
       await fetchGroups()
     } finally {
       setSavingTemplate(false)
+    }
+  }
+
+  const handleOutletPreference = async (group: ProxyGroup, preferredOutletId: string) => {
+    const nextPreferences = { ...outletPreferences }
+    if (preferredOutletId) {
+      nextPreferences[group.id] = preferredOutletId
+    } else {
+      delete nextPreferences[group.id]
+    }
+    setSavingPreferenceId(group.id)
+    try {
+      const updated = await api.settings.update({ routingOutletPreferences: nextPreferences })
+      applySettings(updated)
+      setOutletPreferences(updated.routingOutletPreferences ?? {})
+      await fetchGroups()
+    } finally {
+      setSavingPreferenceId(null)
     }
   }
 
@@ -311,6 +335,22 @@ export function Groups() {
                   <Badge variant="purple">自动出口候选</Badge>
                 </div>
                 <div className={styles.summary}>{describeRoutingGroupMembers(group)}</div>
+                {group.groupIds.length > 0 && (
+                  <label className={styles.preferenceRow}>
+                    <span>默认出口</span>
+                    <select
+                      className={styles.preferenceSelect}
+                      value={outletPreferences[group.id] ?? ''}
+                      onChange={event => void handleOutletPreference(group, event.target.value)}
+                      disabled={savingPreferenceId === group.id}
+                    >
+                      <option value="">系统推荐：{getGroupName(groups, group.groupIds[0])}</option>
+                      {group.groupIds.map(id => (
+                        <option key={id} value={id}>{getGroupName(groups, id)}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
               <div className={styles.cardActions}>
                 <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
@@ -437,4 +477,9 @@ function describeFoundationGroup(group: ProxyGroup): string {
 function describeRoutingGroupMembers(group: ProxyGroup): string {
   if (group.name === 'PROXY') return '默认代理出口，自动聚合节点选择、自动选择、故障切换和节点组。'
   return '自动包含基础出口、全局节点出口和可用节点组。'
+}
+
+function getGroupName(groups: ProxyGroup[], id: string | undefined): string {
+  if (!id) return '无可用出口'
+  return groups.find(group => group.id === id)?.name ?? id
 }

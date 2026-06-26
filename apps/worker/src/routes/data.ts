@@ -77,6 +77,7 @@ app.delete('/', async (c) => {
         language = 'zh',
         theme = 'system',
         routing_policy_template = 'common',
+        routing_outlet_preferences = NULL,
         dns_mode = 'smart',
         export_node_naming_mode = 'smart',
         default_export_token = NULL,

@@ -457,6 +457,26 @@ describe('routing policy group sync', () => {
     expect(rows.find((row) => row.id === 'builtin-all-nodes')?.group_ids).toBe('[]');
     expect(rows.find((row) => row.id === 'us-auto')?.group_ids).toBe('[]');
   });
+
+  it('keeps system-managed outlet candidates but moves the preferred outlet first', () => {
+    const rows = applyRoutingPolicyGroupLinks(groupRows, {
+      'builtin-ai': 'sg-auto',
+      'builtin-streaming': 'jp-auto',
+    });
+
+    expect(JSON.parse(String(rows.find((row) => row.id === 'builtin-ai')?.group_ids ?? '[]')).slice(0, 4)).toEqual([
+      'sg-auto',
+      'native-auto',
+      'us-auto',
+      'jp-auto',
+    ]);
+    expect(JSON.parse(String(rows.find((row) => row.id === 'builtin-streaming')?.group_ids ?? '[]')).slice(0, 4)).toEqual([
+      'jp-auto',
+      'streaming-auto',
+      'native-auto',
+      'hk-auto',
+    ]);
+  });
 });
 
 function createSyncMockDb(batches: Array<Array<{ sql: string; args: unknown[] }>>): D1Database {
@@ -465,20 +485,12 @@ function createSyncMockDb(batches: Array<Array<{ sql: string; args: unknown[] }>
       bind: (...args: unknown[]) => ({
         sql,
         args,
-        first: async () => (
-          sql.includes('SELECT routing_policy_template')
-            ? { routing_policy_template: 'empty' }
-            : null
-        ),
+        first: async () => sql.includes('SELECT * FROM app_settings') ? appSettingsRow() : null,
         all: async () => ({ results: [] }),
         run: async () => ({ success: true }),
         raw: async () => [],
       }),
-      first: async () => (
-        sql.includes('SELECT routing_policy_template')
-          ? { routing_policy_template: 'empty' }
-          : null
-      ),
+      first: async () => sql.includes('SELECT * FROM app_settings') ? appSettingsRow() : null,
       all: async () => ({ results: [] }),
       run: async () => ({ success: true }),
       raw: async () => [],
@@ -488,4 +500,22 @@ function createSyncMockDb(batches: Array<Array<{ sql: string; args: unknown[] }>
       return statements.map(() => ({ success: true }));
     },
   } as unknown as D1Database;
+}
+
+function appSettingsRow() {
+  return {
+    language: 'zh',
+    theme: 'system',
+    routing_policy_template: 'empty',
+    routing_outlet_preferences: null,
+    dns_mode: 'smart',
+    export_node_naming_mode: 'smart',
+    show_compatibility_warnings: 1,
+    enable_auto_refresh: 1,
+    auto_refresh_interval: 1440,
+    auto_node_groups_enabled: 1,
+    auto_node_group_types: '["url-test"]',
+    auto_node_group_keys: null,
+    auto_node_group_include_flag: 1,
+  };
 }
