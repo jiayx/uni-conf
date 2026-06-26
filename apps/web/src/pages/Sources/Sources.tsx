@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
 import type { ProxySource, SourceFormat } from '@uni-conf/types'
 import styles from './Sources.module.css'
@@ -80,7 +81,8 @@ export function Sources() {
   useEffect(() => { void fetchSources() }, [fetchSources])
 
   const handleAdd = async () => {
-    if (!form.url) { setFormError(t('sources.url_required')); return }
+    const urls = parseSubscriptionUrls(form.url)
+    if (urls.length === 0) { setFormError(t('sources.url_required')); return }
     setFormError('')
     // When userAgent is empty string (Default), send undefined to use backend default
     // When userAgent is 'custom', use customUserAgent
@@ -88,18 +90,20 @@ export function Sources() {
     const finalUserAgent = form.userAgent === 'custom'
       ? form.customUserAgent
       : (form.userAgent || undefined)
-    await addSource({
-      name: form.name.trim() || undefined,
-      type: 'url',
-      url: form.url,
-      format: form.format,
-      enabled: true,
-      tags: [],
-      updateInterval: form.updateInterval,
-      userAgent: finalUserAgent,
-      notes: form.notes,
-      refreshAfterCreate: form.refreshAfterCreate,
-    })
+    for (const url of urls) {
+      await addSource({
+        name: urls.length === 1 ? form.name.trim() || undefined : undefined,
+        type: 'url',
+        url,
+        format: form.format,
+        enabled: true,
+        tags: [],
+        updateInterval: form.updateInterval,
+        userAgent: finalUserAgent,
+        notes: form.notes,
+        refreshAfterCreate: form.refreshAfterCreate,
+      })
+    }
     setShowAddModal(false)
     setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })
   }
@@ -184,7 +188,7 @@ export function Sources() {
         <EmptyState
           icon={<SubscriptionIcon />}
           title="暂无订阅源 / No subscriptions"
-          description="粘贴一个订阅链接即可自动生成配置 / Paste one subscription URL to generate a config"
+          description="粘贴一个或多个订阅链接即可自动生成配置 / Paste one or more subscription URLs to generate a config"
           action={{ label: t('sources.add_url'), onClick: () => setShowAddModal(true) }}
         />
       ) : (
@@ -281,12 +285,15 @@ export function Sources() {
         }
       >
         {formError && <div className={styles.formError}>{formError}</div>}
-        <Input
-          label={t('sources.url')}
-          value={form.url}
-          onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-          placeholder="https://example.com/sub?token=..."
-        />
+        <label className={styles.textareaField}>
+          <span>{t('sources.url')}</span>
+          <textarea
+            className={styles.textarea}
+            value={form.url}
+            onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+            placeholder={'https://example.com/sub?token=...\nhttps://example.org/sub?token=...'}
+          />
+        </label>
         <label className={styles.checkboxRow}>
           <input
             type="checkbox"

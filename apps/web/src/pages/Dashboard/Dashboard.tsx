@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
-import { Input } from '@/components/ui/Input/Input'
+import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { api } from '@/lib/api'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
@@ -69,8 +69,8 @@ export function Dashboard() {
 
   const createSourceFromDashboard = async (event: FormEvent) => {
     event.preventDefault()
-    const url = sourceUrl.trim()
-    if (!url) {
+    const urls = parseSubscriptionUrls(sourceUrl)
+    if (urls.length === 0) {
       setSourceError(t('sources.url_required'))
       return
     }
@@ -78,18 +78,21 @@ export function Dashboard() {
     setCreatingSource(true)
     setSourceError(null)
     try {
-      const result = await api.sources.create({
-        type: 'url',
-        url,
-        format: 'auto',
-        enabled: true,
-        tags: [],
-        updateInterval: 0,
-        refreshAfterCreate: true,
-      })
+      const results = await Promise.all(
+        urls.map(url => api.sources.create({
+          type: 'url',
+          url,
+          format: 'auto',
+          enabled: true,
+          tags: [],
+          updateInterval: 0,
+          refreshAfterCreate: true,
+        }))
+      )
       setSourceUrl('')
-      if (result.refreshError) {
-        setSourceError(t('dashboard.source_refresh_failed', { error: result.refreshError }))
+      const failed = results.find(result => result.refreshError)
+      if (failed?.refreshError) {
+        setSourceError(t('dashboard.source_refresh_failed', { error: failed.refreshError }))
       }
       await loadStats()
     } catch (e) {
@@ -125,12 +128,15 @@ export function Dashboard() {
             (stats?.sourceCount ?? 0) > 0 ? 'dashboard.no_usable_nodes' : 'dashboard.no_data'
           )}</p>
           <form className={styles.sourceForm} onSubmit={createSourceFromDashboard}>
-            <Input
-              label={t('sources.url')}
-              value={sourceUrl}
-              onChange={event => setSourceUrl(event.target.value)}
-              placeholder={t('sources.url_placeholder')}
-            />
+            <label className={styles.sourceInput}>
+              <span>{t('sources.url')}</span>
+              <textarea
+                className={styles.textarea}
+                value={sourceUrl}
+                onChange={event => setSourceUrl(event.target.value)}
+                placeholder={t('sources.url_placeholder')}
+              />
+            </label>
             <Button type="submit" loading={creatingSource}>{t('sources.add_url')}</Button>
           </form>
           <div className={styles.steps}>
