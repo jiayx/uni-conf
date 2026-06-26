@@ -5,6 +5,7 @@ import {
   resolveManagedTemplateGroupNames,
   resolveOutletGroupIds,
   resolveRoutingGroupIds,
+  syncRoutingPolicyGroups,
 } from './routing-policy-groups';
 import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 
@@ -336,6 +337,22 @@ describe('routing policy group sync', () => {
     ]);
   });
 
+  it('creates PROXY without a hard-coded DIRECT builtin while preserving native foundation outlets', async () => {
+    const batches: Array<Array<{ sql: string; args: unknown[] }>> = [];
+    const db = createSyncMockDb(batches);
+
+    await syncRoutingPolicyGroups(db, '2026-01-01T00:00:00.000Z');
+
+    const insertedGroups = batches
+      .flat()
+      .filter((statement) => statement.sql.includes('INSERT OR IGNORE INTO groups'));
+    const byId = new Map(insertedGroups.map((statement) => [statement.args[0], statement.args]));
+
+    expect(byId.get('builtin-proxy')?.[3]).toBe('[]');
+    expect(byId.get('builtin-direct')?.[3]).toBe('["DIRECT"]');
+    expect(byId.get('builtin-reject')?.[3]).toBe('["REJECT"]');
+  });
+
   it('manages every generated foundation and business group through templates', () => {
     expect([...resolveManagedTemplateGroupNames()]).toEqual([
       'PROXY',
@@ -419,3 +436,34 @@ describe('routing policy group sync', () => {
     expect(rows.find((row) => row.id === 'us-auto')?.group_ids).toBe('[]');
   });
 });
+
+function createSyncMockDb(batches: Array<Array<{ sql: string; args: unknown[] }>>): D1Database {
+  return {
+    prepare: (sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        sql,
+        args,
+        first: async () => (
+          sql.includes('SELECT routing_policy_template')
+            ? { routing_policy_template: 'empty' }
+            : null
+        ),
+        all: async () => ({ results: [] }),
+        run: async () => ({ success: true }),
+        raw: async () => [],
+      }),
+      first: async () => (
+        sql.includes('SELECT routing_policy_template')
+          ? { routing_policy_template: 'empty' }
+          : null
+      ),
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    }),
+    batch: async (statements: Array<{ sql: string; args: unknown[] }>) => {
+      batches.push(statements);
+      return statements.map(() => ({ success: true }));
+    },
+  } as unknown as D1Database;
+}

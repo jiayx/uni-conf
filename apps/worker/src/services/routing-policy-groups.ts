@@ -45,7 +45,7 @@ const ROUTING_TAG_GROUP_PREFERENCES: Record<string, string[]> = {
 };
 
 const DEFAULT_GENERATED_GROUPS = [
-  { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: ['DIRECT'] },
+  { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: [] },
   { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [] },
   { id: 'builtin-streaming', name: 'Streaming', type: 'select', sortOrder: 2, builtins: [] },
   { id: 'builtin-telegram', name: 'Telegram', type: 'select', sortOrder: 3, builtins: [] },
