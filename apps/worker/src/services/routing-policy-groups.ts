@@ -2,6 +2,7 @@ import {
   buildRoutingPolicyTemplateGroupNames,
   detectCountry,
   DEFAULT_HEALTH_CHECK,
+  GLOBAL_NODE_OUTLET_GROUP_IDS,
   ROUTING_POLICY_TEMPLATES,
   type RoutingPolicyTemplate,
 } from '@uni-conf/shared';
@@ -10,12 +11,7 @@ import { jsonParse, jsonStringify } from '../db/helpers';
 type GroupRow = Record<string, unknown>;
 
 const DEFAULT_PROXY_GROUP_ID = 'builtin-proxy';
-export const ALL_NODE_OUTLET_GROUP_IDS = [
-  'builtin-all-nodes',
-  'builtin-node-select',
-  'builtin-auto-select',
-  'builtin-fallback-select',
-];
+export const ALL_NODE_OUTLET_GROUP_IDS: string[] = [...GLOBAL_NODE_OUTLET_GROUP_IDS];
 const DEFAULT_MEMBER_GROUP_IDS = [
   DEFAULT_PROXY_GROUP_ID,
   'builtin-direct',

@@ -20,6 +20,29 @@ export const DEFAULT_HEALTH_CHECK = {
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
 
+export const GLOBAL_NODE_OUTLET_GROUP_IDS = [
+  'builtin-all-nodes',
+  'builtin-node-select',
+  'builtin-auto-select',
+  'builtin-fallback-select',
+] as const;
+
+export const RULE_TARGET_FOUNDATION_GROUP_IDS = [
+  'builtin-proxy',
+  'builtin-direct',
+  'builtin-reject',
+] as const;
+
+const GLOBAL_NODE_OUTLET_GROUP_ID_SET = new Set<string>(GLOBAL_NODE_OUTLET_GROUP_IDS);
+
+export function isGlobalNodeOutletGroupId(id: string): boolean {
+  return GLOBAL_NODE_OUTLET_GROUP_ID_SET.has(id);
+}
+
+export function isRuleTargetGroup(group: { id: string; collectionIds?: readonly string[] | null }): boolean {
+  return !isGlobalNodeOutletGroupId(group.id) && (group.collectionIds?.length ?? 0) === 0;
+}
+
 export type ExportSubscriptionFormat =
   | 'mihomo'
   | 'clash'

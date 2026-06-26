@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { useRulesStore } from '@/store/rules.store'
 import { useGroupsStore } from '@/store/groups.store'
 import { MANUAL_RULE_TYPES, parseManualRules, type ManualRuleForm } from '@/core/rules/manual-rules'
@@ -315,10 +316,6 @@ function setFormValue<K extends keyof RuleForm>(
 
 function normalizePayload(type: RuleType, payload: string): string {
   return type === 'MATCH' ? '' : payload.trim()
-}
-
-function isRuleTargetGroup(group: { collectionIds: string[] }): boolean {
-  return group.collectionIds.length === 0
 }
 
 function PlusIcon() {

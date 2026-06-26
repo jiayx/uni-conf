@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { Input } from '@/components/ui/Input/Input'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
@@ -376,10 +377,6 @@ function ruleSetBehaviorLabel(behavior: RuleSetBehavior): string {
 
 function canDeleteRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {
   return !(set.presetSource && set.presetId)
-}
-
-function isRuleTargetGroup(group: { collectionIds: string[] }): boolean {
-  return group.collectionIds.length === 0
 }
 
 function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number }>) {

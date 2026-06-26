@@ -133,12 +133,12 @@ lazy: true
 - `builtin-auto-select` → 自动选择 (url-test)
 - `builtin-fallback-select` → 故障切换 (fallback)
 
-Built-in groups have two product roles:
+Built-in groups have distinct product roles:
 
 | Role | Groups | Behavior |
 |------|--------|----------|
-| Foundation groups | PROXY, DIRECT, REJECT, 全部节点, 节点选择, 自动选择, 故障切换 | Always enabled by every routing policy template |
-| Rule target foundations | PROXY, DIRECT, REJECT | Always available as direct rule targets |
+| Rule target foundations | PROXY, DIRECT, REJECT | Always enabled by every routing policy template and always available as direct rule targets |
+| Global node outlets | 全部节点, 节点选择, 自动选择, 故障切换 | Always enabled by every routing policy template, but only used as outlet candidates inside routing groups |
 | Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
 | Business routing groups | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
 
@@ -173,7 +173,7 @@ Readiness validation checks the final export graph, not only stored IDs. A polic
 
 When the user changes the scenario template, the web app saves both `routing_policy_template` and the template's recommended `dns_mode`. Users can still override DNS later in Settings.
 
-Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is an enabled foundation or business policy group with no direct `collection_ids`; country auto groups and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Enabled custom non-node groups are treated as business routing groups too, so a user-created group such as `Downloads` or `Crypto` automatically receives the same foundation outlets, global node outlets, and node-backed outlet groups as the built-in scenario groups. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled, missing, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
+Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is `PROXY`, `DIRECT`, `REJECT`, or an enabled business policy group with no direct `collection_ids`. Global node outlets (`全部节点`, `节点选择`, `自动选择`, `故障切换`), country auto groups, and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Enabled custom non-node groups are treated as business routing groups too, so a user-created group such as `Downloads` or `Crypto` automatically receives the same foundation outlets, global node outlets, and node-backed outlet groups as the built-in scenario groups. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled, missing, global-node-outlet, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
 
 Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
 

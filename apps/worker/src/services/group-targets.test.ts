@@ -5,11 +5,17 @@ describe('group target helpers', () => {
   it('recognizes only enabled non-node groups as valid rule targets', async () => {
     const db = createMockDb([
       { id: 'builtin-proxy', enabled: 1, collection_ids: '[]' },
+      { id: 'builtin-direct', enabled: 1, collection_ids: '[]' },
+      { id: 'builtin-reject', enabled: 1, collection_ids: '[]' },
+      { id: 'builtin-auto-select', enabled: 1, collection_ids: '[]' },
       { id: 'us-auto', enabled: 1, collection_ids: '["collection-us"]' },
       { id: 'builtin-crypto', enabled: 0, collection_ids: '[]' },
     ]);
 
     await expect(isEnabledTargetGroup(db, 'builtin-proxy')).resolves.toBe(true);
+    await expect(isEnabledTargetGroup(db, 'builtin-direct')).resolves.toBe(true);
+    await expect(isEnabledTargetGroup(db, 'builtin-reject')).resolves.toBe(true);
+    await expect(isEnabledTargetGroup(db, 'builtin-auto-select')).resolves.toBe(false);
     await expect(isEnabledTargetGroup(db, 'us-auto')).resolves.toBe(false);
     await expect(isEnabledTargetGroup(db, 'builtin-crypto')).resolves.toBe(false);
     await expect(isEnabledTargetGroup(db, 'missing')).resolves.toBe(false);
@@ -19,6 +25,8 @@ describe('group target helpers', () => {
     const db = createMockDb([
       { id: 'builtin-proxy', enabled: 1, collection_ids: '[]' },
       { id: 'builtin-direct', enabled: 1, collection_ids: '[]' },
+      { id: 'builtin-auto-select', enabled: 1, collection_ids: '[]' },
+      { id: 'builtin-fallback-select', enabled: 1, collection_ids: '[]' },
       { id: 'us-auto', enabled: 1, collection_ids: '["collection-us"]' },
       { id: 'builtin-crypto', enabled: 0, collection_ids: '[]' },
     ]);
@@ -28,14 +36,22 @@ describe('group target helpers', () => {
 });
 
 function createMockDb(groups: Array<{ id: string; enabled: number; collection_ids: string | null }>): D1Database {
-  const isRuleTarget = (group: { enabled: number; collection_ids: string | null }) =>
-    group.enabled === 1 && (!group.collection_ids || group.collection_ids === '[]');
+  const excludedIds = new Set([
+    'builtin-all-nodes',
+    'builtin-node-select',
+    'builtin-auto-select',
+    'builtin-fallback-select',
+  ]);
+  const isRuleTarget = (group: { id: string; enabled: number; collection_ids: string | null }) =>
+    group.enabled === 1 && !excludedIds.has(group.id) && (!group.collection_ids || group.collection_ids === '[]');
 
   return {
     prepare: vi.fn((sql: string) => ({
       bind: (id: string) => ({
         first: async () => groups.find((group) => group.id === id && isRuleTarget(group)) ?? null,
-        all: async () => ({ results: [] }),
+        all: async () => ({
+          results: sql.includes('enabled = 1') ? groups.filter(isRuleTarget) : groups,
+        }),
         run: async () => ({ success: true }),
         raw: async () => [],
       }),
