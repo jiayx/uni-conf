@@ -8,31 +8,11 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { useRulesStore } from '@/store/rules.store'
 import { useGroupsStore } from '@/store/groups.store'
+import { MANUAL_RULE_TYPES, parseManualRules, type ManualRuleForm } from '@/core/rules/manual-rules'
 import type { ProxyRule, RuleType } from '@uni-conf/types'
 import styles from './Rules.module.css'
 
-type RuleForm = Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>
-
-const RULE_TYPES: RuleType[] = [
-  'DOMAIN',
-  'DOMAIN-SUFFIX',
-  'DOMAIN-KEYWORD',
-  'DOMAIN-REGEX',
-  'IP-CIDR',
-  'IP-CIDR6',
-  'IP-ASN',
-  'GEOIP',
-  'GEOSITE',
-  'PROCESS-NAME',
-  'PROCESS-PATH',
-  'PORT',
-  'SRC-PORT',
-  'SRC-IP-CIDR',
-  'PROTOCOL',
-  'NETWORK',
-  'RULE-SET',
-  'MATCH',
-]
+type RuleForm = ManualRuleForm
 
 function createEmptyForm(order: number, targetGroupId = ''): RuleForm {
   return {
@@ -145,7 +125,7 @@ export function Rules() {
       return
     }
 
-    const parsed = parseRules(batchText, batchTargetGroupId, targetGroups, rules.length)
+    const parsed = parseManualRules(batchText, batchTargetGroupId, targetGroups, rules.length)
     if (parsed.length === 0) {
       setBatchError('no valid rules found')
       return
@@ -260,7 +240,7 @@ export function Rules() {
             type: e.target.value as RuleType,
             payload: e.target.value === 'MATCH' ? '' : current.payload,
           }))}>
-            {RULE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+            {MANUAL_RULE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
           </select>
         </div>
         <Input
@@ -335,57 +315,6 @@ function setFormValue<K extends keyof RuleForm>(
 
 function normalizePayload(type: RuleType, payload: string): string {
   return type === 'MATCH' ? '' : payload.trim()
-}
-
-function parseRules(
-  text: string,
-  targetGroupId: string,
-  groups: Array<{ id: string; name: string }>,
-  startOrder: number
-): RuleForm[] {
-  return text
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('#'))
-    .map((line, index) => parseRuleLine(line, targetGroupId, groups, startOrder + index))
-    .filter((rule): rule is RuleForm => Boolean(rule))
-}
-
-function parseRuleLine(
-  line: string,
-  fallbackTargetGroupId: string,
-  groups: Array<{ id: string; name: string }>,
-  order: number
-): RuleForm | null {
-  const parts = line.split(',').map(part => part.trim()).filter(Boolean)
-  if (parts.length === 0) return null
-
-  const type = parts[0] as RuleType
-  if (!RULE_TYPES.includes(type)) return null
-
-  const isMatch = type === 'MATCH'
-  const noResolve = parts.some(part => part.toLowerCase() === 'no-resolve')
-  const payload = isMatch ? '' : parts[1] ?? ''
-  if (!isMatch && !payload) return null
-  const targetText = isMatch ? parts[1] : parts[2]
-  const targetGroupId = resolveGroupId(targetText, groups) ?? fallbackTargetGroupId
-
-  return {
-    name: '',
-    type,
-    payload,
-    targetGroupId,
-    noResolve,
-    enabled: true,
-    order,
-    compatibility: [],
-    notes: '',
-  }
-}
-
-function resolveGroupId(target: string | undefined, groups: Array<{ id: string; name: string }>): string | undefined {
-  if (!target || target.toLowerCase() === 'no-resolve') return undefined
-  return groups.find(group => group.id === target || group.name === target)?.id
 }
 
 function isRuleTargetGroup(group: { collectionIds: string[] }): boolean {

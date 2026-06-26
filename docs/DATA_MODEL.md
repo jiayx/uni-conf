@@ -173,6 +173,8 @@ Remote rule sets and manual rules target enabled rule-target groups only. A rule
 
 Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
 
+Manual rules are local overrides for exceptional cases; the default routing path comes from managed remote rule sets. The web batch importer accepts Clash-style lines, resolves target groups by id or name, and uses the selected fallback target when a line omits policy. This parser lives in `apps/web/src/core/rules/manual-rules.ts` so the local-rule supplement path is tested separately from the page UI.
+
 ### `rules` — Traffic Routing Rules
 
 | Column | Type | Description |
