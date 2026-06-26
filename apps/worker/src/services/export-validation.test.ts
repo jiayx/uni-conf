@@ -207,6 +207,31 @@ describe('export validation', () => {
     }));
   });
 
+  it('ignores policy group, rule, remote rule set, and DNS warnings for node-only subscriptions', () => {
+    const warnings = validateExportData(makeExportData({
+      groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
+      rules: [makeRule('rule-1', 'missing-rule-target', 'PROCESS-NAME', 'Example.app')],
+      remoteSets: [makeRemoteSet('bad-url', 'missing-remote-target', { url: './local-rule.yaml', format: 'singbox' })],
+    }), 'nodes_raw', { dnsMode: 'fake-ip' });
+
+    expect(warnings).not.toContainEqual(expect.objectContaining({ groupId: 'proxy' }));
+    expect(warnings).not.toContainEqual(expect.objectContaining({ ruleId: 'rule-1' }));
+    expect(warnings).not.toContainEqual(expect.objectContaining({ message: expect.stringContaining('远程规则集') }));
+    expect(warnings).not.toContainEqual(expect.objectContaining({ message: expect.stringContaining('高级 fake-ip') }));
+  });
+
+  it('keeps node protocol warnings for node-only subscriptions', () => {
+    const warnings = validateExportData(makeExportData({
+      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+    }), 'nodes_raw');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      nodeId: 'node-wg',
+      level: 'partial',
+      message: expect.stringContaining('wireguard'),
+    }));
+  });
+
   it('warns when a remote rule set is incompatible with the export format', () => {
     const warnings = validateExportData(makeExportData({
       remoteSets: [makeRemoteSet('singbox-remote', 'proxy', { format: 'singbox' })],

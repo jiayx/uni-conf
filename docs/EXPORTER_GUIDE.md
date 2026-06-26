@@ -46,6 +46,8 @@ Add the format branch in `apps/worker/src/generators/export-renderer.ts`. Worker
 
 Preview, download, and public subscription paths must use the same generator semantics. Any proxy name rewrite, dedupe, node group scoping, DNS downgrade, or compatibility warning should be visible in preview before download and public subscription use.
 
+Node-only exports (`nodes_raw` and `nodes_base64`) intentionally skip policy group, local rule, remote rule set, and DNS validation because those sections are not rendered. They should still validate source readiness, empty node output, duplicate node names, and whether each node protocol can be represented as a subscription URI.
+
 ## Step 4: Add Compatibility Rules
 
 Update `RULE_COMPATIBILITY` in `packages/shared/src/index.ts`.

@@ -32,6 +32,13 @@ export function resolveExportWarnings(
 }
 
 export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  if (isNodeOnlyExportFormat(format)) {
+    return [
+      ...validateSources(data, format),
+      ...validateNodes(data, format),
+    ];
+  }
+
   return [
     ...validateSources(data, format),
     ...validateNodes(data, format),
@@ -56,6 +63,10 @@ export function validateExportCompatibility(
   format: ExportFormat,
   options: ExportValidationOptions = {}
 ): CompatibilityWarning[] {
+  if (isNodeOnlyExportFormat(format)) {
+    return validateNodeCompatibility(data, format);
+  }
+
   return [
     ...validateNodeCompatibility(data, format),
     ...validateRuleCompatibility(data, format),
@@ -197,6 +208,10 @@ function isNodeProtocolSupportedByExport(protocol: string, format: ExportFormat)
   if (format === 'singbox') return SINGBOX_EXPORT_NODE_PROTOCOLS.has(protocol);
   if (format === 'nodes_base64' || format === 'nodes_raw') return NODE_SUBSCRIPTION_PROTOCOLS.has(protocol);
   return TEXT_CLIENT_EXPORT_NODE_PROTOCOLS.has(protocol);
+}
+
+function isNodeOnlyExportFormat(format: ExportFormat): boolean {
+  return format === 'nodes_base64' || format === 'nodes_raw';
 }
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = new Set([
