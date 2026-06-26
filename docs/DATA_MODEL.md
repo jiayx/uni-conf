@@ -372,12 +372,12 @@ This lets node collections reuse the existing `tag` filter to exclude high-multi
 
 Auto node group sync is driven by `app_settings`:
 
-- `auto_node_groups_enabled`: when false, generated auto node groups and their linked policy groups are removed.
+- `auto_node_groups_enabled`: when false, generated auto node group outlets are removed.
 - `auto_node_group_types`: JSON array of enabled generated policy types, default `["url-test"]`; supported values are `select`, `url-test`, and `fallback`.
 - `auto_node_group_keys`: optional JSON array of exact generated keys. `NULL` means include every recognized country/tag candidate; `[]` means include none.
 - `auto_node_group_include_flag`: default `1`; controls whether country auto group names include emoji flags.
 
-Auto node group sync creates these generated collections and linked policy groups when matching nodes exist and the generated key is selected:
+Auto node group sync creates generated collections plus node-backed outlet groups when matching nodes exist and the generated key is selected. Product UI presents this pair as one “node group” so users do not maintain a separate collection-to-policy relationship.
 
 | Generated group | Collection filter | Used first by |
 |-----------------|-------------------|---------------|

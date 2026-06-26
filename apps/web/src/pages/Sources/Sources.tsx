@@ -90,19 +90,29 @@ export function Sources() {
     const finalUserAgent = form.userAgent === 'custom'
       ? form.customUserAgent
       : (form.userAgent || undefined)
+    const failedUrls: string[] = []
     for (const url of urls) {
-      await addSource({
-        name: urls.length === 1 ? form.name.trim() || undefined : undefined,
-        type: 'url',
-        url,
-        format: form.format,
-        enabled: true,
-        tags: [],
-        updateInterval: form.updateInterval,
-        userAgent: finalUserAgent,
-        notes: form.notes,
-        refreshAfterCreate: form.refreshAfterCreate,
-      })
+      try {
+        await addSource({
+          name: urls.length === 1 ? form.name.trim() || undefined : undefined,
+          type: 'url',
+          url,
+          format: form.format,
+          enabled: true,
+          tags: [],
+          updateInterval: form.updateInterval,
+          userAgent: finalUserAgent,
+          notes: form.notes,
+          refreshAfterCreate: form.refreshAfterCreate,
+        })
+      } catch {
+        failedUrls.push(url)
+      }
+    }
+    if (failedUrls.length > 0) {
+      setForm(f => ({ ...f, url: failedUrls.join('\n') }))
+      setFormError(`${failedUrls.length} 个订阅源保存失败，请检查后重试`)
+      return
     }
     setShowAddModal(false)
     setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })

@@ -78,7 +78,7 @@ export function Dashboard() {
     setCreatingSource(true)
     setSourceError(null)
     try {
-      const results = await Promise.all(
+      const results = await Promise.allSettled(
         urls.map(url => api.sources.create({
           type: 'url',
           url,
@@ -89,10 +89,19 @@ export function Dashboard() {
           refreshAfterCreate: true,
         }))
       )
-      setSourceUrl('')
-      const failed = results.find(result => result.refreshError)
-      if (failed?.refreshError) {
-        setSourceError(t('dashboard.source_refresh_failed', { error: failed.refreshError }))
+      const successes = results
+        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof api.sources.create>>> => result.status === 'fulfilled')
+        .map(result => result.value)
+      const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      const refreshFailure = successes.find(result => result.refreshError)
+
+      if (failures.length === 0) {
+        setSourceUrl('')
+      }
+      if (failures.length > 0) {
+        setSourceError(`${failures.length} 个订阅源保存失败：${failures[0]?.reason instanceof Error ? failures[0].reason.message : 'unknown error'}`)
+      } else if (refreshFailure?.refreshError) {
+        setSourceError(t('dashboard.source_refresh_failed', { error: refreshFailure.refreshError }))
       }
       await loadStats()
     } catch (e) {
