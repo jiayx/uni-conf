@@ -206,7 +206,7 @@
       "nodes_raw": "节点订阅（明文）"
     },
     "select_collections": "选择节点组",
-    "select_groups": "选择策略组",
+    "select_groups": "选择策略组与出口",
     "select_rules": "选择规则",
     "reset_token_confirm": "确认重置订阅 Token？所有使用旧 Token 的订阅将失效。",
     "token_reset_success": "Token 已重置"

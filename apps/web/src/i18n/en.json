@@ -206,7 +206,7 @@
       "nodes_raw": "Node Sub (Plain)"
     },
     "select_collections": "Select Node Groups",
-    "select_groups": "Select Groups",
+    "select_groups": "Select Policy Groups and Outlets",
     "select_rules": "Select Rules",
     "reset_token_confirm": "Reset subscription token? All existing subscriptions using the old token will be invalidated.",
     "token_reset_success": "Token reset successfully"
