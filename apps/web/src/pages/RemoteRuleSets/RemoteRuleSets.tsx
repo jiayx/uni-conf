@@ -170,6 +170,7 @@ export function RemoteRuleSets() {
       ...form,
       name: form.name.trim(),
       url: form.url.trim(),
+      targetGroupId: form.targetGroupId || defaultTargetGroupId,
       notes: form.notes?.trim() || undefined,
       updateInterval: Number(form.updateInterval) || 24,
       sortOrder: Number(form.sortOrder) || 500,
@@ -177,7 +178,7 @@ export function RemoteRuleSets() {
     const { presetSource: _presetSource, presetId: _presetId, ...payload } = formPayload
 
     if (!payload.name || !payload.url || !payload.targetGroupId) {
-      setFormError('名称、规则集来源和匹配后使用的策略组必填')
+      setFormError('名称、规则集来源和匹配后使用的出口必填')
       return
     }
 
@@ -330,7 +331,7 @@ export function RemoteRuleSets() {
               ))}
             </select>
             <div className={styles.helperText}>
-              选择预置后会自动填充匹配规则，并建议“匹配后使用”的策略组。
+              选择预置后会自动填充匹配规则，并建议“匹配后使用”的出口。
             </div>
           </div>
         )}
@@ -365,7 +366,7 @@ export function RemoteRuleSets() {
         <div>
           <label className={styles.label}>匹配后使用</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
-            <option value="">-- 选择策略组 --</option>
+            <option value="">系统默认：PROXY</option>
             {targetGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </div>
