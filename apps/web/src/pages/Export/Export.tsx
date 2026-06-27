@@ -217,6 +217,12 @@ export function Export() {
         title={editingId ? '编辑导出配置' : t('export.new_config')}
         footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleSave()}>{t('common.save')}</Button></>}
       >
+        <div className={styles.defaultScopeHint}>
+          <div className={styles.defaultScopeTitle}>默认导出完整配置</div>
+          <div className={styles.defaultScopeText}>
+            只选择目标客户端即可；不调整高级范围时，会导出所有启用节点、节点组、策略组、手动规则和兼容的分流规则集。
+          </div>
+        </div>
         <Input label="名称（可选）" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="留空时使用默认导出名称" />
         <div>
           <label className={styles.selectLabel}>{t('export.format')}</label>
@@ -233,28 +239,28 @@ export function Export() {
           <div className={styles.advancedBody}>
             <MultiSelect
               label="节点组"
-              emptyText="未选择时导出所有启用节点组"
+              emptyText="导出全部启用节点组"
               options={collections.map(item => ({ id: item.id, label: item.name }))}
               value={form.includeCollectionIds}
               onChange={includeCollectionIds => setForm(f => ({ ...f, includeCollectionIds }))}
             />
             <MultiSelect
               label="策略组与出口"
-              emptyText="未选择时导出所有启用策略组与出口"
+              emptyText="导出全部启用策略组与出口"
               options={groups.map(item => ({ id: item.id, label: item.name }))}
               value={form.includeGroupIds}
               onChange={includeGroupIds => setForm(f => ({ ...f, includeGroupIds }))}
             />
             <MultiSelect
               label="手动分流规则"
-              emptyText="未选择时导出所有启用手动规则"
+              emptyText="导出全部启用手动规则"
               options={rules.map(item => ({ id: item.id, label: `${item.type}, ${item.payload}` }))}
               value={form.includeRuleIds}
               onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
             />
             <MultiSelect
               label="分流策略规则集"
-              emptyText="未选择时导出所有兼容规则集"
+              emptyText="导出全部兼容规则集"
               hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
               options={remoteSets.map(item => {
                 const compatible = isRemoteRuleSetCompatible(form.format, item)
@@ -312,7 +318,7 @@ function MultiSelect({ label, emptyText, hint, options, value, onChange }: Multi
         <span className={styles.selectLabel}>{label}</span>
         {value.length > 0 && (
           <button className={styles.clearButton} type="button" onClick={() => onChange([])}>
-            全部
+            改为全部
           </button>
         )}
       </div>
