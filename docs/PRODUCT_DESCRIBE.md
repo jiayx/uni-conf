@@ -1083,7 +1083,7 @@ tuic://
 2. Sources
 3. Nodes
 4. Node Groups
-5. Groups
+5. Policy Templates
 6. Rules
 7. Routing Policies
 8. Export
@@ -1143,16 +1143,16 @@ tuic://
 预览结果
 ```
 
-### Groups
+### Policy Templates
 
-管理策略组：
+管理策略组组合与默认出口意图：
 
 ```text
 选择策略组组合
 查看基础出口
 查看业务分流策略组
 添加额外业务策略
-调整候选出口顺序
+为业务分流组选择默认出口
 ```
 
 ### Rules
