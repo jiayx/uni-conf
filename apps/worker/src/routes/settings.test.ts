@@ -13,7 +13,12 @@ describe('settings route helpers', () => {
       },
       dnsMode: 'smart',
       exportNodeNamingMode: 'source_region_sequence',
+      autoNodeGroupsEnabled: true,
       autoNodeGroupTypes: ['url-test', 'fallback'],
+      autoNodeGroupKeys: ['country:US:url-test', 'tag:streaming:fallback'],
+      autoNodeGroupIncludeFlag: false,
+      showCompatibilityWarnings: true,
+      enableAutoRefresh: true,
       autoRefreshInterval: 1440,
     })).toBeNull()
   })
@@ -27,6 +32,13 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ dnsMode: 'system' as never })).toBe('invalid DNS mode')
     expect(validateSettingsPatch({ exportNodeNamingMode: 'random' as never })).toBe('invalid export node naming mode')
     expect(validateSettingsPatch({ autoNodeGroupTypes: ['url-test', 'random' as never] })).toBe('invalid auto node group type')
+    expect(validateSettingsPatch({ autoNodeGroupKeys: ['US:url-test'] })).toBe('invalid auto node group key')
+    expect(validateSettingsPatch({ autoNodeGroupKeys: ['country:usa:url-test'] })).toBe('invalid auto node group key')
+    expect(validateSettingsPatch({ autoNodeGroupKeys: ['country:US:load-balance'] })).toBe('invalid auto node group key')
+    expect(validateSettingsPatch({ autoNodeGroupsEnabled: 'true' as never })).toBe('invalid auto node groups enabled')
+    expect(validateSettingsPatch({ autoNodeGroupIncludeFlag: 'true' as never })).toBe('invalid auto node group include flag')
+    expect(validateSettingsPatch({ showCompatibilityWarnings: 1 as never })).toBe('invalid compatibility warnings setting')
+    expect(validateSettingsPatch({ enableAutoRefresh: 1 as never })).toBe('invalid auto refresh setting')
   })
 
   it('rejects invalid auto refresh intervals', () => {

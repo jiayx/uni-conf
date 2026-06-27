@@ -132,6 +132,23 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
       return 'invalid auto node group type'
     }
   }
+  if (body.autoNodeGroupKeys !== undefined) {
+    if (!Array.isArray(body.autoNodeGroupKeys) || body.autoNodeGroupKeys.some((key) => !isAutoNodeGroupKey(key))) {
+      return 'invalid auto node group key'
+    }
+  }
+  if (body.autoNodeGroupsEnabled !== undefined && typeof body.autoNodeGroupsEnabled !== 'boolean') {
+    return 'invalid auto node groups enabled'
+  }
+  if (body.autoNodeGroupIncludeFlag !== undefined && typeof body.autoNodeGroupIncludeFlag !== 'boolean') {
+    return 'invalid auto node group include flag'
+  }
+  if (body.showCompatibilityWarnings !== undefined && typeof body.showCompatibilityWarnings !== 'boolean') {
+    return 'invalid compatibility warnings setting'
+  }
+  if (body.enableAutoRefresh !== undefined && typeof body.enableAutoRefresh !== 'boolean') {
+    return 'invalid auto refresh setting'
+  }
   if (body.autoRefreshInterval !== undefined && (!Number.isFinite(body.autoRefreshInterval) || body.autoRefreshInterval <= 0)) {
     return 'invalid auto refresh interval'
   }
@@ -144,6 +161,18 @@ function isRoutingOutletPreferenceRef(value: unknown): value is string {
   if (!trimmed) return false
   if (trimmed.startsWith('group:')) return Boolean(trimmed.slice('group:'.length).trim())
   if (trimmed.startsWith('auto:')) return Boolean(trimmed.slice('auto:'.length).trim())
+  return false
+}
+
+function isAutoNodeGroupKey(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const parts = value.trim().split(':')
+  if (parts.length !== 3) return false
+  const [scope, key, type] = parts
+  if (!scope || !key || !type) return false
+  if (!AUTO_NODE_GROUP_TYPES.has(type as AutoNodeGroupType)) return false
+  if (scope === 'country') return /^[A-Z]{2}$/.test(key)
+  if (scope === 'tag') return /^[a-z0-9_-]+$/.test(key)
   return false
 }
 

@@ -19,6 +19,8 @@
 }
 .optionBtn:hover { border-color: var(--color-accent); color: var(--color-text-primary); }
 .optionBtn.active { background: linear-gradient(135deg, var(--color-accent), #2563eb); color: #fff; border-color: transparent; }
+.optionBtn:disabled { opacity: 0.55; cursor: not-allowed; }
+.optionBtn:disabled:hover { border-color: var(--color-border); color: var(--color-text-secondary); }
 .themeIcon {
   width: 16px;
   height: 16px;
@@ -32,6 +34,7 @@
   height: 100%;
 }
 .toggleRow { display: flex; align-items: center; gap: 0.625rem; color: var(--color-text-primary); font-size: 0.875rem; }
+.hint { color: var(--color-text-tertiary); font-size: 0.8125rem; line-height: 1.5; }
 .actionGroup { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .fileInput { display: none; }
 .status { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }

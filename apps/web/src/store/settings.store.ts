@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared'
-import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 
 interface SettingsState extends AppSettings {
   setLanguage: (lang: Language) => void
@@ -11,6 +11,9 @@ interface SettingsState extends AppSettings {
   setShowCompatibilityWarnings: (showCompatibilityWarnings: boolean) => void
   setEnableAutoRefresh: (enableAutoRefresh: boolean) => void
   setAutoRefreshInterval: (autoRefreshInterval: number) => void
+  setAutoNodeGroupsEnabled: (autoNodeGroupsEnabled: boolean) => void
+  setAutoNodeGroupTypes: (autoNodeGroupTypes: AutoNodeGroupType[]) => void
+  setAutoNodeGroupIncludeFlag: (autoNodeGroupIncludeFlag: boolean) => void
   applySettings: (settings: AppSettings) => void
   applyTheme: (theme: ThemePreference) => void
 }
@@ -58,6 +61,18 @@ export const useSettingsStore = create<SettingsState>()(
 
       setAutoRefreshInterval: (autoRefreshInterval) => {
         set({ autoRefreshInterval })
+      },
+
+      setAutoNodeGroupsEnabled: (autoNodeGroupsEnabled) => {
+        set({ autoNodeGroupsEnabled })
+      },
+
+      setAutoNodeGroupTypes: (autoNodeGroupTypes) => {
+        set({ autoNodeGroupTypes })
+      },
+
+      setAutoNodeGroupIncludeFlag: (autoNodeGroupIncludeFlag) => {
+        set({ autoNodeGroupIncludeFlag })
       },
 
       applySettings: (settings) => {

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-conf/shared'
-import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; name: string; description: string }> = [
@@ -15,6 +15,11 @@ const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; name: string
   { id: 'original', name: '保留原名', description: '导出时保留订阅或节点组处理后的名称' },
   { id: 'region_sequence', name: '地区 + 序号', description: '例如 HK - 01' },
   { id: 'source_region_sequence', name: '来源 + 地区 + 序号', description: '例如 Airport A - HK - 01' },
+]
+const AUTO_NODE_GROUP_TYPE_PRESETS: Array<{ id: AutoNodeGroupType; name: string; description: string }> = [
+  { id: 'url-test', name: '自动测速', description: '按国家/地区生成延迟优先的出口节点组' },
+  { id: 'select', name: '手动选择', description: '按国家/地区生成可手动切换的出口节点组' },
+  { id: 'fallback', name: '故障转移', description: '按国家/地区生成失败后自动切换的出口节点组' },
 ]
 
 export function Settings() {
@@ -30,6 +35,9 @@ export function Settings() {
     showCompatibilityWarnings,
     enableAutoRefresh,
     autoRefreshInterval,
+    autoNodeGroupsEnabled,
+    autoNodeGroupTypes,
+    autoNodeGroupIncludeFlag,
     setLanguage,
     setTheme,
     setDnsMode,
@@ -37,6 +45,9 @@ export function Settings() {
     setShowCompatibilityWarnings,
     setEnableAutoRefresh,
     setAutoRefreshInterval,
+    setAutoNodeGroupsEnabled,
+    setAutoNodeGroupTypes,
+    setAutoNodeGroupIncludeFlag,
     applySettings,
   } = useSettingsStore()
 
@@ -84,6 +95,31 @@ export function Settings() {
   const handleExportNodeNamingMode = (nextMode: ExportNodeNamingMode) => {
     setExportNodeNamingMode(nextMode)
     void persistSettings({ exportNodeNamingMode: nextMode })
+  }
+
+  const handleAutoNodeGroupsEnabled = (enabled: boolean) => {
+    setAutoNodeGroupsEnabled(enabled)
+    void persistSettings({ autoNodeGroupsEnabled: enabled })
+  }
+
+  const handleAutoNodeGroupType = (type: AutoNodeGroupType) => {
+    const selected = new Set(autoNodeGroupTypes)
+    if (selected.has(type)) {
+      if (selected.size === 1) return
+      selected.delete(type)
+    } else {
+      selected.add(type)
+    }
+    const nextTypes = AUTO_NODE_GROUP_TYPE_PRESETS
+      .map(preset => preset.id)
+      .filter(item => selected.has(item))
+    setAutoNodeGroupTypes(nextTypes)
+    void persistSettings({ autoNodeGroupTypes: nextTypes })
+  }
+
+  const handleAutoNodeGroupIncludeFlag = (includeFlag: boolean) => {
+    setAutoNodeGroupIncludeFlag(includeFlag)
+    void persistSettings({ autoNodeGroupIncludeFlag: includeFlag })
   }
 
   const handleExport = async () => {
@@ -197,6 +233,42 @@ export function Settings() {
             </button>
           ))}
         </div>
+      </Card>
+
+      <Card className={styles.section}>
+        <h2 className={styles.sectionTitle}>自动节点组</h2>
+        <label className={styles.toggleRow}>
+          <input
+            type="checkbox"
+            checked={autoNodeGroupsEnabled}
+            onChange={e => handleAutoNodeGroupsEnabled(e.target.checked)}
+            disabled={saving}
+          />
+          <span>节点变化后自动按国家/地区同步节点组</span>
+        </label>
+        <div className={styles.optionGroup}>
+          {AUTO_NODE_GROUP_TYPE_PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              className={`${styles.optionBtn} ${autoNodeGroupTypes.includes(preset.id) ? styles.active : ''}`}
+              onClick={() => handleAutoNodeGroupType(preset.id)}
+              disabled={saving || !autoNodeGroupsEnabled}
+              title={preset.description}
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+        <label className={styles.toggleRow}>
+          <input
+            type="checkbox"
+            checked={autoNodeGroupIncludeFlag}
+            onChange={e => handleAutoNodeGroupIncludeFlag(e.target.checked)}
+            disabled={saving || !autoNodeGroupsEnabled}
+          />
+          <span>自动生成的国家/地区节点组名称包含旗帜 Emoji</span>
+        </label>
+        <div className={styles.hint}>具体国家/地区和订阅源节点组仍在“节点组”的自动生成面板里选择。</div>
       </Card>
 
       {/* Features */}

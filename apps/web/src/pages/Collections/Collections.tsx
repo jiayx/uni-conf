@@ -174,7 +174,11 @@ export function Collections() {
     [collections, nodes, sources]
   )
   const selectedAutoCountries = useMemo(
-    () => new Set([...selectedAutoKeys].map(key => key.split(':')[0]).filter(Boolean)),
+    () => new Set(
+      [...selectedAutoKeys]
+        .map(key => parseAutoNodeGroupKey(key)?.countryCode)
+        .filter((countryCode): countryCode is string => Boolean(countryCode))
+    ),
     [selectedAutoKeys]
   )
 
