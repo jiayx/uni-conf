@@ -57,6 +57,7 @@
   "sources": {
     "title": "订阅源管理",
     "add_url": "添加订阅链接",
+    "save_and_generate": "保存并生成配置",
     "add_manual": "手动录入节点",
     "url": "订阅链接",
     "format": "订阅格式",
@@ -84,6 +85,10 @@
     "name_optional": "名称（可选）",
     "name_auto_placeholder": "留空时自动使用订阅域名",
     "advanced_options": "高级选项",
+    "empty_title": "暂无订阅源",
+    "empty_description": "粘贴一个或多个订阅链接后，系统会自动刷新、解析节点并生成默认配置",
+    "quick_hint_title": "只需要填写订阅链接",
+    "quick_hint_text": "保存后会立即刷新订阅，自动识别节点、生成节点组、启用默认分流策略和导出配置。名称、格式、User-Agent 等都可以留空。",
     "never_updated": "从未更新",
     "url_required": "请输入订阅链接",
     "name_required": "请输入名称"

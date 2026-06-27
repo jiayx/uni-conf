@@ -57,6 +57,7 @@
   "sources": {
     "title": "Subscription Sources",
     "add_url": "Add URL",
+    "save_and_generate": "Save and Generate",
     "add_manual": "Manual Entry",
     "url": "Subscription URL",
     "format": "Format",
@@ -84,6 +85,10 @@
     "name_optional": "Name (optional)",
     "name_auto_placeholder": "Leave empty to use the subscription domain",
     "advanced_options": "Advanced options",
+    "empty_title": "No subscription sources",
+    "empty_description": "Paste one or more subscription URLs; UniConf will refresh them, parse nodes, and generate the default config automatically",
+    "quick_hint_title": "Only the subscription URL is required",
+    "quick_hint_text": "After saving, UniConf refreshes the source immediately, detects nodes, generates node groups, enables default routing policies, and prepares export config. Name, format, User-Agent, and other fields can stay empty.",
     "never_updated": "Never updated",
     "url_required": "URL is required",
     "name_required": "Name is required"

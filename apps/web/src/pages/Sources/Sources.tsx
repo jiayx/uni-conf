@@ -197,8 +197,8 @@ export function Sources() {
       ) : sources.length === 0 ? (
         <EmptyState
           icon={<SubscriptionIcon />}
-          title="暂无订阅源 / No subscriptions"
-          description="粘贴一个或多个订阅链接即可自动生成配置 / Paste one or more subscription URLs to generate a config"
+          title={t('sources.empty_title')}
+          description={t('sources.empty_description')}
           action={{ label: t('sources.add_url'), onClick: () => setShowAddModal(true) }}
         />
       ) : (
@@ -290,11 +290,15 @@ export function Sources() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowAddModal(false)}>{t('common.cancel')}</Button>
-            <Button onClick={() => void handleAdd()}>{t('common.save')}</Button>
+            <Button onClick={() => void handleAdd()}>{t('sources.save_and_generate')}</Button>
           </>
         }
       >
         {formError && <div className={styles.formError}>{formError}</div>}
+        <div className={styles.quickHint}>
+          <div className={styles.quickHintTitle}>{t('sources.quick_hint_title')}</div>
+          <div className={styles.quickHintText}>{t('sources.quick_hint_text')}</div>
+        </div>
         <label className={styles.textareaField}>
           <span>{t('sources.url')}</span>
           <textarea
