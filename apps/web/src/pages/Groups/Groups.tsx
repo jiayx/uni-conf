@@ -12,6 +12,7 @@ import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
 import {
   DEFAULT_HEALTH_CHECK,
+  FOUNDATION_POLICY_GROUP_NAMES,
   GLOBAL_NODE_OUTLET_GROUP_IDS,
   ROUTING_POLICY_TEMPLATES,
   RULE_TARGET_FOUNDATION_GROUP_IDS,
@@ -262,10 +263,19 @@ export function Groups() {
                 </Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
+              <div className={styles.templateFoundation}>
+                基础出口：{FOUNDATION_POLICY_GROUP_NAMES.join(' / ')}
+              </div>
               <div className={styles.templateMembers}>
-                {template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : '不启用额外业务分流组'}
+                业务组：{template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : '无'}
               </div>
             </button>
+          ))}
+        </div>
+        <div className={styles.activeTemplateGroups}>
+          <span className={styles.activeTemplateLabel}>固定基础出口</span>
+          {FOUNDATION_POLICY_GROUP_NAMES.map(name => (
+            <Badge key={name} variant="default">{name}</Badge>
           ))}
         </div>
         <div className={styles.activeTemplateGroups}>
