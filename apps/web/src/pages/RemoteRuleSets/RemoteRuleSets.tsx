@@ -211,7 +211,7 @@ export function RemoteRuleSets() {
         actions={
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
-            <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加自定义规则集</Button>
+            <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加补充规则集</Button>
           </div>
         }
       />
@@ -221,7 +221,7 @@ export function RemoteRuleSets() {
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
-        <EmptyState title="暂无分流策略" description="默认分流策略会由系统自动生成；这里通常只需要添加额外规则集。" action={{ label: '添加自定义规则集', onClick: () => openCreate() }} />
+        <EmptyState title="暂无分流策略" description="默认分流策略会由系统自动生成；这里通常只需要添加补充规则集。" action={{ label: '添加补充规则集', onClick: () => openCreate() }} />
       ) : (
         <div className={styles.groupedList}>
           {setsByTargetGroup.map(section => (
@@ -236,7 +236,7 @@ export function RemoteRuleSets() {
                 </div>
                 <div className={styles.sectionActions}>
                   <Badge variant="purple">策略组</Badge>
-                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加自定义规则集</Button>
+                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加补充规则集</Button>
                 </div>
               </div>
               <div className={styles.grid}>
@@ -281,7 +281,7 @@ export function RemoteRuleSets() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingSet ? '编辑自定义规则集' : '添加自定义规则集'}
+        title={editingSet ? '编辑补充规则集' : '添加补充规则集'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
@@ -294,7 +294,7 @@ export function RemoteRuleSets() {
           <div className={styles.presetSection}>
             <label className={styles.label}>从规则集资源库添加</label>
             <select className={styles.select} value={selectedPresetId} onChange={e => applyPreset(e.target.value)}>
-              <option value="">自定义规则集</option>
+              <option value="">手动填写规则集 URL</option>
               {Object.entries(presetsByCategory).map(([category, presets]) => (
                 <optgroup key={category} label={PRESET_CATEGORY_LABELS[category as QuixoticRuleSetPreset['category']] ?? category}>
                   {presets.map(preset => (
@@ -312,7 +312,7 @@ export function RemoteRuleSets() {
         {formPresetId ? (
           <div>
             <label className={styles.label}>规则集来源</label>
-            <div className={styles.helperText}>已从 QuixoticHeart/rule-set:{formPresetId} 按当前格式填充 URL；保存后作为可删除的自定义规则集。</div>
+            <div className={styles.helperText}>已从 QuixoticHeart/rule-set:{formPresetId} 按当前格式填充 URL；保存后作为可删除的补充规则集。</div>
           </div>
         ) : (
           <>
