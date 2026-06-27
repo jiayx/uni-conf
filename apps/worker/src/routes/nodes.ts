@@ -3,8 +3,7 @@ import type { Env } from '../types';
 import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import { PROXY_PROTOCOL_REGISTRY, type ProxyProtocol } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
-import { ensureDefaultExportConfig } from '../services/default-export-config';
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets';
+import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { parseRawLines } from './sources';
 import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared';
 
@@ -170,9 +169,7 @@ app.post('/', async (c) => {
 });
 
 async function ensureManualNodeZeroSetupState(db: D1Database, ts: string): Promise<void> {
-  await ensureDefaultExportConfig(db, ts);
-  await syncAutoNodeGroups(db, ts);
-  await ensureDefaultRemoteRuleSets(db, ts);
+  await ensureZeroSetupDefaults(db, ts);
 }
 
 // ─── Get node ─────────────────────────────────────────────────────────────────

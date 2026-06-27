@@ -11,8 +11,7 @@ import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } f
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
-import { ensureDefaultExportConfig } from '../services/default-export-config';
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets';
+import { ensureZeroSetupDefaults } from '../services/zero-setup';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -114,9 +113,7 @@ app.post('/', async (c) => {
 });
 
 async function ensureSourceZeroSetupState(db: D1Database, ts: string): Promise<void> {
-  await ensureDefaultExportConfig(db, ts);
-  await syncAutoNodeGroups(db, ts);
-  await ensureDefaultRemoteRuleSets(db, ts);
+  await ensureZeroSetupDefaults(db, ts);
 }
 
 // ─── Get source ───────────────────────────────────────────────────────────────

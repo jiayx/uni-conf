@@ -2,19 +2,15 @@ import { Hono } from 'hono'
 import type { Env } from '../types'
 import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, ThemePreference } from '@uni-conf/types'
 import { now } from '../db/helpers'
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { getAppSettings } from '../services/app-settings'
-import { ensureDefaultExportConfig } from '../services/default-export-config'
-import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { DNS_MODE_PRESETS, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
   const ts = now()
-  await ensureDefaultExportConfig(c.env.DB, ts)
-  await syncAutoNodeGroups(c.env.DB, ts)
-  await ensureDefaultRemoteRuleSets(c.env.DB, ts)
+  await ensureZeroSetupDefaults(c.env.DB, ts)
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })
 })
@@ -82,8 +78,7 @@ app.put('/', async (c) => {
     )
     .run()
 
-  await syncAutoNodeGroups(c.env.DB, ts)
-  await ensureDefaultRemoteRuleSets(c.env.DB, ts)
+  await ensureZeroSetupDefaults(c.env.DB, ts)
 
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })

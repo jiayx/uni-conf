@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
 import { now } from '../db/helpers'
-import { ensureDefaultExportConfig } from '../services/default-export-config'
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
-import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -99,9 +97,7 @@ app.delete('/', async (c) => {
 })
 
 export async function restoreDefaultData(db: D1Database, ts: string): Promise<void> {
-  await ensureDefaultExportConfig(db, ts)
-  await syncAutoNodeGroups(db, ts)
-  await ensureDefaultRemoteRuleSets(db, ts)
+  await ensureZeroSetupDefaults(db, ts)
 }
 
 function insertRow(db: D1Database, table: TableName, row: Record<string, unknown>): D1PreparedStatement {

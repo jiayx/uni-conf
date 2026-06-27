@@ -1,18 +1,14 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import { ensureDefaultExportConfig } from '../services/default-export-config'
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows'
-import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { now } from '../db/helpers'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/stats', async (c) => {
   const ts = now()
-  const defaultExportConfig = await ensureDefaultExportConfig(c.env.DB, ts)
-  await syncAutoNodeGroups(c.env.DB, ts)
-  await ensureDefaultRemoteRuleSets(c.env.DB, ts)
+  const defaultExportConfig = await ensureZeroSetupDefaults(c.env.DB, ts)
   const [
     sourceCount,
     nodeCount,
