@@ -68,6 +68,7 @@ export function RemoteRuleSets() {
   const [form, setForm] = useState<RemoteSetForm>(() => createEmptyForm())
   const [selectedPresetId, setSelectedPresetId] = useState('')
   const [formError, setFormError] = useState('')
+  const [togglingGroupId, setTogglingGroupId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -197,6 +198,22 @@ export function RemoteRuleSets() {
     setSets(current => current.map(item => (item.id === set.id ? updated : item)))
   }
 
+  const handleToggleSection = async (groupId: string, sectionSets: RemoteRuleSet[], enabled: boolean) => {
+    const changedSets = sectionSets.filter(set => set.enabled !== enabled)
+    if (changedSets.length === 0) return
+
+    setTogglingGroupId(groupId)
+    try {
+      const updatedSets = await Promise.all(
+        changedSets.map(set => api.remoteRuleSets.update(set.id, { enabled }))
+      )
+      const updatedById = new Map(updatedSets.map(set => [set.id, set]))
+      setSets(current => current.map(item => updatedById.get(item.id) ?? item))
+    } finally {
+      setTogglingGroupId(null)
+    }
+  }
+
   const handleDelete = async (set: RemoteRuleSet) => {
     if (!confirm(`删除规则集 ${set.name}?`)) return
     await api.remoteRuleSets.remove(set.id)
@@ -235,6 +252,15 @@ export function RemoteRuleSets() {
                   </div>
                 </div>
                 <div className={styles.sectionActions}>
+                  <label className={styles.sectionSwitch}>
+                    <input
+                      type="checkbox"
+                      checked={section.sets.some(set => set.enabled)}
+                      onChange={event => void handleToggleSection(section.groupId, section.sets, event.target.checked)}
+                      disabled={togglingGroupId === section.groupId}
+                    />
+                    <span>{sectionEnabledLabel(section.sets)}</span>
+                  </label>
                   <Badge variant="purple">策略组</Badge>
                   <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加补充规则集</Button>
                 </div>
@@ -381,6 +407,13 @@ function ruleSetBehaviorLabel(behavior: RuleSetBehavior): string {
 
 function canEditRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {
   return !(set.presetSource && set.presetId)
+}
+
+function sectionEnabledLabel(sets: RemoteRuleSet[]): string {
+  const enabledCount = sets.filter(set => set.enabled).length
+  if (enabledCount === 0) return '全部停用'
+  if (enabledCount === sets.length) return '全部启用'
+  return '部分启用'
 }
 
 function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number }>) {
