@@ -4,6 +4,7 @@ import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
 import type { ProxyGroup } from '@uni-conf/types';
 import { listAutoCollectionKeysById, syncRoutingPolicyGroups, withOutletRefs } from '../services/routing-policy-groups';
 import { FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
+import { ensureZeroSetupDefaults } from '../services/zero-setup';
 
 const app = new Hono<{ Bindings: Env }>();
 const GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']);
@@ -17,7 +18,7 @@ const BUILTIN_GROUP_NAMES = new Set<string>([
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
 app.get('/', async (c) => {
-  await syncRoutingPolicyGroups(c.env.DB, now());
+  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM groups ORDER BY sort_order ASC, created_at ASC'

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import dashboardApp from './dashboard'
+import groupsApp from './groups'
+import remoteRuleSetsApp from './remote-rule-sets'
 import settingsApp from './settings'
 import { ensureDefaultExportConfig } from '../services/default-export-config'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
@@ -63,6 +65,28 @@ describe('zero-setup route initialization', () => {
     expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
     expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
     expect(getAppSettings).toHaveBeenCalledOnce()
+  })
+
+  it('syncs automatic node groups before returning groups', async () => {
+    const db = createStatsDb()
+
+    const response = await groupsApp.request('/', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
+    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+  })
+
+  it('syncs automatic node groups before returning remote rule sets', async () => {
+    const db = createStatsDb()
+
+    const response = await remoteRuleSetsApp.request('/', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
+    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
   })
 
   it('syncs automatic node groups and default rule sets after updating settings', async () => {

@@ -2,16 +2,13 @@ import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
 import type { RemoteRuleSet, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
-import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
-  const ts = now()
-  await syncRoutingPolicyGroups(c.env.DB, ts)
-  await ensureDefaultRemoteRuleSets(c.env.DB, ts)
+  await ensureZeroSetupDefaults(c.env.DB, now())
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM remote_rule_sets ORDER BY sort_order ASC, created_at ASC'
