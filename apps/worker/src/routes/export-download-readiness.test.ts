@@ -105,6 +105,41 @@ describe('export download readiness', () => {
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
+  it('renders quick downloads with the requested format while reusing the default export scope', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [
+        {
+          id: 'node-ss',
+          sourceId: 'source-1',
+          name: 'SS 01',
+          protocol: 'ss',
+          server: 'ss.example.com',
+          port: 8388,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig: { protocol: 'ss', server: 'ss.example.com', port: 8388, extra: {} },
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const db = createMockDb()
+    const response = await exportRouter.request('/download/singbox', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
+    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
+    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }))
+    expect(renderExportData).toHaveBeenCalledWith(
+      expect.anything(),
+      'singbox',
+      expect.objectContaining({ dnsMode: 'smart' })
+    )
+  })
+
   it('blocks public subscriptions when no nodes are exportable', async () => {
     const db = createMockDb()
     const response = await subscriptionRouter.request('/sub/token/mihomo.yaml', {}, { DB: db })
