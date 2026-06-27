@@ -9,7 +9,7 @@
     "nodes": "Nodes",
     "collections": "Node Groups",
     "groups": "Policy Templates",
-    "rules": "Custom Rules",
+    "rules": "Manual Rules",
     "remote_rule_sets": "Routing Policies",
     "export": "Export",
     "preview": "Preview",
@@ -167,8 +167,8 @@
     "reorder_hint": "Choose a policy template; foundation outlets and node group candidates are maintained automatically"
   },
   "rules": {
-    "title": "Custom Traffic Rules",
-    "new": "Add Custom Rule",
+    "title": "Manual Traffic Rules",
+    "new": "Add Manual Rule",
     "type": "Rule Type",
     "payload": "Match Value",
     "target": "Use Policy",
@@ -178,7 +178,7 @@
     "compat_partial": "Partial",
     "compat_convert": "Convert",
     "compat_unsupported": "Unsupported",
-    "reorder_hint": "Default routing comes from routing policies; keep only custom rules here, ordered by priority",
+    "reorder_hint": "Default routing comes from routing policies; keep only manually added rules here, ordered by priority",
     "order": "Order",
     "payload_placeholder": "Enter match value",
     "name_optional": "Rule name (optional)"

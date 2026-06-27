@@ -155,15 +155,15 @@ export function Rules() {
         description={t('rules.reorder_hint')}
         actions={
           <div className={styles.headerActions}>
-            <Button variant="secondary" onClick={openBatch}>批量添加自定义规则</Button>
+            <Button variant="secondary" onClick={openBatch}>批量添加手动规则</Button>
             <Button onClick={openCreate} icon={<PlusIcon />}>{t('rules.new')}</Button>
           </div>
         }
       />
       {loading && rules.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : rules.length === 0 ? (
         <EmptyState
-          title="暂无自定义分流规则"
-          description="通常不需要添加自定义规则；默认分流由「分流策略」里的预置规则集生成。"
+          title="暂无手动分流规则"
+          description="通常不需要添加手动规则；默认分流由「分流策略」里的预置规则集生成。"
           action={{ label: t('rules.new'), onClick: openCreate }}
         />
       ) : (
@@ -224,7 +224,7 @@ export function Rules() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingRule ? '编辑自定义规则' : t('rules.new')}
+        title={editingRule ? '编辑手动规则' : t('rules.new')}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
@@ -272,7 +272,7 @@ export function Rules() {
       <Modal
         open={showBatchModal}
         onOpenChange={setShowBatchModal}
-        title="批量添加自定义规则"
+        title="批量添加手动规则"
         size="lg"
         footer={
           <>
