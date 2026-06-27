@@ -118,7 +118,7 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
       !body.routingOutletPreferences
       || typeof body.routingOutletPreferences !== 'object'
       || Array.isArray(body.routingOutletPreferences)
-      || Object.entries(body.routingOutletPreferences).some(([key, value]) => !key.trim() || typeof value !== 'string' || !value.trim())
+      || Object.entries(body.routingOutletPreferences).some(([key, value]) => !key.trim() || !isRoutingOutletPreferenceRef(value))
     ) {
       return 'invalid routing outlet preferences'
     }
@@ -136,6 +136,15 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
     return 'invalid auto refresh interval'
   }
   return null
+}
+
+function isRoutingOutletPreferenceRef(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('group:')) return Boolean(trimmed.slice('group:'.length).trim())
+  if (trimmed.startsWith('auto:')) return Boolean(trimmed.slice('auto:'.length).trim())
+  return false
 }
 
 export default app
