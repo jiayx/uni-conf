@@ -8,7 +8,12 @@ import {
   syncRoutingPolicyGroups,
   withOutletRefs,
 } from './routing-policy-groups';
-import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
+import {
+  FOUNDATION_POLICY_GROUP_NAMES,
+  GLOBAL_NODE_OUTLET_GROUP_NAMES,
+  ROUTING_POLICY_TEMPLATES,
+  RULE_TARGET_FOUNDATION_GROUP_NAMES,
+} from '@uni-conf/shared';
 
 const groupRows = [
   {
@@ -203,6 +208,15 @@ const groupRows = [
 ];
 
 describe('routing policy group sync', () => {
+  it('splits fixed rule targets from global node outlets for product surfaces', () => {
+    expect([...RULE_TARGET_FOUNDATION_GROUP_NAMES]).toEqual(['PROXY', 'DIRECT', 'REJECT']);
+    expect([...GLOBAL_NODE_OUTLET_GROUP_NAMES]).toEqual(['全部节点', '节点选择', '自动选择', '故障切换']);
+    expect([...FOUNDATION_POLICY_GROUP_NAMES]).toEqual([
+      ...RULE_TARGET_FOUNDATION_GROUP_NAMES,
+      ...GLOBAL_NODE_OUTLET_GROUP_NAMES,
+    ]);
+  });
+
   it('keeps foundation policy and full-node outlet groups enabled for the empty template', () => {
     const emptyTemplate = ROUTING_POLICY_TEMPLATES.find((template) => template.id === 'empty');
 

@@ -12,8 +12,9 @@ import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
 import {
   DEFAULT_HEALTH_CHECK,
-  FOUNDATION_POLICY_GROUP_NAMES,
+  GLOBAL_NODE_OUTLET_GROUP_NAMES,
   GLOBAL_NODE_OUTLET_GROUP_IDS,
+  RULE_TARGET_FOUNDATION_GROUP_NAMES,
   ROUTING_POLICY_TEMPLATES,
   RULE_TARGET_FOUNDATION_GROUP_IDS,
 } from '@uni-conf/shared'
@@ -236,14 +237,14 @@ export function Groups() {
     <div className={styles.page}>
       <PageHeader
         title={t('groups.title')}
-        description="先选择一套策略组组合，再按需添加自定义策略组；默认规则会自动关联到组合里的策略组。"
+        description="先选择一套分流方案，再按需添加业务分流组；PROXY / DIRECT / REJECT 始终内置，默认规则会自动关联。"
         actions={<Button onClick={openCreate} icon={<PlusIcon />}>添加自定义策略组</Button>}
       />
       <section className={styles.templatePanel}>
         <div className={styles.templateHeader}>
           <div>
-            <div className={styles.templateTitle}>策略组组合</div>
-            <div className={styles.templateMeta}>选择一个默认组合后，系统会维护对应业务分流组和默认规则关联；基础出口 PROXY / DIRECT / REJECT 始终保留。</div>
+            <div className={styles.templateTitle}>默认分流方案</div>
+            <div className={styles.templateMeta}>方案只决定额外启用哪些业务分流组；PROXY / DIRECT / REJECT 和节点选择能力始终保留。</div>
           </div>
           <Button variant="secondary" onClick={() => void fetchGroups()} loading={savingTemplate}>{t('common.refresh')}</Button>
         </div>
@@ -263,9 +264,8 @@ export function Groups() {
                 </Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
-              <div className={styles.templateFoundation}>
-                基础出口：{FOUNDATION_POLICY_GROUP_NAMES.join(' / ')}
-              </div>
+              <div className={styles.templateFoundation}>规则基础：{RULE_TARGET_FOUNDATION_GROUP_NAMES.join(' / ')}</div>
+              <div className={styles.templateFoundation}>节点出口：{GLOBAL_NODE_OUTLET_GROUP_NAMES.join(' / ')}</div>
               <div className={styles.templateMembers}>
                 业务组：{template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : '无'}
               </div>
@@ -273,8 +273,14 @@ export function Groups() {
           ))}
         </div>
         <div className={styles.activeTemplateGroups}>
-          <span className={styles.activeTemplateLabel}>固定基础出口</span>
-          {FOUNDATION_POLICY_GROUP_NAMES.map(name => (
+          <span className={styles.activeTemplateLabel}>固定规则基础</span>
+          {RULE_TARGET_FOUNDATION_GROUP_NAMES.map(name => (
+            <Badge key={name} variant="default">{name}</Badge>
+          ))}
+        </div>
+        <div className={styles.activeTemplateGroups}>
+          <span className={styles.activeTemplateLabel}>固定节点出口</span>
+          {GLOBAL_NODE_OUTLET_GROUP_NAMES.map(name => (
             <Badge key={name} variant="default">{name}</Badge>
           ))}
         </div>
@@ -295,8 +301,8 @@ export function Groups() {
         <section className={styles.foundationPanel}>
           <div className={styles.foundationHeader}>
             <div>
-              <div className={styles.foundationTitle}>基础出口</div>
-              <div className={styles.foundationMeta}>始终存在；业务分流策略组会自动包含这些基础目标和节点出口。</div>
+              <div className={styles.foundationTitle}>基础目标与节点出口</div>
+              <div className={styles.foundationMeta}>始终存在；规则可直接命中 PROXY / DIRECT / REJECT，业务分流组会自动包含节点出口。</div>
             </div>
           </div>
           {foundationSections.map(section => (

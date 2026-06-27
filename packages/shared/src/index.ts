@@ -485,14 +485,22 @@ export const DNS_MODE_PRESETS: DnsModePreset[] = [
   },
 ];
 
-export const FOUNDATION_POLICY_GROUP_NAMES = [
+export const RULE_TARGET_FOUNDATION_GROUP_NAMES = [
   'PROXY',
   'DIRECT',
   'REJECT',
+] as const;
+
+export const GLOBAL_NODE_OUTLET_GROUP_NAMES = [
   '全部节点',
   '节点选择',
   '自动选择',
   '故障切换',
+] as const;
+
+export const FOUNDATION_POLICY_GROUP_NAMES = [
+  ...RULE_TARGET_FOUNDATION_GROUP_NAMES,
+  ...GLOBAL_NODE_OUTLET_GROUP_NAMES,
 ] as const;
 
 export function buildRoutingPolicyTemplateGroupNames(template: RoutingPolicyTemplate): string[] {
