@@ -1,6 +1,8 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { ensureDefaultExportConfig } from '../services/default-export-config'
+import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import {
   deleteSourceById,
   deriveSourceName,
@@ -16,9 +18,22 @@ import {
   SourceRefreshError,
   validateSourceMutableFields,
 } from './sources'
+import sourcesApp from './sources'
 
 vi.mock('../services/auto-node-groups', () => ({
   syncAutoNodeGroups: vi.fn(async () => undefined),
+}))
+
+vi.mock('../services/default-export-config', () => ({
+  ensureDefaultExportConfig: vi.fn(async () => ({
+    id: 'default-mihomo',
+    token: 'default-token',
+    format: 'mihomo',
+  })),
+}))
+
+vi.mock('../services/default-rule-sets', () => ({
+  ensureDefaultRemoteRuleSets: vi.fn(async () => undefined),
 }))
 
 // Mock Clash YAML with multiple node formats
@@ -406,6 +421,29 @@ proxies:
     expect(db.operations).toEqual([])
     expect(syncAutoNodeGroups).not.toHaveBeenCalled()
   })
+
+  it('initializes zero-setup defaults after creating a subscription source', async () => {
+    const db = createCreateMockDb()
+
+    const response = await sourcesApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'url',
+        url: 'https://airport.example/sub',
+        format: 'auto',
+        refreshAfterCreate: false,
+      }),
+    }, { DB: db })
+    const payload = await response.json() as { success: boolean; data: { source: { name: string } } }
+
+    expect(response.status).toBe(201)
+    expect(payload.success).toBe(true)
+    expect(payload.data.source.name).toBe('airport.example')
+    expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, expect.any(String))
+    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, expect.any(String))
+  })
 })
 
 function createRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
@@ -480,4 +518,59 @@ function createDeleteMockDb(hasSource: boolean): D1Database & { operations: Arra
       raw: async () => [],
     })),
   } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
+}
+
+function createCreateMockDb(): D1Database {
+  const inserted: Record<string, unknown> = {}
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
+            return {
+              id: args[0],
+              name: inserted.name ?? 'airport.example',
+              type: inserted.type ?? 'url',
+              url: inserted.url ?? 'https://airport.example/sub',
+              format: inserted.format ?? 'auto',
+              enabled: 1,
+              node_count: 0,
+              last_updated: null,
+              last_refresh_error: null,
+              update_interval: 0,
+              user_agent: null,
+              notes: null,
+              tags: '[]',
+              source_groups: '[]',
+              upload_bytes: null,
+              download_bytes: null,
+              total_bytes: null,
+              expire_time: null,
+              created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
+              updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',
+            }
+          }
+          return null
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          if (sql.includes('INSERT INTO sources')) {
+            inserted.id = args[0]
+            inserted.name = args[1]
+            inserted.type = args[2]
+            inserted.url = args[3]
+            inserted.format = args[4]
+            inserted.created_at = args[10]
+            inserted.updated_at = args[11]
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database
 }

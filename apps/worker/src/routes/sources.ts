@@ -11,6 +11,8 @@ import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } f
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
+import { ensureDefaultExportConfig } from '../services/default-export-config';
+import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -102,6 +104,7 @@ app.post('/', async (c) => {
       await recordSourceRefreshError(c.env.DB, id, refreshError);
     }
   }
+  await ensureSourceZeroSetupState(c.env.DB, ts);
 
   const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
@@ -109,6 +112,12 @@ app.post('/', async (c) => {
 
   return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError } }, 201);
 });
+
+async function ensureSourceZeroSetupState(db: D1Database, ts: string): Promise<void> {
+  await ensureDefaultExportConfig(db, ts);
+  await syncAutoNodeGroups(db, ts);
+  await ensureDefaultRemoteRuleSets(db, ts);
+}
 
 // ─── Get source ───────────────────────────────────────────────────────────────
 
