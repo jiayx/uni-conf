@@ -18,6 +18,10 @@ export function Preview() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const unsupportedWarnings = warnings.filter(warning => warning.level === 'unsupported')
+  const partialWarnings = warnings.filter(warning => warning.level === 'partial')
+  const convertWarnings = warnings.filter(warning => warning.level === 'convert')
+  const canUseConfig = content && unsupportedWarnings.length === 0
 
   const loadConfigs = useCallback(async () => {
     try {
@@ -101,6 +105,22 @@ export function Preview() {
             <span>{contentType}</span>
             <span>{t('preview.line_count', { count: content.split('\n').length })}</span>
           </div>
+          {!loading && !previewError && (
+            <div className={`${styles.summary} ${canUseConfig ? styles.summaryReady : styles.summaryBlocked}`}>
+              <strong>
+                {canUseConfig ? t('preview.ready_title') : t('preview.blocked_title')}
+              </strong>
+              <span>
+                {warnings.length === 0
+                  ? t('preview.ready_desc')
+                  : t('preview.warning_summary', {
+                    unsupported: unsupportedWarnings.length,
+                    partial: partialWarnings.length,
+                    convert: convertWarnings.length,
+                  })}
+              </span>
+            </div>
+          )}
           {warnings.length > 0 && (
             <div className={styles.warnings}>
               {warnings.map((warning, index) => (

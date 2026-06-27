@@ -219,6 +219,10 @@
     "line_count": "共 {{count}} 行",
     "copy_success": "配置已复制",
     "no_warnings": "无兼容性问题",
+    "ready_title": "配置可用",
+    "ready_desc": "当前预览没有发现需要处理的问题，可以直接复制或下载。",
+    "blocked_title": "配置需要处理",
+    "warning_summary": "发现 {{unsupported}} 个阻塞问题、{{partial}} 个自动调整项、{{convert}} 个格式转换提示。",
     "generating": "正在生成配置...",
     "empty": "暂无预览内容",
     "error": "预览生成失败"

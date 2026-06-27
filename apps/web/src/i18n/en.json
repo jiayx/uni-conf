@@ -219,6 +219,10 @@
     "line_count": "{{count}} lines",
     "copy_success": "Config copied",
     "no_warnings": "No compatibility issues",
+    "ready_title": "Config ready",
+    "ready_desc": "The preview has no issues that need attention and can be copied or downloaded.",
+    "blocked_title": "Config needs attention",
+    "warning_summary": "{{unsupported}} blocking issues, {{partial}} automatic adjustments, and {{convert}} conversion notes found.",
     "generating": "Generating config...",
     "empty": "No preview content",
     "error": "Preview failed"
