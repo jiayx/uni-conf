@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import dashboardApp from './dashboard'
+import { exportRouter } from './export'
 import groupsApp from './groups'
 import remoteRuleSetsApp from './remote-rule-sets'
 import settingsApp from './settings'
@@ -71,6 +72,17 @@ describe('zero-setup route initialization', () => {
     const db = createStatsDb()
 
     const response = await groupsApp.request('/', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
+    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+  })
+
+  it('syncs automatic node groups before returning export configs', async () => {
+    const db = createStatsDb()
+
+    const response = await exportRouter.request('/configs', {}, { DB: db })
 
     expect(response.status).toBe(200)
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()

@@ -4,6 +4,7 @@ import { buildExportData, getExportConfigById } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { findBlockingNodeExportWarning, resolveExportWarnings } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
@@ -13,7 +14,7 @@ export const exportRouter = new Hono<{ Bindings: Env }>()
 
 // GET /api/export/configs - list export configs
 exportRouter.get('/configs', async (c) => {
-  await ensureDefaultExportConfig(c.env.DB, now())
+  await ensureZeroSetupDefaults(c.env.DB, now())
   const rows = await c.env.DB.prepare('SELECT * FROM export_configs ORDER BY created_at DESC').all()
   return c.json({ success: true, data: (rows.results ?? []).map(mapExportConfig) })
 })
