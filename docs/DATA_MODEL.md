@@ -268,6 +268,8 @@ The system ensures a built-in default export config exists:
 
 Export config writes validate the advanced include filters before persistence. `include_collection_ids`, `include_group_ids`, `include_rule_ids`, and `include_remote_set_ids` must be arrays of non-empty string IDs; values are trimmed and de-duplicated. Empty arrays keep the zero-setup behavior by exporting all enabled data of that kind.
 
+When `include_group_ids` selects only a subset of policy groups, export data expands the final group set through derived `group_ids` before collecting nodes. If the expanded group set contains a global node outlet such as `全部节点`, `节点选择`, `自动选择`, or `故障切换`, the export keeps the full enabled node pool because those outlets can select any node. Otherwise, node output is scoped to the node groups referenced by the expanded group set. This keeps preview/download/public subscription aligned: every proxy group member that can point at nodes has matching `proxies` / `outbounds` entries in the rendered config.
+
 Dashboard stats, export preview/download, settings reads, group reads, and remote rule set reads are initialization points for the zero-setup path. They ensure the default export config, foundation/routing policy groups, automatic node groups, and built-in remote rule sets exist before returning user-facing state, so the first screen can show the same defaults that export will use.
 
 ### `app_settings` — Application Settings (Singleton)

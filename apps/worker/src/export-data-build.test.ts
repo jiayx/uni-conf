@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ExportConfig } from '@uni-conf/types';
 import { buildExportData } from './export-data';
 import { syncAutoNodeGroups } from './services/auto-node-groups';
 import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets';
@@ -42,6 +43,35 @@ describe('buildExportData', () => {
     expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce();
     expect(getAppSettings).toHaveBeenCalledOnce();
   });
+
+  it('exports nodes required by global outlets referenced by a selected routing policy group', async () => {
+    const db = createScopedDb();
+    const data = await buildExportData(db, {
+      id: 'export-ai',
+      name: 'AI export',
+      format: 'mihomo',
+      token: 'token',
+      enabled: true,
+      includeCollectionIds: [],
+      includeGroupIds: ['builtin-ai'],
+      includeRuleIds: [],
+      includeRemoteSetIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    } satisfies ExportConfig);
+
+    expect(data.groups.map((group) => group.id)).toEqual([
+      'builtin-proxy',
+      'builtin-ai',
+      'builtin-direct',
+      'builtin-reject',
+      'builtin-auto-select',
+      'us-auto',
+    ]);
+    expect(data.nodes.map((node) => node.server)).toEqual(['us.example.com', 'hk.example.com']);
+    expect(data.collectionNodeNames['collection-us']).toEqual(['Airport A - US - 01']);
+    expect(data.collectionNodeNames['collection-hk']).toEqual(['Airport A - HK - 01']);
+  });
 });
 
 function createEmptyDb(): D1Database {
@@ -59,4 +89,155 @@ function createEmptyDb(): D1Database {
       raw: async () => [],
     })),
   } as unknown as D1Database;
+}
+
+function createScopedDb(): D1Database {
+  const rows = {
+    nodes: [
+      nodeRow('node-us', 'US 01', 'us.example.com', 'US'),
+      nodeRow('node-hk', 'HK 01', 'hk.example.com', 'HK'),
+    ],
+    collections: [
+      collectionRow('collection-us', 'US Auto', 'US'),
+      collectionRow('collection-hk', 'HK Auto', 'HK'),
+    ],
+    groups: [
+      groupRow('builtin-proxy', 'PROXY', 'select', [], [], 0, true),
+      groupRow('builtin-ai', 'AI', 'select', [], [], 1, true),
+      groupRow('builtin-direct', 'DIRECT', 'direct', [], [], 2, true, ['DIRECT']),
+      groupRow('builtin-reject', 'REJECT', 'reject', [], [], 3, true, ['REJECT']),
+      groupRow('builtin-auto-select', '自动选择', 'url-test', [], [], 4, true),
+      groupRow('us-auto', 'US Auto', 'url-test', ['collection-us'], [], 5, false),
+    ],
+    sources: [
+      {
+        id: 'source-a',
+        name: 'Airport A',
+        type: 'url',
+        url: 'https://example.com/sub',
+        format: 'auto',
+        enabled: 1,
+        node_count: 2,
+        last_updated: null,
+        last_refresh_error: null,
+        update_interval: 0,
+        user_agent: null,
+        notes: null,
+        tags: '[]',
+        source_groups: '[]',
+        raw_content: null,
+        upload_bytes: null,
+        download_bytes: null,
+        total_bytes: null,
+        expire_time: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+  };
+
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: vi.fn(() => statementForSql(sql, rows)),
+      ...statementForSql(sql, rows),
+    })),
+  } as unknown as D1Database;
+}
+
+function statementForSql(sql: string, rows: ReturnType<typeof scopedRows>) {
+  return {
+    all: async () => ({ results: rowsForSql(sql, rows) }),
+    first: async () => null,
+    run: async () => ({ success: true }),
+    raw: async () => [],
+  };
+}
+
+function rowsForSql(sql: string, rows: ReturnType<typeof scopedRows>): Record<string, unknown>[] {
+  if (sql.includes('FROM nodes n')) return rows.nodes;
+  if (sql.includes('SELECT id, notes FROM collections')) return [];
+  if (sql.includes('SELECT * FROM collections')) return rows.collections;
+  if (sql.includes('SELECT * FROM groups')) return rows.groups;
+  if (sql.includes('SELECT id, name FROM sources')) return rows.sources.map(({ id, name }) => ({ id, name }));
+  if (sql.includes('SELECT * FROM sources')) return rows.sources;
+  if (sql.includes('SELECT * FROM rules')) return [];
+  if (sql.includes('SELECT * FROM remote_rule_sets')) return [];
+  return [];
+}
+
+function scopedRows() {
+  return {
+    nodes: [] as Record<string, unknown>[],
+    collections: [] as Record<string, unknown>[],
+    groups: [] as Record<string, unknown>[],
+    sources: [] as Record<string, unknown>[],
+  };
+}
+
+function nodeRow(id: string, name: string, server: string, countryCode: string): Record<string, unknown> {
+  return {
+    id,
+    source_id: 'source-a',
+    name,
+    protocol: 'ss',
+    server,
+    port: 443,
+    country: countryCode === 'US' ? 'United States' : 'Hong Kong',
+    country_code: countryCode,
+    enabled: 1,
+    tags: '[]',
+    notes: null,
+    raw_config: '{}',
+    parsed_config: JSON.stringify({ protocol: 'ss', server, port: 443, extra: {} }),
+    is_manual: 0,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function collectionRow(id: string, name: string, countryCode: string): Record<string, unknown> {
+  return {
+    id,
+    name,
+    source_ids: '[]',
+    node_ids: '[]',
+    filters: JSON.stringify([{ id: `${id}-country`, field: 'countryCode', operator: 'equals', value: countryCode, enabled: true }]),
+    renames: '[]',
+    dedup: 'name',
+    sort: 'country',
+    sort_country_order: null,
+    enabled: 1,
+    notes: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function groupRow(
+  id: string,
+  name: string,
+  type: string,
+  collectionIds: string[],
+  groupIds: string[],
+  sortOrder: number,
+  isBuiltin: boolean,
+  builtins: string[] = []
+): Record<string, unknown> {
+  return {
+    id,
+    name,
+    type,
+    collection_ids: JSON.stringify(collectionIds),
+    group_ids: JSON.stringify(groupIds),
+    builtins: JSON.stringify(builtins),
+    test_url: null,
+    interval: null,
+    tolerance: null,
+    lazy: null,
+    enabled: 1,
+    sort_order: sortOrder,
+    is_builtin: isBuiltin ? 1 : 0,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  };
 }
