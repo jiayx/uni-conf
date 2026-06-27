@@ -3,6 +3,8 @@ import type { Env } from '../types';
 import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import { PROXY_PROTOCOL_REGISTRY, type ProxyProtocol } from '@uni-conf/types';
 import { syncAutoNodeGroups } from '../services/auto-node-groups';
+import { ensureDefaultExportConfig } from '../services/default-export-config';
+import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets';
 import { parseRawLines } from './sources';
 import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared';
 
@@ -158,7 +160,7 @@ app.post('/', async (c) => {
     .run();
 
   await updateSourceNodeCount(c.env.DB, sourceId, ts);
-  await syncAutoNodeGroups(c.env.DB, ts);
+  await ensureManualNodeZeroSetupState(c.env.DB, ts);
 
   const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(id)
@@ -166,6 +168,12 @@ app.post('/', async (c) => {
 
   return c.json({ success: true, data: mapNode(row!) }, 201);
 });
+
+async function ensureManualNodeZeroSetupState(db: D1Database, ts: string): Promise<void> {
+  await ensureDefaultExportConfig(db, ts);
+  await syncAutoNodeGroups(db, ts);
+  await ensureDefaultRemoteRuleSets(db, ts);
+}
 
 // ─── Get node ─────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,24 @@
-import { describe, expect, it } from 'vitest';
-import { resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
+import { describe, expect, it, vi } from 'vitest';
+import { syncAutoNodeGroups } from '../services/auto-node-groups';
+import { ensureDefaultExportConfig } from '../services/default-export-config';
+import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets';
+import nodesApp, { resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
+
+vi.mock('../services/auto-node-groups', () => ({
+  syncAutoNodeGroups: vi.fn(async () => undefined),
+}));
+
+vi.mock('../services/default-export-config', () => ({
+  ensureDefaultExportConfig: vi.fn(async () => ({
+    id: 'default-mihomo',
+    token: 'default-token',
+    format: 'mihomo',
+  })),
+}));
+
+vi.mock('../services/default-rule-sets', () => ({
+  ensureDefaultRemoteRuleSets: vi.fn(async () => undefined),
+}));
 
 describe('manual node input', () => {
   it('resolves a node from a share URI', () => {
@@ -127,4 +146,84 @@ describe('manual node input', () => {
       error: 'parsedConfig must be an object',
     });
   });
+
+  it('initializes zero-setup defaults after creating a manual node', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb();
+
+    const response = await nodesApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        uri: 'trojan://password@de.example.com:443#🇩🇪 DE 01',
+      }),
+    }, { DB: db });
+    const payload = await response.json() as { success: boolean; data: { name: string; countryCode?: string } };
+
+    expect(response.status).toBe(201);
+    expect(payload.success).toBe(true);
+    expect(payload.data).toMatchObject({ name: '🇩🇪 DE 01', countryCode: 'DE' });
+    expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, expect.any(String));
+    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, expect.any(String));
+  });
 });
+
+function createManualNodeCreateMockDb(): D1Database {
+  const inserted: Record<string, unknown> = {};
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT id FROM sources WHERE id = ?')) return null;
+          if (sql.includes('SELECT COUNT(*) as count FROM nodes WHERE source_id = ?')) return { count: 1 };
+          if (sql.includes('SELECT * FROM nodes WHERE id = ?')) {
+            return {
+              id: args[0],
+              source_id: inserted.source_id ?? 'manual',
+              name: inserted.name ?? '🇩🇪 DE 01',
+              protocol: inserted.protocol ?? 'trojan',
+              server: inserted.server ?? 'de.example.com',
+              port: inserted.port ?? 443,
+              country: inserted.country ?? 'Germany',
+              country_code: inserted.country_code ?? 'DE',
+              enabled: 1,
+              tags: inserted.tags ?? '[]',
+              notes: null,
+              raw_config: inserted.raw_config ?? '{}',
+              parsed_config: inserted.parsed_config ?? '{}',
+              is_manual: 1,
+              created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
+              updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',
+            };
+          }
+          return null;
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          if (sql.includes('INSERT INTO nodes')) {
+            inserted.id = args[0];
+            inserted.source_id = args[1];
+            inserted.name = args[2];
+            inserted.protocol = args[3];
+            inserted.server = args[4];
+            inserted.port = args[5];
+            inserted.country = args[6];
+            inserted.country_code = args[7];
+            inserted.tags = args[9];
+            inserted.raw_config = args[11];
+            inserted.parsed_config = args[12];
+            inserted.created_at = args[13];
+            inserted.updated_at = args[14];
+          }
+          return { success: true };
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database;
+}
