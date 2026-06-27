@@ -6,6 +6,7 @@ import {
   resolveOutletGroupIds,
   resolveRoutingGroupIds,
   syncRoutingPolicyGroups,
+  withOutletRefs,
 } from './routing-policy-groups';
 import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 
@@ -459,10 +460,18 @@ describe('routing policy group sync', () => {
   });
 
   it('keeps system-managed outlet candidates but moves the preferred outlet first', () => {
-    const rows = applyRoutingPolicyGroupLinks(groupRows, {
-      'builtin-ai': 'sg-auto',
-      'builtin-streaming': 'jp-auto',
-    });
+    const rows = applyRoutingPolicyGroupLinks(
+      groupRows,
+      {
+        'builtin-ai': 'auto:country:SG:url-test',
+        'builtin-streaming': 'auto:country:JP:url-test',
+      },
+      {
+        'collection-us': 'country:US:url-test',
+        'collection-jp': 'country:JP:url-test',
+        'collection-sg': 'country:SG:url-test',
+      }
+    );
 
     expect(JSON.parse(String(rows.find((row) => row.id === 'builtin-ai')?.group_ids ?? '[]')).slice(0, 4)).toEqual([
       'sg-auto',
@@ -477,7 +486,38 @@ describe('routing policy group sync', () => {
       'hk-auto',
     ]);
   });
+
+  it('resolves stable automatic outlet references after generated group ids change', () => {
+    const regeneratedRows = groupRows.map((row) => (
+      row.id === 'us-auto'
+        ? { ...row, id: 'new-us-auto-id' }
+        : row
+    ));
+    const rows = applyRoutingPolicyGroupLinks(
+      regeneratedRows,
+      { 'builtin-ai': 'auto:country:US:url-test' },
+      { 'collection-us': 'country:US:url-test' }
+    );
+
+    const aiGroupIds = JSON.parse(String(rows.find((row) => row.id === 'builtin-ai')?.group_ids ?? '[]')) as string[];
+    expect(aiGroupIds[0]).toBe('new-us-auto-id');
+  });
+
+  it('exposes stable outlet refs for generated automatic node groups', () => {
+    const rows = withOutletRefs(groupRows, {
+      'collection-us': 'country:US:url-test',
+      'collection-streaming': 'tag:streaming:url-test',
+    });
+
+    expect(outletRef(rows, 'us-auto')).toBe('auto:country:US:url-test');
+    expect(outletRef(rows, 'streaming-auto')).toBe('auto:tag:streaming:url-test');
+    expect(outletRef(rows, 'builtin-auto-select')).toBe('group:builtin-auto-select');
+  });
 });
+
+function outletRef(rows: Array<Record<string, unknown>>, id: string): unknown {
+  return rows.find((row) => row.id === id)?.outlet_ref;
+}
 
 function createSyncMockDb(batches: Array<Array<{ sql: string; args: unknown[] }>>): D1Database {
   return {

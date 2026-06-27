@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
 import type { ProxyGroup } from '@uni-conf/types';
-import { syncRoutingPolicyGroups } from '../services/routing-policy-groups';
+import { listAutoCollectionKeysById, syncRoutingPolicyGroups, withOutletRefs } from '../services/routing-policy-groups';
 import { FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -22,8 +22,9 @@ app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM groups ORDER BY sort_order ASC, created_at ASC'
   ).all<Record<string, unknown>>();
+  const autoCollectionKeysById = await listAutoCollectionKeysById(c.env.DB);
 
-  return c.json({ success: true, data: results.map(mapGroup) });
+  return c.json({ success: true, data: withOutletRefs(results, autoCollectionKeysById).map(mapGroup) });
 });
 
 // ─── Reorder groups ───────────────────────────────────────────────────────────
@@ -48,8 +49,9 @@ app.post('/reorder', async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM groups ORDER BY sort_order ASC'
   ).all<Record<string, unknown>>();
+  const autoCollectionKeysById = await listAutoCollectionKeysById(c.env.DB);
 
-  return c.json({ success: true, data: results.map(mapGroup) });
+  return c.json({ success: true, data: withOutletRefs(results, autoCollectionKeysById).map(mapGroup) });
 });
 
 // ─── Create group (non-builtin only) ─────────────────────────────────────────

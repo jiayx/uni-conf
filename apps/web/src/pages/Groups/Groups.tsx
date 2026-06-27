@@ -186,10 +186,10 @@ export function Groups() {
     }
   }
 
-  const handleOutletPreference = async (group: ProxyGroup, preferredOutletId: string) => {
+  const handleOutletPreference = async (group: ProxyGroup, preferredOutletRef: string) => {
     const nextPreferences = { ...outletPreferences }
-    if (preferredOutletId) {
-      nextPreferences[group.id] = preferredOutletId
+    if (preferredOutletRef) {
+      nextPreferences[group.id] = preferredOutletRef
     } else {
       delete nextPreferences[group.id]
     }
@@ -346,7 +346,7 @@ export function Groups() {
                     >
                       <option value="">系统推荐：{getGroupName(groups, group.groupIds[0])}</option>
                       {group.groupIds.map(id => (
-                        <option key={id} value={id}>{getGroupName(groups, id)}</option>
+                        <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
                       ))}
                     </select>
                   </label>
@@ -482,4 +482,8 @@ function describeRoutingGroupMembers(group: ProxyGroup): string {
 function getGroupName(groups: ProxyGroup[], id: string | undefined): string {
   if (!id) return '无可用出口'
   return groups.find(group => group.id === id)?.name ?? id
+}
+
+function getOutletRef(groups: ProxyGroup[], id: string): string {
+  return groups.find(group => group.id === id)?.outletRef ?? `group:${id}`
 }

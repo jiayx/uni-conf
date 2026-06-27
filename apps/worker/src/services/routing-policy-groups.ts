@@ -1,4 +1,5 @@
 import {
+  AUTO_NODE_GROUP_PREFIX,
   buildRoutingPolicyTemplateGroupNames,
   detectCountry,
   DEFAULT_HEALTH_CHECK,
@@ -10,6 +11,7 @@ import { jsonParse, jsonStringify } from '../db/helpers';
 import { getAppSettings } from './app-settings';
 
 type GroupRow = Record<string, unknown>;
+type AutoCollectionKeysById = Record<string, string>;
 
 const DEFAULT_PROXY_GROUP_ID = 'builtin-proxy';
 export const ALL_NODE_OUTLET_GROUP_IDS: string[] = [...GLOBAL_NODE_OUTLET_GROUP_IDS];
@@ -72,6 +74,7 @@ export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promi
 
   const routingGroupIds = resolveRoutingGroupIds(results);
   const outletPreferences = await getRoutingOutletPreferences(db);
+  const autoCollectionKeysById = await listAutoCollectionKeysById(db);
 
   if (routingGroupIds.length === 0) return;
 
@@ -79,22 +82,33 @@ export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promi
     routingGroupIds.map((id) =>
       db
         .prepare('UPDATE groups SET group_ids = ?, updated_at = ? WHERE id = ?')
-        .bind(jsonStringify(resolveRoutingMemberGroupIds(results, id, outletPreferences)), ts, id)
+        .bind(jsonStringify(resolveRoutingMemberGroupIds(results, id, outletPreferences, autoCollectionKeysById)), ts, id)
     )
   );
 }
 
 export function applyRoutingPolicyGroupLinks<T extends GroupRow>(
   groupRows: T[],
-  outletPreferences: Record<string, string> = {}
+  outletPreferences: Record<string, string> = {},
+  autoCollectionKeysById: AutoCollectionKeysById = {}
 ): T[] {
   const routingGroupIds = new Set(resolveRoutingGroupIds(groupRows));
 
   return groupRows.map((row) => (
     routingGroupIds.has(String(row.id))
-      ? { ...row, group_ids: jsonStringify(resolveRoutingMemberGroupIds(groupRows, String(row.id), outletPreferences)) }
+      ? { ...row, group_ids: jsonStringify(resolveRoutingMemberGroupIds(groupRows, String(row.id), outletPreferences, autoCollectionKeysById)) }
       : row
   ));
+}
+
+export function withOutletRefs<T extends GroupRow>(
+  groupRows: T[],
+  autoCollectionKeysById: AutoCollectionKeysById = {}
+): T[] {
+  return groupRows.map((row) => ({
+    ...row,
+    outlet_ref: outletReferenceForGroup(row, autoCollectionKeysById),
+  }));
 }
 
 export function resolveOutletGroupIds(groupRows: GroupRow[]): string[] {
@@ -124,13 +138,15 @@ export function resolveRoutingGroupIds(groupRows: GroupRow[]): string[] {
 export function resolveRoutingMemberGroupIds(
   groupRows: GroupRow[],
   routingGroupId: string,
-  outletPreferences: Record<string, string> = {}
+  outletPreferences: Record<string, string> = {},
+  autoCollectionKeysById: AutoCollectionKeysById = {}
 ): string[] {
   return sortRoutingMemberGroupIds(
     resolveOutletGroupIds(groupRows).filter((id) => id !== routingGroupId),
     groupRows,
     routingGroupId,
-    outletPreferences
+    outletPreferences,
+    autoCollectionKeysById
   );
 }
 
@@ -150,12 +166,13 @@ function sortRoutingMemberGroupIds(
   outletIds: string[],
   groupRows: GroupRow[],
   routingGroupId: string,
-  outletPreferences: Record<string, string>
+  outletPreferences: Record<string, string>,
+  autoCollectionKeysById: AutoCollectionKeysById
 ): string[] {
   const rowsById = new Map(groupRows.map((row) => [String(row.id), row]));
   const routingGroupName = String(rowsById.get(routingGroupId)?.name ?? routingGroupId).toUpperCase();
   const countryPreferences = ROUTING_COUNTRY_PREFERENCES[routingGroupName] ?? [];
-  const preferredOutletId = outletPreferences[routingGroupId];
+  const preferredOutletId = resolveOutletPreferenceId(outletPreferences[routingGroupId], outletIds, rowsById, autoCollectionKeysById);
   const used = new Set<string>();
   const ordered: string[] = [];
 
@@ -276,6 +293,53 @@ async function getActiveTemplate(db: D1Database) {
 
 async function getRoutingOutletPreferences(db: D1Database): Promise<Record<string, string>> {
   return (await getAppSettings(db)).routingOutletPreferences ?? {};
+}
+
+export async function listAutoCollectionKeysById(db: D1Database): Promise<AutoCollectionKeysById> {
+  const { results } = await db
+    .prepare('SELECT id, notes FROM collections WHERE notes LIKE ?')
+    .bind(`${AUTO_NODE_GROUP_PREFIX}%`)
+    .all<{ id: string; notes: string | null }>();
+  return Object.fromEntries(
+    results
+      .map((row) => [row.id, autoCollectionKeyFromNotes(row.notes)] as const)
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+  );
+}
+
+function resolveOutletPreferenceId(
+  preference: string | undefined,
+  outletIds: string[],
+  rowsById: Map<string, GroupRow>,
+  autoCollectionKeysById: AutoCollectionKeysById
+): string | undefined {
+  if (!preference) return undefined;
+  if (preference.startsWith('group:')) {
+    const id = preference.slice('group:'.length);
+    return outletIds.includes(id) ? id : undefined;
+  }
+  if (preference.startsWith('auto:')) {
+    const key = preference.slice('auto:'.length);
+    return outletIds.find((id) => outletReferenceForGroup(rowsById.get(id), autoCollectionKeysById) === `auto:${key}`);
+  }
+  return undefined;
+}
+
+function outletReferenceForGroup(row: GroupRow | undefined, autoCollectionKeysById: AutoCollectionKeysById): string {
+  if (!row) return '';
+  const collectionIds = parseIds(row.collection_ids);
+  if (collectionIds.length === 1) {
+    const autoKey = autoCollectionKeysById[collectionIds[0]!];
+    if (autoKey) return `auto:${autoKey}`;
+  }
+  return `group:${String(row.id)}`;
+}
+
+function autoCollectionKeyFromNotes(notes?: string | null): string | undefined {
+  if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return undefined;
+  const key = notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim();
+  const parts = key.split(':');
+  return parts.length === 3 && parts.every(Boolean) ? key : undefined;
 }
 
 function parseIds(value: unknown): string[] {

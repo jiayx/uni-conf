@@ -222,6 +222,7 @@ export interface ProxyGroup {
   enabled: boolean;
   order: number;
   isBuiltin: boolean; // fixed built-in groups (PROXY, AI, etc.)
+  outletRef?: string; // stable reference for routing outlet preferences
   createdAt: string;
   updatedAt: string;
 }

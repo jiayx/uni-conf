@@ -118,6 +118,7 @@ export function mapGroup(row: Record<string, unknown>): ProxyGroup {
     enabled: Boolean(row.enabled),
     order: row.sort_order as number,
     isBuiltin: Boolean(row.is_builtin),
+    outletRef: (row.outlet_ref as string | null) ?? `group:${row.id as string}`,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

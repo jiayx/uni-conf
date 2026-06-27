@@ -24,6 +24,7 @@ import {
 import {
   ALL_NODE_OUTLET_GROUP_IDS,
   applyRoutingPolicyGroupLinks,
+  listAutoCollectionKeysById,
   syncRoutingPolicyGroups,
 } from './services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
@@ -80,9 +81,11 @@ export async function buildExportData(
 
   const allNodeRows = await selectRows(db, enabledNodeRowsQuery())
   const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
+  const autoCollectionKeysById = await listAutoCollectionKeysById(db)
   const allGroupRows = applyRoutingPolicyGroupLinks(
     await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC'),
-    settings.routingOutletPreferences
+    settings.routingOutletPreferences,
+    autoCollectionKeysById
   )
   const groupRows = expandReferencedGroupRows(allGroupRows, config?.includeGroupIds)
   const collectionScopeIds = resolveCollectionScopeIds(config, groupRows)
