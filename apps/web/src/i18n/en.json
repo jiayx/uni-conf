@@ -263,6 +263,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "description": "Paste subscription URLs and UniConf will generate node groups, routing policies, DNS, and export config automatically",
     "sources": "Sources",
     "nodes": "Total Nodes",
     "enabled_nodes": "Active Nodes",
@@ -272,6 +273,7 @@
     "export_configs": "Export Configs",
     "last_refreshed": "Last Refreshed",
     "quick_export": "Quick Export",
+    "quick_export_desc": "The default subscription link already includes enabled nodes, node groups, routing policies, and compatible rule sets. Paste it into your client to use it.",
     "getting_started": "Getting Started",
     "step1": "Paste Subscription URL",
     "step2": "Auto Generate Config",

@@ -131,7 +131,7 @@ export function Dashboard() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title={t('dashboard.title')} description="UniConf — Manage once, export everywhere." />
+      <PageHeader title={t('dashboard.title')} description={t('dashboard.description')} />
 
       {error && <div className={styles.error}>{error}</div>}
       {sourceError && <div className={styles.inlineError}>{sourceError}</div>}
@@ -185,6 +185,7 @@ export function Dashboard() {
       {hasUsableNodes && (
         <Card className={styles.quickExport}>
           <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
+          <p className={styles.sectionDescription}>{t('dashboard.quick_export_desc')}</p>
           {defaultSubscriptionUrl && (
             <div className={styles.subscriptionRow}>
               <code className={styles.subscriptionUrl}>{defaultSubscriptionUrl}</code>
