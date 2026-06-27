@@ -16,7 +16,12 @@ vi.mock('../routes/sources', () => ({
   recordSourceRefreshError: vi.fn(async () => undefined),
 }));
 
+vi.mock('./zero-setup', () => ({
+  ensureZeroSetupDefaults: vi.fn(async () => undefined),
+}));
+
 import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
+import { ensureZeroSetupDefaults } from './zero-setup';
 
 const nowMs = Date.parse('2026-06-21T12:00:00.000Z');
 
@@ -75,6 +80,7 @@ describe('source auto refresh', () => {
     const result = await refreshDueSources(db, nowMs);
 
     expect(refreshSourceById).toHaveBeenCalledTimes(2);
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-06-21T12:00:00.000Z');
     expect(refreshSourceById).toHaveBeenNthCalledWith(1, db, 'source-ok');
     expect(refreshSourceById).toHaveBeenNthCalledWith(2, db, 'source-fail');
     expect(recordSourceRefreshError).toHaveBeenCalledWith(db, 'source-fail', 'network failed');
@@ -86,6 +92,21 @@ describe('source auto refresh', () => {
       refreshedSourceIds: ['source-ok'],
       errors: [{ sourceId: 'source-fail', error: 'network failed' }],
     });
+  });
+
+  it('skips zero-setup initialization when auto refresh is disabled', async () => {
+    const { getAppSettings } = await import('./app-settings');
+    vi.mocked(getAppSettings).mockResolvedValueOnce({
+      enableAutoRefresh: false,
+      autoRefreshInterval: 60,
+    } as Awaited<ReturnType<typeof getAppSettings>>);
+    const db = createMockDb([{ id: 'source-ok', last_updated: null, update_interval: 0 }]);
+
+    const result = await refreshDueSources(db, nowMs);
+
+    expect(result.skipped).toBe(true);
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled();
+    expect(refreshSourceById).not.toHaveBeenCalled();
   });
 });
 

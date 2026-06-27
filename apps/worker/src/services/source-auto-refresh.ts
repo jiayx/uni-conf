@@ -1,6 +1,7 @@
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared';
 import { getAppSettings } from './app-settings';
 import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
+import { ensureZeroSetupDefaults } from './zero-setup';
 
 export interface AutoRefreshSourceRow {
   id: string;
@@ -29,6 +30,8 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
       errors: [],
     };
   }
+
+  await ensureZeroSetupDefaults(db, new Date(nowMs).toISOString());
 
   const { results } = await db.prepare(
     `SELECT id, last_updated, update_interval
