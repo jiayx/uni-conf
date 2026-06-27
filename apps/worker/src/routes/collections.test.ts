@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateCollectionWrite } from './collections'
+import { isManagedAutoNodeCollectionNotes, validateCollectionWrite } from './collections'
 
 describe('collections route helpers', () => {
   it('normalizes create payloads with defaults', () => {
@@ -85,6 +85,10 @@ describe('collections route helpers', () => {
       valid: false,
       error: 'invalid sort strategy',
     })
+    expect(validateCollectionWrite({ name: 'US Auto', notes: '[uni-conf:auto-node-group] country:US:url-test' }, { create: true })).toEqual({
+      valid: false,
+      error: 'generated node group marker is reserved',
+    })
   })
 
   it('rejects invalid filters and rename regexes', () => {
@@ -106,5 +110,12 @@ describe('collections route helpers', () => {
       valid: false,
       error: 'invalid rename regex at index 0',
     })
+  })
+
+  it('identifies managed auto node group notes', () => {
+    expect(isManagedAutoNodeCollectionNotes('[uni-conf:auto-node-group] country:US:url-test')).toBe(true)
+    expect(isManagedAutoNodeCollectionNotes('  [uni-conf:auto-node-group] country:HK:fallback')).toBe(true)
+    expect(isManagedAutoNodeCollectionNotes('[uni-conf:source-node-group] source:group')).toBe(false)
+    expect(isManagedAutoNodeCollectionNotes(null)).toBe(false)
   })
 })
