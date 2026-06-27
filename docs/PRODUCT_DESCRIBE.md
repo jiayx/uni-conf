@@ -241,6 +241,8 @@ Microsoft / OneDrive -> Microsoft
 
 QuixoticHeart/rule-set 是默认远程规则包来源。第一版用 Quixotic 的 Advertising 与 HTTPDNS 规则承担广告、追踪、恶意域名和 HTTPDNS 拦截，并统一分配到 `REJECT`。对于 Quixotic 当前没有独立拆分的 Telegram，系统额外内置 MetaCubeX/meta-rules-dat 的 `geosite/telegram.list`，并把它分配到 `Telegram` 策略组。
 
+预置和内置规则集的目标分流组由系统根据当前策略组组合自动维护，用户界面只提供启用 / 停用开关，不提供编辑入口；需要特殊匹配时再添加“自定义规则集”。这样用户不需要逐条理解或维护默认规则到策略组的关系，也避免手动修改被下一次默认同步覆盖。
+
 预置远程规则集还会自动写入稳定的优先级顺序，导出时按 `sort_order` 从小到大输出：
 
 ```text

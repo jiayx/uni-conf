@@ -222,7 +222,7 @@ Built-in remote rule sets use deterministic `sort_order` buckets so exported con
 
 Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`; the UniConf Telegram domain list uses `domain`.
 
-Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but deletion is reserved for custom remote rule sets so a refresh cannot silently recreate a row the UI appeared to delete.
+Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but editing and deletion are reserved for custom remote rule sets so a refresh cannot silently recreate or overwrite a row the UI appeared to let the user own.
 
 Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, target group, positive update interval, and integer sort order are checked and trimmed. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`. Resource-library selections in the UI fill a normal custom rule set URL and remain deletable.
 

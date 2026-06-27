@@ -211,7 +211,7 @@ export function RemoteRuleSets() {
         actions={
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
-            <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加规则集</Button>
+            <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加自定义规则集</Button>
           </div>
         }
       />
@@ -221,7 +221,7 @@ export function RemoteRuleSets() {
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
-        <EmptyState title="暂无分流策略" description="默认分流策略会由系统自动生成；这里通常只需要添加额外规则集。" action={{ label: '添加规则集', onClick: () => openCreate() }} />
+        <EmptyState title="暂无分流策略" description="默认分流策略会由系统自动生成；这里通常只需要添加额外规则集。" action={{ label: '添加自定义规则集', onClick: () => openCreate() }} />
       ) : (
         <div className={styles.groupedList}>
           {setsByTargetGroup.map(section => (
@@ -257,10 +257,14 @@ export function RemoteRuleSets() {
                     <div className={styles.url}>{set.url}</div>
                     {set.notes && <div className={styles.notes}>{set.notes}</div>}
                     <div className={styles.cardActions}>
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
-                        {t('common.edit')}
-                      </Button>
-                      {canDeleteRemoteRuleSet(set) && (
+                      {canEditRemoteRuleSet(set) ? (
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
+                          {t('common.edit')}
+                        </Button>
+                      ) : (
+                        <Badge variant="default">系统维护</Badge>
+                      )}
+                      {canEditRemoteRuleSet(set) && (
                         <Button variant="ghost" size="sm" onClick={() => void handleDelete(set)}>
                           <TrashIcon />
                         </Button>
@@ -375,7 +379,7 @@ function ruleSetBehaviorLabel(behavior: RuleSetBehavior): string {
   return RULE_SET_BEHAVIOR_OPTIONS.find(option => option.value === behavior)?.label ?? behavior
 }
 
-function canDeleteRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {
+function canEditRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {
   return !(set.presetSource && set.presetId)
 }
 

@@ -142,6 +142,9 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<RemoteRuleSet>>()
   const ts = now()
+  if (isManagedRemoteRuleSet(existing) && !isManagedRemoteRuleSetUpdate(body)) {
+    return c.json({ success: false, error: 'built-in remote rule sets can only be enabled or disabled' }, 400)
+  }
   const validation = validateRemoteRuleSetWrite(body, { create: false })
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400)
@@ -200,6 +203,11 @@ export interface ManagedRemoteRuleSetFields {
 
 export function isManagedRemoteRuleSet(row: ManagedRemoteRuleSetFields): boolean {
   return Boolean(row.preset_source && row.preset_id)
+}
+
+export function isManagedRemoteRuleSetUpdate(body: Partial<RemoteRuleSet>): boolean {
+  const keys = Object.keys(body)
+  return keys.length === 1 && keys[0] === 'enabled'
 }
 
 const RULE_SET_FORMATS: ReadonlySet<RuleSetFormat> = new Set([

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isManagedRemoteRuleSet, isValidRuleSetBehavior, isValidRuleSetFormat, validateRemoteRuleSetWrite } from './remote-rule-sets'
+import {
+  isManagedRemoteRuleSet,
+  isManagedRemoteRuleSetUpdate,
+  isValidRuleSetBehavior,
+  isValidRuleSetFormat,
+  validateRemoteRuleSetWrite,
+} from './remote-rule-sets'
 
 describe('remote rule set routes', () => {
   it('treats provider presets as managed rows', () => {
@@ -7,6 +13,13 @@ describe('remote rule set routes', () => {
     expect(isManagedRemoteRuleSet({ preset_source: 'uni-conf', preset_id: 'telegram' })).toBe(true)
     expect(isManagedRemoteRuleSet({ preset_source: null, preset_id: null })).toBe(false)
     expect(isManagedRemoteRuleSet({ preset_source: 'quixotic', preset_id: null })).toBe(false)
+  })
+
+  it('only allows toggling managed remote rule sets', () => {
+    expect(isManagedRemoteRuleSetUpdate({ enabled: false })).toBe(true)
+    expect(isManagedRemoteRuleSetUpdate({ enabled: true })).toBe(true)
+    expect(isManagedRemoteRuleSetUpdate({ name: 'AI' })).toBe(false)
+    expect(isManagedRemoteRuleSetUpdate({ enabled: false, targetGroupId: 'builtin-proxy' })).toBe(false)
   })
 
   it('validates rule set format and behavior values', () => {
