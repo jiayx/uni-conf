@@ -147,24 +147,24 @@
     "rename_type_auto_number": "自动编号"
   },
   "groups": {
-    "title": "策略组管理",
-    "new": "新建策略组",
+    "title": "策略组组合",
+    "new": "添加自定义策略组",
     "type_select": "手动选择",
     "type_url_test": "自动测速",
     "type_fallback": "故障转移",
     "type_load_balance": "负载均衡",
     "type_direct": "直连",
     "type_reject": "拒绝",
-    "collections": "节点组",
-    "nested_groups": "嵌套策略组",
+    "collections": "出口候选",
+    "nested_groups": "自动出口候选",
     "builtin": "内置出口",
     "test_url": "测速 URL",
     "interval": "测速间隔（秒）",
     "builtin_label": "内置",
     "tolerance": "容差（毫秒）",
     "lazy": "懒加载",
-    "no_collections": "未关联节点组",
-    "reorder_hint": "拖拽调整策略组顺序"
+    "no_collections": "出口候选由系统自动维护",
+    "reorder_hint": "选择策略组组合；基础出口和节点组候选由系统自动维护"
   },
   "rules": {
     "title": "自定义分流规则",

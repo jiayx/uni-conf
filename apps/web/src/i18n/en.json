@@ -147,24 +147,24 @@
     "rename_type_auto_number": "Auto Number"
   },
   "groups": {
-    "title": "Proxy Groups",
-    "new": "New Group",
+    "title": "Policy Templates",
+    "new": "Add Custom Policy Group",
     "type_select": "Manual Select",
     "type_url_test": "URL Test",
     "type_fallback": "Fallback",
     "type_load_balance": "Load Balance",
     "type_direct": "Direct",
     "type_reject": "Reject",
-    "collections": "Node Groups",
-    "nested_groups": "Nested Groups",
+    "collections": "Outlet Candidates",
+    "nested_groups": "Automatic Outlet Candidates",
     "builtin": "Built-in Outlets",
     "test_url": "Test URL",
     "interval": "Test Interval (seconds)",
     "builtin_label": "Built-in",
     "tolerance": "Tolerance (ms)",
     "lazy": "Lazy Mode",
-    "no_collections": "No node groups linked",
-    "reorder_hint": "Drag to reorder groups"
+    "no_collections": "Outlet candidates are maintained automatically",
+    "reorder_hint": "Choose a policy template; foundation outlets and node group candidates are maintained automatically"
   },
   "rules": {
     "title": "Custom Traffic Rules",

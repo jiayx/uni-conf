@@ -236,7 +236,7 @@ export function RemoteRuleSets() {
                 </div>
                 <div className={styles.sectionActions}>
                   <Badge variant="purple">策略组</Badge>
-                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加规则集</Button>
+                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加自定义规则集</Button>
                 </div>
               </div>
               <div className={styles.grid}>
@@ -281,7 +281,7 @@ export function RemoteRuleSets() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingSet ? '编辑匹配规则集' : '添加匹配规则集'}
+        title={editingSet ? '编辑自定义规则集' : '添加自定义规则集'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
