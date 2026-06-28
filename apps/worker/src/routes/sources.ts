@@ -17,6 +17,8 @@ const app = new Hono<{ Bindings: Env }>();
 // ─── List all sources ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const { results } = await c.env.DB.prepare(
     `SELECT id, name, type, url, format, enabled, node_count, last_updated,
       last_refresh_error,

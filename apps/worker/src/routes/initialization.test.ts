@@ -67,6 +67,21 @@ describe('zero-setup route initialization', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
+  it('ensures zero-setup defaults before returning source, node, and node group lists', async () => {
+    const cases = [
+      () => sourcesApp.request('/', {}, { DB: createStatsDb() }),
+      () => nodesApp.request('/', {}, { DB: createStatsDb() }),
+      () => collectionsApp.request('/', {}, { DB: createStatsDb() }),
+    ]
+
+    for (const request of cases) {
+      vi.clearAllMocks()
+      const response = await request()
+      expect(response.status).toBe(200)
+      expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+    }
+  })
+
   it('ensures zero-setup defaults before returning advanced detail resources', async () => {
     const cases = [
       () => sourcesApp.request('/item-1', {}, { DB: createStatsDb() }),

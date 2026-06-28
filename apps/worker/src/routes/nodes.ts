@@ -30,6 +30,8 @@ type ResolvedManualNodeInput = Required<Pick<ManualNodeCreateBody, 'name' | 'pro
 // ─── List nodes with filtering/pagination ─────────────────────────────────────
 
 app.get('/', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const query = c.req.query();
   const sourceId = query.sourceId;
   const protocol = query.protocol;
