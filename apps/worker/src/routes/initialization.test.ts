@@ -4,24 +4,14 @@ import { exportRouter } from './export'
 import groupsApp from './groups'
 import remoteRuleSetsApp from './remote-rule-sets'
 import settingsApp from './settings'
-import { ensureDefaultExportConfig } from '../services/default-export-config'
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
-import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { getAppSettings } from '../services/app-settings'
 
-vi.mock('../services/default-export-config', () => ({
-  ensureDefaultExportConfig: vi.fn(async () => ({
+vi.mock('../services/zero-setup', () => ({
+  ensureZeroSetupDefaults: vi.fn(async () => ({
     token: 'default-token',
     format: 'mihomo',
   })),
-}))
-
-vi.mock('../services/default-rule-sets', () => ({
-  ensureDefaultRemoteRuleSets: vi.fn(async () => undefined),
-}))
-
-vi.mock('../services/auto-node-groups', () => ({
-  syncAutoNodeGroups: vi.fn(async () => undefined),
 }))
 
 vi.mock('../services/app-settings', () => ({
@@ -45,63 +35,53 @@ describe('zero-setup route initialization', () => {
     vi.clearAllMocks()
   })
 
-  it('syncs automatic node groups before returning dashboard stats', async () => {
+  it('ensures zero-setup defaults before returning dashboard stats', async () => {
     const db = createStatsDb()
 
     const response = await dashboardApp.request('/stats', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
-  it('syncs automatic node groups before returning settings', async () => {
+  it('ensures zero-setup defaults before returning settings', async () => {
     const db = createStatsDb()
 
     const response = await settingsApp.request('/', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
     expect(getAppSettings).toHaveBeenCalledOnce()
   })
 
-  it('syncs automatic node groups before returning groups', async () => {
+  it('ensures zero-setup defaults before returning groups', async () => {
     const db = createStatsDb()
 
     const response = await groupsApp.request('/', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
-  it('syncs automatic node groups before returning export configs', async () => {
+  it('ensures zero-setup defaults before returning export configs', async () => {
     const db = createStatsDb()
 
     const response = await exportRouter.request('/configs', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
-  it('syncs automatic node groups before returning remote rule sets', async () => {
+  it('ensures zero-setup defaults before returning remote rule sets', async () => {
     const db = createStatsDb()
 
     const response = await remoteRuleSetsApp.request('/', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
-  it('syncs automatic node groups and default rule sets after updating settings', async () => {
+  it('ensures zero-setup defaults after updating settings', async () => {
     const db = createStatsDb()
 
     const response = await settingsApp.request('/', {
@@ -111,8 +91,7 @@ describe('zero-setup route initialization', () => {
     }, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(syncAutoNodeGroups).toHaveBeenCalledOnce()
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
     expect(getAppSettings).toHaveBeenCalledTimes(2)
   })
 })
