@@ -1,11 +1,13 @@
 export function parseSubscriptionUrls(input: string): string[] {
-  const urls = input
-    .split(/[\s,，]+/)
-    .map(item => item.trim())
-    .filter(Boolean)
+  const urls = Array.from(input.matchAll(/https?:\/\/[^\s,，；;。、）)\]}]+/gi))
+    .map(match => trimUrlPunctuation(match[0]))
     .filter(isHttpUrl)
 
   return [...new Set(urls)]
+}
+
+function trimUrlPunctuation(value: string): string {
+  return value.replace(/[。；;，,、）)\]}]+$/g, '')
 }
 
 function isHttpUrl(value: string): boolean {

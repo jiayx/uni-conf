@@ -22,4 +22,12 @@ describe('parseSubscriptionUrls', () => {
       'https://c.example/sub',
     ])
   })
+
+  it('extracts urls from labelled paste text and trims sentence punctuation', () => {
+    expect(parseSubscriptionUrls('订阅一：https://a.example/sub；备用(https://b.example/sub)，说明 https://c.example/sub。')).toEqual([
+      'https://a.example/sub',
+      'https://b.example/sub',
+      'https://c.example/sub',
+    ])
+  })
 })
