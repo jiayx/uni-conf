@@ -59,7 +59,7 @@ export function Rules() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? ''
+  const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? 'builtin-proxy'
 
   const openCreate = () => {
     setEditingRule(null)
@@ -97,6 +97,7 @@ export function Rules() {
       ...form,
       name: form.name?.trim() || undefined,
       payload: normalizePayload(form.type, form.payload),
+      targetGroupId: form.targetGroupId || defaultTargetGroupId,
       notes: form.notes?.trim() || undefined,
     }
 
@@ -104,11 +105,6 @@ export function Rules() {
       setFormError('payload is required')
       return
     }
-    if (!payload.targetGroupId) {
-      setFormError('target group is required')
-      return
-    }
-
     if (editingRule) {
       await updateRule(editingRule.id, payload)
     } else {
@@ -121,12 +117,7 @@ export function Rules() {
   }
 
   const handleBatchImport = async () => {
-    if (!batchTargetGroupId) {
-      setBatchError('target group is required')
-      return
-    }
-
-    const parsed = parseManualRules(batchText, batchTargetGroupId, targetGroups, rules.length)
+    const parsed = parseManualRules(batchText, batchTargetGroupId || defaultTargetGroupId, targetGroups, rules.length)
     if (parsed.length === 0) {
       setBatchError('no valid rules found')
       return
@@ -254,7 +245,7 @@ export function Rules() {
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
-            <option value="">-- {t('rules.target')} --</option>
+            <option value="">系统默认：PROXY</option>
             {targetGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
@@ -285,7 +276,7 @@ export function Rules() {
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={batchTargetGroupId} onChange={e => setBatchTargetGroupId(e.target.value)}>
-            <option value="">-- {t('rules.target')} --</option>
+            <option value="">系统默认：PROXY</option>
             {targetGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
@@ -299,7 +290,7 @@ export function Rules() {
           />
         </div>
         <div className={styles.helpText}>
-          支持 Clash 行格式；匹配后使用的策略组可省略，省略时使用上方选择的策略组。普通分流优先使用「分流策略」里的预置规则集。
+          支持 Clash 行格式；匹配后使用的出口可省略，省略时使用上方选择的出口，未选择则默认 PROXY。普通分流优先使用「分流策略」里的预置规则集。
         </div>
       </Modal>
     </div>
