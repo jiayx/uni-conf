@@ -157,9 +157,27 @@ describe('zero-setup route initialization', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
     expect(getAppSettings).toHaveBeenCalledTimes(2)
   })
+
+  it('persists the scenario template and its recommended DNS mode together', async () => {
+    const db = createStatsDb()
+
+    const response = await settingsApp.request('/', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ routingPolicyTemplate: 'router', dnsMode: 'compatible' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'update-settings',
+      routingPolicyTemplate: 'router',
+      dnsMode: 'compatible',
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
 })
 
-function createStatsDb(): D1Database {
+function createStatsDb(): D1Database & { operations: Array<Record<string, unknown>> } {
   const exportRow = {
     id: 'export-1',
     name: 'Default',
@@ -176,13 +194,26 @@ function createStatsDb(): D1Database {
     count: 0,
     last_refreshed_at: null,
   }
+  const operations: Array<Record<string, unknown>> = []
 
   return {
+    operations,
     prepare: vi.fn(() => ({
-      bind: vi.fn(() => ({
+      bind: vi.fn((...args: unknown[]) => ({
         first: async () => exportRow,
         all: async () => ({ results: [] }),
-        run: async () => ({ success: true }),
+        run: async () => {
+          if (args.length > 0) {
+            operations.push({
+              operation: 'update-settings',
+              language: args[0],
+              theme: args[1],
+              routingPolicyTemplate: args[2],
+              dnsMode: args[4],
+            })
+          }
+          return { success: true }
+        },
         raw: async () => [],
       })),
       first: async () => exportRow,
@@ -190,5 +221,5 @@ function createStatsDb(): D1Database {
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
-  } as unknown as D1Database
+  } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
 }
