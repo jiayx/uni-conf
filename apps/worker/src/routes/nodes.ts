@@ -174,6 +174,8 @@ async function ensureManualNodeZeroSetupState(db: D1Database, ts: string): Promi
 // ─── Get node ─────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(c.req.param('id'))
     .first<Record<string, unknown>>();

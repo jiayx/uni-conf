@@ -124,6 +124,8 @@ app.post('/batch', async (c) => {
 })
 
 app.get('/:id', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now())
+
   const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
     .bind(c.req.param('id'))
     .first<Record<string, unknown>>()

@@ -107,6 +107,8 @@ app.post('/', async (c) => {
 // ─── Get group ────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
     .bind(c.req.param('id'))
     .first<Record<string, unknown>>();

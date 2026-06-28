@@ -162,6 +162,8 @@ app.post('/', async (c) => {
 // ─── Get rule ─────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const row = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ?')
     .bind(c.req.param('id'))
     .first<Record<string, unknown>>();

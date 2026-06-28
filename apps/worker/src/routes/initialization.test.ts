@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import dashboardApp from './dashboard'
+import collectionsApp from './collections'
 import { exportRouter } from './export'
 import groupsApp from './groups'
+import nodesApp from './nodes'
 import remoteRuleSetsApp from './remote-rule-sets'
 import rulesApp from './rules'
 import settingsApp from './settings'
+import sourcesApp from './sources'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { getAppSettings } from '../services/app-settings'
 
@@ -62,6 +65,24 @@ describe('zero-setup route initialization', () => {
 
     expect(response.status).toBe(200)
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('ensures zero-setup defaults before returning advanced detail resources', async () => {
+    const cases = [
+      () => sourcesApp.request('/item-1', {}, { DB: createStatsDb() }),
+      () => nodesApp.request('/item-1', {}, { DB: createStatsDb() }),
+      () => collectionsApp.request('/item-1', {}, { DB: createStatsDb() }),
+      () => groupsApp.request('/item-1', {}, { DB: createStatsDb() }),
+      () => rulesApp.request('/item-1', {}, { DB: createStatsDb() }),
+      () => remoteRuleSetsApp.request('/item-1', {}, { DB: createStatsDb() }),
+    ]
+
+    for (const request of cases) {
+      vi.clearAllMocks()
+      const response = await request()
+      expect(response.status).toBe(200)
+      expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+    }
   })
 
   it('ensures zero-setup defaults before returning export configs', async () => {
