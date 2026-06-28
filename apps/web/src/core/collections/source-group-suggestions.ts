@@ -70,6 +70,10 @@ export function mapUpstreamGroupType(type?: string): SourceGroupImportType {
   return 'url-test'
 }
 
+export function nextSourceGroupLinkedOrder(existingGroupCount: number, importedIndex: number): number {
+  return Math.max(0, existingGroupCount) + Math.max(0, importedIndex)
+}
+
 function makeSourceNodeKey(sourceId: string, nodeName: string): string {
   return `${sourceId}\n${nodeName}`
 }

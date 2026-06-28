@@ -17,6 +17,7 @@ import {
   buildSourceGroupSuggestions,
   makeSourceNodeGroupMarker,
   mapUpstreamGroupType,
+  nextSourceGroupLinkedOrder,
   parseSourceNodeGroupMarker,
 } from '@/core/collections/source-group-suggestions'
 import { AUTO_NODE_GROUP_PREFIX, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
@@ -328,6 +329,7 @@ export function Collections() {
       })
       applySettings(updatedSettings)
       const groups = await api.groups.list()
+      let importedCount = 0
 
       for (const key of selectedSourceGroupKeys) {
         const suggestion = sourceGroupSuggestions.find(item => item.key === key)
@@ -346,7 +348,8 @@ export function Collections() {
           notes: makeSourceNodeGroupMarker(suggestion.sourceId, suggestion.groupName),
         })
 
-        await createLinkedGroup(collection, mapUpstreamGroupType(suggestion.group.type), groups.length + 1)
+        await createLinkedGroup(collection, mapUpstreamGroupType(suggestion.group.type), nextSourceGroupLinkedOrder(groups.length, importedCount))
+        importedCount += 1
       }
 
       await Promise.all([fetchCollections(), fetchGroups()])

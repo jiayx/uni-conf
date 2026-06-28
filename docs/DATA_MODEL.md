@@ -354,7 +354,7 @@ During refresh, `format = auto` uses content detection. Any explicit source form
 
 Source refresh, enable/disable, and deletion all resynchronize automatic node groups and derived routing policy group members. Source deletion explicitly removes nodes for that source before removing the source row, so export readiness and generated node groups do not depend on database-level foreign-key cascade behavior.
 
-Upstream source groups parsed from full subscription configs are stored in `sources.source_groups`. The node group page can import them as explicit-node collections by matching member names against nodes from the same source only. Imported collections use notes marker `[uni-conf:source-node-group] {sourceId}:{encodedGroupName}` so the UI can show already-imported groups and avoid creating duplicate node pools.
+Upstream source groups parsed from full subscription configs are stored in `sources.source_groups`. The node group page can import them as explicit-node collections by matching member names against nodes from the same source only. Imported collections use notes marker `[uni-conf:source-node-group] {sourceId}:{encodedGroupName}` so the UI can show already-imported groups and avoid creating duplicate node pools. Batch imports create linked outlet groups with consecutive sort orders after the current group list, so imported upstream groups keep a stable display order.
 
 The response data is:
 

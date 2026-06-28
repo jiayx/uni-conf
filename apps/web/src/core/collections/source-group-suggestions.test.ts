@@ -4,6 +4,7 @@ import {
   buildSourceGroupSuggestions,
   makeSourceNodeGroupMarker,
   mapUpstreamGroupType,
+  nextSourceGroupLinkedOrder,
   parseSourceNodeGroupMarker,
 } from './source-group-suggestions'
 
@@ -59,6 +60,15 @@ describe('source group suggestions', () => {
     expect(mapUpstreamGroupType('fallback')).toBe('fallback')
     expect(mapUpstreamGroupType('load-balance')).toBe('url-test')
     expect(mapUpstreamGroupType(undefined)).toBe('url-test')
+  })
+
+  it('assigns consecutive linked group orders for batch imported upstream groups', () => {
+    expect([
+      nextSourceGroupLinkedOrder(7, 0),
+      nextSourceGroupLinkedOrder(7, 1),
+      nextSourceGroupLinkedOrder(7, 2),
+    ]).toEqual([7, 8, 9])
+    expect(nextSourceGroupLinkedOrder(-1, -1)).toBe(0)
   })
 })
 
