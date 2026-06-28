@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { saveExportDownload } from '@/core/export/download-file'
 import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
+import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
 import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
@@ -170,7 +171,7 @@ export function Export() {
           {configs.map(cfg => {
             const filename = getExportSubscriptionFilename(cfg.format)
             const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
-            const scopeText = scopeSummary(cfg, collections, groups, rules, remoteSets)
+            const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets)
             return (
               <Card key={cfg.id} className={styles.configCard}>
                 <div className={styles.configHeader}>
@@ -349,23 +350,4 @@ function MultiSelect({ label, emptyText, hint, options, value, onChange }: Multi
       )}
     </div>
   )
-}
-
-function scopeSummary(
-  config: ExportConfig,
-  collections: NodeCollection[],
-  groups: ProxyGroup[],
-  rules: ProxyRule[],
-  remoteSets: RemoteRuleSet[]
-): string {
-  return [
-    summaryPart('节点组', config.includeCollectionIds, collections.length),
-    summaryPart('策略组与出口', config.includeGroupIds, groups.length),
-    summaryPart('手动规则', config.includeRuleIds, rules.length),
-    summaryPart('分流规则集', config.includeRemoteSetIds, remoteSets.length),
-  ].join(' / ')
-}
-
-function summaryPart(label: string, ids: string[], total: number): string {
-  return ids.length === 0 ? `${label}: 全部 ${total}` : `${label}: ${ids.length}/${total}`
 }
