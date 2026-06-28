@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
 import type { ProxyGroup } from '@uni-conf/types';
-import { listAutoCollectionKeysById, syncRoutingPolicyGroups, withOutletRefs } from '../services/routing-policy-groups';
+import { listAutoCollectionKeysById, withOutletRefs } from '../services/routing-policy-groups';
 import { FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 
@@ -95,7 +95,7 @@ app.post('/', async (c) => {
     )
     .run();
 
-  await syncRoutingPolicyGroups(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts);
 
   const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
     .bind(id)
@@ -161,7 +161,7 @@ app.put('/:id', async (c) => {
     )
     .run();
 
-  await syncRoutingPolicyGroups(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts);
 
   const updated = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
     .bind(id)
@@ -184,7 +184,7 @@ app.delete('/:id', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(id).run();
-  await syncRoutingPolicyGroups(c.env.DB, now());
+  await ensureZeroSetupDefaults(c.env.DB, now());
   return c.json({ success: true, data: { id } });
 });
 

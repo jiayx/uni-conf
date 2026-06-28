@@ -1,7 +1,20 @@
-import { describe, expect, it } from 'vitest'
-import { validateGroupWrite } from './groups'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
+import groupsApp, { validateGroupWrite } from './groups'
+
+vi.mock('../services/zero-setup', () => ({
+  ensureZeroSetupDefaults: vi.fn(async () => ({
+    id: 'default-mihomo',
+    token: 'default-token',
+    format: 'mihomo',
+  })),
+}))
 
 describe('groups route helpers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('normalizes create payloads for custom groups', () => {
     expect(validateGroupWrite({
       name: '  AI Backup  ',
@@ -71,4 +84,106 @@ describe('groups route helpers', () => {
       enabled: undefined,
     })
   })
+
+  it('initializes zero-setup defaults after creating a group', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Downloads', type: 'select' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(201)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
+  it('initializes zero-setup defaults after updating a group', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/custom-downloads', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
+  it('initializes zero-setup defaults after deleting a group', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/custom-downloads', { method: 'DELETE' }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
 })
+
+function createGroupRouteMockDb(): D1Database {
+  const groups = new Map<string, Record<string, unknown>>([
+    ['custom-downloads', groupRow('custom-downloads', 'Downloads')],
+  ])
+
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT MAX(sort_order)')) return { max_order: 10 }
+          if (sql.includes('SELECT * FROM groups WHERE id = ?')) {
+            return groups.get(String(args[0])) ?? null
+          }
+          if (sql.includes('SELECT id, is_builtin FROM groups WHERE id = ?')) {
+            const row = groups.get(String(args[0]))
+            return row ? { id: row.id, is_builtin: row.is_builtin } : null
+          }
+          return null
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          if (sql.includes('INSERT INTO groups')) {
+            groups.set(String(args[0]), groupRow(String(args[0]), String(args[1]), Number(args[11] ?? 11)))
+          }
+          if (sql.includes('UPDATE groups SET')) {
+            const id = String(args[11])
+            const existing = groups.get(id) ?? groupRow(id, 'Downloads')
+            groups.set(id, { ...existing, enabled: args[9], updated_at: args[10] })
+          }
+          if (sql.includes('DELETE FROM groups WHERE id = ?')) {
+            groups.delete(String(args[0]))
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => {
+        if (sql.includes('SELECT MAX(sort_order)')) return { max_order: 10 }
+        return null
+      },
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database
+}
+
+function groupRow(id: string, name: string, sortOrder = 10): Record<string, unknown> {
+  return {
+    id,
+    name,
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '[]',
+    builtins: '[]',
+    test_url: null,
+    interval: null,
+    tolerance: null,
+    lazy: null,
+    enabled: 1,
+    sort_order: sortOrder,
+    is_builtin: 0,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  }
+}
