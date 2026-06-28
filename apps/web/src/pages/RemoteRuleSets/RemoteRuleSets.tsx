@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { Input } from '@/components/ui/Input/Input'
 import { Modal } from '@/components/ui/Modal/Modal'
-import { isRuleTargetGroup } from '@/core/groups/rule-target-groups'
+import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
@@ -83,7 +83,7 @@ export function RemoteRuleSets() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? ''
+  const defaultTargetGroupId = getDefaultRuleTargetGroupId(targetGroups)
   const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)

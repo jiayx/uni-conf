@@ -1,7 +1,7 @@
-import { GLOBAL_NODE_OUTLET_GROUP_IDS, RULE_TARGET_FOUNDATION_GROUP_IDS, isRuleTargetGroup } from '@uni-conf/shared';
+import { DEFAULT_RULE_TARGET_GROUP_ID, GLOBAL_NODE_OUTLET_GROUP_IDS, isRuleTargetGroup } from '@uni-conf/shared';
 import { jsonParse } from '../db/helpers';
 
-export const DEFAULT_RULE_TARGET_GROUP_ID = RULE_TARGET_FOUNDATION_GROUP_IDS[0];
+export { DEFAULT_RULE_TARGET_GROUP_ID };
 
 export async function isEnabledTargetGroup(db: D1Database, id: string): Promise<boolean> {
   if (!isRuleTargetGroup({ id })) return false;

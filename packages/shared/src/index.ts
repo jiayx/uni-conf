@@ -33,6 +33,8 @@ export const RULE_TARGET_FOUNDATION_GROUP_IDS = [
   'builtin-reject',
 ] as const;
 
+export const DEFAULT_RULE_TARGET_GROUP_ID = RULE_TARGET_FOUNDATION_GROUP_IDS[0];
+
 const GLOBAL_NODE_OUTLET_GROUP_ID_SET = new Set<string>(GLOBAL_NODE_OUTLET_GROUP_IDS);
 
 export function isGlobalNodeOutletGroupId(id: string): boolean {

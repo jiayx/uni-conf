@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
-import { isRuleTargetGroup } from '@/core/groups/rule-target-groups'
+import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { useRulesStore } from '@/store/rules.store'
 import { useGroupsStore } from '@/store/groups.store'
 import { MANUAL_RULE_TYPES, parseManualRules, type ManualRuleForm } from '@/core/rules/manual-rules'
@@ -59,7 +59,7 @@ export function Rules() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = targetGroups.find(group => group.name === 'PROXY')?.id ?? targetGroups[0]?.id ?? 'builtin-proxy'
+  const defaultTargetGroupId = getDefaultRuleTargetGroupId(targetGroups)
 
   const openCreate = () => {
     setEditingRule(null)
