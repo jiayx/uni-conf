@@ -148,6 +148,36 @@ describe('auto node groups', () => {
       type: 'fallback',
     }));
   });
+
+  it('generates country and tag groups for all recognized nodes when no explicit keys are configured', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue(makeSettings({
+      autoNodeGroupKeys: undefined,
+    }));
+    const db = createMockDb({
+      countries: [
+        { country_code: 'US', country: 'United States', node_count: 3 },
+        { country_code: 'HK', country: 'Hong Kong', node_count: 2 },
+      ],
+      tagCounts: {
+        streaming: 2,
+        native: 1,
+      },
+    });
+
+    await syncAutoNodeGroups(db, '2026-01-01T00:00:00.000Z');
+
+    expect(db.operations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ operation: 'insert-collection', name: '🇺🇸 US Auto' }),
+      expect.objectContaining({ operation: 'insert-collection', name: '🇭🇰 HK Auto' }),
+      expect.objectContaining({ operation: 'insert-collection', name: 'Streaming Auto' }),
+      expect.objectContaining({ operation: 'insert-collection', name: 'Native Auto' }),
+      expect.objectContaining({ operation: 'insert-group', name: '🇺🇸 US Auto', type: 'url-test' }),
+      expect.objectContaining({ operation: 'insert-group', name: '🇭🇰 HK Auto', type: 'url-test' }),
+      expect.objectContaining({ operation: 'insert-group', name: 'Streaming Auto', type: 'url-test' }),
+      expect.objectContaining({ operation: 'insert-group', name: 'Native Auto', type: 'url-test' }),
+    ]));
+    expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
+  });
 });
 
 function makeSettings(patch: Partial<AppSettings>): AppSettings {
@@ -171,10 +201,12 @@ function createMockDb({
   countries = [],
   autoCollections = [],
   linkedGroups = {},
+  tagCounts = {},
 }: {
   countries?: Array<{ country_code: string; country: string | null; node_count: number }>;
   autoCollections?: Array<{ id: string; notes: string | null }>;
   linkedGroups?: Record<string, string>;
+  tagCounts?: Record<string, number>;
 }) {
   const operations: Array<Record<string, unknown>> = [];
   const db = {
@@ -191,7 +223,15 @@ function createMockDb({
           return { results: [] };
         },
         first: async () => {
-          if (sql.includes('COUNT(*) AS node_count')) return { node_count: 0 };
+          if (sql.includes('COUNT(*) AS node_count')) {
+            if (args.some((arg) => String(arg).includes('"streaming"') || String(arg).includes('"unlock"'))) {
+              return { node_count: tagCounts.streaming ?? 0 };
+            }
+            if (args.some((arg) => String(arg).includes('"residential"') || String(arg).includes('"native-ip"'))) {
+              return { node_count: tagCounts.native ?? 0 };
+            }
+            return { node_count: 0 };
+          }
           if (sql.includes('SELECT id FROM groups WHERE is_builtin = 0')) {
             const collectionIds = String(args[0]);
             const id = linkedGroups[collectionIds];
