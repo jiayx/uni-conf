@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapNode, newId, now } from '../db/helpers';
 import { PROXY_PROTOCOL_REGISTRY, type ProxyProtocol } from '@uni-conf/types';
-import { syncAutoNodeGroups } from '../services/auto-node-groups';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { parseRawLines } from './sources';
 import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared';
@@ -223,7 +222,7 @@ app.put('/:id', async (c) => {
     )
     .run();
 
-  await syncAutoNodeGroups(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts);
 
   const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(id)
@@ -251,7 +250,7 @@ app.delete('/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(id).run();
   const ts = now();
   await updateSourceNodeCount(c.env.DB, row.source_id, ts);
-  await syncAutoNodeGroups(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts);
   return c.json({ success: true, data: { id } });
 });
 

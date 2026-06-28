@@ -155,6 +155,30 @@ describe('manual node input', () => {
     expect(payload.data).toMatchObject({ name: '🇩🇪 DE 01', countryCode: 'DE' });
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
   });
+
+  it('initializes zero-setup defaults after updating a manual node', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb();
+
+    const response = await nodesApp.request('/node-1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    }, { DB: db });
+
+    expect(response.status).toBe(200);
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+  });
+
+  it('initializes zero-setup defaults after deleting a manual node', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeDeleteMockDb();
+
+    const response = await nodesApp.request('/node-1', { method: 'DELETE' }, { DB: db });
+
+    expect(response.status).toBe(200);
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+  });
 });
 
 function createManualNodeCreateMockDb(): D1Database {
@@ -206,6 +230,29 @@ function createManualNodeCreateMockDb(): D1Database {
           }
           return { success: true };
         },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database;
+}
+
+function createManualNodeDeleteMockDb(): D1Database {
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT id, source_id, is_manual FROM nodes WHERE id = ?')) {
+            return { id: args[0], source_id: 'manual', is_manual: 1 };
+          }
+          if (sql.includes('SELECT COUNT(*) as count FROM nodes WHERE source_id = ?')) return { count: 0 };
+          return null;
+        },
+        all: async () => ({ results: [] }),
+        run: async () => ({ success: true }),
         raw: async () => [],
       }),
       first: async () => null,
