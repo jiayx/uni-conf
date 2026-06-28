@@ -40,7 +40,7 @@ const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> 
 const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; label: string }> = [
   { value: 'domain', label: '域名' },
   { value: 'ipcidr', label: 'IP CIDR' },
-  { value: 'classical', label: 'Mihomo classical' },
+  { value: 'classical', label: '完整规则行' },
 ]
 
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
@@ -358,7 +358,7 @@ export function RemoteRuleSets() {
               <select className={styles.select} value={form.behavior} onChange={e => setFormValue('behavior', e.target.value as RuleSetBehavior, setForm)}>
                 {RULE_SET_BEHAVIOR_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
-              <div className={styles.helperText}>用于 Mihomo rule-provider behavior；纯域名列表选“域名”，完整规则行选 classical。</div>
+              <div className={styles.helperText}>描述规则内容语义；纯域名列表选“域名”，Clash/Mihomo 完整规则行选“完整规则行”，导出时会按目标客户端转换。</div>
             </div>
           </>
         )}

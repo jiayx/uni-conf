@@ -870,7 +870,7 @@ Cats-Team/AdRules
 是否启用
 ```
 
-`规则集类型` 表达来源格式和兼容客户端，例如 Mihomo、sing-box、Surge 或纯文本；`匹配内容类型` 表达规则内容语义，例如域名、IP CIDR 或 Mihomo classical。两者不能混在一个字段里，否则纯文本域名列表和 classical 规则列表会在 Mihomo `rule-provider` 导出时被错误地写成同一种 `behavior`。
+`规则集类型` 表达来源格式和兼容客户端，例如 Mihomo、sing-box、Surge 或纯文本；`匹配内容类型` 表达规则内容语义，例如域名、IP CIDR 或完整规则行。界面不把完整规则行展示成 Mihomo 专属标签，避免用户误以为规则集只能服务某一个客户端；导出器再按目标客户端转换为 Mihomo `classical`、sing-box rule-set 或其他客户端能识别的形式。两者不能混在一个字段里，否则纯文本域名列表和完整规则行会在导出时被错误地写成同一种行为。
 
 远程规则集可以用于：
 
