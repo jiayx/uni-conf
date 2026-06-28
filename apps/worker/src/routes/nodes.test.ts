@@ -1,23 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { syncAutoNodeGroups } from '../services/auto-node-groups';
-import { ensureDefaultExportConfig } from '../services/default-export-config';
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets';
+import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import nodesApp, { resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
 
-vi.mock('../services/auto-node-groups', () => ({
-  syncAutoNodeGroups: vi.fn(async () => undefined),
-}));
-
-vi.mock('../services/default-export-config', () => ({
-  ensureDefaultExportConfig: vi.fn(async () => ({
+vi.mock('../services/zero-setup', () => ({
+  ensureZeroSetupDefaults: vi.fn(async () => ({
     id: 'default-mihomo',
     token: 'default-token',
     format: 'mihomo',
   })),
-}));
-
-vi.mock('../services/default-rule-sets', () => ({
-  ensureDefaultRemoteRuleSets: vi.fn(async () => undefined),
 }));
 
 describe('manual node input', () => {
@@ -163,9 +153,7 @@ describe('manual node input', () => {
     expect(response.status).toBe(201);
     expect(payload.success).toBe(true);
     expect(payload.data).toMatchObject({ name: '🇩🇪 DE 01', countryCode: 'DE' });
-    expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, expect.any(String));
-    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, expect.any(String));
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
   });
 });
 

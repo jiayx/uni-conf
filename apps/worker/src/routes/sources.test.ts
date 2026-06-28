@@ -1,8 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
-import { ensureDefaultExportConfig } from '../services/default-export-config'
-import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
+import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
   deleteSourceById,
   deriveSourceName,
@@ -24,16 +23,12 @@ vi.mock('../services/auto-node-groups', () => ({
   syncAutoNodeGroups: vi.fn(async () => undefined),
 }))
 
-vi.mock('../services/default-export-config', () => ({
-  ensureDefaultExportConfig: vi.fn(async () => ({
+vi.mock('../services/zero-setup', () => ({
+  ensureZeroSetupDefaults: vi.fn(async () => ({
     id: 'default-mihomo',
     token: 'default-token',
     format: 'mihomo',
   })),
-}))
-
-vi.mock('../services/default-rule-sets', () => ({
-  ensureDefaultRemoteRuleSets: vi.fn(async () => undefined),
 }))
 
 // Mock Clash YAML with multiple node formats
@@ -440,9 +435,7 @@ proxies:
     expect(response.status).toBe(201)
     expect(payload.success).toBe(true)
     expect(payload.data.source.name).toBe('airport.example')
-    expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, expect.any(String))
-    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, expect.any(String))
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 })
 
