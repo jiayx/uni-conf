@@ -165,6 +165,18 @@ describe('zero-setup route initialization', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
+  it('ensures zero-setup defaults after deleting custom rules and remote rule sets', async () => {
+    for (const request of [
+      () => rulesApp.request('/item-1', { method: 'DELETE' }, { DB: createStatsDb() }),
+      () => remoteRuleSetsApp.request('/item-1', { method: 'DELETE' }, { DB: createStatsDb() }),
+    ]) {
+      vi.clearAllMocks()
+      const response = await request()
+      expect(response.status).toBe(200)
+      expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+    }
+  })
+
   it('ensures zero-setup defaults after updating settings', async () => {
     const db = createStatsDb()
 

@@ -237,6 +237,7 @@ app.delete('/:id', async (c) => {
 
   if (!row) return c.json({ success: false, error: 'Rule not found' }, 404);
   await c.env.DB.prepare('DELETE FROM rules WHERE id = ?').bind(id).run();
+  await ensureZeroSetupDefaults(c.env.DB, now());
   return c.json({ success: true, data: { id } });
 });
 

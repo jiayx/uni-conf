@@ -195,6 +195,7 @@ app.delete('/:id', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM remote_rule_sets WHERE id = ?').bind(id).run()
+  await ensureZeroSetupDefaults(c.env.DB, now())
   return c.json({ success: true, data: { id } })
 })
 
