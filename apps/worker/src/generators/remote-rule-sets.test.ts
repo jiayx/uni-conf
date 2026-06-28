@@ -128,6 +128,77 @@ describe('remote rule set generators', () => {
     expect(content).not.toContain('ai.srs');
   });
 
+  it('orders remote rule sets by managed sort order across full-config exporters', () => {
+    const laterRemoteSet: RemoteRuleSet = {
+      ...remoteSet,
+      id: 'remote-later',
+      name: 'Later List',
+      url: 'https://example.com/later.yaml',
+      sortOrder: 80,
+      createdAt: '2026-01-02T00:00:00.000Z',
+    };
+    const earlierRemoteSet: RemoteRuleSet = {
+      ...remoteSet,
+      id: 'remote-earlier',
+      name: 'Earlier List',
+      url: 'https://example.com/earlier.yaml',
+      sortOrder: 10,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    const mihomo = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [laterRemoteSet, earlierRemoteSet]);
+    expect(mihomo.indexOf('  - RULE-SET,Earlier_List,DIRECT')).toBeLessThan(
+      mihomo.indexOf('  - RULE-SET,Later_List,DIRECT')
+    );
+
+    const laterSingboxRemoteSet: RemoteRuleSet = {
+      ...laterRemoteSet,
+      format: 'singbox',
+      url: 'https://example.com/later.srs',
+    };
+    const earlierSingboxRemoteSet: RemoteRuleSet = {
+      ...earlierRemoteSet,
+      format: 'singbox',
+      url: 'https://example.com/earlier.srs',
+    };
+    const singbox = JSON.parse(generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [laterSingboxRemoteSet, earlierSingboxRemoteSet])) as {
+      route: { rules: Array<Record<string, unknown>> };
+    };
+    const remoteRouteRules = singbox.route.rules.filter((rule) => Array.isArray(rule['rule_set']));
+    expect(remoteRouteRules.slice(-2)).toEqual([
+      { rule_set: ['Earlier_List'], outbound: 'direct' },
+      { rule_set: ['Later_List'], outbound: 'direct' },
+    ]);
+
+    const surge = generateSurge([], groupRows, ruleRows, [
+      {
+        id: 'remote-later',
+        name: 'Later List',
+        url: 'https://example.com/later.yaml',
+        format: 'surge',
+        enabled: 1,
+        target_group_id: directGroup.id,
+        update_interval: 24,
+        sort_order: 80,
+        created_at: '2026-01-02T00:00:00.000Z',
+      },
+      {
+        id: 'remote-earlier',
+        name: 'Earlier List',
+        url: 'https://example.com/earlier.yaml',
+        format: 'surge',
+        enabled: 1,
+        target_group_id: directGroup.id,
+        update_interval: 24,
+        sort_order: 10,
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    expect(surge.indexOf('RULE-SET,Earlier_List,DIRECT')).toBeLessThan(
+      surge.indexOf('RULE-SET,Later_List,DIRECT')
+    );
+  });
+
   it('uses explicit Mihomo rule-provider behavior for plain domain lists', () => {
     const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [
       {

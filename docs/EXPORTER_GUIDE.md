@@ -39,6 +39,8 @@ Use `apps/worker/src/generators/group-members.ts` for generic group member resol
 
 Mihomo-compatible full configs should keep the zero-setup baseline aligned with the default smart template: `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`. Do not reintroduce separate `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
 
+Full-config generators must sort remote rule sets by managed priority before rendering rule-provider references and rules. Do not rely only on database query order; preview, download, public subscription, and direct generator tests should produce the same rule order for the same data.
+
 ## Step 3: Wire Preview, Download, and Public Subscription
 
 Add the format branch in `apps/worker/src/generators/export-renderer.ts`. Worker routes must call that shared renderer instead of branching per route:

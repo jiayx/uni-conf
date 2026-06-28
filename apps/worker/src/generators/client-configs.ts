@@ -94,13 +94,14 @@ export function generateQuantumultX(
     '',
     '[policy]',
   ]
+  const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
 
   for (const group of exportPolicyGroups(groups)) {
     lines.push(groupToQuantumultX(group, groups, nodeNames, collectionNodeNames))
   }
 
   lines.push('', '[filter_remote]')
-  for (const rs of remoteSets) {
+  for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, 'quantumultx')
     if (!resolved || !isRuleSetFormatCompatible('quantumultx', resolved.format)) continue
@@ -133,7 +134,8 @@ export function generateEgern(
     .map(nodeToEgernProxy)
     .filter((proxy): proxy is Record<string, unknown> => proxy !== null)
   const nodeNames = proxies.map((proxy) => String(proxy['name'] ?? '')).filter(Boolean)
-  const ruleSets = remoteSets
+  const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
+  const ruleSets = sortedRemoteSets
     .filter((rs) => rs['enabled'])
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetRowForExport(rs, 'egern') }))
     .filter((item): item is { source: Row; resolved: { url: string; format: string } } =>
@@ -157,7 +159,7 @@ export function generateEgern(
       .map((group) => groupToEgern(group, groups, nodeNames, collectionNodeNames)),
     rule_sets: ruleSets,
     rules: [
-      ...remoteSets
+      ...sortedRemoteSets
         .filter((rs) => {
           if (!rs['enabled']) return false
           const resolved = resolveRemoteRuleSetRowForExport(rs, 'egern')
@@ -197,6 +199,7 @@ function buildIniConfig({
   remoteSection: string
 }): string[] {
   const validNodes: string[] = []
+  const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
   const lines: string[] = [...general, '[Proxy]']
   for (const node of nodes) {
     const line = nodeToIniProxy(node)
@@ -212,7 +215,7 @@ function buildIniConfig({
   }
 
   lines.push('', remoteSection)
-  for (const rs of remoteSets) {
+  for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, client)
     if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
@@ -221,7 +224,7 @@ function buildIniConfig({
   }
 
   lines.push('', '[Rule]')
-  for (const rs of remoteSets) {
+  for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, client)
     if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
@@ -450,6 +453,13 @@ function defaultPolicy(groups: Row[]): string {
       ?? groups.find((group) => String(group['name']) === 'PROXY')?.['name']
       ?? groups[0]?.['name']
       ?? 'DIRECT'
+  )
+}
+
+function sortRemoteRuleSetRows(remoteSets: Row[]): Row[] {
+  return [...remoteSets].sort((a, b) =>
+    Number(a['sort_order'] ?? 500) - Number(b['sort_order'] ?? 500)
+    || String(a['created_at'] ?? '').localeCompare(String(b['created_at'] ?? ''))
   )
 }
 

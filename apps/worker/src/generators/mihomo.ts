@@ -69,7 +69,7 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Rule providers ────────────────────────────────────────────────────────────
-  const enabledRemoteSets = remoteSets
+  const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'mihomo') }))
     .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
@@ -166,6 +166,10 @@ function buildDnsLines(mode: DnsMode): string[] {
   lines.push('      - https://223.5.5.5/dns-query');
   lines.push('      - https://120.53.53.53/dns-query');
   return lines;
+}
+
+function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
+  return [...remoteSets].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
 }
 
 // ─── Node serialization ───────────────────────────────────────────────────────

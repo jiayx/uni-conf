@@ -494,7 +494,7 @@ function buildRoute(
     },
   ];
 
-  const enabledRemoteSets = remoteSets
+  const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
     .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'singbox') }))
     .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
@@ -535,6 +535,10 @@ function defaultPolicyName(groups: ProxyGroup[]): string {
     ?? groups.find((item) => item.name === 'PROXY')
     ?? groups[0];
   return group ? resolveSingboxGroupName(group) : 'direct';
+}
+
+function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
+  return [...remoteSets].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
 }
 
 function filterCollectionNodeNames(

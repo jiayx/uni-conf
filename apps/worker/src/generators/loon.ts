@@ -135,6 +135,7 @@ export function generateLoon(
   collectionNodeNames: Record<string, string[]> = {}
 ): string {
   const lines: string[] = []
+  const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
 
   // [General]
   lines.push('[General]')
@@ -187,7 +188,7 @@ export function generateLoon(
 
   // [Remote Rule]
   lines.push('[Remote Rule]')
-  for (const rs of remoteSets) {
+  for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, 'loon')
     if (!resolved || !isRuleSetFormatCompatible('loon', resolved.format)) continue
@@ -229,4 +230,11 @@ function nativePolicyName(group: Record<string, unknown>): string {
 
 function isNativeOutletGroup(group: Record<string, unknown>): boolean {
   return ['direct', 'reject'].includes(String(group['type'] ?? ''))
+}
+
+function sortRemoteRuleSetRows(remoteSets: Record<string, unknown>[]): Record<string, unknown>[] {
+  return [...remoteSets].sort((a, b) =>
+    Number(a['sort_order'] ?? 500) - Number(b['sort_order'] ?? 500)
+    || String(a['created_at'] ?? '').localeCompare(String(b['created_at'] ?? ''))
+  )
 }
