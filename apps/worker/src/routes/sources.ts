@@ -10,7 +10,6 @@ import {
 import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
-import { syncAutoNodeGroups } from '../services/auto-node-groups';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -184,7 +183,7 @@ app.put('/:id', async (c) => {
     )
     .run();
 
-  await syncAutoNodeGroups(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts);
 
   const updated = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
@@ -211,7 +210,7 @@ export async function deleteSourceById(db: D1Database, id: string, ts = now()): 
 
   await db.prepare('DELETE FROM nodes WHERE source_id = ?').bind(id).run();
   await db.prepare('DELETE FROM sources WHERE id = ?').bind(id).run();
-  await syncAutoNodeGroups(db, ts);
+  await ensureZeroSetupDefaults(db, ts);
   return true;
 }
 
@@ -432,7 +431,7 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     )
     .run();
 
-  await syncAutoNodeGroups(db, ts);
+  await ensureZeroSetupDefaults(db, ts);
 
   return {
     sourceId: id,

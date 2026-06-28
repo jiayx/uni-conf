@@ -1,6 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
-import { syncAutoNodeGroups } from '../services/auto-node-groups'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
   deleteSourceById,
@@ -18,10 +17,6 @@ import {
   validateSourceMutableFields,
 } from './sources'
 import sourcesApp from './sources'
-
-vi.mock('../services/auto-node-groups', () => ({
-  syncAutoNodeGroups: vi.fn(async () => undefined),
-}))
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(async () => ({
@@ -405,16 +400,49 @@ proxies:
       { operation: 'delete-nodes', sourceId: 'source-1' },
       { operation: 'delete-source', sourceId: 'source-1' },
     ])
-    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z')
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z')
   })
 
-  it('does not sync automatic node groups when deleting a missing source', async () => {
+  it('does not initialize defaults when deleting a missing source', async () => {
     const db = createDeleteMockDb(false)
 
     await expect(deleteSourceById(db, 'missing-source', '2026-01-01T00:00:00.000Z')).resolves.toBe(false)
 
     expect(db.operations).toEqual([])
-    expect(syncAutoNodeGroups).not.toHaveBeenCalled()
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
+  })
+
+  it('initializes zero-setup defaults after refreshing a subscription source', async () => {
+    const db = createRefreshMockDb()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: async () => `
+proxies:
+  - { name: '🇭🇰 HK 01', type: trojan, server: hk.example.com, port: 443, password: pwd }
+`,
+    })))
+
+    await expect(refreshSourceById(db, 'source-1')).resolves.toMatchObject({
+      success: true,
+      addedCount: 1,
+      nodeCount: 1,
+      format: 'mihomo',
+    })
+
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'insert-node',
+      sourceId: 'source-1',
+      name: '🇭🇰 HK 01',
+      protocol: 'trojan',
+      server: 'hk.example.com',
+      port: 443,
+      country: 'Hong Kong',
+      countryCode: 'HK',
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
   it('initializes zero-setup defaults after creating a subscription source', async () => {
@@ -458,6 +486,22 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
         },
         all: async () => ({ results: [] }),
         run: async () => {
+          if (sql.includes('INSERT INTO nodes')) {
+            operations.push({
+              operation: 'insert-node',
+              id: args[0],
+              sourceId: args[1],
+              name: args[2],
+              protocol: args[3],
+              server: args[4],
+              port: args[5],
+              country: args[6],
+              countryCode: args[7],
+              tags: args[8],
+              rawConfig: args[9],
+              parsedConfig: args[10],
+            })
+          }
           if (sql.includes('raw_content = ?')) {
             operations.push({
               operation: 'cache-raw-content',
