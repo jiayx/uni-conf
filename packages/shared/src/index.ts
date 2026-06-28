@@ -228,7 +228,7 @@ export function resolveRemoteRuleSetForExport(
 }
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
-  /官网|官方网站|用户中心|客户中心|订阅|更新订阅/,
+  /官网|官方网站|官方地址|用户中心|客户中心|订阅|更新订阅|订阅地址/,
   /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|总.*流量|流量.*总量|流量[:：]/,
   /套餐|到期|过期|有效期|重置/,
   /\b(expire|expired|expires|expiry|traffic|remaining|used|total|reset|subscription|sub|package|plan|quota)\b/i,
