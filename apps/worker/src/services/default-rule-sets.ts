@@ -8,6 +8,8 @@ import { newId } from '../db/helpers';
 import type { RemoteRuleSet } from '@uni-conf/types';
 
 type PresetSource = NonNullable<RemoteRuleSet['presetSource']>;
+const QUIXOTIC_DEFAULT_FORMAT: RemoteRuleSet['format'] = 'mihomo';
+const QUIXOTIC_DEFAULT_BEHAVIOR: RemoteRuleSet['behavior'] = 'classical';
 
 const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
   presetSource: PresetSource;
@@ -40,13 +42,20 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
     .map((preset) => {
       const targetGroupId = resolveTargetGroupId(groups, inferQuixoticTargetGroup(preset));
       const sortOrder = resolveQuixoticRuleSetSortOrder(preset.id);
+      const url = buildQuixoticRuleSetUrl(preset.id, QUIXOTIC_DEFAULT_FORMAT);
       if (!targetGroupId) return null;
       const existing = existingPresets.get(presetKey('quixotic', preset.id));
       if (existing) {
-        if (existing.target_group_id === targetGroupId && existing.sort_order === sortOrder) return null;
+        if (
+          existing.url === url
+          && existing.format === QUIXOTIC_DEFAULT_FORMAT
+          && existing.behavior === QUIXOTIC_DEFAULT_BEHAVIOR
+          && existing.target_group_id === targetGroupId
+          && existing.sort_order === sortOrder
+        ) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
-          .bind(targetGroupId, sortOrder, ts, existing.id);
+          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+          .bind(url, QUIXOTIC_DEFAULT_FORMAT, QUIXOTIC_DEFAULT_BEHAVIOR, targetGroupId, sortOrder, ts, existing.id);
       }
       return db
         .prepare(
@@ -57,7 +66,7 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
         .bind(
           newId(),
           preset.name,
-          buildQuixoticRuleSetUrl(preset.id, 'mihomo'),
+          url,
           preset.id,
           targetGroupId,
           sortOrder,

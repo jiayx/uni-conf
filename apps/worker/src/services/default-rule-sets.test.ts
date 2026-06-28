@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
+import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
 import { ensureDefaultRemoteRuleSets } from './default-rule-sets';
 
 describe('default remote rule sets', () => {
@@ -39,7 +39,7 @@ describe('default remote rule sets', () => {
         id: `preset-${preset.id}`,
         preset_source: 'quixotic',
         preset_id: preset.id,
-        url: `https://example.com/${preset.id}.list`,
+        url: buildQuixoticRuleSetUrl(preset.id, 'mihomo'),
         format: 'mihomo',
         behavior: 'classical',
         target_group_id: expectedTargetGroupId(preset.id),
@@ -73,6 +73,9 @@ describe('default remote rule sets', () => {
 
     expect(inserted).toContainEqual({
       operation: 'update',
+      url: buildQuixoticRuleSetUrl('crypto', 'mihomo'),
+      format: 'mihomo',
+      behavior: 'classical',
       id: 'preset-crypto',
       targetGroupId: 'builtin-crypto',
       sortOrder: 120,
@@ -84,8 +87,26 @@ describe('default remote rule sets', () => {
     const db = createMockDb({
       existingPresets: [
         { id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-crypto', sort_order: 120 },
-        { id: 'preset-cn', preset_source: 'quixotic', preset_id: 'cn', behavior: 'classical', target_group_id: 'builtin-direct', sort_order: 30 },
-        { id: 'preset-adrules', preset_source: 'quixotic', preset_id: 'adrules', behavior: 'classical', target_group_id: 'builtin-reject', sort_order: 20 },
+        {
+          id: 'preset-cn',
+          preset_source: 'quixotic',
+          preset_id: 'cn',
+          url: buildQuixoticRuleSetUrl('cn', 'mihomo'),
+          format: 'mihomo',
+          behavior: 'classical',
+          target_group_id: 'builtin-direct',
+          sort_order: 30,
+        },
+        {
+          id: 'preset-adrules',
+          preset_source: 'quixotic',
+          preset_id: 'adrules',
+          url: buildQuixoticRuleSetUrl('adrules', 'mihomo'),
+          format: 'mihomo',
+          behavior: 'classical',
+          target_group_id: 'builtin-reject',
+          sort_order: 20,
+        },
       ],
       groups: listGroups().filter((group) => !['builtin-crypto', 'builtin-gaming', 'builtin-developer'].includes(group.id)),
       inserted,
@@ -95,6 +116,9 @@ describe('default remote rule sets', () => {
 
     expect(inserted).toContainEqual({
       operation: 'update',
+      url: buildQuixoticRuleSetUrl('crypto', 'mihomo'),
+      format: 'mihomo',
+      behavior: 'classical',
       id: 'preset-crypto',
       targetGroupId: 'builtin-proxy',
       sortOrder: 120,
@@ -103,10 +127,19 @@ describe('default remote rule sets', () => {
     expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-adrules' }));
   });
 
-  it('retains target but fixes stale preset sort order', async () => {
+  it('repairs stale Quixotic rule set metadata', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-ai', preset_source: 'quixotic', preset_id: 'ai', behavior: 'classical', target_group_id: 'builtin-ai', sort_order: 900 }],
+      existingPresets: [{
+        id: 'preset-ai',
+        preset_source: 'quixotic',
+        preset_id: 'ai',
+        url: 'https://example.com/old-ai.list',
+        format: 'text',
+        behavior: 'domain',
+        target_group_id: 'builtin-ai',
+        sort_order: 900,
+      }],
       inserted,
     });
 
@@ -114,6 +147,9 @@ describe('default remote rule sets', () => {
 
     expect(inserted).toContainEqual({
       operation: 'update',
+      url: buildQuixoticRuleSetUrl('ai', 'mihomo'),
+      format: 'mihomo',
+      behavior: 'classical',
       id: 'preset-ai',
       targetGroupId: 'builtin-ai',
       sortOrder: 40,
@@ -194,9 +230,7 @@ function createMockDb({
     batch: vi.fn(async (statements: Array<{ __args?: unknown[] }>) => {
       for (const statement of statements) {
         const args = statement.__args ?? [];
-        if (args.length === 4) {
-          inserted.push({ operation: 'update', targetGroupId: args[0], sortOrder: args[1], id: args[3] });
-        } else if (args.length === 7) {
+        if (args.length === 7) {
           inserted.push({
             operation: 'update',
             url: args[0],
