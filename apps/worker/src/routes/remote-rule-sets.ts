@@ -24,12 +24,13 @@ app.post('/', async (c) => {
     return c.json({ success: false, error: validation.error }, 400)
   }
   const createInput = requireCreateRemoteRuleSet(validation)
+  const ts = now()
+  await ensureZeroSetupDefaults(c.env.DB, ts)
   if (!(await isEnabledTargetGroup(c.env.DB, createInput.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
 
   const id = newId()
-  const ts = now()
   await c.env.DB.prepare(
     `INSERT INTO remote_rule_sets
       (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
@@ -69,6 +70,7 @@ app.post('/batch', async (c) => {
 
   const ts = now()
   const createdIds: string[] = []
+  await ensureZeroSetupDefaults(c.env.DB, ts)
   const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB)
 
   for (const [index, set] of sets.entries()) {
@@ -139,6 +141,7 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<RemoteRuleSet>>()
   const ts = now()
+  await ensureZeroSetupDefaults(c.env.DB, ts)
   if (isManagedRemoteRuleSet(existing) && !isManagedRemoteRuleSetUpdate(body)) {
     return c.json({ success: false, error: 'built-in remote rule sets can only be enabled or disabled' }, 400)
   }

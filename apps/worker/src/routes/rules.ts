@@ -4,12 +4,15 @@ import { jsonStringify, mapRule, newId, now } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
 import { getRuleCompatibility, RULE_COMPATIBILITY } from '@uni-conf/shared';
 import { isEnabledTargetGroup, listEnabledTargetGroupIds, normalizeRuleTargetGroupId } from '../services/group-targets';
+import { ensureZeroSetupDefaults } from '../services/zero-setup';
 
 const app = new Hono<{ Bindings: Env }>();
 
 // ─── List rules ───────────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM rules ORDER BY sort_order ASC, created_at ASC'
   ).all<Record<string, unknown>>();
@@ -54,6 +57,7 @@ app.post('/batch', async (c) => {
 
   const ts = now();
   const created: ProxyRule[] = [];
+  await ensureZeroSetupDefaults(c.env.DB, ts);
 
   // Get current max sort_order
   const maxRow = await c.env.DB.prepare(
@@ -115,12 +119,13 @@ app.post('/', async (c) => {
   const ruleType = body.type as ProxyRule['type'];
   const targetGroupId = normalizeRuleTargetGroupId(body.targetGroupId);
   const payload = body.payload ?? '';
+  const ts = now();
+  await ensureZeroSetupDefaults(c.env.DB, ts);
   if (!(await isEnabledTargetGroup(c.env.DB, targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
   }
 
   const id = newId();
-  const ts = now();
 
   const maxRow = await c.env.DB.prepare(
     'SELECT MAX(sort_order) as max_order FROM rules'
@@ -177,6 +182,7 @@ app.put('/:id', async (c) => {
 
   const body = await c.req.json<Partial<ProxyRule>>();
   const ts = now();
+  await ensureZeroSetupDefaults(c.env.DB, ts);
   const nextType = (body.type ?? existing.type) as ProxyRule['type'];
   const nextPayload = (body.payload ?? existing.payload) as string;
   if (!isValidRuleType(nextType)) {

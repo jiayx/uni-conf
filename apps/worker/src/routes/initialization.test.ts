@@ -3,6 +3,7 @@ import dashboardApp from './dashboard'
 import { exportRouter } from './export'
 import groupsApp from './groups'
 import remoteRuleSetsApp from './remote-rule-sets'
+import rulesApp from './rules'
 import settingsApp from './settings'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { getAppSettings } from '../services/app-settings'
@@ -76,6 +77,15 @@ describe('zero-setup route initialization', () => {
     const db = createStatsDb()
 
     const response = await remoteRuleSetsApp.request('/', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('ensures zero-setup defaults before returning manual rules', async () => {
+    const db = createStatsDb()
+
+    const response = await rulesApp.request('/', {}, { DB: db })
 
     expect(response.status).toBe(200)
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
