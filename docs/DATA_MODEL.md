@@ -173,7 +173,7 @@ Readiness validation checks the final export graph, not only stored IDs. A polic
 
 When the user changes the scenario template, the web app saves both `routing_policy_template` and the template's recommended `dns_mode`. Users can still override DNS later in Settings.
 
-Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is `PROXY`, `DIRECT`, `REJECT`, or an enabled business policy group with no direct `collection_ids`. Global node outlets (`全部节点`, `节点选择`, `自动选择`, `故障切换`), country auto groups, and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Enabled custom non-node groups are treated as business routing groups too, so a user-created group such as `Downloads` or `Crypto` automatically receives the same foundation outlets, global node outlets, and node-backed outlet groups as the built-in scenario groups. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active; the API rejects disabled, missing, global-node-outlet, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
+Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is `PROXY`, `DIRECT`, `REJECT`, or an enabled business policy group with no direct `collection_ids`. Global node outlets (`全部节点`, `节点选择`, `自动选择`, `故障切换`), country auto groups, and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Enabled custom non-node groups are treated as business routing groups too, so a user-created group such as `Downloads` or `Crypto` automatically receives the same foundation outlets, global node outlets, and node-backed outlet groups as the built-in scenario groups. Built-in default rule sets resolve targets from the enabled group set and fall back to `PROXY` when a scenario-specific group such as `Crypto`, `Gaming`, or `Developer` is not active. Custom remote rule set and manual rule create APIs also default an omitted or blank target to `PROXY`; explicit update targets must still be enabled rule-target groups. The API rejects disabled, missing, global-node-outlet, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
 
 Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
 
@@ -196,7 +196,7 @@ Manual rules are local overrides for exceptional cases; the default routing path
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
-Manual rules are an advanced override path. Writes validate `type` against the shared rule compatibility matrix, require a payload for every rule except `MATCH`, and require an enabled rule-target group. Batch imports fail fast on the first invalid row instead of silently dropping malformed rules.
+Manual rules are an advanced override path. Writes validate `type` against the shared rule compatibility matrix, require a payload for every rule except `MATCH`, and default omitted create targets to `PROXY`. Explicit targets must be enabled rule-target groups. Batch imports fail fast on the first invalid row instead of silently dropping malformed rules.
 
 ### `remote_rule_sets` — Remote Rule Set References
 
@@ -224,7 +224,7 @@ Remote rule set `format` and `behavior` are separate fields. `format` describes 
 
 Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but editing and deletion are reserved for custom remote rule sets so a refresh cannot silently recreate or overwrite a row the UI appeared to let the user own.
 
-Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, target group, positive update interval, and integer sort order are checked and trimmed. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`. Resource-library selections in the UI fill a normal custom rule set URL and remain deletable.
+Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, positive update interval, and integer sort order are checked and trimmed. Create requests default omitted targets to `PROXY`; explicit targets must be enabled rule-target groups. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`. Resource-library selections in the UI fill a normal custom rule set URL and remain deletable.
 
 | Order | Rule set intent |
 |-------|-----------------|

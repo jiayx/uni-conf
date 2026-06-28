@@ -29,11 +29,11 @@ describe('rules route helpers', () => {
     })).toBe('payload is required unless type is MATCH')
   })
 
-  it('requires a target policy group', () => {
+  it('allows create inputs to omit target policy group', () => {
     expect(validateRuleInput({
       type: 'DOMAIN-SUFFIX',
       payload: 'example.com',
       targetGroupId: ' ',
-    })).toBe('targetGroupId is required')
+    })).toBeNull()
   })
 })

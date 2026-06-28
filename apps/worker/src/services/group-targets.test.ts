@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isEnabledTargetGroup, listEnabledTargetGroupIds } from './group-targets';
+import { isEnabledTargetGroup, listEnabledTargetGroupIds, normalizeRuleTargetGroupId } from './group-targets';
 
 describe('group target helpers', () => {
   it('recognizes only enabled non-node groups as valid rule targets', async () => {
@@ -32,6 +32,12 @@ describe('group target helpers', () => {
     ]);
 
     await expect(listEnabledTargetGroupIds(db)).resolves.toEqual(new Set(['builtin-proxy', 'builtin-direct']));
+  });
+
+  it('defaults missing rule targets to PROXY', () => {
+    expect(normalizeRuleTargetGroupId(undefined)).toBe('builtin-proxy');
+    expect(normalizeRuleTargetGroupId(' ')).toBe('builtin-proxy');
+    expect(normalizeRuleTargetGroupId(' builtin-ai ')).toBe('builtin-ai');
   });
 });
 

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
 import type { RemoteRuleSet, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
-import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
+import { DEFAULT_RULE_TARGET_GROUP_ID, isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -286,8 +286,9 @@ export function validateRemoteRuleSetWrite(
   }
 
   const targetGroupId = normalizeOptionalText(body.targetGroupId)
-  if (options.create && !targetGroupId) return { valid: false, error: 'targetGroupId is required' }
-  if (body.targetGroupId !== undefined && !targetGroupId) return { valid: false, error: 'targetGroupId is required' }
+  if (!options.create && body.targetGroupId !== undefined && !targetGroupId) {
+    return { valid: false, error: 'targetGroupId is required' }
+  }
 
   const updateInterval = body.updateInterval !== undefined ? normalizePositiveInteger(body.updateInterval) : undefined
   if (body.updateInterval !== undefined && updateInterval === undefined) {
@@ -304,7 +305,7 @@ export function validateRemoteRuleSetWrite(
     url,
     format: body.format,
     behavior: body.behavior,
-    targetGroupId,
+    targetGroupId: options.create ? targetGroupId ?? DEFAULT_RULE_TARGET_GROUP_ID : targetGroupId,
     updateInterval: options.create ? updateInterval ?? 24 : updateInterval,
     enabled: options.create ? body.enabled !== false : body.enabled,
     sortOrder: options.create ? sortOrder ?? 500 : sortOrder,

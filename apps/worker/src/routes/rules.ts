@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { jsonStringify, mapRule, newId, now } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
 import { getRuleCompatibility, RULE_COMPATIBILITY } from '@uni-conf/shared';
-import { isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets';
+import { isEnabledTargetGroup, listEnabledTargetGroupIds, normalizeRuleTargetGroupId } from '../services/group-targets';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -67,8 +67,9 @@ app.post('/batch', async (c) => {
     if (error) {
       return c.json({ success: false, error: `invalid rule at index ${index}: ${error}` }, 400);
     }
-    if (!enabledTargetGroupIds.has(rule.targetGroupId)) {
-      return c.json({ success: false, error: `target group is disabled or missing: ${rule.targetGroupId}` }, 400);
+    const targetGroupId = normalizeRuleTargetGroupId(rule.targetGroupId);
+    if (!enabledTargetGroupIds.has(targetGroupId)) {
+      return c.json({ success: false, error: `target group is disabled or missing: ${targetGroupId}` }, 400);
     }
 
     const id = newId();
@@ -82,7 +83,7 @@ app.post('/batch', async (c) => {
         rule.type,
         rule.payload ?? '',
         rule.noResolve ? 1 : 0,
-        rule.targetGroupId,
+        targetGroupId,
         rule.enabled !== false ? 1 : 0,
         rule.order ?? nextOrder,
         rule.notes ?? null,
@@ -112,7 +113,7 @@ app.post('/', async (c) => {
     return c.json({ success: false, error }, 400);
   }
   const ruleType = body.type as ProxyRule['type'];
-  const targetGroupId = body.targetGroupId as string;
+  const targetGroupId = normalizeRuleTargetGroupId(body.targetGroupId);
   const payload = body.payload ?? '';
   if (!(await isEnabledTargetGroup(c.env.DB, targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
@@ -244,7 +245,6 @@ export function isValidRuleType(value: unknown): value is ProxyRule['type'] {
 export function validateRuleInput(rule: Partial<ProxyRule>): string | null {
   if (!isValidRuleType(rule.type)) return 'invalid rule type';
   if (!hasRequiredPayload(rule)) return 'payload is required unless type is MATCH';
-  if (!isNonEmptyString(rule.targetGroupId)) return 'targetGroupId is required';
   return null;
 }
 

@@ -61,6 +61,27 @@ describe('remote rule set routes', () => {
     })
   })
 
+  it('defaults custom remote rule sets to PROXY when target is omitted', () => {
+    expect(validateRemoteRuleSetWrite({
+      name: 'Custom Rules',
+      url: 'https://example.com/custom.list',
+      format: 'mihomo',
+      behavior: 'classical',
+    }, { create: true })).toEqual({
+      valid: true,
+      name: 'Custom Rules',
+      url: 'https://example.com/custom.list',
+      format: 'mihomo',
+      behavior: 'classical',
+      targetGroupId: 'builtin-proxy',
+      updateInterval: 24,
+      enabled: true,
+      sortOrder: 500,
+      lastUpdated: undefined,
+      notes: undefined,
+    })
+  })
+
   it('rejects malformed remote rule set writes', () => {
     expect(validateRemoteRuleSetWrite({ name: 'Missing fields' }, { create: true })).toEqual({
       valid: false,
