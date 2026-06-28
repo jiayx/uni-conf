@@ -14,4 +14,12 @@ describe('parseSubscriptionUrls', () => {
       'https://example.com/c?token=abc',
     ])
   })
+
+  it('supports the dashboard multi-url paste separators used by the zero-setup entry', () => {
+    expect(parseSubscriptionUrls(' https://a.example/sub，https://b.example/sub  https://a.example/sub\nhttps://c.example/sub,invalid ')).toEqual([
+      'https://a.example/sub',
+      'https://b.example/sub',
+      'https://c.example/sub',
+    ])
+  })
 })
