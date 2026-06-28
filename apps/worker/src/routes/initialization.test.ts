@@ -73,6 +73,59 @@ describe('zero-setup route initialization', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
 
+  it('ensures zero-setup defaults before returning a single export config', async () => {
+    const db = createStatsDb()
+
+    const response = await exportRouter.request('/configs/export-1', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('ensures zero-setup defaults after creating an export config', async () => {
+    const db = createStatsDb()
+
+    const response = await exportRouter.request('/configs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ format: 'singbox' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(201)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('ensures zero-setup defaults after updating an export config', async () => {
+    const db = createStatsDb()
+
+    const response = await exportRouter.request('/configs/export-1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Updated Export' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('ensures zero-setup defaults after deleting an export config', async () => {
+    const db = createStatsDb()
+
+    const response = await exportRouter.request('/configs/export-1', { method: 'DELETE' }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('ensures zero-setup defaults after resetting an export token', async () => {
+    const db = createStatsDb()
+
+    const response = await exportRouter.request('/configs/export-1/reset-token', { method: 'POST' }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
   it('ensures zero-setup defaults before returning remote rule sets', async () => {
     const db = createStatsDb()
 
@@ -107,15 +160,32 @@ describe('zero-setup route initialization', () => {
 })
 
 function createStatsDb(): D1Database {
+  const exportRow = {
+    id: 'export-1',
+    name: 'Default',
+    format: 'mihomo',
+    token: 'token',
+    enabled: 1,
+    include_collection_ids: '[]',
+    include_group_ids: '[]',
+    include_rule_ids: '[]',
+    include_remote_set_ids: '[]',
+    extra_config: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    count: 0,
+    last_refreshed_at: null,
+  }
+
   return {
     prepare: vi.fn(() => ({
       bind: vi.fn(() => ({
-        first: async () => ({ count: 0, last_refreshed_at: null }),
+        first: async () => exportRow,
         all: async () => ({ results: [] }),
         run: async () => ({ success: true }),
         raw: async () => [],
       })),
-      first: async () => ({ count: 0, last_refreshed_at: null }),
+      first: async () => exportRow,
       all: async () => ({ results: [] }),
       run: async () => ({ success: true }),
       raw: async () => [],

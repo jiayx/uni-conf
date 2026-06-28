@@ -49,6 +49,8 @@ exportRouter.post('/configs', async (c) => {
     ts, ts
   ).run()
 
+  await ensureZeroSetupDefaults(c.env.DB, ts)
+
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) }, 201)
 })
@@ -73,6 +75,7 @@ export function resolveExportConfigName(name: unknown, format: ExportConfig['for
 
 // GET /api/export/configs/:id
 exportRouter.get('/configs/:id', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now())
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(c.req.param('id')).first()
   if (!row) return c.json({ success: false, error: 'Not found' }, 404)
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
@@ -113,6 +116,7 @@ exportRouter.put('/configs/:id', async (c) => {
   fields.push('updated_at = ?'); values.push(ts); values.push(id)
 
   await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run()
+  await ensureZeroSetupDefaults(c.env.DB, ts)
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
 })
@@ -123,6 +127,7 @@ exportRouter.delete('/configs/:id', async (c) => {
   const existing = await c.env.DB.prepare('SELECT id FROM export_configs WHERE id = ?').bind(id).first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
   await c.env.DB.prepare('DELETE FROM export_configs WHERE id = ?').bind(id).run()
+  await ensureZeroSetupDefaults(c.env.DB, now())
   return c.json({ success: true, data: null })
 })
 
@@ -135,6 +140,7 @@ exportRouter.post('/configs/:id/reset-token', async (c) => {
   await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ?')
     .bind(generateExportToken(), now(), id)
     .run()
+  await ensureZeroSetupDefaults(c.env.DB, now())
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
 })
