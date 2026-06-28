@@ -272,7 +272,7 @@ Export config writes validate the advanced include filters before persistence. `
 
 When `include_group_ids` selects only a subset of policy groups, export data expands the final group set through derived `group_ids` before collecting nodes. If the expanded group set contains a global node outlet such as `全部节点`, `节点选择`, `自动选择`, or `故障切换`, the export keeps the full enabled node pool because those outlets can select any node. Otherwise, node output is scoped to the node groups referenced by the expanded group set. This keeps preview/download/public subscription aligned: every proxy group member that can point at nodes has matching `proxies` / `outbounds` entries in the rendered config.
 
-Dashboard stats, export config reads, export preview/download, public subscription rendering, settings reads, group reads, subscription source create/update/refresh/delete, manual node create/update/delete, manual rule reads/writes, and remote rule set reads/writes are initialization points for the zero-setup path. They ensure the default export config, foundation/routing policy groups, automatic node groups, and built-in remote rule sets exist before returning user-facing state or validating user-authored rules, so the first screen, subscription refresh flow, and advanced rule editors use the same defaults that export will use.
+Dashboard stats, export config reads, export preview/download, public subscription rendering, settings reads, group reads, node group reads/writes, subscription source create/update/refresh/delete, manual node create/update/delete, manual rule reads/writes, and remote rule set reads/writes are initialization points for the zero-setup path. They ensure the default export config, foundation/routing policy groups, automatic node groups, and built-in remote rule sets exist before returning user-facing state or validating user-authored rules, so the first screen, subscription refresh flow, node group editor, and advanced rule editors use the same defaults that export will use.
 
 ### `app_settings` — Application Settings (Singleton)
 
@@ -402,7 +402,7 @@ Auto node group sync creates generated collections plus node-backed outlet group
 | `Streaming Auto/Select/Fallback` | `tag in ["streaming", "unlock"]` + `tag not_in ["high-multiplier"]` | Streaming |
 | `Native Auto/Select/Fallback` | `tag in ["residential", "native-ip"]` + `tag not_in ["high-multiplier"]` | AI, Streaming |
 
-Auto node group sync runs after subscription refreshes, manual node changes, collections reads, and auto node group setting changes. The node group page persists the user's selected generated keys; selecting nothing disables generated auto groups so the backend does not recreate them on the next sync.
+Auto node group sync runs through the zero-setup initializer after subscription refreshes, manual node changes, node group reads/writes, and auto node group setting changes. The node group page persists the user's selected generated keys; selecting nothing disables generated auto groups so the backend does not recreate them on the next sync.
 
 Export, collection preview, and auto node group sync only consider nodes whose node row is enabled and whose source row is enabled. Disabling a subscription source therefore removes its nodes from generated node pools and exported configs without deleting the cached node rows; re-enabling the source makes the cached nodes eligible again.
 

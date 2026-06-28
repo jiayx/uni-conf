@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapNode, newId, now } from '../db/helpers';
 import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
 import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared';
-import { syncAutoNodeGroups } from '../services/auto-node-groups';
+import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -16,7 +16,7 @@ const SORT_STRATEGIES = new Set<NodeCollection['sort']>(['country', 'name', 'sou
 // ─── List collections ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-  await syncAutoNodeGroups(c.env.DB, now());
+  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM collections ORDER BY created_at DESC'
@@ -57,6 +57,8 @@ app.post('/', async (c) => {
       ts
     )
     .run();
+
+  await ensureZeroSetupDefaults(c.env.DB, ts);
 
   const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(id)
@@ -120,6 +122,8 @@ app.put('/:id', async (c) => {
     )
     .run();
 
+  await ensureZeroSetupDefaults(c.env.DB, ts);
+
   const updated = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
@@ -140,6 +144,7 @@ app.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'Generated node groups are managed by auto node group settings' }, 409);
   }
   await c.env.DB.prepare('DELETE FROM collections WHERE id = ?').bind(id).run();
+  await ensureZeroSetupDefaults(c.env.DB, now());
   return c.json({ success: true, data: { id } });
 });
 
