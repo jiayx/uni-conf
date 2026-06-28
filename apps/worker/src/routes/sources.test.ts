@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import type { SourceRefreshResult } from '@uni-conf/types'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
   deleteSourceById,
@@ -469,6 +470,46 @@ proxies:
     expect(payload.data.source.name).toBe('airport.example')
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
+
+  it('refreshes a URL subscription source by default when creating it', async () => {
+    const db = createCreateRefreshMockDb()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: async () => `
+proxies:
+  - { name: '🇺🇸 US 01', type: trojan, server: us.example.com, port: 443, password: pwd }
+`,
+    })))
+
+    const response = await sourcesApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'url',
+        url: 'https://airport.example/sub',
+      }),
+    }, { DB: db })
+    const payload = await response.json() as { success: boolean; data: { refresh: SourceRefreshResult } }
+
+    expect(response.status).toBe(201)
+    expect(payload.success).toBe(true)
+    expect(payload.data.refresh).toMatchObject({
+      success: true,
+      addedCount: 1,
+      nodeCount: 1,
+      format: 'mihomo',
+    })
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'insert-node',
+      name: '🇺🇸 US 01',
+      server: 'us.example.com',
+      countryCode: 'US',
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
 })
 
 function createRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
@@ -614,4 +655,74 @@ function createCreateMockDb(): D1Database {
       raw: async () => [],
     })),
   } as unknown as D1Database
+}
+
+function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
+  const operations: Array<Record<string, unknown>> = []
+  const inserted: Record<string, unknown> = {}
+  return {
+    operations,
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
+            return {
+              id: args[0],
+              name: inserted.name ?? 'airport.example',
+              type: inserted.type ?? 'url',
+              url: inserted.url ?? 'https://airport.example/sub',
+              format: inserted.format ?? 'auto',
+              enabled: 1,
+              node_count: operations.filter(item => item.operation === 'insert-node').length,
+              last_updated: null,
+              last_refresh_error: null,
+              update_interval: 0,
+              user_agent: null,
+              notes: null,
+              tags: '[]',
+              source_groups: '[]',
+              upload_bytes: null,
+              download_bytes: null,
+              total_bytes: null,
+              expire_time: null,
+              created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
+              updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',
+            }
+          }
+          return null
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          if (sql.includes('INSERT INTO sources')) {
+            inserted.id = args[0]
+            inserted.name = args[1]
+            inserted.type = args[2]
+            inserted.url = args[3]
+            inserted.format = args[4]
+            inserted.created_at = args[10]
+            inserted.updated_at = args[11]
+          }
+          if (sql.includes('INSERT INTO nodes')) {
+            operations.push({
+              operation: 'insert-node',
+              id: args[0],
+              sourceId: args[1],
+              name: args[2],
+              protocol: args[3],
+              server: args[4],
+              port: args[5],
+              country: args[6],
+              countryCode: args[7],
+            })
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
 }
