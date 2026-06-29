@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { generateMihomoYaml } from './mihomo';
 import { generateSingboxJson } from './singbox';
-import { generateEgern, generateQuantumultX, generateStashYaml, generateSurge } from './client-configs';
+import { generateEgern, generateQuantumultX, generateShadowrocket, generateStashYaml, generateSurge } from './client-configs';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -113,15 +113,19 @@ const groupRows: Record<string, unknown>[] = [
 ];
 
 const ruleRows: Record<string, unknown>[] = [
-  {
-    id: matchRule.id,
-    type: matchRule.type,
-    payload: matchRule.payload,
-    target_group_id: matchRule.targetGroupId,
-    enabled: 1,
-    no_resolve: 0,
-  },
+  ruleRow(matchRule),
 ];
+
+function ruleRow(rule: ProxyRule): Record<string, unknown> {
+  return {
+    id: rule.id,
+    type: rule.type,
+    payload: rule.payload,
+    target_group_id: rule.targetGroupId,
+    enabled: rule.enabled ? 1 : 0,
+    no_resolve: rule.noResolve ? 1 : 0,
+  };
+}
 
 describe('remote rule set generators', () => {
   it('routes Mihomo remote rule sets before MATCH', () => {
@@ -311,6 +315,14 @@ describe('remote rule set generators', () => {
       { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id },
     ]);
     expect(surge).toContain('AI = https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/surge/ai.list');
+  });
+
+  it('skips unsupported local rules for INI-style clients', () => {
+    const surge = generateSurge([], groupRows, [ruleRow(geositeRule), ruleRow(matchRule)], []);
+    const shadowrocket = generateShadowrocket([], groupRows, [ruleRow(geositeRule), ruleRow(matchRule)], []);
+
+    expect(surge).toContain('GEOSITE,google,PROXY');
+    expect(shadowrocket).not.toContain('GEOSITE,google,PROXY');
   });
 
   it('exports Stash as Mihomo-compatible YAML', () => {

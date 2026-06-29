@@ -1,5 +1,5 @@
 import yaml from 'js-yaml'
-import { isRuleSetFormatCompatible } from '@uni-conf/shared'
+import { getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
 import { collectGroupMembers } from './group-members'
 import { nodeToSubscriptionUri } from './node-subscription'
@@ -7,6 +7,7 @@ import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { DnsMode, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 
 type Row = Record<string, unknown>
+type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
 export function generateStashYaml(
   nodes: ProxyNode[],
@@ -233,7 +234,7 @@ function buildIniConfig({
   }
   for (const rule of rules) {
     if (!rule['enabled']) continue
-    const line = ruleToIni(rule, groups)
+    const line = ruleToIni(rule, groups, client)
     if (line) lines.push(line)
   }
   if (!rules.some((rule) => String(rule['type']) === 'MATCH')) {
@@ -329,12 +330,13 @@ function groupToEgern(
   }
 }
 
-function ruleToIni(rule: Row, groups: Row[]): string | null {
+function ruleToIni(rule: Row, groups: Row[], client: 'surge' | 'shadowrocket'): string | null {
   const type = String(rule['type'] ?? '')
   const payload = String(rule['payload'] ?? '')
   const target = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
   const noResolve = rule['no_resolve'] ? ',no-resolve' : ''
   if (type === 'MATCH') return `FINAL,${target}`
+  if (getRuleCompatibilityLevel(type as RuleCompatibilityType, client) === 'unsupported') return null
   if (['SCRIPT', 'IN-TYPE'].includes(type)) return null
   return `${type},${payload},${target}${noResolve}`
 }
