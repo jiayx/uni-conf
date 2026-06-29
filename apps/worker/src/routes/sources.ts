@@ -222,12 +222,14 @@ export async function deleteSourceById(db: D1Database, id: string, ts = now()): 
 
 app.post('/:id/refresh', async (c) => {
   const id = c.req.param('id');
+  const ts = now();
   try {
     const result = await refreshSourceById(c.env.DB, id);
     return c.json({ success: true, data: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : `Failed to fetch URL: ${String(err)}`;
     await recordSourceRefreshError(c.env.DB, id, message);
+    await ensureZeroSetupDefaults(c.env.DB, ts);
     if (err instanceof SourceRefreshError) {
       return c.json({ success: false, error: err.message }, err.status);
     }

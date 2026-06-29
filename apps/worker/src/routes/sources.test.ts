@@ -450,6 +450,32 @@ proxies:
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
+  it('initializes zero-setup defaults after a subscription refresh failure', async () => {
+    const db = createRefreshMockDb()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: async () => 'not a usable proxy subscription',
+    })))
+
+    const response = await sourcesApp.request('/source-1/refresh', {
+      method: 'POST',
+    }, { DB: db })
+    const payload = await response.json() as { success: boolean; error: string }
+
+    expect(response.status).toBe(422)
+    expect(payload.success).toBe(false)
+    expect(payload.error).toContain('No usable proxy nodes parsed')
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'record-refresh-error',
+      id: 'source-1',
+      error: expect.stringContaining('No usable proxy nodes parsed'),
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
   it('initializes zero-setup defaults after creating a subscription source', async () => {
     const db = createCreateMockDb()
 
@@ -556,6 +582,13 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
               totalBytes: args[3],
               expireTime: args[4],
               id: args[6],
+            })
+          }
+          if (sql.includes('last_refresh_error = ?')) {
+            operations.push({
+              operation: 'record-refresh-error',
+              error: args[0],
+              id: args[2],
             })
           }
           return { success: true }
