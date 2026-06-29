@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
+import { summarizeDashboardSourceCreateResults } from '@/core/sources/dashboard-source-create'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { saveExportDownload } from '@/core/export/download-file'
@@ -92,22 +93,13 @@ export function Dashboard() {
           refreshAfterCreate: true,
         }))
       )
-      const successes = results
-        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof api.sources.create>>> => result.status === 'fulfilled')
-        .map(result => result.value)
-      const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-      const refreshFailure = successes.find(result => result.refreshError)
-      const failedUrls = results.flatMap((result, index) => result.status === 'rejected' ? [urls[index]] : [])
+      const summary = summarizeDashboardSourceCreateResults(urls, results)
 
-      if (failures.length === 0) {
-        setSourceUrl('')
-      } else {
-        setSourceUrl(failedUrls.filter(Boolean).join('\n'))
-      }
-      if (failures.length > 0) {
-        setSourceError(`${failures.length} 个订阅源保存失败：${failures[0]?.reason instanceof Error ? failures[0].reason.message : 'unknown error'}`)
-      } else if (refreshFailure?.refreshError) {
-        setSourceError(t('dashboard.source_refresh_failed', { error: refreshFailure.refreshError }))
+      setSourceUrl(summary.nextInput)
+      if (summary.error?.kind === 'save-failed') {
+        setSourceError(`${summary.error.count ?? 0} 个订阅源保存失败：${summary.error.message}`)
+      } else if (summary.error?.kind === 'refresh-failed') {
+        setSourceError(t('dashboard.source_refresh_failed', { error: summary.error.message }))
       }
       await loadStats()
     } catch (e) {
