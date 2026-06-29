@@ -499,15 +499,18 @@ proxies:
 
   it('refreshes a URL subscription source by default when creating it', async () => {
     const db = createCreateRefreshMockDb()
+    const rawContent = `
+proxies:
+  - { name: '🇺🇸 US 01', type: trojan, server: us.example.com, port: 443, password: pwd }
+proxy-groups:
+  - { name: 'US Auto', type: url-test, proxies: ['🇺🇸 US 01'] }
+`
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
-      headers: { get: () => null },
-      text: async () => `
-proxies:
-  - { name: '🇺🇸 US 01', type: trojan, server: us.example.com, port: 443, password: pwd }
-`,
+      headers: { get: (name: string) => name === 'subscription-userinfo' ? 'upload=10; download=20; total=100; expire=1893456000' : null },
+      text: async () => rawContent,
     })))
 
     const response = await sourcesApp.request('/', {
@@ -518,7 +521,20 @@ proxies:
         url: 'https://airport.example/sub',
       }),
     }, { DB: db })
-    const payload = await response.json() as { success: boolean; data: { refresh: SourceRefreshResult } }
+    const payload = await response.json() as {
+      success: boolean;
+      data: {
+        source: {
+          rawContent?: string;
+          groups: Array<{ name: string; type: string; memberNames: string[] }>;
+          uploadBytes?: number;
+          downloadBytes?: number;
+          totalBytes?: number;
+          expireTime?: number;
+        };
+        refresh: SourceRefreshResult;
+      };
+    }
 
     expect(response.status).toBe(201)
     expect(payload.success).toBe(true)
@@ -527,6 +543,17 @@ proxies:
       addedCount: 1,
       nodeCount: 1,
       format: 'mihomo',
+      sourceGroupCount: 1,
+    })
+    expect(payload.data.source.rawContent).toBe(rawContent)
+    expect(payload.data.source.groups).toEqual([
+      { name: 'US Auto', type: 'url-test', memberNames: ['🇺🇸 US 01'] },
+    ])
+    expect(payload.data.source).toMatchObject({
+      uploadBytes: 10,
+      downloadBytes: 20,
+      totalBytes: 100,
+      expireTime: 1893456000,
     })
     expect(db.operations).toContainEqual(expect.objectContaining({
       operation: 'insert-node',
@@ -706,18 +733,19 @@ function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<st
               url: inserted.url ?? 'https://airport.example/sub',
               format: inserted.format ?? 'auto',
               enabled: 1,
-              node_count: operations.filter(item => item.operation === 'insert-node').length,
-              last_updated: null,
+              node_count: inserted.node_count ?? operations.filter(item => item.operation === 'insert-node').length,
+              last_updated: inserted.last_updated ?? null,
               last_refresh_error: null,
               update_interval: 0,
               user_agent: null,
               notes: null,
               tags: '[]',
-              source_groups: '[]',
-              upload_bytes: null,
-              download_bytes: null,
-              total_bytes: null,
-              expire_time: null,
+              source_groups: inserted.source_groups ?? '[]',
+              raw_content: inserted.raw_content ?? null,
+              upload_bytes: inserted.upload_bytes ?? null,
+              download_bytes: inserted.download_bytes ?? null,
+              total_bytes: inserted.total_bytes ?? null,
+              expire_time: inserted.expire_time ?? null,
               created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
               updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',
             }
@@ -747,6 +775,24 @@ function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<st
               country: args[6],
               countryCode: args[7],
             })
+          }
+          if (sql.includes('UPDATE sources SET') && sql.includes('node_count = ?')) {
+            inserted.node_count = args[0]
+            inserted.last_updated = args[1]
+            inserted.upload_bytes = args[2]
+            inserted.download_bytes = args[3]
+            inserted.total_bytes = args[4]
+            inserted.expire_time = args[5]
+            inserted.source_groups = args[6]
+            inserted.raw_content = args[7]
+            inserted.updated_at = args[8]
+          } else if (sql.includes('raw_content = ?')) {
+            inserted.raw_content = args[0]
+            inserted.upload_bytes = args[1]
+            inserted.download_bytes = args[2]
+            inserted.total_bytes = args[3]
+            inserted.expire_time = args[4]
+            inserted.updated_at = args[5]
           }
           return { success: true }
         },
