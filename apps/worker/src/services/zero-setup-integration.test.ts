@@ -44,7 +44,9 @@ describe('zero setup defaults integration', () => {
     ]));
 
     const groupsById = new Map(db.state.groups.map((row) => [row.id, row]));
-    const remoteRuleTargets = db.state.remoteRuleSets.map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id);
+    const remoteRuleTargets = db.state.remoteRuleSets
+      .filter((row) => row.enabled === 1)
+      .map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id);
     expect(remoteRuleTargets).toContain('REJECT');
     expect(remoteRuleTargets).toContain('Telegram');
     expect(remoteRuleTargets).toContain('PROXY');
@@ -68,13 +70,16 @@ describe('zero setup defaults integration', () => {
     expect(groupsByName.get('Telegram')?.enabled).toBe(0);
 
     const groupsById = new Map(db.state.groups.map((row) => [row.id, row]));
-    const remoteRuleTargets = new Set(db.state.remoteRuleSets.map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id));
+    const remoteRuleTargets = new Set(db.state.remoteRuleSets
+      .filter((row) => row.enabled === 1)
+      .map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id));
     expect(remoteRuleTargets).toContain('PROXY');
     expect(remoteRuleTargets).toContain('DIRECT');
     expect(remoteRuleTargets).toContain('REJECT');
     expect(remoteRuleTargets).not.toContain('AI');
     expect(remoteRuleTargets).not.toContain('Streaming');
     expect(remoteRuleTargets).not.toContain('Telegram');
+    expect(db.state.remoteRuleSets.some((row) => row.enabled === 0 && groupsById.get(row.target_group_id)?.name === 'AI')).toBe(true);
   });
 });
 
@@ -180,10 +185,10 @@ function selectRows(state: ZeroSetupState, sql: string, args: unknown[]): Memory
       is_builtin,
     }));
   }
-  if (sql.includes('SELECT id, name FROM groups WHERE enabled = 1')) {
-    return state.groups.filter((row) => row.enabled === 1).map(({ id, name }) => ({ id, name }));
+  if (sql.includes('SELECT id, name, enabled FROM groups')) {
+    return state.groups.map(({ id, name, enabled }) => ({ id, name, enabled }));
   }
-  if (sql.includes('SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, sort_order FROM remote_rule_sets')) {
+  if (sql.includes('SELECT id, url, format, behavior, preset_source, preset_id, target_group_id')) {
     return state.remoteRuleSets.filter((row) => ['quixotic', 'uni-conf'].includes(String(row.preset_source)) && row.preset_id);
   }
   return [];
@@ -295,12 +300,12 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
       preset_id: args[3],
       target_group_id: args[4],
       update_interval: 24,
-      enabled: 1,
-      sort_order: args[5],
+      enabled: args[5],
+      sort_order: args[6],
       last_updated: null,
-      notes: args[6],
-      created_at: args[7],
-      updated_at: args[8],
+      notes: args[7],
+      created_at: args[8],
+      updated_at: args[9],
     });
     return;
   }
@@ -315,12 +320,12 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
       preset_id: args[6],
       target_group_id: args[7],
       update_interval: 24,
-      enabled: 1,
-      sort_order: args[8],
+      enabled: args[8],
+      sort_order: args[9],
       last_updated: null,
-      notes: args[9],
-      created_at: args[10],
-      updated_at: args[11],
+      notes: args[10],
+      created_at: args[11],
+      updated_at: args[12],
     });
   }
 }

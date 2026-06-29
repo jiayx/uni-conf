@@ -172,6 +172,64 @@ describe('default remote rule sets', () => {
     expect(inserted).not.toContainEqual(expect.objectContaining({ presetId: 'crypto', operation: 'insert' }));
   });
 
+  it('creates missing managed rule sets as system-disabled rows when the target group is currently disabled', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [],
+      groups: listGroups().map((group) => group.id === 'builtin-crypto' ? { ...group, enabled: 0 } : group),
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual(expect.objectContaining({
+      operation: 'insert',
+      presetId: 'crypto',
+      targetGroupId: 'builtin-crypto',
+      enabled: 0,
+      notes: expect.stringContaining(SYSTEM_DISABLED_NOTE),
+    }));
+    expect(inserted.find((item) => item.presetId === 'adrules')).toMatchObject({
+      targetGroupId: 'builtin-reject',
+      enabled: 1,
+    });
+    expect(inserted.find((item) => item.presetId === 'cn')).toMatchObject({
+      targetGroupId: 'builtin-direct',
+      enabled: 1,
+    });
+  });
+
+  it('preserves user-disabled managed rule sets when their target group is disabled by the template', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{
+        id: 'preset-crypto',
+        preset_source: 'quixotic',
+        preset_id: 'crypto',
+        url: buildQuixoticRuleSetUrl('crypto', 'mihomo'),
+        format: 'mihomo',
+        behavior: 'classical',
+        target_group_id: 'builtin-crypto',
+        enabled: 0,
+        notes: 'user disabled this one',
+        sort_order: 120,
+      }],
+      groups: listGroups().map((group) => group.id === 'builtin-crypto' ? { ...group, enabled: 0 } : group),
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).not.toContainEqual(expect.objectContaining({
+      id: 'preset-crypto',
+      notes: expect.stringContaining(SYSTEM_DISABLED_NOTE),
+    }));
+    expect(inserted).not.toContainEqual(expect.objectContaining({
+      id: 'preset-crypto',
+      enabled: 1,
+    }));
+  });
+
   it('repairs stale Quixotic rule set metadata', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
@@ -313,17 +371,22 @@ function createMockDb({
             presetSource: args[5],
             presetId: args[6],
             targetGroupId: args[7],
-            sortOrder: args[8],
+            enabled: args[8],
+            sortOrder: args[9],
+            notes: args[10],
           });
         } else {
           inserted.push({
             operation: 'insert',
             name: args[1],
+            url: args[2],
             behavior: 'classical',
             presetSource: 'quixotic',
             presetId: args[3],
             targetGroupId: args[4],
-            sortOrder: args[5],
+            enabled: args[5],
+            sortOrder: args[6],
+            notes: args[7],
           });
         }
       }
@@ -363,20 +426,20 @@ function canonicalPresetNotes(source: string, presetId: string): string {
 
 function listGroups() {
   return [
-    { id: 'builtin-proxy', name: 'PROXY' },
-    { id: 'builtin-ai', name: 'AI' },
-    { id: 'builtin-streaming', name: 'Streaming' },
-    { id: 'builtin-telegram', name: 'Telegram' },
-    { id: 'builtin-social', name: 'Social' },
-    { id: 'builtin-github', name: 'GitHub' },
-    { id: 'builtin-apple', name: 'Apple' },
-    { id: 'builtin-microsoft', name: 'Microsoft' },
-    { id: 'builtin-crypto', name: 'Crypto' },
-    { id: 'builtin-gaming', name: 'Gaming' },
-    { id: 'builtin-developer', name: 'Developer' },
-    { id: 'builtin-final', name: '漏网之鱼' },
-    { id: 'builtin-direct', name: 'DIRECT' },
-    { id: 'builtin-reject', name: 'REJECT' },
+    { id: 'builtin-proxy', name: 'PROXY', enabled: 1 },
+    { id: 'builtin-ai', name: 'AI', enabled: 1 },
+    { id: 'builtin-streaming', name: 'Streaming', enabled: 1 },
+    { id: 'builtin-telegram', name: 'Telegram', enabled: 1 },
+    { id: 'builtin-social', name: 'Social', enabled: 1 },
+    { id: 'builtin-github', name: 'GitHub', enabled: 1 },
+    { id: 'builtin-apple', name: 'Apple', enabled: 1 },
+    { id: 'builtin-microsoft', name: 'Microsoft', enabled: 1 },
+    { id: 'builtin-crypto', name: 'Crypto', enabled: 1 },
+    { id: 'builtin-gaming', name: 'Gaming', enabled: 1 },
+    { id: 'builtin-developer', name: 'Developer', enabled: 1 },
+    { id: 'builtin-final', name: '漏网之鱼', enabled: 1 },
+    { id: 'builtin-direct', name: 'DIRECT', enabled: 1 },
+    { id: 'builtin-reject', name: 'REJECT', enabled: 1 },
   ];
 }
 
