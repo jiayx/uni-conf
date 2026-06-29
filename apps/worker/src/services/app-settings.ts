@@ -70,11 +70,14 @@ export function normalizePositiveInteger(value: unknown, defaultValue: number): 
 }
 
 export function normalizeAutoNodeGroupTypes(value: unknown): AutoNodeGroupType[] {
+  if (value === null || value === undefined) return DEFAULT_AUTO_NODE_GROUP_TYPES;
   const rawItems = Array.isArray(value)
     ? value
     : typeof value === 'string'
-      ? parseJsonArray(value)
-      : [];
+      ? parseJsonArrayOrUndefined(value)
+      : undefined;
+  if (!rawItems) return DEFAULT_AUTO_NODE_GROUP_TYPES;
+  if (rawItems.length === 0) return [];
   const types = rawItems
     .map((item) => typeof item === 'string' ? item : '')
     .filter((item): item is AutoNodeGroupType => AUTO_NODE_GROUP_TYPES.has(item as AutoNodeGroupType));
@@ -113,6 +116,15 @@ function parseJsonArray(value: string): unknown[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function parseJsonArrayOrUndefined(value: string): unknown[] | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 

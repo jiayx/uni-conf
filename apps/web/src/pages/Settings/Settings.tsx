@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { Input } from '@/components/ui/Input/Input'
+import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-node-settings'
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-conf/shared'
@@ -103,18 +104,10 @@ export function Settings() {
   }
 
   const handleAutoNodeGroupType = (type: AutoNodeGroupType) => {
-    const selected = new Set(autoNodeGroupTypes)
-    if (selected.has(type)) {
-      if (selected.size === 1) return
-      selected.delete(type)
-    } else {
-      selected.add(type)
-    }
-    const nextTypes = AUTO_NODE_GROUP_TYPE_PRESETS
-      .map(preset => preset.id)
-      .filter(item => selected.has(item))
-    setAutoNodeGroupTypes(nextTypes)
-    void persistSettings({ autoNodeGroupTypes: nextTypes })
+    const patch = buildAutoNodeGroupTypeSettingsPatch(autoNodeGroupTypes, type)
+    setAutoNodeGroupTypes(patch.autoNodeGroupTypes)
+    setAutoNodeGroupsEnabled(patch.autoNodeGroupsEnabled)
+    void persistSettings(patch)
   }
 
   const handleAutoNodeGroupIncludeFlag = (includeFlag: boolean) => {

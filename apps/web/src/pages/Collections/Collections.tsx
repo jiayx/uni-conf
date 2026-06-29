@@ -13,6 +13,7 @@ import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { useSettingsStore } from '@/store/settings.store'
 import { api } from '@/lib/api'
+import { buildAutoNodeGroupSettingsPatch } from '@/core/collections/auto-node-settings'
 import {
   buildSourceGroupSuggestions,
   makeSourceNodeGroupMarker,
@@ -216,7 +217,7 @@ export function Collections() {
       if (marker) defaultTypes.add(marker.type)
     }
     setSelectedAutoKeys(defaultKeys)
-    setSelectedAutoTypes(defaultTypes.size > 0 ? defaultTypes : new Set(['url-test']))
+    setSelectedAutoTypes(defaultTypes.size > 0 ? defaultTypes : (settings.autoNodeGroupsEnabled ? new Set(['url-test' as GeneratedGroupType]) : new Set()))
     setSelectedSourceGroupKeys(new Set())
     setAutoNamesIncludeFlag(settings.autoNodeGroupIncludeFlag)
     setShowAutoModal(true)
@@ -321,12 +322,11 @@ export function Collections() {
       const selectedTypes = [...selectedAutoTypes]
       const selectedKeys = [...selectedAutoKeys]
 
-      const updatedSettings = await api.settings.update({
-        autoNodeGroupsEnabled: selectedKeys.length > 0 && selectedTypes.length > 0,
-        autoNodeGroupTypes: selectedTypes.length > 0 ? selectedTypes : ['url-test'],
-        autoNodeGroupKeys: selectedKeys,
-        autoNodeGroupIncludeFlag: autoNamesIncludeFlag,
-      })
+      const updatedSettings = await api.settings.update(buildAutoNodeGroupSettingsPatch({
+        selectedTypes,
+        selectedKeys,
+        includeFlag: autoNamesIncludeFlag,
+      }))
       applySettings(updatedSettings)
       const groups = await api.groups.list()
       let importedCount = 0
