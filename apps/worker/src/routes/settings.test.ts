@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { validateSettingsPatch } from './settings'
+import type { AppSettings } from '@uni-conf/types'
+import { resolveNextDnsMode, validateSettingsPatch } from './settings'
 
 describe('settings route helpers', () => {
   it('accepts valid settings patches', () => {
@@ -45,4 +46,37 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ autoRefreshInterval: 0 })).toBe('invalid auto refresh interval')
     expect(validateSettingsPatch({ autoRefreshInterval: Number.NaN })).toBe('invalid auto refresh interval')
   })
+
+  it('derives recommended DNS mode when the routing template changes without an explicit DNS override', () => {
+    expect(resolveNextDnsMode(settings({ routingPolicyTemplate: 'common', dnsMode: 'smart' }), {
+      routingPolicyTemplate: 'router',
+    })).toBe('compatible')
+  })
+
+  it('preserves explicit DNS overrides and unrelated settings updates', () => {
+    expect(resolveNextDnsMode(settings({ routingPolicyTemplate: 'common', dnsMode: 'fake-ip' }), {
+      routingPolicyTemplate: 'router',
+      dnsMode: 'smart',
+    })).toBe('smart')
+    expect(resolveNextDnsMode(settings({ routingPolicyTemplate: 'router', dnsMode: 'fake-ip' }), {
+      language: 'en',
+    })).toBe('fake-ip')
+  })
 })
+
+function settings(overrides: Partial<AppSettings> = {}): AppSettings {
+  return {
+    language: 'zh',
+    theme: 'system',
+    routingPolicyTemplate: 'common',
+    dnsMode: 'smart',
+    exportNodeNamingMode: 'smart',
+    showCompatibilityWarnings: true,
+    enableAutoRefresh: true,
+    autoRefreshInterval: 1440,
+    autoNodeGroupsEnabled: true,
+    autoNodeGroupTypes: ['url-test'],
+    autoNodeGroupIncludeFlag: true,
+    ...overrides,
+  }
+}

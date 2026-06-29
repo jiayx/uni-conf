@@ -21,6 +21,8 @@ app.put('/', async (c) => {
   const ts = now()
   const validationError = validateSettingsPatch(body)
   if (validationError) return c.json({ success: false, error: validationError }, 400)
+  const nextRoutingPolicyTemplate = body.routingPolicyTemplate ?? current.routingPolicyTemplate
+  const nextDnsMode = resolveNextDnsMode(current, body)
 
   await c.env.DB.prepare(
     `UPDATE app_settings SET
@@ -44,13 +46,13 @@ app.put('/', async (c) => {
     .bind(
       body.language ?? current.language,
       body.theme ?? current.theme,
-      body.routingPolicyTemplate ?? current.routingPolicyTemplate,
+      nextRoutingPolicyTemplate,
       body.routingOutletPreferences !== undefined
         ? JSON.stringify(body.routingOutletPreferences)
         : current.routingOutletPreferences !== undefined
           ? JSON.stringify(current.routingOutletPreferences)
           : null,
-      body.dnsMode ?? current.dnsMode,
+      nextDnsMode,
       body.exportNodeNamingMode ?? current.exportNodeNamingMode,
       body.defaultExportToken !== undefined
         ? body.defaultExportToken
@@ -148,6 +150,15 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
     return 'invalid auto refresh interval'
   }
   return null
+}
+
+export function resolveNextDnsMode(current: AppSettings, body: Partial<AppSettings>): DnsMode {
+  if (body.dnsMode !== undefined) return body.dnsMode
+  if (body.routingPolicyTemplate === undefined || body.routingPolicyTemplate === current.routingPolicyTemplate) {
+    return current.dnsMode
+  }
+  return ROUTING_POLICY_TEMPLATES.find((template) => template.id === body.routingPolicyTemplate)?.recommendedDnsMode
+    ?? current.dnsMode
 }
 
 function isRoutingOutletPreferenceRef(value: unknown): value is string {

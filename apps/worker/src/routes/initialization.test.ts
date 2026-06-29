@@ -223,6 +223,24 @@ describe('zero-setup route initialization', () => {
     }))
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
+
+  it('derives the recommended DNS mode when a scenario template update omits DNS', async () => {
+    const db = createStatsDb()
+
+    const response = await settingsApp.request('/', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ routingPolicyTemplate: 'router' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'update-settings',
+      routingPolicyTemplate: 'router',
+      dnsMode: 'compatible',
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
 })
 
 function createStatsDb(): D1Database & { operations: Array<Record<string, unknown>> } {
