@@ -48,6 +48,15 @@ const matchRule: ProxyRule = {
   updatedAt: createdAt,
 };
 
+const geositeRule: ProxyRule = {
+  ...matchRule,
+  id: 'rule-geosite-google',
+  type: 'GEOSITE',
+  payload: 'google',
+  targetGroupId: proxyGroup.id,
+  order: 10,
+};
+
 const remoteSet: RemoteRuleSet = {
   id: 'remote-ads',
   name: 'Ads List',
@@ -246,6 +255,35 @@ describe('remote rule set generators', () => {
       outbound: 'direct',
     });
     expect(config.route.final).toBe('PROXY');
+  });
+
+  it('declares sing-box geosite rule sets used by manual GEOSITE rules', () => {
+    const content = generateSingboxJson([], [proxyGroup, directGroup], [geositeRule, matchRule], []);
+    const config = JSON.parse(content) as {
+      route: {
+        rules: Array<Record<string, unknown>>;
+        rule_set: Array<Record<string, unknown>>;
+      };
+    };
+
+    expect(config.route.rules).toContainEqual({
+      rule_set: ['geosite-google'],
+      outbound: 'PROXY',
+    });
+    expect(config.route.rule_set).toContainEqual(expect.objectContaining({
+      tag: 'geosite-google',
+      url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google.srs',
+      download_detour: 'PROXY',
+    }));
+    expect(config.route.rule_set.filter((item) => item.tag === 'geosite-cn')).toHaveLength(1);
+
+    const withDuplicateRemote = JSON.parse(generateSingboxJson([], [proxyGroup, directGroup], [geositeRule, matchRule], [{
+      ...singboxRemoteSet,
+      name: 'geosite-google',
+    }])) as {
+      route: { rule_set: Array<Record<string, unknown>> };
+    };
+    expect(withDuplicateRemote.route.rule_set.filter((item) => item.tag === 'geosite-google')).toHaveLength(1);
   });
 
   it('skips incompatible remote rule set formats per exporter', () => {

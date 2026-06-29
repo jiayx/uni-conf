@@ -478,23 +478,16 @@ function buildRoute(
 
   // Rule sets
   const ruleSets: object[] = [
-    {
-      tag: 'geosite-cn',
-      type: 'remote',
-      format: 'binary',
-      url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs',
-      download_detour: proxyDetour,
-      update_interval: '1d',
-    },
-    {
-      tag: 'geosite-geolocation-!cn',
-      type: 'remote',
-      format: 'binary',
-      url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-geolocation-!cn.srs',
-      download_detour: proxyDetour,
-      update_interval: '1d',
-    },
+    buildSingboxGeositeRuleSet('geosite-cn', proxyDetour),
+    buildSingboxGeositeRuleSet('geosite-geolocation-!cn', proxyDetour),
   ];
+  const ruleSetTags = new Set(['geosite-cn', 'geosite-geolocation-!cn']);
+
+  for (const tag of collectGeositeRuleSetTags(enabledRules)) {
+    if (ruleSetTags.has(tag)) continue;
+    ruleSets.push(buildSingboxGeositeRuleSet(tag, proxyDetour));
+    ruleSetTags.add(tag);
+  }
 
   const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
@@ -505,14 +498,17 @@ function buildRoute(
 
   for (const { source: rs, resolved } of enabledRemoteSets) {
     const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    ruleSets.push({
-      tag: safeName,
-      type: 'remote',
-      format: resolved.format === 'singbox' ? 'binary' : 'source',
-      url: resolved.url,
-      download_detour: proxyDetour,
-      update_interval: `${rs.updateInterval}h`,
-    });
+    if (!ruleSetTags.has(safeName)) {
+      ruleSets.push({
+        tag: safeName,
+        type: 'remote',
+        format: resolved.format === 'singbox' ? 'binary' : 'source',
+        url: resolved.url,
+        download_detour: proxyDetour,
+        update_interval: `${rs.updateInterval}h`,
+      });
+      ruleSetTags.add(safeName);
+    }
     routeRules.push({
       rule_set: [safeName],
       outbound: resolveGroupName(rs.targetGroupId, groups),
@@ -546,6 +542,24 @@ function defaultProxyDetour(groups: ProxyGroup[]): string {
 
 function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
   return [...remoteSets].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+}
+
+function collectGeositeRuleSetTags(rules: ProxyRule[]): string[] {
+  return rules
+    .filter((rule) => rule.enabled && rule.type === 'GEOSITE')
+    .map((rule) => `geosite-${rule.payload.trim().toLowerCase()}`)
+    .filter((tag) => tag !== 'geosite-');
+}
+
+function buildSingboxGeositeRuleSet(tag: string, proxyDetour: string): object {
+  return {
+    tag,
+    type: 'remote',
+    format: 'binary',
+    url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/${tag}.srs`,
+    download_detour: proxyDetour,
+    update_interval: '1d',
+  };
 }
 
 function filterCollectionNodeNames(
