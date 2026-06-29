@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
 import type { ProxySource, SourceFormat } from '@uni-conf/types'
@@ -160,19 +161,16 @@ export function Sources() {
     const finalUserAgent = form.userAgent === 'custom'
       ? form.customUserAgent
       : form.userAgent
-    const shouldRefreshAfterUpdate = editingSource.type === 'url' && (
-      form.url !== (editingSource.url || '')
-      || form.format !== editingSource.format
-      || (finalUserAgent || undefined) !== editingSource.userAgent
-    )
-    await updateSource(editingSource.id, {
+    const update = {
       name: form.name,
       url: form.url,
       format: form.format,
       updateInterval: form.updateInterval,
       userAgent: finalUserAgent || undefined,
       notes: form.notes,
-    })
+    }
+    const shouldRefreshAfterUpdate = shouldRefreshSourceAfterUpdate(editingSource, update)
+    await updateSource(editingSource.id, update)
     if (shouldRefreshAfterUpdate) {
       await handleRefresh(editingSource.id)
     }
