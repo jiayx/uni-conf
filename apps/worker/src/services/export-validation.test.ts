@@ -280,6 +280,33 @@ describe('export validation', () => {
     }));
   });
 
+  it('blocks node-only downloads when no node row can be serialized as a subscription URI', () => {
+    const node = makeNode('node-ss', 'Broken SS', { protocol: 'ss' });
+    const data = makeExportData({
+      nodes: [node],
+      nodeRows: [makeNodeRow(node, { server: '', port: 0 })],
+    });
+
+    expect(findBlockingNodeExportWarning(data, 'nodes_raw')).toEqual(expect.objectContaining({
+      client: 'nodes_raw',
+      level: 'unsupported',
+      message: expect.stringContaining('没有可导出到 nodes_raw 的节点'),
+    }));
+
+    expect(validateExportData(data, 'nodes_raw')).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        client: 'nodes_raw',
+        level: 'unsupported',
+        message: expect.stringContaining('没有可导出到 nodes_raw 的节点'),
+      }),
+      expect.objectContaining({
+        nodeId: 'node-ss',
+        level: 'partial',
+        message: expect.stringContaining('订阅 URI'),
+      }),
+    ]));
+  });
+
   it('warns when a remote rule set is incompatible with the export format', () => {
     const warnings = validateExportData(makeExportData({
       remoteSets: [makeRemoteSet('singbox-remote', 'proxy', { format: 'singbox' })],
@@ -364,18 +391,37 @@ describe('export validation', () => {
 
 function makeExportData(patch: Partial<ExportData> = {}): ExportData {
   const groups = patch.groups ?? [makeGroup('proxy', 'PROXY')];
+  const nodes = patch.nodes ?? [makeNode('node-1', 'HK 01')];
   return {
-    nodeRows: [],
+    nodeRows: nodes.map((node) => makeNodeRow(node)),
     groupRows: [],
     ruleRows: [],
     remoteSetRows: [],
     sourceRows: [],
     sources: patch.sources ?? [],
-    nodes: patch.nodes ?? [makeNode('node-1', 'HK 01')],
+    nodes,
     groups,
     rules: patch.rules ?? [makeRule('match', groups[0]!.id, 'MATCH', '')],
     remoteSets: patch.remoteSets ?? [],
     collectionNodeNames: {},
+    ...patch,
+  };
+}
+
+function makeNodeRow(
+  node: ExportData['nodes'][number],
+  patch: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    id: node.id,
+    source_id: node.sourceId,
+    name: node.name,
+    protocol: node.protocol,
+    server: node.server,
+    port: node.port,
+    enabled: node.enabled ? 1 : 0,
+    raw_config: JSON.stringify(node.rawConfig),
+    parsed_config: JSON.stringify(node.parsedConfig),
     ...patch,
   };
 }

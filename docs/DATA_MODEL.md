@@ -450,7 +450,7 @@ Preview, authenticated download, and public subscription rendering all call `app
 
 The worker separates readiness checks from client compatibility checks. Readiness warnings are always returned because they indicate a config that may be empty or structurally broken. A target client with zero renderable nodes is a readiness warning, not a hideable compatibility warning, because download/subscription would be blocked. The `show_compatibility_warnings` setting only hides client capability warnings such as DNS downgrade, per-node protocol skip details, or rule-format support.
 
-Authenticated download and public subscription responses block cases that cannot produce a usable client config: zero exported nodes, or a selected target client for which every exported node protocol is unsupported. Preview still returns generated content plus warnings so users can inspect why the export is empty or protocol-filtered; download/subscription return HTTP 409 instead of handing clients a blank node list.
+Authenticated download and public subscription responses block cases that cannot produce a usable client config: zero exported nodes, or a selected target client for which every exported node protocol is unsupported. Node-only subscription exports (`nodes_raw` / `nodes_base64`) use the final subscription URI serializer for this check, so a node with a supported protocol but missing required URI fields is treated as not renderable. Preview still returns generated content plus warnings so users can inspect why the export is empty or protocol-filtered; download/subscription return HTTP 409 instead of handing clients a blank node list.
 
 The worker validates:
 

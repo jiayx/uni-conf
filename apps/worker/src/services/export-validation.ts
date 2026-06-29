@@ -1,6 +1,7 @@
 import type { CompatibilityWarning, DnsMode, ExportFormat } from '@uni-conf/types';
 import { getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared';
 import type { ExportData } from '../export-data';
+import { nodeToSubscriptionUri } from '../generators/node-subscription';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 
 interface ExportValidationOptions {
@@ -65,7 +66,7 @@ export function findBlockingNodeExportWarning(
   const emptyWarning = findEmptyNodeExportWarning(data, format);
   if (emptyWarning) return emptyWarning;
 
-  return data.nodes.some((node) => isNodeProtocolSupportedByExport(node.protocol, format))
+  return hasRenderableNode(data, format)
     ? null
     : noSupportedNodeExportWarning(format);
 }
@@ -120,7 +121,7 @@ function validateNodes(data: ExportData, format: ExportFormat): CompatibilityWar
     warnings.push(emptyNodeExportWarning(format));
     return warnings;
   }
-  if (!data.nodes.some((node) => isNodeProtocolSupportedByExport(node.protocol, format))) {
+  if (!hasRenderableNode(data, format)) {
     warnings.push(noSupportedNodeExportWarning(format));
   }
 
@@ -203,6 +204,8 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
 }
 
 function validateNodeCompatibility(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  if (isNodeOnlyExportFormat(format)) return validateNodeSubscriptionCompatibility(data, format);
+
   const warnings: CompatibilityWarning[] = [];
   for (const node of data.nodes) {
     if (isNodeProtocolSupportedByExport(node.protocol, format)) continue;
@@ -217,12 +220,40 @@ function validateNodeCompatibility(data: ExportData, format: ExportFormat): Comp
   return warnings;
 }
 
+function validateNodeSubscriptionCompatibility(
+  data: ExportData,
+  format: ExportFormat
+): CompatibilityWarning[] {
+  const warnings: CompatibilityWarning[] = [];
+  for (const row of data.nodeRows) {
+    if (nodeToSubscriptionUri(row) !== null) continue;
+    const id = String(row['id'] ?? '');
+    const name = String(row['name'] ?? (id || 'Unknown'));
+    const protocol = String(row['protocol'] ?? 'unknown');
+    warnings.push({
+      nodeId: id || undefined,
+      client: format,
+      level: 'partial',
+      message: `节点 "${name}" 使用的协议 ${protocol} 无法转换为订阅 URI，导出时会跳过`,
+      messageEn: `Node "${name}" uses protocol ${protocol}, which cannot be converted to a subscription URI and will be skipped.`,
+    });
+  }
+  return warnings;
+}
+
 function supportedNodeNameSet(data: ExportData, format: ExportFormat): Set<string> {
   return new Set(
     data.nodes
       .filter((node) => isNodeProtocolSupportedByExport(node.protocol, format))
       .map((node) => node.name)
   );
+}
+
+function hasRenderableNode(data: ExportData, format: ExportFormat): boolean {
+  if (isNodeOnlyExportFormat(format)) {
+    return data.nodeRows.some((row) => nodeToSubscriptionUri(row) !== null);
+  }
+  return data.nodes.some((node) => isNodeProtocolSupportedByExport(node.protocol, format));
 }
 
 function isNodeProtocolSupportedByExport(protocol: string, format: ExportFormat): boolean {
