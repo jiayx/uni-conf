@@ -3,6 +3,7 @@ import type { ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { generateMihomoYaml } from './mihomo';
 import { generateSingboxJson } from './singbox';
 import { generateEgern, generateQuantumultX, generateShadowrocket, generateStashYaml, generateSurge } from './client-configs';
+import { generateLoon } from './loon';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -55,6 +56,15 @@ const geositeRule: ProxyRule = {
   payload: 'google',
   targetGroupId: proxyGroup.id,
   order: 10,
+};
+
+const processPathRule: ProxyRule = {
+  ...matchRule,
+  id: 'rule-process-path',
+  type: 'PROCESS-PATH',
+  payload: '/Applications/Example.app',
+  targetGroupId: proxyGroup.id,
+  order: 11,
 };
 
 const remoteSet: RemoteRuleSet = {
@@ -323,6 +333,13 @@ describe('remote rule set generators', () => {
 
     expect(surge).toContain('GEOSITE,google,PROXY');
     expect(shadowrocket).not.toContain('GEOSITE,google,PROXY');
+  });
+
+  it('skips unsupported local rules for Loon while keeping partial rules', () => {
+    const loon = generateLoon([], groupRows, [ruleRow(geositeRule), ruleRow(processPathRule), ruleRow(matchRule)], []);
+
+    expect(loon).toContain('GEOSITE, google, PROXY');
+    expect(loon).not.toContain('PROCESS-PATH');
   });
 
   it('exports Stash as Mihomo-compatible YAML', () => {

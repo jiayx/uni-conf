@@ -5,7 +5,9 @@
 
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
-import { isRuleSetFormatCompatible } from '@uni-conf/shared'
+import { getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
+
+type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
 function safeJson(text: unknown): Record<string, unknown> {
   if (typeof text !== 'string') return {}
@@ -119,11 +121,9 @@ function ruleToLoon(rule: Record<string, unknown>, allGroups: Record<string, unk
     'MATCH': 'FINAL',
   }
 
-  // Loon doesn't support some rule types
-  if (type === 'PROCESS-NAME' || type === 'PROCESS-PATH' || type === 'IN-TYPE') return null
-
   const loonType = typeMap[type] ?? type
   if (type === 'MATCH') return `FINAL, ${target}`
+  if (getRuleCompatibilityLevel(type as RuleCompatibilityType, 'loon') === 'unsupported') return null
   return `${loonType}, ${payload}, ${target}${noResolve}`
 }
 
