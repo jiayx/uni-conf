@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { jsonStringify, mapNode, newId, now } from '../db/helpers';
-import { PROXY_PROTOCOL_REGISTRY, type ProxyProtocol } from '@uni-conf/types';
+import { jsonParse, jsonStringify, mapNode, newId, now } from '../db/helpers';
+import { PROTOCOL_FORM_FIELDS, PROXY_PROTOCOL_REGISTRY, type ProtocolFieldDefinition, type ProxyProtocol } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { parseRawLines } from './sources';
 import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared';
@@ -107,6 +107,13 @@ app.post('/', async (c) => {
       400
     );
   }
+  const missingRequiredFields = missingRequiredProtocolFields(input.protocol, input.parsedConfig, input.rawConfig);
+  if (missingRequiredFields.length > 0) {
+    return c.json(
+      { success: false, error: `missing required protocol fields: ${missingRequiredFields.join(', ')}` },
+      400
+    );
+  }
 
   const id = newId();
   const ts = now();
@@ -202,6 +209,16 @@ app.put('/:id', async (c) => {
     return c.json({ success: false, error: validation.error }, 400);
   }
   const ts = now();
+  const nextProtocol = validation.protocol ?? (existing.protocol as ProxyProtocol);
+  const nextParsedConfig = validation.parsedConfig ?? normalizeRecordValue(existing.parsed_config) ?? {};
+  const nextRawConfig = validation.rawConfig ?? normalizeRecordValue(existing.raw_config) ?? {};
+  const missingRequiredFields = missingRequiredProtocolFields(nextProtocol, nextParsedConfig, nextRawConfig);
+  if (missingRequiredFields.length > 0) {
+    return c.json(
+      { success: false, error: `missing required protocol fields: ${missingRequiredFields.join(', ')}` },
+      400
+    );
+  }
 
   await c.env.DB.prepare(
     `UPDATE nodes SET
@@ -433,6 +450,52 @@ function normalizeStringList(value: unknown): string[] | null {
 function normalizeRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function missingRequiredProtocolFields(
+  protocol: ProxyProtocol,
+  parsedConfig: unknown,
+  rawConfig: unknown
+): string[] {
+  const parsed = normalizeRecordValue(parsedConfig) ?? {};
+  const raw = normalizeRecordValue(rawConfig) ?? {};
+  const extra = normalizeRecordValue(parsed.extra) ?? {};
+  return protocolFields(protocol)
+    .filter((field) => 'required' in field && field.required)
+    .filter((field) => {
+      const values = [
+        extra[field.key],
+        parsed[field.key],
+        raw[field.key],
+        ...Object.values(field.nativeKeys ?? {}).map((key) => valueAtPath(raw, key)),
+        field.defaultValue,
+      ];
+      return values.every(isMissingValue);
+    })
+    .map((field) => field.key);
+}
+
+function protocolFields(protocol: ProxyProtocol): readonly ProtocolFieldDefinition[] {
+  return PROTOCOL_FORM_FIELDS[protocol] as readonly ProtocolFieldDefinition[];
+}
+
+function valueAtPath(record: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
+    return (current as Record<string, unknown>)[key];
+  }, record);
+}
+
+function isMissingValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+function normalizeRecordValue(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'string') return jsonParse<Record<string, unknown>>(value) ?? null;
+  return normalizeRecord(value);
 }
 
 export default app;

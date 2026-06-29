@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/Input/Input'
 import {
   buildManualNodeParsedConfig,
   compactManualNodeExtra,
+  completeManualNodeExtra,
+  getMissingRequiredManualNodeFields,
   type ManualNodeExtraValue,
 } from '@/core/nodes/manual-node-config'
 import { useNodesStore } from '@/store/nodes.store'
@@ -118,7 +120,12 @@ export function Nodes() {
       return
     }
 
-    const extra = compactManualNodeExtra(form.extra)
+    const extra = completeManualNodeExtra(form.protocol, compactManualNodeExtra(form.extra))
+    const missingFields = getMissingRequiredManualNodeFields(form.protocol, extra)
+    if (missingFields.length > 0) {
+      setFormError(`missing required protocol fields: ${missingFields.join(', ')}`)
+      return
+    }
     const payload = {
       sourceId: editingNode?.sourceId ?? 'manual',
       name: form.name,

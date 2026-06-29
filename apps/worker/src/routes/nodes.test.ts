@@ -156,6 +156,30 @@ describe('manual node input', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
   });
 
+  it('rejects structured manual nodes that miss protocol-required fields', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb();
+
+    const response = await nodesApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'SS Missing Password',
+        protocol: 'ss',
+        server: 'ss.example.com',
+        port: 8388,
+      }),
+    }, { DB: db });
+    const payload = await response.json() as { success: boolean; error: string };
+
+    expect(response.status).toBe(400);
+    expect(payload).toMatchObject({
+      success: false,
+      error: 'missing required protocol fields: password',
+    });
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled();
+  });
+
   it('initializes zero-setup defaults after updating a manual node', async () => {
     vi.clearAllMocks();
     const db = createManualNodeCreateMockDb();
@@ -202,8 +226,8 @@ function createManualNodeCreateMockDb(): D1Database {
               enabled: 1,
               tags: inserted.tags ?? '[]',
               notes: null,
-              raw_config: inserted.raw_config ?? '{}',
-              parsed_config: inserted.parsed_config ?? '{}',
+              raw_config: inserted.raw_config ?? '{"password":"password"}',
+              parsed_config: inserted.parsed_config ?? '{"protocol":"trojan","server":"de.example.com","port":443,"password":"password","extra":{"password":"password"}}',
               is_manual: 1,
               created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
               updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',

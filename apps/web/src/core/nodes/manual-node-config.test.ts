@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildManualNodeParsedConfig, compactManualNodeExtra } from './manual-node-config'
+import {
+  buildManualNodeParsedConfig,
+  compactManualNodeExtra,
+  completeManualNodeExtra,
+  getMissingRequiredManualNodeFields,
+} from './manual-node-config'
 
 describe('manual node config helpers', () => {
   it('keeps every protocol registry field in parsedConfig.extra for structured manual input', () => {
@@ -58,5 +63,18 @@ describe('manual node config helpers', () => {
         flow: 'xtls-rprx-vision',
       },
     })
+  })
+
+  it('reports missing required fields from the protocol registry', () => {
+    expect(completeManualNodeExtra('ss', {})).toMatchObject({ method: 'aes-256-gcm' })
+    expect(getMissingRequiredManualNodeFields('ss', {})).toEqual(['Password'])
+    expect(getMissingRequiredManualNodeFields('anytls', {
+      password: '',
+      clientFingerprint: 'chrome',
+    })).toEqual(['Password'])
+    expect(getMissingRequiredManualNodeFields('tuic', {
+      uuid: '12345678-1234-1234-1234-123456789012',
+      password: 'secret',
+    })).toEqual([])
   })
 })
