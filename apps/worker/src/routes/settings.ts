@@ -146,7 +146,10 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
   if (body.enableAutoRefresh !== undefined && typeof body.enableAutoRefresh !== 'boolean') {
     return 'invalid auto refresh setting'
   }
-  if (body.autoRefreshInterval !== undefined && (!Number.isFinite(body.autoRefreshInterval) || body.autoRefreshInterval <= 0)) {
+  if (
+    body.autoRefreshInterval !== undefined
+    && (!Number.isInteger(body.autoRefreshInterval) || body.autoRefreshInterval <= 0)
+  ) {
     return 'invalid auto refresh interval'
   }
   return null
