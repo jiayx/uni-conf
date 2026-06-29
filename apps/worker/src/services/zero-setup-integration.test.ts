@@ -81,13 +81,49 @@ describe('zero setup defaults integration', () => {
     expect(remoteRuleTargets).not.toContain('Telegram');
     expect(db.state.remoteRuleSets.some((row) => row.enabled === 0 && groupsById.get(row.target_group_id)?.name === 'AI')).toBe(true);
   });
+
+  it('keeps foundation routing and default rules when auto node groups are disabled', async () => {
+    const db = createZeroSetupDb({ autoNodeGroupsEnabled: false });
+
+    await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
+
+    expect(db.state.collections).toEqual([]);
+
+    const groupsByName = new Map(db.state.groups.map((row) => [row.name, row]));
+    expect(groupsByName.get('PROXY')?.enabled).toBe(1);
+    expect(groupsByName.get('DIRECT')?.enabled).toBe(1);
+    expect(groupsByName.get('REJECT')?.enabled).toBe(1);
+    expect(groupsByName.get('全部节点')?.enabled).toBe(1);
+    expect(groupsByName.get('节点选择')?.enabled).toBe(1);
+    expect(groupsByName.get('自动选择')?.enabled).toBe(1);
+    expect(groupsByName.get('故障切换')?.enabled).toBe(1);
+    expect(groupsByName.get('PROXY')?.group_ids).toEqual(expect.arrayContaining([
+      'builtin-auto-select',
+      'builtin-node-select',
+      'builtin-fallback-select',
+      'builtin-all-nodes',
+      'builtin-direct',
+      'builtin-reject',
+    ]));
+
+    const groupsById = new Map(db.state.groups.map((row) => [row.id, row]));
+    const remoteRuleTargets = new Set(db.state.remoteRuleSets
+      .filter((row) => row.enabled === 1)
+      .map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id));
+    expect(remoteRuleTargets).toContain('PROXY');
+    expect(remoteRuleTargets).toContain('DIRECT');
+    expect(remoteRuleTargets).toContain('REJECT');
+  });
 });
 
 interface MemoryRow {
   [key: string]: unknown;
 }
 
-function createZeroSetupDb(patch: { routingPolicyTemplate?: string } = {}): D1Database & { state: ZeroSetupState } {
+function createZeroSetupDb(patch: {
+  routingPolicyTemplate?: string;
+  autoNodeGroupsEnabled?: boolean;
+} = {}): D1Database & { state: ZeroSetupState } {
   const state: ZeroSetupState = {
     appSettings: {
       id: 'singleton',
@@ -101,7 +137,7 @@ function createZeroSetupDb(patch: { routingPolicyTemplate?: string } = {}): D1Da
       show_compatibility_warnings: 1,
       enable_auto_refresh: 1,
       auto_refresh_interval: 1440,
-      auto_node_groups_enabled: 1,
+      auto_node_groups_enabled: patch.autoNodeGroupsEnabled === false ? 0 : 1,
       auto_node_group_types: null,
       auto_node_group_keys: null,
       auto_node_group_include_flag: 1,
