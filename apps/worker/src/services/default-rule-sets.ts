@@ -10,6 +10,7 @@ import type { RemoteRuleSet } from '@uni-conf/types';
 type PresetSource = NonNullable<RemoteRuleSet['presetSource']>;
 const QUIXOTIC_DEFAULT_FORMAT: RemoteRuleSet['format'] = 'mihomo';
 const QUIXOTIC_DEFAULT_BEHAVIOR: RemoteRuleSet['behavior'] = 'classical';
+const SYSTEM_DISABLED_MISSING_TARGET_NOTE = '[uni-conf:auto-disabled:missing-target]';
 
 const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
   presetSource: PresetSource;
@@ -44,19 +45,22 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
       const targetGroupId = resolveTargetGroupId(groups, inferQuixoticTargetGroup(preset));
       const sortOrder = resolveQuixoticRuleSetSortOrder(preset.id);
       const url = buildQuixoticRuleSetUrl(preset.id, QUIXOTIC_DEFAULT_FORMAT);
-      if (!targetGroupId) return disableExistingPreset(db, existing, ts);
+      const notes = `QuixoticHeart/rule-set:${preset.id} ${preset.description}`;
+      if (!targetGroupId) return disableExistingPreset(db, existing, notes, ts);
+      const enabled = resolveManagedPresetEnabled(existing);
       if (existing) {
         if (
           existing.url === url
           && existing.format === QUIXOTIC_DEFAULT_FORMAT
           && existing.behavior === QUIXOTIC_DEFAULT_BEHAVIOR
           && existing.target_group_id === targetGroupId
-          && existing.enabled === 1
+          && existing.enabled === enabled
           && existing.sort_order === sortOrder
+          && existing.notes === notes
         ) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = 1, sort_order = ?, updated_at = ? WHERE id = ?')
-          .bind(url, QUIXOTIC_DEFAULT_FORMAT, QUIXOTIC_DEFAULT_BEHAVIOR, targetGroupId, sortOrder, ts, existing.id);
+          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = ?, sort_order = ?, notes = ?, updated_at = ? WHERE id = ?')
+          .bind(url, QUIXOTIC_DEFAULT_FORMAT, QUIXOTIC_DEFAULT_BEHAVIOR, targetGroupId, enabled, sortOrder, notes, ts, existing.id);
       }
       return db
         .prepare(
@@ -71,7 +75,7 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
           preset.id,
           targetGroupId,
           sortOrder,
-          `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
+          notes,
           ts,
           ts
         );
@@ -82,19 +86,21 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
     .map((preset) => {
       const existing = existingPresets.get(presetKey(preset.presetSource, preset.presetId));
       const targetGroupId = resolveTargetGroupId(groups, preset.targetGroupName);
-      if (!targetGroupId) return disableExistingPreset(db, existing, ts);
+      if (!targetGroupId) return disableExistingPreset(db, existing, preset.notes, ts);
+      const enabled = resolveManagedPresetEnabled(existing);
       if (existing) {
         if (
           existing.target_group_id === targetGroupId
-          && existing.enabled === 1
+          && existing.enabled === enabled
           && existing.sort_order === preset.sortOrder
           && existing.url === preset.url
           && existing.format === preset.format
           && existing.behavior === preset.behavior
+          && existing.notes === preset.notes
         ) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = 1, sort_order = ?, updated_at = ? WHERE id = ?')
-          .bind(preset.url, preset.format, preset.behavior, targetGroupId, preset.sortOrder, ts, existing.id);
+          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = ?, sort_order = ?, notes = ?, updated_at = ? WHERE id = ?')
+          .bind(preset.url, preset.format, preset.behavior, targetGroupId, enabled, preset.sortOrder, preset.notes, ts, existing.id);
       }
       return db
         .prepare(
@@ -140,9 +146,10 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
   target_group_id: string;
   enabled: number;
   sort_order: number;
+  notes: string;
 }>> {
   const { results } = await db
-    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, enabled, sort_order FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
+    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, enabled, sort_order, notes FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
     .all<{
       id: string;
       url: string;
@@ -153,6 +160,7 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       target_group_id: string;
       enabled: number;
       sort_order: number;
+      notes: string | null;
     }>();
 
   return new Map(results.map((row) => [
@@ -165,6 +173,7 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       target_group_id: row.target_group_id,
       enabled: row.enabled ?? 1,
       sort_order: row.sort_order ?? 0,
+      notes: row.notes ?? '',
     },
   ]));
 }
@@ -175,13 +184,28 @@ function resolveTargetGroupId(groups: Map<string, string>, groupName: string): s
 
 function disableExistingPreset(
   db: D1Database,
-  existing: { id: string; enabled: number } | undefined,
+  existing: { id: string; enabled: number; notes: string } | undefined,
+  canonicalNotes: string,
   ts: string
 ): D1PreparedStatement | null {
-  if (!existing || existing.enabled === 0) return null;
+  if (!existing || (existing.enabled === 0 && isSystemDisabledForMissingTarget(existing))) return null;
   return db
-    .prepare('UPDATE remote_rule_sets SET enabled = 0, updated_at = ? WHERE id = ?')
-    .bind(ts, existing.id);
+    .prepare('UPDATE remote_rule_sets SET enabled = 0, notes = ?, updated_at = ? WHERE id = ?')
+    .bind(withSystemDisabledNote(canonicalNotes), ts, existing.id);
+}
+
+function resolveManagedPresetEnabled(existing: { enabled: number; notes: string } | undefined): number {
+  if (!existing) return 1;
+  if (isSystemDisabledForMissingTarget(existing)) return 1;
+  return existing.enabled;
+}
+
+function isSystemDisabledForMissingTarget(existing: { enabled: number; notes: string }): boolean {
+  return existing.enabled === 0 && existing.notes.includes(SYSTEM_DISABLED_MISSING_TARGET_NOTE);
+}
+
+function withSystemDisabledNote(notes: string): string {
+  return `${notes}\n${SYSTEM_DISABLED_MISSING_TARGET_NOTE}`;
 }
 
 function presetKey(source: PresetSource, id: string): string {

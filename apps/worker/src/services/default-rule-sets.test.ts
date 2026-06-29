@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
 import { ensureDefaultRemoteRuleSets } from './default-rule-sets';
 
+const SYSTEM_DISABLED_NOTE = '[uni-conf:auto-disabled:missing-target]';
+
 describe('default remote rule sets', () => {
   it('creates missing preset rule sets with template target groups', async () => {
     const inserted: Array<Record<string, unknown>> = [];
@@ -64,10 +66,19 @@ describe('default remote rule sets', () => {
     expect(inserted).toHaveLength(0);
   });
 
-  it('reenables and retargets existing presets when the active template adds a specific group', async () => {
+  it('reenables and retargets system-disabled presets when the active template adds a specific group', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-proxy', enabled: 0, sort_order: 0 }],
+      existingPresets: [{
+        id: 'preset-crypto',
+        preset_source: 'quixotic',
+        preset_id: 'crypto',
+        behavior: 'classical',
+        target_group_id: 'builtin-proxy',
+        enabled: 0,
+        notes: `QuixoticHeart/rule-set:crypto old\n${SYSTEM_DISABLED_NOTE}`,
+        sort_order: 0,
+      }],
       inserted,
     });
 
@@ -82,7 +93,39 @@ describe('default remote rule sets', () => {
       targetGroupId: 'builtin-crypto',
       enabled: 1,
       sortOrder: 120,
+      notes: expect.not.stringContaining(SYSTEM_DISABLED_NOTE),
     });
+  });
+
+  it('does not reenable user-disabled managed presets when metadata is already current', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{
+        id: 'preset-crypto',
+        preset_source: 'quixotic',
+        preset_id: 'crypto',
+        url: buildQuixoticRuleSetUrl('crypto', 'mihomo'),
+        format: 'mihomo',
+        behavior: 'classical',
+        target_group_id: 'builtin-crypto',
+        enabled: 0,
+        notes: 'QuixoticHeart/rule-set:crypto 加密货币相关规则，包含 Binance、OKX、Bybit、Bitget 等',
+        sort_order: 120,
+      }],
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).not.toContainEqual(expect.objectContaining({
+      operation: 'update',
+      id: 'preset-crypto',
+      enabled: 1,
+    }));
+    expect(inserted).not.toContainEqual(expect.objectContaining({
+      operation: 'insert',
+      presetId: 'crypto',
+    }));
   });
 
   it('disables managed rule sets whose business target is not enabled by the active template', async () => {
@@ -122,6 +165,7 @@ describe('default remote rule sets', () => {
     expect(inserted).toContainEqual({
       operation: 'disable',
       id: 'preset-crypto',
+      notes: expect.stringContaining(SYSTEM_DISABLED_NOTE),
     });
     expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-cn' }));
     expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-adrules' }));
@@ -156,6 +200,7 @@ describe('default remote rule sets', () => {
       targetGroupId: 'builtin-ai',
       enabled: 1,
       sortOrder: 40,
+      notes: 'QuixoticHeart/rule-set:ai AI 规则集合，包含 OpenAI、Gemini、Copilot、Claude 等',
     });
   });
 
@@ -187,6 +232,7 @@ describe('default remote rule sets', () => {
       targetGroupId: 'builtin-telegram',
       enabled: 1,
       sortOrder: 50,
+      notes: 'UniConf built-in: MetaCubeX/meta-rules-dat geosite telegram domain list',
     });
   });
 });
@@ -206,6 +252,7 @@ function createMockDb({
     target_group_id: string;
     enabled?: number;
     sort_order?: number;
+    notes?: string;
   }>;
   groups?: ReturnType<typeof listGroups>;
   inserted: Array<Record<string, unknown>>;
@@ -214,6 +261,7 @@ function createMockDb({
     preset_source: 'quixotic',
     url: `https://example.com/${row.preset_id}.list`,
     format: 'mihomo',
+    notes: canonicalPresetNotes(row.preset_source ?? 'quixotic', row.preset_id),
     ...row,
   }));
   const db = {
@@ -233,26 +281,29 @@ function createMockDb({
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
-    batch: vi.fn(async (statements: Array<{ __args?: unknown[] }>) => {
+    batch: vi.fn(async (statements: Array<{ __args?: unknown[]; __sql?: string }>) => {
       for (const statement of statements) {
         const args = statement.__args ?? [];
-        if (args.length === 2) {
+        const sql = statement.__sql ?? '';
+        if (sql.includes('SET enabled = 0')) {
           inserted.push({
             operation: 'disable',
-            id: args[1],
+            notes: args[0],
+            id: args[2],
           });
-        } else if (args.length === 7) {
+        } else if (sql.includes('UPDATE remote_rule_sets SET')) {
           inserted.push({
             operation: 'update',
             url: args[0],
             format: args[1],
             behavior: args[2],
             targetGroupId: args[3],
-            enabled: 1,
-            sortOrder: args[4],
-            id: args[6],
+            enabled: args[4],
+            sortOrder: args[5],
+            notes: args[6],
+            id: args[8],
           });
-        } else if (args.length === 12) {
+        } else if (sql.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 24')) {
           inserted.push({
             operation: 'insert',
             name: args[1],
@@ -283,22 +334,31 @@ function createMockDb({
   vi.mocked(db.prepare).mockImplementation((sql: string) => ({
     bind: (...args: unknown[]) => ({
       __args: args,
+      __sql: sql,
       first: async () => {
         return null;
       },
-      all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : listGroups() }),
+      all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : groups }),
       run: async () => ({ success: true }),
       raw: async () => [],
     }),
     first: async () => {
       return null;
     },
-    all: async () => ({ results: sql.includes('remote_rule_sets') ? existingPresets : groups }),
+    all: async () => ({ results: sql.includes('remote_rule_sets') ? remoteRows : groups }),
     run: async () => ({ success: true }),
     raw: async () => [],
   }) as unknown as D1PreparedStatement);
 
   return db;
+}
+
+function canonicalPresetNotes(source: string, presetId: string): string {
+  if (source === 'uni-conf' && presetId === 'telegram') {
+    return 'UniConf built-in: MetaCubeX/meta-rules-dat geosite telegram domain list';
+  }
+  const preset = QUIXOTIC_RULE_SET_PRESETS.find((item) => item.id === presetId);
+  return preset ? `QuixoticHeart/rule-set:${preset.id} ${preset.description}` : '';
 }
 
 function listGroups() {
