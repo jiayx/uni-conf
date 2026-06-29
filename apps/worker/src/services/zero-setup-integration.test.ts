@@ -49,19 +49,46 @@ describe('zero setup defaults integration', () => {
     expect(remoteRuleTargets).toContain('Telegram');
     expect(remoteRuleTargets).toContain('PROXY');
   });
+
+  it('keeps the empty routing template limited to foundation targets and node outlets', async () => {
+    const db = createZeroSetupDb({ routingPolicyTemplate: 'empty' });
+
+    await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
+
+    const groupsByName = new Map(db.state.groups.map((row) => [row.name, row]));
+    expect(groupsByName.get('PROXY')?.enabled).toBe(1);
+    expect(groupsByName.get('DIRECT')?.enabled).toBe(1);
+    expect(groupsByName.get('REJECT')?.enabled).toBe(1);
+    expect(groupsByName.get('全部节点')?.enabled).toBe(1);
+    expect(groupsByName.get('节点选择')?.enabled).toBe(1);
+    expect(groupsByName.get('自动选择')?.enabled).toBe(1);
+    expect(groupsByName.get('故障切换')?.enabled).toBe(1);
+    expect(groupsByName.get('AI')?.enabled).toBe(0);
+    expect(groupsByName.get('Streaming')?.enabled).toBe(0);
+    expect(groupsByName.get('Telegram')?.enabled).toBe(0);
+
+    const groupsById = new Map(db.state.groups.map((row) => [row.id, row]));
+    const remoteRuleTargets = new Set(db.state.remoteRuleSets.map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id));
+    expect(remoteRuleTargets).toContain('PROXY');
+    expect(remoteRuleTargets).toContain('DIRECT');
+    expect(remoteRuleTargets).toContain('REJECT');
+    expect(remoteRuleTargets).not.toContain('AI');
+    expect(remoteRuleTargets).not.toContain('Streaming');
+    expect(remoteRuleTargets).not.toContain('Telegram');
+  });
 });
 
 interface MemoryRow {
   [key: string]: unknown;
 }
 
-function createZeroSetupDb(): D1Database & { state: ZeroSetupState } {
+function createZeroSetupDb(patch: { routingPolicyTemplate?: string } = {}): D1Database & { state: ZeroSetupState } {
   const state: ZeroSetupState = {
     appSettings: {
       id: 'singleton',
       language: 'zh',
       theme: 'system',
-      routing_policy_template: 'common',
+      routing_policy_template: patch.routingPolicyTemplate ?? 'common',
       routing_outlet_preferences: null,
       dns_mode: 'smart',
       export_node_naming_mode: 'smart',

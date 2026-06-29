@@ -40,21 +40,22 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
   const existingPresets = await listExistingPresetRows(db);
   const quixoticStatements = QUIXOTIC_RULE_SET_PRESETS
     .map((preset) => {
+      const existing = existingPresets.get(presetKey('quixotic', preset.id));
       const targetGroupId = resolveTargetGroupId(groups, inferQuixoticTargetGroup(preset));
       const sortOrder = resolveQuixoticRuleSetSortOrder(preset.id);
       const url = buildQuixoticRuleSetUrl(preset.id, QUIXOTIC_DEFAULT_FORMAT);
-      if (!targetGroupId) return null;
-      const existing = existingPresets.get(presetKey('quixotic', preset.id));
+      if (!targetGroupId) return disableExistingPreset(db, existing, ts);
       if (existing) {
         if (
           existing.url === url
           && existing.format === QUIXOTIC_DEFAULT_FORMAT
           && existing.behavior === QUIXOTIC_DEFAULT_BEHAVIOR
           && existing.target_group_id === targetGroupId
+          && existing.enabled === 1
           && existing.sort_order === sortOrder
         ) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = 1, sort_order = ?, updated_at = ? WHERE id = ?')
           .bind(url, QUIXOTIC_DEFAULT_FORMAT, QUIXOTIC_DEFAULT_BEHAVIOR, targetGroupId, sortOrder, ts, existing.id);
       }
       return db
@@ -79,19 +80,20 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
 
   const uniConfStatements = UNI_CONF_REMOTE_RULE_SET_PRESETS
     .map((preset) => {
-      const targetGroupId = resolveTargetGroupId(groups, preset.targetGroupName);
-      if (!targetGroupId) return null;
       const existing = existingPresets.get(presetKey(preset.presetSource, preset.presetId));
+      const targetGroupId = resolveTargetGroupId(groups, preset.targetGroupName);
+      if (!targetGroupId) return disableExistingPreset(db, existing, ts);
       if (existing) {
         if (
           existing.target_group_id === targetGroupId
+          && existing.enabled === 1
           && existing.sort_order === preset.sortOrder
           && existing.url === preset.url
           && existing.format === preset.format
           && existing.behavior === preset.behavior
         ) return null;
         return db
-          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+          .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = 1, sort_order = ?, updated_at = ? WHERE id = ?')
           .bind(preset.url, preset.format, preset.behavior, targetGroupId, preset.sortOrder, ts, existing.id);
       }
       return db
@@ -136,10 +138,11 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
   format: RemoteRuleSet['format'];
   behavior: RemoteRuleSet['behavior'];
   target_group_id: string;
+  enabled: number;
   sort_order: number;
 }>> {
   const { results } = await db
-    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, sort_order FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
+    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, enabled, sort_order FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
     .all<{
       id: string;
       url: string;
@@ -148,6 +151,7 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       preset_source: PresetSource;
       preset_id: string;
       target_group_id: string;
+      enabled: number;
       sort_order: number;
     }>();
 
@@ -159,13 +163,25 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       format: row.format,
       behavior: row.behavior,
       target_group_id: row.target_group_id,
+      enabled: row.enabled ?? 1,
       sort_order: row.sort_order ?? 0,
     },
   ]));
 }
 
 function resolveTargetGroupId(groups: Map<string, string>, groupName: string): string | undefined {
-  return groups.get(groupName.toUpperCase()) ?? groups.get('PROXY') ?? [...groups.values()][0];
+  return groups.get(groupName.toUpperCase());
+}
+
+function disableExistingPreset(
+  db: D1Database,
+  existing: { id: string; enabled: number } | undefined,
+  ts: string
+): D1PreparedStatement | null {
+  if (!existing || existing.enabled === 0) return null;
+  return db
+    .prepare('UPDATE remote_rule_sets SET enabled = 0, updated_at = ? WHERE id = ?')
+    .bind(ts, existing.id);
 }
 
 function presetKey(source: PresetSource, id: string): string {

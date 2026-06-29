@@ -43,6 +43,7 @@ describe('default remote rule sets', () => {
         format: 'mihomo',
         behavior: 'classical',
         target_group_id: expectedTargetGroupId(preset.id),
+        enabled: 1,
         sort_order: resolveQuixoticRuleSetSortOrder(preset.id),
       })).concat({
         id: 'preset-telegram',
@@ -52,6 +53,7 @@ describe('default remote rule sets', () => {
         format: 'text',
         behavior: 'domain',
         target_group_id: 'builtin-telegram',
+        enabled: 1,
         sort_order: 50,
       }),
       inserted,
@@ -62,10 +64,10 @@ describe('default remote rule sets', () => {
     expect(inserted).toHaveLength(0);
   });
 
-  it('retargets existing presets when the active template adds a specific group', async () => {
+  it('reenables and retargets existing presets when the active template adds a specific group', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: [{ id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-proxy', sort_order: 0 }],
+      existingPresets: [{ id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-proxy', enabled: 0, sort_order: 0 }],
       inserted,
     });
 
@@ -78,15 +80,16 @@ describe('default remote rule sets', () => {
       behavior: 'classical',
       id: 'preset-crypto',
       targetGroupId: 'builtin-crypto',
+      enabled: 1,
       sortOrder: 120,
     });
   });
 
-  it('falls back to PROXY when a preset target group is not enabled by the active template', async () => {
+  it('disables managed rule sets whose business target is not enabled by the active template', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
       existingPresets: [
-        { id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-crypto', sort_order: 120 },
+        { id: 'preset-crypto', preset_source: 'quixotic', preset_id: 'crypto', behavior: 'classical', target_group_id: 'builtin-crypto', enabled: 1, sort_order: 120 },
         {
           id: 'preset-cn',
           preset_source: 'quixotic',
@@ -95,6 +98,7 @@ describe('default remote rule sets', () => {
           format: 'mihomo',
           behavior: 'classical',
           target_group_id: 'builtin-direct',
+          enabled: 1,
           sort_order: 30,
         },
         {
@@ -105,6 +109,7 @@ describe('default remote rule sets', () => {
           format: 'mihomo',
           behavior: 'classical',
           target_group_id: 'builtin-reject',
+          enabled: 1,
           sort_order: 20,
         },
       ],
@@ -115,16 +120,12 @@ describe('default remote rule sets', () => {
     await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
 
     expect(inserted).toContainEqual({
-      operation: 'update',
-      url: buildQuixoticRuleSetUrl('crypto', 'mihomo'),
-      format: 'mihomo',
-      behavior: 'classical',
+      operation: 'disable',
       id: 'preset-crypto',
-      targetGroupId: 'builtin-proxy',
-      sortOrder: 120,
     });
     expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-cn' }));
     expect(inserted).not.toContainEqual(expect.objectContaining({ id: 'preset-adrules' }));
+    expect(inserted).not.toContainEqual(expect.objectContaining({ presetId: 'crypto', operation: 'insert' }));
   });
 
   it('repairs stale Quixotic rule set metadata', async () => {
@@ -138,6 +139,7 @@ describe('default remote rule sets', () => {
         format: 'text',
         behavior: 'domain',
         target_group_id: 'builtin-ai',
+        enabled: 1,
         sort_order: 900,
       }],
       inserted,
@@ -152,6 +154,7 @@ describe('default remote rule sets', () => {
       behavior: 'classical',
       id: 'preset-ai',
       targetGroupId: 'builtin-ai',
+      enabled: 1,
       sortOrder: 40,
     });
   });
@@ -167,6 +170,7 @@ describe('default remote rule sets', () => {
         format: 'mihomo',
         behavior: 'classical',
         target_group_id: 'builtin-proxy',
+        enabled: 1,
         sort_order: 900,
       }],
       inserted,
@@ -181,6 +185,7 @@ describe('default remote rule sets', () => {
       format: 'text',
       behavior: 'domain',
       targetGroupId: 'builtin-telegram',
+      enabled: 1,
       sortOrder: 50,
     });
   });
@@ -199,6 +204,7 @@ function createMockDb({
     format?: string;
     behavior: string;
     target_group_id: string;
+    enabled?: number;
     sort_order?: number;
   }>;
   groups?: ReturnType<typeof listGroups>;
@@ -230,13 +236,19 @@ function createMockDb({
     batch: vi.fn(async (statements: Array<{ __args?: unknown[] }>) => {
       for (const statement of statements) {
         const args = statement.__args ?? [];
-        if (args.length === 7) {
+        if (args.length === 2) {
+          inserted.push({
+            operation: 'disable',
+            id: args[1],
+          });
+        } else if (args.length === 7) {
           inserted.push({
             operation: 'update',
             url: args[0],
             format: args[1],
             behavior: args[2],
             targetGroupId: args[3],
+            enabled: 1,
             sortOrder: args[4],
             id: args[6],
           });
