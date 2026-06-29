@@ -92,6 +92,16 @@ const autoGroup: ProxyGroup = {
   updatedAt: createdAt,
 }
 
+const proxyGroup: ProxyGroup = {
+  ...autoGroup,
+  id: 'builtin-proxy',
+  name: 'PROXY',
+  type: 'select',
+  collectionIds: [],
+  groupIds: ['group-auto'],
+  isBuiltin: true,
+}
+
 const directGroup: ProxyGroup = {
   ...autoGroup,
   id: 'builtin-direct',
@@ -155,6 +165,22 @@ describe('proxy group references', () => {
     expect(smart.experimental.cache_file.store_fakeip).toBe(false)
     expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
+  })
+
+  it('uses an existing sing-box outbound for DNS and rule set downloads', () => {
+    const withProxy = JSON.parse(generateSingboxJson([], [proxyGroup, autoGroup], [], [])) as {
+      dns: { servers: Array<Record<string, unknown>> };
+      route: { rule_set: Array<Record<string, unknown>> };
+    }
+    const withoutProxy = JSON.parse(generateSingboxJson([], [], [], [])) as {
+      dns: { servers: Array<Record<string, unknown>> };
+      route: { rule_set: Array<Record<string, unknown>> };
+    }
+
+    expect(withProxy.dns.servers.find(server => server.tag === 'proxyDns')).toMatchObject({ detour: 'PROXY' })
+    expect(withProxy.route.rule_set.every(ruleSet => ruleSet.download_detour === 'PROXY')).toBe(true)
+    expect(withoutProxy.dns.servers.find(server => server.tag === 'proxyDns')).toMatchObject({ detour: 'direct' })
+    expect(withoutProxy.route.rule_set.every(ruleSet => ruleSet.download_detour === 'direct')).toBe(true)
   })
 
   it('exports AnyTLS nodes for Mihomo preview configs', () => {

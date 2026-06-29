@@ -17,15 +17,16 @@ export function generateSingboxJson(
   options: SingboxGeneratorOptions = {}
 ): string {
   const dnsMode = options.dnsMode ?? 'smart';
+  const proxyDetour = defaultProxyDetour(groups);
   const config = {
     log: {
       level: 'info',
       timestamp: true,
     },
-    dns: buildDns(dnsMode),
+    dns: buildDns(dnsMode, proxyDetour),
     inbounds: buildInbounds(),
     outbounds: buildOutbounds(nodes, groups, collectionNodeNames),
-    route: buildRoute(rules, groups, remoteSets),
+    route: buildRoute(rules, groups, remoteSets, proxyDetour),
     experimental: {
       cache_file: {
         enabled: true,
@@ -41,13 +42,13 @@ export function generateSingboxJson(
 
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
-function buildDns(mode: DnsMode): object {
+function buildDns(mode: DnsMode, proxyDetour: string): object {
   const dns: Record<string, unknown> = {
     servers: [
       {
         tag: 'proxyDns',
         address: 'tls://8.8.8.8',
-        detour: 'proxy',
+        detour: proxyDetour,
       },
       {
         tag: 'localDns',
@@ -451,7 +452,8 @@ function groupToSingbox(
 function buildRoute(
   rules: ProxyRule[],
   groups: ProxyGroup[],
-  remoteSets: RemoteRuleSet[]
+  remoteSets: RemoteRuleSet[],
+  proxyDetour: string
 ): object {
   const routeRules: object[] = [];
 
@@ -481,7 +483,7 @@ function buildRoute(
       type: 'remote',
       format: 'binary',
       url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs',
-      download_detour: 'proxy',
+      download_detour: proxyDetour,
       update_interval: '1d',
     },
     {
@@ -489,7 +491,7 @@ function buildRoute(
       type: 'remote',
       format: 'binary',
       url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-geolocation-!cn.srs',
-      download_detour: 'proxy',
+      download_detour: proxyDetour,
       update_interval: '1d',
     },
   ];
@@ -508,7 +510,7 @@ function buildRoute(
       type: 'remote',
       format: resolved.format === 'singbox' ? 'binary' : 'source',
       url: resolved.url,
-      download_detour: 'proxy',
+      download_detour: proxyDetour,
       update_interval: `${rs.updateInterval}h`,
     });
     routeRules.push({
@@ -535,6 +537,11 @@ function defaultPolicyName(groups: ProxyGroup[]): string {
     ?? groups.find((item) => item.name === 'PROXY')
     ?? groups[0];
   return group ? resolveSingboxGroupName(group) : 'direct';
+}
+
+function defaultProxyDetour(groups: ProxyGroup[]): string {
+  const proxyGroup = groups.find((item) => item.name === 'PROXY');
+  return proxyGroup ? resolveSingboxGroupName(proxyGroup) : defaultPolicyName(groups);
 }
 
 function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
