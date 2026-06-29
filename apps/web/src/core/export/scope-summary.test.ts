@@ -43,6 +43,34 @@ describe('export config scope summary', () => {
       [makeRemoteSet('remote-singbox', true, 'singbox'), makeRemoteSet('remote-mihomo', true, 'mihomo')]
     )).toBe('节点组: 已选 1/2 / 策略组与出口: 已选 1/2 / 手动规则: 已选 1/2 / 兼容分流规则集: 已选 1/1')
   })
+
+  it('matches worker export target filtering when groups are scoped', () => {
+    expect(exportConfigScopeSummary(
+      makeConfig({
+        includeGroupIds: ['builtin-streaming'],
+        format: 'singbox',
+      }),
+      [makeCollection('collection-us', true)],
+      [
+        makeGroup('builtin-streaming', true, ['builtin-proxy']),
+        makeGroup('builtin-proxy', true),
+        makeGroup('builtin-ai', true),
+        makeGroup('disabled-policy', false),
+      ],
+      [
+        makeRule('rule-streaming', true, 'builtin-streaming'),
+        makeRule('rule-proxy', true, 'builtin-proxy'),
+        makeRule('rule-ai', true, 'builtin-ai'),
+        makeRule('rule-disabled-target', true, 'disabled-policy'),
+      ],
+      [
+        makeRemoteSet('remote-streaming', true, 'singbox', 'builtin-streaming'),
+        makeRemoteSet('remote-proxy', true, 'singbox', 'builtin-proxy'),
+        makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
+        makeRemoteSet('remote-disabled-target', true, 'singbox', 'disabled-policy'),
+      ]
+    )).toBe('节点组: 全部启用 1 / 策略组与出口: 已选 1/3 / 手动规则: 全部启用 2 / 兼容分流规则集: 全部启用 2')
+  })
 })
 
 function makeConfig(patch: Partial<ExportConfig> = {}): ExportConfig {
@@ -78,13 +106,13 @@ function makeCollection(id: string, enabled: boolean): NodeCollection {
   }
 }
 
-function makeGroup(id: string, enabled: boolean): ProxyGroup {
+function makeGroup(id: string, enabled: boolean, groupIds: string[] = []): ProxyGroup {
   return {
     id,
     name: id,
     type: 'select',
     collectionIds: [],
-    groupIds: [],
+    groupIds,
     builtins: [],
     enabled,
     order: 0,
@@ -94,12 +122,12 @@ function makeGroup(id: string, enabled: boolean): ProxyGroup {
   }
 }
 
-function makeRule(id: string, enabled: boolean): ProxyRule {
+function makeRule(id: string, enabled: boolean, targetGroupId = 'builtin-proxy'): ProxyRule {
   return {
     id,
     type: 'DOMAIN-SUFFIX',
     payload: 'example.com',
-    targetGroupId: 'builtin-proxy',
+    targetGroupId,
     enabled,
     order: 0,
     compatibility: [],
@@ -108,14 +136,14 @@ function makeRule(id: string, enabled: boolean): ProxyRule {
   }
 }
 
-function makeRemoteSet(id: string, enabled: boolean, format: RemoteRuleSet['format']): RemoteRuleSet {
+function makeRemoteSet(id: string, enabled: boolean, format: RemoteRuleSet['format'], targetGroupId = 'builtin-proxy'): RemoteRuleSet {
   return {
     id,
     name: id,
     url: `https://example.com/${id}`,
     format,
     behavior: 'classical',
-    targetGroupId: 'builtin-proxy',
+    targetGroupId,
     updateInterval: 24,
     enabled,
     sortOrder: 0,
