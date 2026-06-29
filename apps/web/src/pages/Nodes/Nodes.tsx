@@ -6,6 +6,11 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
+import {
+  buildManualNodeParsedConfig,
+  compactManualNodeExtra,
+  type ManualNodeExtraValue,
+} from '@/core/nodes/manual-node-config'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { MAINSTREAM_PROXY_PROTOCOLS, PROTOCOL_FORM_FIELDS } from '@uni-conf/types'
@@ -27,10 +32,8 @@ const EMPTY_FORM = {
   countryCode: '',
   enabled: true,
   notes: '',
-  extra: {} as Record<string, string | number | boolean | string[]>,
+  extra: {} as Record<string, ManualNodeExtraValue>,
 }
-
-type FormExtraValue = string | number | boolean | string[]
 
 export function Nodes() {
   const { t } = useTranslation()
@@ -89,7 +92,7 @@ export function Nodes() {
         ...(node.parsedConfig.skipCertVerify !== undefined ? { skipCertVerify: node.parsedConfig.skipCertVerify } : {}),
         ...(node.parsedConfig.network ? { network: node.parsedConfig.network } : {}),
         ...(node.parsedConfig.wsPath ? { wsPath: node.parsedConfig.wsPath } : {}),
-      } as Record<string, FormExtraValue>,
+      } as Record<string, ManualNodeExtraValue>,
     })
     setUriInput('')
     setFormError('')
@@ -115,7 +118,7 @@ export function Nodes() {
       return
     }
 
-    const extra = compactExtra(form.extra)
+    const extra = compactManualNodeExtra(form.extra)
     const payload = {
       sourceId: editingNode?.sourceId ?? 'manual',
       name: form.name,
@@ -131,20 +134,7 @@ export function Nodes() {
         ...(editingNode?.rawConfig ?? {}),
         ...extra,
       },
-      parsedConfig: {
-        ...(editingNode?.parsedConfig ?? { extra: {} }),
-        protocol: form.protocol,
-        server: form.server,
-        port: form.port,
-        password: asString(extra['password']),
-        uuid: asString(extra['uuid']),
-        tls: asBoolean(extra['tls']) || extra['security'] === 'tls' || extra['security'] === 'reality',
-        sni: asString(extra['sni']),
-        skipCertVerify: asBoolean(extra['skipCertVerify']),
-        network: asNetwork(extra['network']),
-        wsPath: asString(extra['wsPath']),
-        extra,
-      },
+      parsedConfig: buildManualNodeParsedConfig(form.protocol, form.server, form.port, extra, editingNode?.parsedConfig),
       isManual: true,
     }
 
@@ -310,8 +300,8 @@ function ProtocolFieldInput({
   onChange,
 }: {
   field: ProtocolFieldDefinition
-  value: FormExtraValue
-  onChange: (value: FormExtraValue) => void
+  value: ManualNodeExtraValue
+  onChange: (value: ManualNodeExtraValue) => void
 }) {
   if (field.type === 'boolean') {
     return (
@@ -350,27 +340,4 @@ function ProtocolFieldInput({
       }}
     />
   )
-}
-
-function compactExtra(extra: Record<string, FormExtraValue>): Record<string, FormExtraValue> {
-  return Object.fromEntries(
-    Object.entries(extra).filter(([, value]) => {
-      if (value === '' || value === undefined || value === null) return false
-      if (Array.isArray(value) && value.length === 0) return false
-      return true
-    }),
-  )
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' && value ? value : undefined
-}
-
-function asBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function asNetwork(value: unknown): 'tcp' | 'ws' | 'http' | 'h2' | 'grpc' | 'quic' | undefined {
-  if (value === 'tcp' || value === 'ws' || value === 'http' || value === 'h2' || value === 'grpc' || value === 'quic') return value
-  return undefined
 }

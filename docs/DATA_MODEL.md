@@ -60,7 +60,7 @@ Manual node creation accepts either structured fields (`name`, `protocol`, `serv
 - `raw_config.uri` keeps the original pasted URI
 - `parsed_config` stores the normalized fields used by export, filtering, and form rendering
 
-Manual node writes validate the runtime shape before persistence. Protocols must come from the mainstream protocol registry, ports must be integers from 1 to 65535, names and servers are trimmed non-empty strings, tags are string arrays, and `raw_config` / `parsed_config` must be JSON objects. URI-created nodes may override parsed fields, but those overrides pass the same validation so manual entry cannot introduce `unknown`, `direct`, or `reject` pseudo-protocol nodes into export pools.
+Manual node writes validate the runtime shape before persistence. Protocols must come from the mainstream protocol registry, ports must be integers from 1 to 65535, names and servers are trimmed non-empty strings, tags are string arrays, and `raw_config` / `parsed_config` must be JSON objects. The web structured manual-node form is generated from the protocol registry and uses a shared core helper to persist every registry field into `parsed_config.extra`, while promoting common export fields such as `password`, `uuid`, `tls`, `sni`, `skipCertVerify`, `network`, and `wsPath` to the normalized top level. URI-created nodes may override parsed fields, but those overrides pass the same validation so manual entry cannot introduce `unknown`, `direct`, or `reject` pseudo-protocol nodes into export pools.
 
 ### `collections` — Node Group Filter Config
 
