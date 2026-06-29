@@ -154,6 +154,11 @@ app.put('/:id', async (c) => {
   if (validation.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, validation.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
+  const nextEnabled = validation.enabled !== undefined ? validation.enabled : Number(existing.enabled ?? 1) === 1
+  const nextTargetGroupId = validation.targetGroupId ?? String(existing.target_group_id ?? '')
+  if (nextEnabled && !(await isEnabledTargetGroup(c.env.DB, nextTargetGroupId))) {
+    return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
+  }
   await c.env.DB.prepare(
     `UPDATE remote_rule_sets SET
       name = ?, url = ?, format = ?, behavior = ?, preset_source = ?, preset_id = ?, target_group_id = ?, update_interval = ?,
