@@ -92,9 +92,9 @@ If UI compatibility behavior changes, also update the web compatibility tests. S
 | DOMAIN-KEYWORD | Full | Full | Full | Full | Full | Full |
 | IP-CIDR | Full | Full | Full | Full | Full | Full |
 | GEOIP | Full | Full | Full | Full | Full | Full |
-| GEOSITE | Full | Full | Full | Unsupported | Unsupported | Unsupported |
+| GEOSITE | Full | Full | Partial | Partial | Unsupported | Unsupported |
 | PROCESS-NAME | Full | Full | Partial | Full | Unsupported | Unsupported |
 | RULE-SET | Full | Full | Full | Full | Full | Full |
-| SCRIPT | Unsupported | Unsupported | Full | Full | Full | Full |
+| SCRIPT | Partial | Unsupported | Partial | Unsupported | Unsupported | Unsupported |
 
-Use `full`, `partial`, and `unsupported` in code.
+Use `full`, `partial`, and `unsupported` in code. This matrix describes UniConf's current exporter behavior, not every feature a client may theoretically support. For example, `SCRIPT` stays unsupported for INI-style and Quantumult X exports until the generator can also emit the required client-specific script sections.

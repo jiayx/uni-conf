@@ -67,6 +67,15 @@ const processPathRule: ProxyRule = {
   order: 11,
 };
 
+const scriptRule: ProxyRule = {
+  ...matchRule,
+  id: 'rule-script',
+  type: 'SCRIPT',
+  payload: 'script-path',
+  targetGroupId: proxyGroup.id,
+  order: 12,
+};
+
 const remoteSet: RemoteRuleSet = {
   id: 'remote-ads',
   name: 'Ads List',
@@ -328,11 +337,20 @@ describe('remote rule set generators', () => {
   });
 
   it('skips unsupported local rules for INI-style clients', () => {
-    const surge = generateSurge([], groupRows, [ruleRow(geositeRule), ruleRow(matchRule)], []);
-    const shadowrocket = generateShadowrocket([], groupRows, [ruleRow(geositeRule), ruleRow(matchRule)], []);
+    const surge = generateSurge([], groupRows, [ruleRow(geositeRule), ruleRow(scriptRule), ruleRow(matchRule)], []);
+    const shadowrocket = generateShadowrocket([], groupRows, [ruleRow(geositeRule), ruleRow(scriptRule), ruleRow(matchRule)], []);
 
     expect(surge).toContain('GEOSITE,google,PROXY');
     expect(shadowrocket).not.toContain('GEOSITE,google,PROXY');
+    expect(surge).not.toContain('SCRIPT');
+    expect(shadowrocket).not.toContain('SCRIPT');
+  });
+
+  it('skips unsupported local rules for Quantumult X', () => {
+    const quantumultx = generateQuantumultX([], groupRows, [ruleRow(scriptRule), ruleRow(matchRule)], []);
+
+    expect(quantumultx).not.toContain('SCRIPT');
+    expect(quantumultx).toContain('FINAL,PROXY');
   });
 
   it('skips unsupported local rules for Loon while keeping partial rules', () => {

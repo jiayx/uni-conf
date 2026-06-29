@@ -436,11 +436,11 @@ Other - Manual - 01
 ```json
 [
   { "client": "mihomo", "level": "full" },
-  { "client": "loon", "level": "partial", "note": "Loon 不支持 GEOSITE" }
+  { "client": "surge", "level": "partial", "note": "Surge only has partial GEOSITE support" }
 ]
 ```
 
-`rules.compatibility` is not user-authored. Rule creation and batch import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. Remote rule set format support and preset URL resolution are also centralized in `@uni-conf/shared`; the web compatibility UI, worker preview validation, and client generators use the same matrix and resolver. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
+`rules.compatibility` is not user-authored. Rule creation and batch import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. The matrix reflects UniConf's current exporter capability; a client feature remains `unsupported` when UniConf cannot render all required sections for it. For example, `SCRIPT` rules are not treated as supported for Surge or Quantumult X until their exporters generate the matching script definitions. Remote rule set format support and preset URL resolution are also centralized in `@uni-conf/shared`; the web compatibility UI, worker preview validation, and client generators use the same matrix and resolver. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
 
 ### Export Preview Warnings
 

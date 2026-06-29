@@ -226,6 +226,21 @@ describe('export validation', () => {
     }));
   });
 
+  it('warns when script rules cannot be serialized by the target export format', () => {
+    const warnings = validateExportData(makeExportData({
+      rules: [
+        makeRule('script', 'proxy', 'SCRIPT', 'script-path', 0),
+        makeRule('match', 'proxy', 'MATCH', '', 999),
+      ],
+    }), 'quantumultx');
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      ruleId: 'script',
+      level: 'unsupported',
+      message: expect.stringContaining('SCRIPT 不兼容 quantumultx'),
+    }));
+  });
+
   it('does not warn about rule type compatibility for node-only subscriptions', () => {
     const warnings = validateExportData(makeExportData({
       rules: [
