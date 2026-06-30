@@ -178,6 +178,40 @@ describe('export download readiness', () => {
     await expect(response.text()).resolves.toContain('没有可导出到 mihomo 的节点')
     expect(renderExportData).not.toHaveBeenCalled()
   })
+
+  it('renders public subscriptions with the filename format and stored DNS mode', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [
+        {
+          id: 'node-ss',
+          sourceId: 'source-1',
+          name: 'SS 01',
+          protocol: 'ss',
+          server: 'ss.example.com',
+          port: 8388,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig: { protocol: 'ss', server: 'ss.example.com', port: 8388, extra: {} },
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const db = createMockDb()
+    const response = await subscriptionRouter.request('/sub/token/singbox.json', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
+    expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
+    expect(renderExportData).toHaveBeenCalledWith(
+      expect.anything(),
+      'singbox',
+      expect.objectContaining({ dnsMode: 'smart' })
+    )
+  })
 })
 
 function makeExportData(patch: Partial<ExportData> = {}): ExportData {
