@@ -10,6 +10,7 @@ export interface TrafficMultiplierInfo {
 }
 
 export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
+export const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
 
 export const DEFAULT_HEALTH_CHECK = {
   testUrl: 'http://www.gstatic.com/generate_204',
@@ -19,6 +20,40 @@ export const DEFAULT_HEALTH_CHECK = {
 } as const;
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
+
+export interface SourceNodeGroupMarker {
+  sourceId: string;
+  groupName: string;
+}
+
+export function makeSourceNodeGroupKey(sourceId: string, groupName: string): string {
+  return `${sourceId}:${encodeURIComponent(groupName)}`;
+}
+
+export function makeSourceNodeGroupMarker(sourceId: string, groupName: string): string {
+  return `${SOURCE_NODE_GROUP_PREFIX} ${makeSourceNodeGroupKey(sourceId, groupName)}`;
+}
+
+export function extractSourceNodeGroupMarkerKey(notes?: string | null): string | null {
+  if (!notes?.startsWith(SOURCE_NODE_GROUP_PREFIX)) return null;
+  return notes.slice(SOURCE_NODE_GROUP_PREFIX.length).trim() || null;
+}
+
+export function parseSourceNodeGroupKey(key: string): SourceNodeGroupMarker | null {
+  const separatorIndex = key.indexOf(':');
+  if (separatorIndex <= 0 || separatorIndex === key.length - 1) return null;
+
+  const sourceId = key.slice(0, separatorIndex).trim();
+  const encodedGroupName = key.slice(separatorIndex + 1).trim();
+  if (!sourceId || !encodedGroupName) return null;
+
+  try {
+    const groupName = decodeURIComponent(encodedGroupName);
+    return groupName ? { sourceId, groupName } : null;
+  } catch {
+    return null;
+  }
+}
 
 export const GLOBAL_NODE_OUTLET_GROUP_IDS = [
   'builtin-all-nodes',

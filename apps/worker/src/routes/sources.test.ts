@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName, makeSourceNodeGroupMarker } from '@uni-conf/shared'
 import type { SourceRefreshResult } from '@uni-conf/types'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
@@ -484,6 +484,35 @@ proxies:
     expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'delete-node' }))
   })
 
+  it('syncs imported upstream source group node ids after subscription refresh', async () => {
+    const db = createRefreshSourceGroupSyncMockDb()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: async () => `
+proxies:
+  - { name: '🇺🇸 US 01', type: trojan, server: us-new.example.com, port: 443, password: pwd-new }
+  - { name: '🇯🇵 JP 01', type: trojan, server: jp.example.com, port: 443, password: pwd }
+proxy-groups:
+  - { name: 'Upstream Auto', type: url-test, proxies: ['🇺🇸 US 01', '🇯🇵 JP 01'] }
+`,
+    })))
+
+    await expect(refreshSourceById(db, 'source-1')).resolves.toMatchObject({
+      success: true,
+      addedCount: 1,
+      updatedCount: 1,
+      removedCount: 0,
+      sourceGroupCount: 1,
+    })
+
+    const collectionUpdate = db.operations.find((item) => item.operation === 'update-collection-node-ids')
+    expect(collectionUpdate).toBeDefined()
+    expect(JSON.parse(String(collectionUpdate?.nodeIds))).toEqual(['node-us', expect.any(String)])
+  })
+
   it('initializes zero-setup defaults after a subscription refresh failure', async () => {
     const db = createRefreshMockDb()
     vi.stubGlobal('fetch', vi.fn(async () => ({
@@ -725,6 +754,106 @@ function createRefreshUpdateMockDb(): D1Database & { operations: Array<Record<st
       raw: async () => [],
     })),
   } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
+}
+
+function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
+  const operations: Array<Record<string, unknown>> = []
+  const nodes = [{
+    id: 'node-us',
+    name: '🇺🇸 US 01',
+    server: 'us-old.example.com',
+    port: 443,
+    protocol: 'trojan',
+    country: 'United States',
+    country_code: 'US',
+    tags: '[]',
+    raw_config: JSON.stringify({ name: '🇺🇸 US 01', type: 'trojan', server: 'us-old.example.com', port: 443, password: 'pwd-old' }),
+    parsed_config: JSON.stringify({ protocol: 'trojan', server: 'us-old.example.com', port: 443, password: 'pwd-old', extra: { password: 'pwd-old' } }),
+  }]
+  const collection = {
+    id: 'collection-upstream',
+    node_ids: JSON.stringify(['node-us']),
+    notes: makeSourceNodeGroupMarker('source-1', 'Upstream Auto'),
+  }
+
+  const db = {
+    operations,
+    batch: vi.fn(async (statements: Array<{ run: () => Promise<unknown> }>) => {
+      for (const statement of statements) await statement.run()
+      return []
+    }),
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
+            return {
+              id: args[0],
+              url: 'https://example.com/sub',
+              format: 'auto',
+              user_agent: null,
+            }
+          }
+          return null
+        },
+        all: async () => {
+          if (sql.includes('SELECT id, name, server, port, protocol')) return { results: nodes }
+          if (sql.includes('SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?')) return { results: [{ cnt: nodes.length }] }
+          if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE notes LIKE ?')) return { results: [collection] }
+          if (sql.includes('SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0')) {
+            return { results: nodes.map(node => ({ id: node.id, name: node.name })) }
+          }
+          return { results: [] }
+        },
+        run: async () => {
+          if (sql.includes('INSERT INTO nodes')) {
+            nodes.push({
+              id: String(args[0]),
+              name: String(args[2]),
+              protocol: String(args[3]),
+              server: String(args[4]),
+              port: Number(args[5]),
+              country: String(args[6] ?? ''),
+              country_code: String(args[7] ?? ''),
+              tags: String(args[8]),
+              raw_config: String(args[9]),
+              parsed_config: String(args[10]),
+            })
+            operations.push({ operation: 'insert-node', id: args[0], name: args[2] })
+          }
+          if (sql.includes('UPDATE nodes SET')) {
+            const node = nodes.find(item => item.id === args[10])
+            if (node) {
+              node.name = String(args[0])
+              node.protocol = String(args[1])
+              node.server = String(args[2])
+              node.port = Number(args[3])
+              node.country = String(args[4] ?? '')
+              node.country_code = String(args[5] ?? '')
+              node.tags = String(args[6])
+              node.raw_config = String(args[7])
+              node.parsed_config = String(args[8])
+            }
+            operations.push({ operation: 'update-node', id: args[10], server: args[2] })
+          }
+          if (sql.includes('UPDATE collections SET node_ids = ?')) {
+            collection.node_ids = String(args[0])
+            operations.push({
+              operation: 'update-collection-node-ids',
+              nodeIds: args[0],
+              id: args[2],
+            })
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  }
+  return db as unknown as D1Database & { operations: Array<Record<string, unknown>> }
 }
 
 function createDeleteMockDb(hasSource: boolean): D1Database & { operations: Array<Record<string, unknown>> } {

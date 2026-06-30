@@ -7,7 +7,14 @@ import {
   newId,
   now,
 } from '../db/helpers';
-import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared';
+import {
+  buildNodeRecognitionTags,
+  detectCountry,
+  extractSourceNodeGroupMarkerKey,
+  isSubscriptionInfoNodeName,
+  parseSourceNodeGroupKey,
+  SOURCE_NODE_GROUP_PREFIX,
+} from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
@@ -445,6 +452,7 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     )
     .run();
 
+  await syncImportedSourceNodeGroups(db, id, parsedGroups, ts);
   await ensureZeroSetupDefaults(db, ts);
 
   return {
@@ -458,6 +466,51 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     sourceGroupCount: parsedGroups.length,
     format,
   };
+}
+
+async function syncImportedSourceNodeGroups(
+  db: D1Database,
+  sourceId: string,
+  groups: SourceNodeGroup[],
+  ts: string
+): Promise<void> {
+  const { results: collections } = await db.prepare(
+    'SELECT id, node_ids, notes FROM collections WHERE notes LIKE ?'
+  )
+    .bind(`${SOURCE_NODE_GROUP_PREFIX} ${sourceId}:%`)
+    .all<{ id: string; node_ids: string | null; notes: string | null }>();
+  if (collections.length === 0) return;
+
+  const { results: nodeRows } = await db.prepare(
+    'SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0'
+  )
+    .bind(sourceId)
+    .all<{ id: string; name: string }>();
+  const nodeIdByName = new Map(nodeRows.map((row) => [row.name, row.id]));
+  const groupByName = new Map(groups.map((group) => [group.name, group]));
+  const statements: D1PreparedStatement[] = [];
+
+  for (const collection of collections) {
+    const key = extractSourceNodeGroupMarkerKey(collection.notes);
+    const marker = key ? parseSourceNodeGroupKey(key) : null;
+    if (!marker || marker.sourceId !== sourceId) continue;
+
+    const group = groupByName.get(marker.groupName);
+    const nodeIds = group
+      ? group.memberNames
+        .map((name) => nodeIdByName.get(name))
+        .filter((id): id is string => Boolean(id))
+      : [];
+    const nextNodeIds = jsonStringify([...new Set(nodeIds)]);
+    if ((collection.node_ids ?? '[]') === nextNodeIds) continue;
+
+    statements.push(
+      db.prepare('UPDATE collections SET node_ids = ?, updated_at = ? WHERE id = ?')
+        .bind(nextNodeIds, ts, collection.id)
+    );
+  }
+
+  if (statements.length > 0) await db.batch(statements);
 }
 
 export async function recordSourceRefreshError(db: D1Database, id: string, error: string): Promise<void> {
