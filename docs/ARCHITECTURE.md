@@ -145,7 +145,7 @@ All API endpoints are under `/api/`. Responses follow:
 5. Worker fetches the external URL (server-side, no CORS issue)
 6. Auto-detects format (Clash YAML / sing-box JSON / Base64 / raw URI lines / etc.)
 7. Parses nodes and upstream proxy groups from content
-8. Filters subscription-info pseudo nodes and unsupported protocols
+8. Filters subscription-info pseudo nodes, non-mainstream protocols, and nodes missing protocol-required fields
 9. Upserts nodes into D1 nodes table and stores raw source content
 10. Regenerates country/region auto node groups
 11. Updates source.node_count and source.last_updated, and clears source.last_refresh_error

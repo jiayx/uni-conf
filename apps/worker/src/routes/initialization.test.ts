@@ -87,6 +87,7 @@ describe('zero-setup route initialization', () => {
       () => sourcesApp.request('/item-1', {}, { DB: createStatsDb() }),
       () => nodesApp.request('/item-1', {}, { DB: createStatsDb() }),
       () => collectionsApp.request('/item-1', {}, { DB: createStatsDb() }),
+      () => collectionsApp.request('/item-1/preview', {}, { DB: createStatsDb() }),
       () => groupsApp.request('/item-1', {}, { DB: createStatsDb() }),
       () => rulesApp.request('/item-1', {}, { DB: createStatsDb() }),
       () => remoteRuleSetsApp.request('/item-1', {}, { DB: createStatsDb() }),

@@ -153,6 +153,8 @@ app.delete('/:id', async (c) => {
 // ─── Preview filtered nodes for collection ────────────────────────────────────
 
 app.get('/:id/preview', async (c) => {
+  await ensureZeroSetupDefaults(c.env.DB, now());
+
   const id = c.req.param('id');
   const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(id)
