@@ -453,6 +453,37 @@ proxies:
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
+  it('updates a stable subscription node when its server changes instead of replacing its row', async () => {
+    const db = createRefreshUpdateMockDb()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: async () => `
+proxies:
+  - { name: '🇺🇸 US 01', type: trojan, server: us-new.example.com, port: 443, password: pwd-new }
+`,
+    })))
+
+    await expect(refreshSourceById(db, 'source-1')).resolves.toMatchObject({
+      success: true,
+      addedCount: 0,
+      updatedCount: 1,
+      removedCount: 0,
+    })
+
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'update-node',
+      id: 'node-us',
+      name: '🇺🇸 US 01',
+      server: 'us-new.example.com',
+      port: 443,
+    }))
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'insert-node' }))
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'delete-node' }))
+  })
+
   it('initializes zero-setup defaults after a subscription refresh failure', async () => {
     const db = createRefreshMockDb()
     vi.stubGlobal('fetch', vi.fn(async () => ({
@@ -620,6 +651,69 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
               error: args[0],
               id: args[2],
             })
+          }
+          return { success: true }
+        },
+        raw: async () => [],
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+  } as unknown as D1Database & { operations: Array<Record<string, unknown>> }
+}
+
+function createRefreshUpdateMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
+  const operations: Array<Record<string, unknown>> = []
+  const existingRows = [{
+    id: 'node-us',
+    name: '🇺🇸 US 01',
+    server: 'us-old.example.com',
+    port: 443,
+    protocol: 'trojan',
+    country: 'United States',
+    country_code: 'US',
+    tags: '[]',
+    raw_config: JSON.stringify({ name: '🇺🇸 US 01', type: 'trojan', server: 'us-old.example.com', port: 443, password: 'pwd-old' }),
+    parsed_config: JSON.stringify({ protocol: 'trojan', server: 'us-old.example.com', port: 443, password: 'pwd-old', extra: { password: 'pwd-old' } }),
+  }]
+  return {
+    operations,
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
+            return {
+              id: args[0],
+              url: 'https://example.com/sub',
+              format: 'auto',
+              user_agent: null,
+            }
+          }
+          return null
+        },
+        all: async () => {
+          if (sql.includes('FROM nodes WHERE source_id = ? AND is_manual = 0')) return { results: existingRows }
+          if (sql.includes('SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?')) return { results: [{ cnt: 1 }] }
+          return { results: [] }
+        },
+        run: async () => {
+          if (sql.includes('INSERT INTO nodes')) {
+            operations.push({ operation: 'insert-node', id: args[0], name: args[2] })
+          }
+          if (sql.includes('UPDATE nodes SET')) {
+            operations.push({
+              operation: 'update-node',
+              name: args[0],
+              protocol: args[1],
+              server: args[2],
+              port: args[3],
+              id: args[10],
+            })
+          }
+          if (sql.includes('DELETE FROM nodes WHERE id = ?')) {
+            operations.push({ operation: 'delete-node', id: args[0] })
           }
           return { success: true }
         },

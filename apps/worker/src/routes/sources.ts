@@ -322,21 +322,26 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
       parsed_config: string | null;
     }>();
 
-  const existingByKey = new Map(existingRows.map((r) => [`${r.server}:${r.port}:${r.name}`, r]));
+  const existingByKey = new Map(existingRows.map((r) => [nodeIdentityKey(r), r]));
+  const existingByUniqueName = uniqueRowsByName(existingRows);
+  const parsedNameCounts = countByName(parsedNodes);
 
   const addedNodes: typeof parsedNodes = [];
   const updatedNodes: Array<{ id: string; node: ParsedNodeRaw }> = [];
+  const matchedExistingIds = new Set<string>();
   const seenKeys = new Set<string>();
 
   for (const node of parsedNodes) {
-    const key = `${node.server}:${node.port}:${node.name}`;
+    const key = nodeIdentityKey(node);
     if (seenKeys.has(key)) continue;
 
-    const existing = existingByKey.get(key);
+    const existing = existingByKey.get(key)
+      ?? (parsedNameCounts.get(node.name) === 1 ? existingByUniqueName.get(node.name) : undefined);
     if (existing) {
       if (shouldUpdateNode(existing, node)) {
         updatedNodes.push({ id: existing.id, node });
       }
+      matchedExistingIds.add(existing.id);
     } else {
       addedNodes.push(node);
     }
@@ -344,9 +349,8 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
   }
 
   // Identify nodes to remove (were from this source, not in new set)
-  const newKeys = new Set(parsedNodes.map((n) => `${n.server}:${n.port}:${n.name}`));
   const toRemove = existingRows.filter(
-    (r) => !newKeys.has(`${r.server}:${r.port}:${r.name}`)
+    (r) => !matchedExistingIds.has(r.id)
   );
 
   const ts = now();
@@ -376,15 +380,18 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
       .run();
   }
 
-  // Update existing nodes whose identity is unchanged but config may have changed
+  // Update existing nodes when their stable subscription identity still matches.
   for (const item of updatedNodes) {
     await db.prepare(
       `UPDATE nodes SET
-        protocol = ?, country = ?, country_code = ?, tags = ?, raw_config = ?, parsed_config = ?, updated_at = ?
+        name = ?, protocol = ?, server = ?, port = ?, country = ?, country_code = ?, tags = ?, raw_config = ?, parsed_config = ?, updated_at = ?
        WHERE id = ?`
     )
       .bind(
+        item.node.name,
         item.node.protocol,
+        item.node.server,
+        item.node.port,
         item.node.country ?? null,
         item.node.countryCode ?? null,
         jsonStringify(item.node.tags),
@@ -780,6 +787,9 @@ function parseBySourceFormat(
 
 function shouldUpdateNode(
   existing: {
+    name: string;
+    server: string;
+    port: number;
     protocol: string;
     country: string | null;
     country_code: string | null;
@@ -789,12 +799,31 @@ function shouldUpdateNode(
   },
   next: ParsedNodeRaw
 ): boolean {
-  return existing.protocol !== next.protocol ||
+  return existing.name !== next.name ||
+    existing.server !== next.server ||
+    Number(existing.port) !== next.port ||
+    existing.protocol !== next.protocol ||
     (existing.country ?? null) !== (next.country ?? null) ||
     (existing.country_code ?? null) !== (next.countryCode ?? null) ||
     (existing.tags ?? '[]') !== jsonStringify(next.tags) ||
     existing.raw_config !== jsonStringify(next.rawConfig) ||
     existing.parsed_config !== jsonStringify(next.parsedConfig);
+}
+
+function nodeIdentityKey(node: { server: string; port: number; name: string }): string {
+  return `${node.server}:${node.port}:${node.name}`;
+}
+
+function uniqueRowsByName<T extends { name: string }>(rows: T[]): Map<string, T> {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.name, (counts.get(row.name) ?? 0) + 1);
+  return new Map(rows.filter((row) => counts.get(row.name) === 1).map((row) => [row.name, row]));
+}
+
+function countByName(nodes: Array<{ name: string }>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const node of nodes) counts.set(node.name, (counts.get(node.name) ?? 0) + 1);
+  return counts;
 }
 
 export function parseClashYaml(content: string): ParsedNodeRaw[] {
