@@ -73,6 +73,15 @@ export function resolveExportConfigName(name: unknown, format: ExportConfig['for
   return `默认 ${labels[format ?? 'mihomo'] ?? 'Mihomo'} 配置`
 }
 
+export function resolveExportConfigUpdateName(
+  name: unknown,
+  nextFormat: ExportConfig['format'] | undefined,
+  existingFormat: ExportConfig['format']
+): string | undefined {
+  if (name === undefined) return undefined
+  return resolveExportConfigName(name, nextFormat ?? existingFormat)
+}
+
 // GET /api/export/configs/:id
 exportRouter.get('/configs/:id', async (c) => {
   await ensureZeroSetupDefaults(c.env.DB, now())
@@ -100,7 +109,14 @@ exportRouter.put('/configs/:id', async (c) => {
   const fields: string[] = []
   const values: unknown[] = []
 
-  if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name) }
+  if (body.name !== undefined) {
+    fields.push('name = ?')
+    values.push(resolveExportConfigUpdateName(
+      body.name,
+      body.format,
+      existing.format as ExportConfig['format']
+    ))
+  }
   if (body.format !== undefined) { fields.push('format = ?'); values.push(body.format) }
   if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0) }
   if (body.includeCollectionIds !== undefined) { fields.push('include_collection_ids = ?'); values.push(JSON.stringify(selection.includeCollectionIds)) }

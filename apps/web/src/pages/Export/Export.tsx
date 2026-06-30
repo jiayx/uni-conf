@@ -101,7 +101,7 @@ export function Export() {
 
   const handleSave = async () => {
     const payload = {
-      name: form.name.trim() || undefined,
+      name: form.name,
       format: form.format,
       enabled: form.enabled,
       includeCollectionIds: form.includeCollectionIds,

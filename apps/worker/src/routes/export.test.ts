@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { isValidExportFormat, resolveExportConfigName, validateExportConfigSelection } from './export'
+import {
+  isValidExportFormat,
+  resolveExportConfigName,
+  resolveExportConfigUpdateName,
+  validateExportConfigSelection,
+} from './export'
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
@@ -10,6 +15,13 @@ describe('export route helpers', () => {
 
   it('trims user-provided export config names', () => {
     expect(resolveExportConfigName('  Router Config  ', 'mihomo')).toBe('Router Config')
+  })
+
+  it('normalizes update names only when the client submits a name field', () => {
+    expect(resolveExportConfigUpdateName(undefined, 'singbox', 'mihomo')).toBeUndefined()
+    expect(resolveExportConfigUpdateName('', 'singbox', 'mihomo')).toBe('默认 sing-box 配置')
+    expect(resolveExportConfigUpdateName('   ', undefined, 'stash')).toBe('默认 Stash 配置')
+    expect(resolveExportConfigUpdateName('  Travel  ', 'mihomo', 'singbox')).toBe('Travel')
   })
 
   it('validates export formats from the shared subscription format list', () => {
