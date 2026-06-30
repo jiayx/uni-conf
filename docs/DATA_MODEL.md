@@ -434,7 +434,7 @@ US - Airport A - 02
 Other - Manual - 01
 ```
 
-`collectionNodeNames` is built from the rewritten names, so node-backed outlet groups reference the same names that appear in the exported `proxies` / `outbounds` list.
+`collectionNodeNames` is built from the rewritten names, so node-backed outlet groups reference the same names that appear in the exported `proxies` / `outbounds` list. If export-wide dedupe removes a duplicate node row, collections that referenced the removed row are remapped through the same full-config dedupe key to the retained exported node name instead of becoming empty.
 
 ### ClientCompatibility (stored in `rules.compatibility`)
 ```json

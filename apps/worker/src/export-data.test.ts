@@ -197,4 +197,30 @@ describe('export data scoping', () => {
       'collection-hk': ['HK - Airport A - 01', 'HK - Airport A - 02'],
     })
   })
+
+  it('maps deduplicated collection members to the retained exported node name', () => {
+    const duplicateConfig = '{"protocol":"trojan","server":"same.example.com","port":443,"extra":{}}'
+    const collectionRows = new Map([
+      ['collection-a', [
+        { id: 'node-a', name: 'A 01', parsed_config: duplicateConfig },
+      ]],
+      ['collection-b', [
+        { id: 'node-b', name: 'B 01', parsed_config: duplicateConfig },
+      ]],
+    ])
+    const exportedRows = applyExportNodeNames(
+      applyDefaultExportDedup([
+        { id: 'node-a', source_id: 'source-a', name: 'A 01', country_code: 'US', parsed_config: duplicateConfig },
+        { id: 'node-b', source_id: 'source-b', name: 'B 01', country_code: 'US', parsed_config: duplicateConfig },
+      ]),
+      new Map([['source-a', 'Airport A'], ['source-b', 'Airport B']]),
+      'smart'
+    )
+
+    expect(exportedRows.map((row) => row.id)).toEqual(['node-a'])
+    expect(buildCollectionNodeNames(collectionRows, exportedRows)).toEqual({
+      'collection-a': ['US - Airport A - 01'],
+      'collection-b': ['US - Airport A - 01'],
+    })
+  })
 })

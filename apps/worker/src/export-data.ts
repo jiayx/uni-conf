@@ -267,13 +267,19 @@ export function buildCollectionNodeNames(
 ): Record<string, string[]> {
   const exportedIds = new Set(exportedRows.map((row) => String(row.id)))
   const exportedNameById = new Map(exportedRows.map((row) => [String(row.id), String(row.name ?? '')]))
+  const exportedNameByDedupKey = new Map(exportedRows.map((row) => [getExportDedupKey(row), String(row.name ?? '')]))
   const result: Record<string, string[]> = {}
 
   for (const [collectionId, rows] of collectionRows) {
-    result[collectionId] = rows
-      .filter((row) => exportedIds.has(String(row.id)))
-      .map((row) => exportedNameById.get(String(row.id)) ?? '')
-      .filter(Boolean)
+    const names = new Set<string>()
+    for (const row of rows) {
+      const id = String(row.id)
+      const name = exportedIds.has(id)
+        ? exportedNameById.get(id)
+        : exportedNameByDedupKey.get(getExportDedupKey(row))
+      if (name) names.add(name)
+    }
+    result[collectionId] = [...names]
   }
 
   return result
