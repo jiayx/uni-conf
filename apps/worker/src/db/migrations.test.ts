@@ -29,6 +29,28 @@ describe('database migrations', () => {
 
     expect(duplicateAdds).toEqual([])
   })
+
+  it('keeps the final zero-setup foundation migration in sync with managed built-ins', () => {
+    const migration = readFileSync(
+      join(migrationsDir, '0019_normalize_zero_setup_foundations.sql'),
+      'utf8'
+    )
+
+    expect(migration).toContain('builtin-default-node-pool')
+    expect(migration).toContain('[uni-conf:default-node-pool]')
+    expect(migration).toContain('"field":"tag"')
+    expect(migration).toContain('"operator":"not_in"')
+    expect(migration).toContain('"high-multiplier"')
+    expect(migration).toContain('builtin-google')
+    for (const id of [
+      'builtin-all-nodes',
+      'builtin-node-select',
+      'builtin-auto-select',
+      'builtin-fallback-select',
+    ]) {
+      expect(migration).toContain(`WHEN '${id}' THEN '["builtin-default-node-pool"]'`)
+    }
+  })
 })
 
 function parseCreateTableColumns(sql: string): Map<string, Set<string>> {

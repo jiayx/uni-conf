@@ -53,7 +53,7 @@ uni-conf/
 
 ## Database Migrations
 
-`apps/worker/migrations/0001_initial_schema.sql` is the canonical fresh-install schema. Later migration files may still exist to preserve the historical migration order, but they must not re-add columns already present in `0001`; repeated `ALTER TABLE ... ADD COLUMN` statements break a new D1 database when migrations are applied from scratch. If a later migration's schema change has been folded into `0001`, keep that migration as a no-op or data backfill only, and verify a fresh SQLite/D1 database can apply every file in lexical order. `apps/worker/src/db/migrations.test.ts` enforces this by rejecting later `ADD COLUMN` statements for columns already declared by the initial schema.
+`apps/worker/migrations/0001_initial_schema.sql` is the canonical fresh-install schema. Later migration files may still exist to preserve the historical migration order, but they must not re-add columns already present in `0001`; repeated `ALTER TABLE ... ADD COLUMN` statements break a new D1 database when migrations are applied from scratch. If a later migration's schema change has been folded into `0001`, keep that migration as a no-op or data backfill only, and verify a fresh SQLite/D1 database can apply every file in lexical order. `0019_normalize_zero_setup_foundations.sql` is the final static normalization for built-in policy groups and the default usable node pool, matching what the runtime zero-setup sync also enforces. `apps/worker/src/db/migrations.test.ts` rejects later `ADD COLUMN` statements for columns already declared by the initial schema and checks that the foundation normalization keeps the managed default pool and global node outlets present.
 
 ---
 
