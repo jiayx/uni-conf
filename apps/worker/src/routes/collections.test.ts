@@ -100,7 +100,7 @@ describe('collections route helpers', () => {
     })
     expect(validateCollectionWrite({ name: 'US Auto', notes: '[uni-conf:auto-node-group] country:US:url-test' }, { create: true })).toEqual({
       valid: false,
-      error: 'generated node group marker is reserved',
+      error: 'system node group marker is reserved',
     })
   })
 

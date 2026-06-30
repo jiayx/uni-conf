@@ -70,7 +70,7 @@ describe('export data scoping', () => {
     expect(scopeIds).toEqual(['collection-us', 'collection-hk'])
   })
 
-  it('exports all nodes when full client configs include an all-node outlet group', () => {
+  it('uses the default node pool when full client configs include global node outlets', () => {
     const scopeIds = resolveCollectionScopeIds(
       baseConfig,
       [
@@ -78,13 +78,13 @@ describe('export data scoping', () => {
         {
           id: 'builtin-all-nodes',
           name: '全部节点',
-          collection_ids: '[]',
+          collection_ids: '["builtin-default-node-pool"]',
           group_ids: '[]',
         },
       ]
     )
 
-    expect(scopeIds).toEqual([])
+    expect(scopeIds).toEqual(['collection-us', 'collection-hk', 'builtin-default-node-pool'])
   })
 
   it('uses selected node groups for node subscription configs', () => {

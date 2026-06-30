@@ -22,7 +22,6 @@ import {
   now,
 } from './db/helpers'
 import {
-  ALL_NODE_OUTLET_GROUP_IDS,
   applyRoutingPolicyGroupLinks,
   listAutoCollectionKeysById,
 } from './services/routing-policy-groups'
@@ -189,8 +188,6 @@ export function resolveCollectionScopeIds(
 ): string[] {
   if (config && isNodeOnlyExport(config)) return config.includeCollectionIds
 
-  if (containsAllNodeOutletGroup(groupRows)) return []
-
   const groupCollectionIds = collectGroupCollectionIds(groupRows)
   if (groupCollectionIds.length > 0) return groupCollectionIds
 
@@ -209,11 +206,6 @@ function collectGroupCollectionIds(groupRows: Record<string, unknown>[]): string
     }
   }
   return [...ids]
-}
-
-function containsAllNodeOutletGroup(groupRows: Record<string, unknown>[]): boolean {
-  const allNodeGroupIds = new Set(ALL_NODE_OUTLET_GROUP_IDS)
-  return groupRows.some((row) => allNodeGroupIds.has(String(row.id)))
 }
 
 function parseStringArray(value: unknown): string[] {

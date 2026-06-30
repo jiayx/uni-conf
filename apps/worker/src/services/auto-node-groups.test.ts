@@ -114,6 +114,25 @@ describe('auto node groups', () => {
     expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
   });
 
+  it('keeps the default node pool even when country auto groups are disabled', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue(makeSettings({
+      autoNodeGroupsEnabled: false,
+      autoNodeGroupTypes: ['url-test'],
+    }));
+    const db = createMockDb({});
+
+    await syncAutoNodeGroups(db, '2026-01-01T00:00:00.000Z');
+
+    expect(db.operations).toContainEqual({
+      operation: 'insert-default-node-pool',
+      id: 'builtin-default-node-pool',
+    });
+    expect(db.operations).toContainEqual({
+      operation: 'update-default-node-pool',
+      id: 'builtin-default-node-pool',
+    });
+  });
+
   it('keeps selected select and fallback auto groups instead of deleting non-url-test groups', async () => {
     vi.mocked(getAppSettings).mockResolvedValue(makeSettings({
       autoNodeGroupTypes: ['select', 'fallback'],
@@ -261,6 +280,9 @@ function operationFromSql(sql: string, args: unknown[]): Record<string, unknown>
     return { operation: 'delete-collection', id: args[0] };
   }
   if (sql.startsWith('UPDATE collections')) {
+    if (String(args[3] ?? '').startsWith('builtin-')) {
+      return { operation: 'update-default-node-pool', id: args[3] };
+    }
     return { operation: 'update-collection', name: args[0], id: args[4] };
   }
   if (sql.startsWith('UPDATE groups')) {
@@ -268,6 +290,9 @@ function operationFromSql(sql: string, args: unknown[]): Record<string, unknown>
   }
   if (sql.startsWith('INSERT INTO collections')) {
     return { operation: 'insert-collection', id: args[0], name: args[1] };
+  }
+  if (sql.startsWith('INSERT OR IGNORE INTO collections')) {
+    return { operation: 'insert-default-node-pool', id: args[0] };
   }
   if (sql.startsWith('INSERT INTO groups')) {
     return { operation: 'insert-group', id: args[0], name: args[1], type: args[2] };

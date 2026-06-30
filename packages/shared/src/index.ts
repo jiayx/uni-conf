@@ -12,6 +12,8 @@ export interface TrafficMultiplierInfo {
 }
 
 export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
+export const DEFAULT_NODE_POOL_COLLECTION_ID = 'builtin-default-node-pool';
+export const DEFAULT_NODE_POOL_PREFIX = '[uni-conf:default-node-pool]';
 export const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
 
 export const DEFAULT_HEALTH_CHECK = {

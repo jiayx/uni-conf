@@ -3,6 +3,7 @@ import {
   buildRoutingPolicyTemplateGroupNames,
   detectCountry,
   DEFAULT_HEALTH_CHECK,
+  DEFAULT_NODE_POOL_COLLECTION_ID,
   GLOBAL_NODE_OUTLET_GROUP_IDS,
   ROUTING_POLICY_TEMPLATES,
   type RoutingPolicyTemplate,
@@ -44,25 +45,25 @@ const ROUTING_TAG_GROUP_PREFERENCES: Record<string, string[]> = {
 };
 
 const DEFAULT_GENERATED_GROUPS = [
-  { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: [] },
-  { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [] },
-  { id: 'builtin-streaming', name: 'Streaming', type: 'select', sortOrder: 2, builtins: [] },
-  { id: 'builtin-telegram', name: 'Telegram', type: 'select', sortOrder: 3, builtins: [] },
-  { id: 'builtin-social', name: 'Social', type: 'select', sortOrder: 4, builtins: [] },
-  { id: 'builtin-github', name: 'GitHub', type: 'select', sortOrder: 5, builtins: [] },
-  { id: 'builtin-google', name: 'Google', type: 'select', sortOrder: 6, builtins: [] },
-  { id: 'builtin-apple', name: 'Apple', type: 'select', sortOrder: 7, builtins: [] },
-  { id: 'builtin-microsoft', name: 'Microsoft', type: 'select', sortOrder: 8, builtins: [] },
-  { id: 'builtin-final', name: '漏网之鱼', type: 'select', sortOrder: 9, builtins: [] },
-  { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 10, builtins: [] },
-  { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 11, builtins: [] },
-  { id: 'builtin-developer', name: 'Developer', type: 'select', sortOrder: 12, builtins: [] },
-  { id: 'builtin-direct', name: 'DIRECT', type: 'direct', sortOrder: 13, builtins: ['DIRECT'] },
-  { id: 'builtin-reject', name: 'REJECT', type: 'reject', sortOrder: 14, builtins: ['REJECT'] },
-  { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 15, builtins: [] },
-  { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 16, builtins: [] },
-  { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 17, builtins: [] },
-  { id: 'builtin-fallback-select', name: '故障切换', type: 'fallback', sortOrder: 18, builtins: [] },
+  { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: [], collectionIds: [] },
+  { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [], collectionIds: [] },
+  { id: 'builtin-streaming', name: 'Streaming', type: 'select', sortOrder: 2, builtins: [], collectionIds: [] },
+  { id: 'builtin-telegram', name: 'Telegram', type: 'select', sortOrder: 3, builtins: [], collectionIds: [] },
+  { id: 'builtin-social', name: 'Social', type: 'select', sortOrder: 4, builtins: [], collectionIds: [] },
+  { id: 'builtin-github', name: 'GitHub', type: 'select', sortOrder: 5, builtins: [], collectionIds: [] },
+  { id: 'builtin-google', name: 'Google', type: 'select', sortOrder: 6, builtins: [], collectionIds: [] },
+  { id: 'builtin-apple', name: 'Apple', type: 'select', sortOrder: 7, builtins: [], collectionIds: [] },
+  { id: 'builtin-microsoft', name: 'Microsoft', type: 'select', sortOrder: 8, builtins: [], collectionIds: [] },
+  { id: 'builtin-final', name: '漏网之鱼', type: 'select', sortOrder: 9, builtins: [], collectionIds: [] },
+  { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 10, builtins: [], collectionIds: [] },
+  { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 11, builtins: [], collectionIds: [] },
+  { id: 'builtin-developer', name: 'Developer', type: 'select', sortOrder: 12, builtins: [], collectionIds: [] },
+  { id: 'builtin-direct', name: 'DIRECT', type: 'direct', sortOrder: 13, builtins: ['DIRECT'], collectionIds: [] },
+  { id: 'builtin-reject', name: 'REJECT', type: 'reject', sortOrder: 14, builtins: ['REJECT'], collectionIds: [] },
+  { id: 'builtin-all-nodes', name: '全部节点', type: 'select', sortOrder: 15, builtins: [], collectionIds: [DEFAULT_NODE_POOL_COLLECTION_ID] },
+  { id: 'builtin-node-select', name: '节点选择', type: 'select', sortOrder: 16, builtins: [], collectionIds: [DEFAULT_NODE_POOL_COLLECTION_ID] },
+  { id: 'builtin-auto-select', name: '自动选择', type: 'url-test', sortOrder: 17, builtins: [], collectionIds: [DEFAULT_NODE_POOL_COLLECTION_ID] },
+  { id: 'builtin-fallback-select', name: '故障切换', type: 'fallback', sortOrder: 18, builtins: [], collectionIds: [DEFAULT_NODE_POOL_COLLECTION_ID] },
 ];
 
 export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promise<void> {
@@ -222,11 +223,12 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
     db.prepare(
       `INSERT OR IGNORE INTO groups
         (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, '[]', '[]', ?, ?, ?, ?, ?, 1, ?, 1, ?, ?)`
+       VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, 1, ?, 1, ?, ?)`
     ).bind(
       group.id,
       group.name,
       group.type,
+      jsonStringify(group.collectionIds),
       jsonStringify(group.builtins),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
@@ -242,7 +244,7 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
       `UPDATE groups SET
         name = ?,
         type = ?,
-        collection_ids = '[]',
+        collection_ids = ?,
         builtins = ?,
         test_url = ?,
         interval = ?,
@@ -255,6 +257,7 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
     ).bind(
       group.name,
       group.type,
+      jsonStringify(group.collectionIds),
       jsonStringify(group.builtins),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,

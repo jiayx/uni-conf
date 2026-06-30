@@ -52,7 +52,8 @@ describe('buildExportData', () => {
       'builtin-auto-select',
       'us-auto',
     ]);
-    expect(data.nodes.map((node) => node.server)).toEqual(['us.example.com', 'hk.example.com']);
+    expect(data.nodes.map((node) => node.server).sort()).toEqual(['hk.example.com', 'us.example.com']);
+    expect(data.nodes.map((node) => node.server)).not.toContain('us-high.example.com');
     expect(data.collectionNodeNames['collection-us']).toEqual(['Airport A - US - 01']);
     expect(data.collectionNodeNames['collection-hk']).toEqual(['Airport A - HK - 01']);
   });
@@ -102,8 +103,10 @@ function createScopedDb(): D1Database {
     nodes: [
       nodeRow('node-us', 'US 01', 'us.example.com', 'US'),
       nodeRow('node-hk', 'HK 01', 'hk.example.com', 'HK'),
+      nodeRow('node-us-high', 'US 10x', 'us-high.example.com', 'US', ['high-multiplier']),
     ],
     collections: [
+      collectionRow('builtin-default-node-pool', '默认可用节点'),
       collectionRow('collection-us', 'US Auto', 'US'),
       collectionRow('collection-hk', 'HK Auto', 'HK'),
     ],
@@ -112,7 +115,7 @@ function createScopedDb(): D1Database {
       groupRow('builtin-ai', 'AI', 'select', [], [], 1, true),
       groupRow('builtin-direct', 'DIRECT', 'direct', [], [], 2, true, ['DIRECT']),
       groupRow('builtin-reject', 'REJECT', 'reject', [], [], 3, true, ['REJECT']),
-      groupRow('builtin-auto-select', '自动选择', 'url-test', [], [], 4, true),
+      groupRow('builtin-auto-select', '自动选择', 'url-test', ['builtin-default-node-pool'], [], 4, true),
       groupRow('us-auto', 'US Auto', 'url-test', ['collection-us'], [], 5, false),
     ],
     rules: [
@@ -186,7 +189,7 @@ function scopedRows() {
   };
 }
 
-function nodeRow(id: string, name: string, server: string, countryCode: string): Record<string, unknown> {
+function nodeRow(id: string, name: string, server: string, countryCode: string, tags: string[] = []): Record<string, unknown> {
   return {
     id,
     source_id: 'source-a',
@@ -197,7 +200,7 @@ function nodeRow(id: string, name: string, server: string, countryCode: string):
     country: countryCode === 'US' ? 'United States' : 'Hong Kong',
     country_code: countryCode,
     enabled: 1,
-    tags: '[]',
+    tags: JSON.stringify(tags),
     notes: null,
     raw_config: '{}',
     parsed_config: JSON.stringify({ protocol: 'ss', server, port: 443, extra: {} }),
@@ -207,13 +210,18 @@ function nodeRow(id: string, name: string, server: string, countryCode: string):
   };
 }
 
-function collectionRow(id: string, name: string, countryCode: string): Record<string, unknown> {
+function collectionRow(id: string, name: string, countryCode?: string): Record<string, unknown> {
   return {
     id,
     name,
     source_ids: '[]',
     node_ids: '[]',
-    filters: JSON.stringify([{ id: `${id}-country`, field: 'countryCode', operator: 'equals', value: countryCode, enabled: true }]),
+    filters: JSON.stringify(countryCode
+      ? [
+          { id: `${id}-country`, field: 'countryCode', operator: 'equals', value: countryCode, enabled: true },
+          { id: `${id}-exclude-high-multiplier`, field: 'tag', operator: 'not_in', value: ['high-multiplier'], enabled: true },
+        ]
+      : [{ id: 'default-exclude-high-multiplier', field: 'tag', operator: 'not_in', value: ['high-multiplier'], enabled: true }]),
     renames: '[]',
     dedup: 'name',
     sort: 'country',

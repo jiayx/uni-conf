@@ -369,14 +369,14 @@ describe('routing policy group sync', () => {
     const normalizedGroups = batches
       .flat()
       .filter((statement) => statement.sql.includes('UPDATE groups SET') && statement.sql.includes('builtins = ?'));
-    const normalizedById = new Map(normalizedGroups.map((statement) => [statement.args[9], statement.args]));
+    const normalizedById = new Map(normalizedGroups.map((statement) => [statement.args[10], statement.args]));
 
-    expect(byId.get('builtin-proxy')?.[3]).toBe('[]');
-    expect(byId.get('builtin-direct')?.[3]).toBe('["DIRECT"]');
-    expect(byId.get('builtin-reject')?.[3]).toBe('["REJECT"]');
-    expect(normalizedById.get('builtin-proxy')?.[2]).toBe('[]');
-    expect(normalizedById.get('builtin-direct')?.[2]).toBe('["DIRECT"]');
-    expect(normalizedById.get('builtin-reject')?.[2]).toBe('["REJECT"]');
+    expect(byId.get('builtin-proxy')?.[4]).toBe('[]');
+    expect(byId.get('builtin-direct')?.[4]).toBe('["DIRECT"]');
+    expect(byId.get('builtin-reject')?.[4]).toBe('["REJECT"]');
+    expect(normalizedById.get('builtin-proxy')?.[3]).toBe('[]');
+    expect(normalizedById.get('builtin-direct')?.[3]).toBe('["DIRECT"]');
+    expect(normalizedById.get('builtin-reject')?.[3]).toBe('["REJECT"]');
   });
 
   it('manages every generated foundation and business group through templates', () => {

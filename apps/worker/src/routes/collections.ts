@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapNode, newId, now } from '../db/helpers';
 import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
-import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared';
+import { AUTO_NODE_GROUP_PREFIX, DEFAULT_NODE_POOL_PREFIX } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows';
 
@@ -89,8 +89,8 @@ app.put('/:id', async (c) => {
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Collection not found' }, 404);
-  if (isManagedAutoNodeCollectionNotes(existing.notes)) {
-    return c.json({ success: false, error: 'Generated node groups are managed by auto node group settings' }, 409);
+  if (isManagedNodeCollectionNotes(existing.notes)) {
+    return c.json({ success: false, error: 'System node groups are managed automatically' }, 409);
   }
 
   const body = await c.req.json<Partial<NodeCollection>>();
@@ -142,8 +142,8 @@ app.delete('/:id', async (c) => {
     .first<{ id: string; notes: string | null }>();
 
   if (!row) return c.json({ success: false, error: 'Collection not found' }, 404);
-  if (isManagedAutoNodeCollectionNotes(row.notes)) {
-    return c.json({ success: false, error: 'Generated node groups are managed by auto node group settings' }, 409);
+  if (isManagedNodeCollectionNotes(row.notes)) {
+    return c.json({ success: false, error: 'System node groups are managed automatically' }, 409);
   }
   await c.env.DB.prepare('DELETE FROM collections WHERE id = ?').bind(id).run();
   await ensureZeroSetupDefaults(c.env.DB, now());
@@ -485,8 +485,8 @@ export function validateCollectionWrite(
   if (body.sort !== undefined && !SORT_STRATEGIES.has(body.sort)) {
     return { valid: false, error: 'invalid sort strategy' };
   }
-  if (body.notes !== undefined && isManagedAutoNodeCollectionNotes(body.notes)) {
-    return { valid: false, error: 'generated node group marker is reserved' };
+  if (body.notes !== undefined && isManagedNodeCollectionNotes(body.notes)) {
+    return { valid: false, error: 'system node group marker is reserved' };
   }
 
   return {
@@ -506,6 +506,12 @@ export function validateCollectionWrite(
 
 export function isManagedAutoNodeCollectionNotes(value: unknown): boolean {
   return typeof value === 'string' && value.trim().startsWith(AUTO_NODE_GROUP_PREFIX);
+}
+
+export function isManagedNodeCollectionNotes(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const text = value.trim();
+  return text.startsWith(AUTO_NODE_GROUP_PREFIX) || text.startsWith(DEFAULT_NODE_POOL_PREFIX);
 }
 
 function normalizeOptionalText(value: unknown): string | undefined {

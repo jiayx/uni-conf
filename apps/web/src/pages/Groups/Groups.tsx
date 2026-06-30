@@ -443,7 +443,7 @@ export function Groups() {
         <div className={styles.autoMembersInfo}>
           <div className={styles.autoMembersTitle}>出口候选自动维护</div>
           <div className={styles.autoMembersText}>
-            保存后系统会自动加入 PROXY、DIRECT、REJECT、全部节点、节点选择、自动选择、故障切换，以及当前可用的国家 / 标签节点组。
+            保存后系统会自动加入 PROXY、DIRECT、REJECT、全部节点、节点选择、自动选择、故障切换，以及当前可用的国家 / 标签节点组；全局节点出口默认使用排除高倍率节点后的可用节点池。
           </div>
         </div>
       </Modal>
@@ -496,13 +496,13 @@ function ArrowDownIcon() {
 }
 
 function describeFoundationGroup(group: ProxyGroup): string {
-  if (group.name === 'PROXY') return '默认代理出口，自动聚合规则基础、节点选择、自动选择、故障切换和全部节点。'
+  if (group.name === 'PROXY') return '默认代理出口，自动聚合规则基础、默认可用节点池出口和可用节点组。'
   if (group.name === 'DIRECT') return '直连出口，国内规则、局域网和无需代理的流量会命中这里。'
   if (group.name === 'REJECT') return '拒绝出口，广告、HTTPDNS 等拦截规则会命中这里。'
-  if (group.name === '全部节点') return '包含所有可用节点，适合需要完整节点池的手动选择场景。'
-  if (group.name === '节点选择') return '手动选择一个具体节点或节点组，适合用户临时指定出口。'
-  if (group.name === '自动选择') return '按延迟自动选择可用节点，作为默认代理出口的优先候选。'
-  if (group.name === '故障切换') return '当前节点不可用时自动切换到下一个可用节点。'
+  if (group.name === '全部节点') return '包含默认可用节点池，默认排除高倍率节点，适合需要完整低成本节点池的手动选择场景。'
+  if (group.name === '节点选择') return '从默认可用节点池里手动选择一个具体节点或节点组，适合临时指定出口。'
+  if (group.name === '自动选择') return '从默认可用节点池里按延迟自动选择节点，作为默认代理出口的优先候选。'
+  if (group.name === '故障切换') return '从默认可用节点池里做故障切换，当前节点不可用时自动切到下一个。'
   return '系统内置基础出口。'
 }
 

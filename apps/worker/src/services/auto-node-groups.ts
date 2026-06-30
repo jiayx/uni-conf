@@ -1,4 +1,10 @@
-import { AUTO_NODE_GROUP_PREFIX, countryCodeToFlag, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared';
+import {
+  AUTO_NODE_GROUP_PREFIX,
+  countryCodeToFlag,
+  DEFAULT_HEALTH_CHECK,
+  DEFAULT_NODE_POOL_COLLECTION_ID,
+  DEFAULT_NODE_POOL_PREFIX,
+} from '@uni-conf/shared';
 import { jsonStringify, newId } from '../db/helpers';
 import { enabledNodeRowsQuery } from './enabled-node-rows';
 import { syncRoutingPolicyGroups } from './routing-policy-groups';
@@ -50,6 +56,7 @@ const TAG_GROUPS = [
 
 export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<void> {
   const settings = await getAppSettings(db);
+  await ensureDefaultNodePoolCollection(db, ts);
   const enabledTypes = settings.autoNodeGroupsEnabled ? settings.autoNodeGroupTypes : [];
   const autoCollections = await listAutoCollections(db);
 
@@ -91,6 +98,28 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
   }
 
   await syncRoutingPolicyGroups(db, ts);
+}
+
+async function ensureDefaultNodePoolCollection(db: D1Database, ts: string): Promise<void> {
+  const filters = jsonStringify([{ ...EXCLUDE_HIGH_MULTIPLIER_FILTER }]);
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO collections
+        (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
+       VALUES (?, '默认可用节点', '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
+    )
+    .bind(DEFAULT_NODE_POOL_COLLECTION_ID, filters, DEFAULT_NODE_POOL_PREFIX, ts, ts)
+    .run();
+  await db
+    .prepare(
+      `UPDATE collections SET
+        name = '默认可用节点', source_ids = '[]', node_ids = '[]',
+        filters = ?, renames = '[]', dedup = 'full_config', sort = 'name',
+        sort_country_order = '[]', enabled = 1, notes = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .bind(filters, DEFAULT_NODE_POOL_PREFIX, ts, DEFAULT_NODE_POOL_COLLECTION_ID)
+    .run();
 }
 
 async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]> {
