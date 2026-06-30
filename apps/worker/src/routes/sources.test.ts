@@ -246,19 +246,21 @@ proxy-groups:
     expect(isSubscriptionInfoNodeName('香港 0.5x 家宽')).toBe(false)
   })
 
-  it('should filter subscription info nodes and unsupported protocols before refresh persistence', () => {
+  it('should filter subscription info nodes, unsupported protocols, and incomplete protocol configs before refresh persistence', () => {
     const yaml = `
 proxies:
     - { name: '剩余流量：111 GB', type: trojan, server: info.example.com, port: 443, password: pwd }
     - { name: '官网：https://example.com', type: trojan, server: info2.example.com, port: 443, password: pwd }
     - { name: '🇭🇰 HK 01', type: trojan, server: hk.example.com, port: 443, password: pwd }
     - { name: 'Unknown Protocol', type: unsupported-protocol, server: unknown.example.com, port: 443, password: pwd }
+    - { name: 'Trojan Missing Password', type: trojan, server: missing.example.com, port: 443 }
+    - { name: 'VMess Missing UUID', type: vmess, server: vmess.example.com, port: 443 }
 proxy-groups:
-    - { name: 'Upstream Auto', type: select, proxies: ['剩余流量：111 GB', '🇭🇰 HK 01', 'Unknown Protocol'] }
+    - { name: 'Upstream Auto', type: select, proxies: ['剩余流量：111 GB', '🇭🇰 HK 01', 'Unknown Protocol', 'Trojan Missing Password', 'VMess Missing UUID'] }
 `
     const result = filterUsableParsedContent(parseClashYaml(yaml), parseClashGroups(yaml))
 
-    expect(result.excludedCount).toBe(3)
+    expect(result.excludedCount).toBe(5)
     expect(result.nodes.map(node => node.name)).toEqual(['🇭🇰 HK 01'])
     expect(result.groups).toEqual([
       { name: 'Upstream Auto', type: 'select', memberNames: ['🇭🇰 HK 01'] },
@@ -346,12 +348,13 @@ proxies:
     const edgeCasesYaml = `
 proxies:
     # Comments should be ignored
-    - { name: "Node's Name", type: trojan, server: server.com, port: 443 }
+    - { name: "Node's Name", type: trojan, server: server.com, port: 443, password: pwd }
     - name: "Name: with: colons"
       type: vmess
       server: example.com
       port: 443
-    - { name: '包含{括号}的', type: ss, server: test.com, port: 8388 }
+      uuid: 12345678-1234-1234-1234-123456789012
+    - { name: '包含{括号}的', type: ss, server: test.com, port: 8388, cipher: aes-256-gcm, password: pwd }
 `
     const nodes = parseClashYaml(edgeCasesYaml)
     expect(nodes.length).toBe(3)

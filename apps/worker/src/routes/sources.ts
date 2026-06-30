@@ -11,6 +11,7 @@ import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } f
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
+import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -652,7 +653,9 @@ export interface ParsedNodeRaw {
 }
 
 function shouldKeepParsedNode(node: ParsedNodeRaw): boolean {
-  return node.protocol !== 'unknown' && !isSubscriptionInfoNodeName(node.name);
+  return isUsableProxyProtocol(node.protocol)
+    && !isSubscriptionInfoNodeName(node.name)
+    && missingRequiredProtocolFields(node.protocol, node.parsedConfig, node.rawConfig).length === 0;
 }
 
 export function filterUsableParsedContent(
