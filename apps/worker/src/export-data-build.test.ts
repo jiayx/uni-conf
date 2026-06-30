@@ -56,6 +56,28 @@ describe('buildExportData', () => {
     expect(data.collectionNodeNames['collection-us']).toEqual(['Airport A - US - 01']);
     expect(data.collectionNodeNames['collection-hk']).toEqual(['Airport A - HK - 01']);
   });
+
+  it('keeps DIRECT and REJECT rules when a selected routing policy group references foundation targets', async () => {
+    const db = createScopedDb();
+    const data = await buildExportData(db, {
+      id: 'export-ai',
+      name: 'AI export',
+      format: 'mihomo',
+      token: 'token',
+      enabled: true,
+      includeCollectionIds: [],
+      includeGroupIds: ['builtin-ai'],
+      includeRuleIds: [],
+      includeRemoteSetIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    } satisfies ExportConfig);
+
+    expect(data.rules.map((rule) => [rule.type, rule.payload, rule.targetGroupId])).toEqual([
+      ['DOMAIN-SUFFIX', 'lan.example', 'builtin-direct'],
+      ['DOMAIN-SUFFIX', 'ads.example', 'builtin-reject'],
+    ]);
+  });
 });
 
 function createEmptyDb(): D1Database {
@@ -92,6 +114,11 @@ function createScopedDb(): D1Database {
       groupRow('builtin-reject', 'REJECT', 'reject', [], [], 3, true, ['REJECT']),
       groupRow('builtin-auto-select', '自动选择', 'url-test', [], [], 4, true),
       groupRow('us-auto', 'US Auto', 'url-test', ['collection-us'], [], 5, false),
+    ],
+    rules: [
+      ruleRow('rule-direct', 'DOMAIN-SUFFIX', 'lan.example', 'builtin-direct', 10),
+      ruleRow('rule-reject', 'DOMAIN-SUFFIX', 'ads.example', 'builtin-reject', 20),
+      ruleRow('rule-disabled-target', 'DOMAIN-SUFFIX', 'disabled.example', 'disabled-group', 30),
     ],
     sources: [
       {
@@ -144,7 +171,7 @@ function rowsForSql(sql: string, rows: ReturnType<typeof scopedRows>): Record<st
   if (sql.includes('SELECT * FROM groups')) return rows.groups;
   if (sql.includes('SELECT id, name FROM sources')) return rows.sources.map(({ id, name }) => ({ id, name }));
   if (sql.includes('SELECT * FROM sources')) return rows.sources;
-  if (sql.includes('SELECT * FROM rules')) return [];
+  if (sql.includes('SELECT * FROM rules')) return rows.rules;
   if (sql.includes('SELECT * FROM remote_rule_sets')) return [];
   return [];
 }
@@ -154,6 +181,7 @@ function scopedRows() {
     nodes: [] as Record<string, unknown>[],
     collections: [] as Record<string, unknown>[],
     groups: [] as Record<string, unknown>[],
+    rules: [] as Record<string, unknown>[],
     sources: [] as Record<string, unknown>[],
   };
 }
@@ -221,6 +249,29 @@ function groupRow(
     enabled: 1,
     sort_order: sortOrder,
     is_builtin: isBuiltin ? 1 : 0,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function ruleRow(
+  id: string,
+  type: string,
+  payload: string,
+  targetGroupId: string,
+  sortOrder: number
+): Record<string, unknown> {
+  return {
+    id,
+    name: null,
+    type,
+    payload,
+    no_resolve: 0,
+    target_group_id: targetGroupId,
+    enabled: 1,
+    sort_order: sortOrder,
+    notes: null,
+    compatibility: '[]',
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
   };
