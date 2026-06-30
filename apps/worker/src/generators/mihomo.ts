@@ -175,6 +175,9 @@ function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
 // ─── Node serialization ───────────────────────────────────────────────────────
 
 function nodeToMihomo(node: ProxyNode): string | null {
+  const nativeProxy = nativeMihomoProxy(node);
+  if (nativeProxy) return JSON.stringify(nativeProxy);
+
   const cfg = node.parsedConfig;
   const name = escapeName(node.name);
 
@@ -292,6 +295,18 @@ function nodeToMihomo(node: ProxyNode): string | null {
     default:
       return null;
   }
+}
+
+function nativeMihomoProxy(node: ProxyNode): Record<string, unknown> | null {
+  const raw = node.rawConfig;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (typeof raw.type !== 'string' || raw.port === undefined || raw.server === undefined) return null;
+  return {
+    ...raw,
+    name: node.name,
+    server: node.server,
+    port: node.port,
+  };
 }
 
 // ─── Group serialization ──────────────────────────────────────────────────────

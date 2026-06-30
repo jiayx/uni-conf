@@ -157,6 +157,9 @@ function buildOutbounds(
 // ─── Node serialization ───────────────────────────────────────────────────────
 
 function nodeToSingbox(node: ProxyNode): object | null {
+  const nativeOutbound = nativeSingboxOutbound(node);
+  if (nativeOutbound) return nativeOutbound;
+
   const cfg = node.parsedConfig;
   const tag = node.name;
 
@@ -379,6 +382,18 @@ function nodeToSingbox(node: ProxyNode): object | null {
     default:
       return null;
   }
+}
+
+function nativeSingboxOutbound(node: ProxyNode): Record<string, unknown> | null {
+  const raw = node.rawConfig;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (typeof raw.type !== 'string' || raw.server_port === undefined || raw.server === undefined) return null;
+  return {
+    ...raw,
+    tag: node.name,
+    server: node.server,
+    server_port: node.port,
+  };
 }
 
 // ─── Group serialization ──────────────────────────────────────────────────────

@@ -65,6 +65,41 @@ const anytlsNode: ProxyNode = {
   },
 }
 
+const nativeMihomoNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-native-mihomo',
+  name: 'Renamed Mihomo SS',
+  server: 'new-mihomo.example.com',
+  port: 8389,
+  rawConfig: {
+    name: 'Original Mihomo SS',
+    type: 'ss',
+    server: 'old-mihomo.example.com',
+    port: 8388,
+    cipher: '2022-blake3-aes-128-gcm',
+    password: 'password',
+    udp: true,
+    'plugin-opts': { mode: 'websocket', host: 'plugin.example.com' },
+  },
+}
+
+const nativeSingboxNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-native-singbox',
+  name: 'Renamed sing-box SS',
+  server: 'new-singbox.example.com',
+  port: 8390,
+  rawConfig: {
+    type: 'shadowsocks',
+    tag: 'Original sing-box SS',
+    server: 'old-singbox.example.com',
+    server_port: 8388,
+    method: '2022-blake3-aes-128-gcm',
+    password: 'password',
+    multiplex: { enabled: true },
+  },
+}
+
 const singboxUnsupportedNode: ProxyNode = {
   ...ssNode,
   id: 'node-unknown',
@@ -197,6 +232,36 @@ describe('proxy group references', () => {
     expect(content).toContain('client-fingerprint: "chrome"')
     expect(content).toContain('alpn: ["h2", "http/1.1"]')
     expect(content).toContain('- "HK AnyTLS"')
+  })
+
+  it('prefers native Mihomo node config while applying current identity fields', () => {
+    const content = generateMihomoYaml([nativeMihomoNode], [], [], [])
+    const parsed = yaml.load(content) as { proxies: Array<Record<string, unknown>> }
+
+    expect(parsed.proxies[0]).toMatchObject({
+      name: 'Renamed Mihomo SS',
+      type: 'ss',
+      server: 'new-mihomo.example.com',
+      port: 8389,
+      cipher: '2022-blake3-aes-128-gcm',
+      udp: true,
+      'plugin-opts': { mode: 'websocket', host: 'plugin.example.com' },
+    })
+  })
+
+  it('prefers native sing-box outbounds while applying current identity fields', () => {
+    const content = generateSingboxJson([nativeSingboxNode], [], [], [])
+    const parsed = JSON.parse(content) as { outbounds: Array<Record<string, unknown>> }
+    const outbound = parsed.outbounds.find(item => item.type === 'shadowsocks')
+
+    expect(outbound).toMatchObject({
+      type: 'shadowsocks',
+      tag: 'Renamed sing-box SS',
+      server: 'new-singbox.example.com',
+      server_port: 8390,
+      method: '2022-blake3-aes-128-gcm',
+      multiplex: { enabled: true },
+    })
   })
 
   it('does not reference nodes missing from Mihomo proxies', () => {
