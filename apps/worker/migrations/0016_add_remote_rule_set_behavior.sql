@@ -1,4 +1,4 @@
-ALTER TABLE remote_rule_sets ADD COLUMN behavior TEXT NOT NULL DEFAULT 'classical';
+-- The current initial schema already includes behavior.
 
 UPDATE remote_rule_sets
 SET behavior = 'domain', updated_at = datetime('now')

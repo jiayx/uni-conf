@@ -1,5 +1,5 @@
 -- Migration: 0003_add_source_groups
 -- Store upstream proxy groups and raw content parsed from subscription sources.
+-- The current initial schema already includes these columns.
 
-ALTER TABLE sources ADD COLUMN source_groups TEXT NOT NULL DEFAULT '[]';
-ALTER TABLE sources ADD COLUMN raw_content TEXT;
+UPDATE sources SET updated_at = updated_at WHERE 0;

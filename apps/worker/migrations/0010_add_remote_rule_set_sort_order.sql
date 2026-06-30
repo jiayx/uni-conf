@@ -1,7 +1,7 @@
 -- Migration: 0010_add_remote_rule_set_sort_order
 -- Keep preset remote rule sets in a deterministic routing order.
 
-ALTER TABLE remote_rule_sets ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+-- The current initial schema already includes sort_order.
 
 CREATE INDEX IF NOT EXISTS idx_remote_rule_sets_sort_order ON remote_rule_sets(sort_order);
 
