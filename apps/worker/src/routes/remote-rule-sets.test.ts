@@ -141,7 +141,81 @@ describe('remote rule set routes', () => {
     })
     expect(db.updates).toHaveLength(0)
   })
+
+  it('rejects editing managed remote rule set fields through the route', async () => {
+    const db = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow(),
+      enabledTargetGroupIds: new Set(['builtin-ai']),
+    })
+
+    const response = await remoteRuleSetsApp.request('/preset-ai', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Edited AI' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'built-in remote rule sets can only be enabled or disabled',
+    })
+    expect(db.updates).toHaveLength(0)
+  })
+
+  it('allows toggling managed remote rule sets through the route', async () => {
+    const db = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow({ enabled: 1 }),
+      enabledTargetGroupIds: new Set(['builtin-ai']),
+    })
+
+    const response = await remoteRuleSetsApp.request('/preset-ai', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(db.updates).toHaveLength(1)
+    expect(db.updates[0]?.[8]).toBe(0)
+  })
+
+  it('rejects deleting managed remote rule sets through the route', async () => {
+    const db = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow(),
+      enabledTargetGroupIds: new Set(['builtin-ai']),
+    })
+
+    const response = await remoteRuleSetsApp.request('/preset-ai', { method: 'DELETE' }, { DB: db })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'built-in remote rule sets can be disabled but not deleted',
+    })
+    expect(db.deletes).toHaveLength(0)
+  })
 })
+
+function managedRemoteRuleSetRow(patch: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    id: 'preset-ai',
+    name: 'AI',
+    url: 'https://example.com/ai.list',
+    format: 'mihomo',
+    behavior: 'classical',
+    preset_source: 'quixotic',
+    preset_id: 'ai',
+    target_group_id: 'builtin-ai',
+    update_interval: 24,
+    enabled: 1,
+    sort_order: 40,
+    last_updated: null,
+    notes: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    ...patch,
+  }
+}
 
 function createRemoteRuleSetRouteDb({
   existing,
@@ -149,14 +223,17 @@ function createRemoteRuleSetRouteDb({
 }: {
   existing: Record<string, unknown>
   enabledTargetGroupIds: Set<string>
-}): D1Database & { updates: unknown[][] } {
+}): D1Database & { updates: unknown[][]; deletes: unknown[][] } {
   const updates: unknown[][] = []
+  const deletes: unknown[][] = []
   return {
     updates,
+    deletes,
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
           if (sql.includes('SELECT * FROM remote_rule_sets WHERE id = ?')) return existing
+          if (sql.includes('SELECT id, preset_source, preset_id FROM remote_rule_sets WHERE id = ?')) return existing
           if (sql.includes('SELECT id, collection_ids FROM groups')) {
             const id = String(args[0] ?? '')
             return enabledTargetGroupIds.has(id) ? { id, collection_ids: '[]' } : null
@@ -166,6 +243,7 @@ function createRemoteRuleSetRouteDb({
         all: async () => ({ results: [] }),
         run: async () => {
           if (sql.includes('UPDATE remote_rule_sets SET')) updates.push(args)
+          if (sql.includes('DELETE FROM remote_rule_sets WHERE id = ?')) deletes.push(args)
           return { success: true }
         },
         raw: async () => [],
@@ -175,5 +253,5 @@ function createRemoteRuleSetRouteDb({
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
-  } as unknown as D1Database & { updates: unknown[][] }
+  } as unknown as D1Database & { updates: unknown[][]; deletes: unknown[][] }
 }
