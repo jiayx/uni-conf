@@ -368,19 +368,19 @@ export function Groups() {
                   </label>
                 )}
               </div>
-              <div className={styles.cardActions}>
-                <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
-                  {group.enabled ? t('common.disable') : t('common.enable')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => openEdit(group)}>
-                  {t('common.edit')}
-                </Button>
-                {!group.isBuiltin && (
+              {!group.isBuiltin && (
+                <div className={styles.cardActions}>
+                  <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
+                    {group.enabled ? t('common.disable') : t('common.enable')}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(group)}>
+                    {t('common.edit')}
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此策略组？')) void deleteGroup(group.id) }}>
                     <TrashIcon />
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </Card>
           ))}
           {visibleGroups.length === 0 && <EmptyState title="暂无自定义策略组" description="默认策略组合会自动生成；这里只需要添加额外业务策略。" action={{ label: '添加自定义策略组', onClick: openCreate }} />}
