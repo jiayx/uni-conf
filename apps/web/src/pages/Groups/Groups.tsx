@@ -307,7 +307,7 @@ export function Groups() {
           <div className={styles.foundationHeader}>
             <div>
               <div className={styles.foundationTitle}>基础目标与节点出口</div>
-              <div className={styles.foundationMeta}>始终存在；规则可直接命中 PROXY / DIRECT / REJECT，业务分流组会自动包含节点出口。</div>
+              <div className={styles.foundationMeta}>始终存在；规则可直接命中 PROXY / DIRECT / REJECT，业务分流组会自动包含规则基础和节点出口。</div>
             </div>
           </div>
           {foundationSections.map(section => (
@@ -496,7 +496,7 @@ function ArrowDownIcon() {
 }
 
 function describeFoundationGroup(group: ProxyGroup): string {
-  if (group.name === 'PROXY') return '默认代理出口，自动聚合节点选择、自动选择、故障切换和全部节点。'
+  if (group.name === 'PROXY') return '默认代理出口，自动聚合规则基础、节点选择、自动选择、故障切换和全部节点。'
   if (group.name === 'DIRECT') return '直连出口，国内规则、局域网和无需代理的流量会命中这里。'
   if (group.name === 'REJECT') return '拒绝出口，广告、HTTPDNS 等拦截规则会命中这里。'
   if (group.name === '全部节点') return '包含所有可用节点，适合需要完整节点池的手动选择场景。'
@@ -507,7 +507,7 @@ function describeFoundationGroup(group: ProxyGroup): string {
 }
 
 function describeRoutingGroupMembers(group: ProxyGroup): string {
-  if (group.name === 'PROXY') return '默认代理出口，自动聚合节点选择、自动选择、故障切换和节点组。'
+  if (group.name === 'PROXY') return '默认代理出口，自动聚合规则基础、全局节点出口和可用节点组。'
   return '自动包含基础出口、全局节点出口和可用节点组。'
 }
 
