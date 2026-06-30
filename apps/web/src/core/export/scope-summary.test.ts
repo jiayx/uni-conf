@@ -69,7 +69,39 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
         makeRemoteSet('remote-disabled-target', true, 'singbox', 'disabled-policy'),
       ]
-    )).toBe('节点组: 全部启用 1 / 策略组与出口: 已选 1/3 / 手动规则: 全部启用 2 / 兼容分流规则集: 全部启用 2')
+    )).toBe('节点组: 全部启用 1 / 策略组与出口: 已选 2/3 / 手动规则: 全部启用 2 / 兼容分流规则集: 全部启用 2')
+  })
+
+  it('counts selected scopes by the effective exportable items', () => {
+    expect(exportConfigScopeSummary(
+      makeConfig({
+        includeCollectionIds: ['collection-us', 'collection-disabled'],
+        includeGroupIds: ['builtin-streaming'],
+        includeRuleIds: ['rule-streaming', 'rule-disabled', 'rule-ai'],
+        includeRemoteSetIds: ['remote-streaming', 'remote-disabled', 'remote-mihomo', 'remote-ai'],
+        format: 'singbox',
+      }),
+      [
+        makeCollection('collection-us', true),
+        makeCollection('collection-disabled', false),
+      ],
+      [
+        makeGroup('builtin-streaming', true, ['builtin-proxy']),
+        makeGroup('builtin-proxy', true),
+        makeGroup('builtin-ai', true),
+      ],
+      [
+        makeRule('rule-streaming', true, 'builtin-streaming'),
+        makeRule('rule-disabled', false, 'builtin-streaming'),
+        makeRule('rule-ai', true, 'builtin-ai'),
+      ],
+      [
+        makeRemoteSet('remote-streaming', true, 'singbox', 'builtin-streaming'),
+        makeRemoteSet('remote-disabled', false, 'singbox', 'builtin-streaming'),
+        makeRemoteSet('remote-mihomo', true, 'mihomo', 'builtin-streaming'),
+        makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
+      ]
+    )).toBe('节点组: 已选 1/1 / 策略组与出口: 已选 2/3 / 手动规则: 已选 1/1 / 兼容分流规则集: 已选 1/1')
   })
 })
 

@@ -10,27 +10,59 @@ export function exportConfigScopeSummary(
 ): string {
   const exportedGroupIds = resolveExportedGroupIds(config, groups)
   return [
-    summaryPart('节点组', config.includeCollectionIds, enabledCount(collections)),
-    summaryPart('策略组与出口', config.includeGroupIds, enabledCount(groups)),
-    summaryPart('手动规则', config.includeRuleIds, targetExportableCount(rules, exportedGroupIds)),
-    summaryPart('兼容分流规则集', config.includeRemoteSetIds, compatibleRemoteSetCount(config, remoteSets, exportedGroupIds)),
+    summaryPart('节点组', config.includeCollectionIds, enabledCount(collections), selectedEnabledCount(collections, config.includeCollectionIds)),
+    summaryPart('策略组与出口', config.includeGroupIds, enabledCount(groups), exportedGroupIds.size),
+    summaryPart('手动规则', config.includeRuleIds, targetExportableCount(rules, exportedGroupIds), selectedTargetExportableCount(rules, config.includeRuleIds, exportedGroupIds)),
+    summaryPart('兼容分流规则集', config.includeRemoteSetIds, compatibleRemoteSetCount(config, remoteSets, exportedGroupIds), selectedCompatibleRemoteSetCount(config, remoteSets, config.includeRemoteSetIds, exportedGroupIds)),
   ].join(' / ')
 }
 
-function summaryPart(label: string, ids: string[], eligibleCount: number): string {
-  return ids.length === 0 ? `${label}: 全部启用 ${eligibleCount}` : `${label}: 已选 ${ids.length}/${eligibleCount}`
+function summaryPart(label: string, ids: string[], eligibleCount: number, selectedCount: number): string {
+  return ids.length === 0 ? `${label}: 全部启用 ${eligibleCount}` : `${label}: 已选 ${selectedCount}/${eligibleCount}`
 }
 
 function enabledCount(items: Array<{ enabled: boolean }>): number {
   return items.filter(item => item.enabled).length
 }
 
+function selectedEnabledCount(items: Array<{ id: string; enabled: boolean }>, ids: string[]): number {
+  if (ids.length === 0) return enabledCount(items)
+  const selectedIds = new Set(ids)
+  return items.filter(item => item.enabled && selectedIds.has(item.id)).length
+}
+
 function targetExportableCount(items: Array<{ enabled: boolean; targetGroupId: string }>, exportedGroupIds: Set<string>): number {
   return items.filter(item => item.enabled && exportedGroupIds.has(item.targetGroupId)).length
 }
 
+function selectedTargetExportableCount(
+  items: Array<{ id: string; enabled: boolean; targetGroupId: string }>,
+  ids: string[],
+  exportedGroupIds: Set<string>
+): number {
+  if (ids.length === 0) return targetExportableCount(items, exportedGroupIds)
+  const selectedIds = new Set(ids)
+  return items.filter(item => selectedIds.has(item.id) && item.enabled && exportedGroupIds.has(item.targetGroupId)).length
+}
+
 function compatibleRemoteSetCount(config: ExportConfig, remoteSets: RemoteRuleSet[], exportedGroupIds: Set<string>): number {
   return remoteSets.filter(set => set.enabled && exportedGroupIds.has(set.targetGroupId) && isRemoteRuleSetCompatible(config.format, set)).length
+}
+
+function selectedCompatibleRemoteSetCount(
+  config: ExportConfig,
+  remoteSets: RemoteRuleSet[],
+  ids: string[],
+  exportedGroupIds: Set<string>
+): number {
+  if (ids.length === 0) return compatibleRemoteSetCount(config, remoteSets, exportedGroupIds)
+  const selectedIds = new Set(ids)
+  return remoteSets.filter(set => (
+    selectedIds.has(set.id)
+    && set.enabled
+    && exportedGroupIds.has(set.targetGroupId)
+    && isRemoteRuleSetCompatible(config.format, set)
+  )).length
 }
 
 function resolveExportedGroupIds(config: ExportConfig, groups: ProxyGroup[]): Set<string> {
