@@ -24,6 +24,8 @@ describe('default remote rule sets', () => {
     });
     expect(inserted.find((item) => item.presetId === 'netflix')?.targetGroupId).toBe('builtin-streaming');
     expect(inserted.find((item) => item.presetId === 'gits')?.targetGroupId).toBe('builtin-github');
+    expect(inserted.find((item) => item.presetId === 'google')?.targetGroupId).toBe('builtin-google');
+    expect(inserted.find((item) => item.presetId === 'googlefcm')?.targetGroupId).toBe('builtin-google');
     expect(inserted.find((item) => item.presetId === 'apple')?.targetGroupId).toBe('builtin-apple');
     expect(inserted.find((item) => item.presetId === 'microsoft')?.targetGroupId).toBe('builtin-microsoft');
     expect(inserted.find((item) => item.presetId === 'steam')?.targetGroupId).toBe('builtin-gaming');
@@ -434,6 +436,7 @@ function listGroups() {
     { id: 'builtin-telegram', name: 'Telegram', enabled: 1 },
     { id: 'builtin-social', name: 'Social', enabled: 1 },
     { id: 'builtin-github', name: 'GitHub', enabled: 1 },
+    { id: 'builtin-google', name: 'Google', enabled: 1 },
     { id: 'builtin-apple', name: 'Apple', enabled: 1 },
     { id: 'builtin-microsoft', name: 'Microsoft', enabled: 1 },
     { id: 'builtin-crypto', name: 'Crypto', enabled: 1 },
@@ -455,6 +458,7 @@ function expectedTargetGroupId(presetId: string): string {
     Telegram: 'builtin-telegram',
     Social: 'builtin-social',
     GitHub: 'builtin-github',
+    Google: 'builtin-google',
     Apple: 'builtin-apple',
     Microsoft: 'builtin-microsoft',
     Crypto: 'builtin-crypto',

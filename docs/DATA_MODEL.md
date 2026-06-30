@@ -167,10 +167,10 @@ Readiness validation checks the final export graph, not only stored IDs. A polic
 |----------|-----------------|----------------------------------------------------|
 | `empty` | `smart` | none, foundation groups only |
 | `minimal` | `smart` | 漏网之鱼 |
-| `common` | `smart` | AI, Streaming, Telegram, Social, GitHub, Apple, Microsoft, 漏网之鱼 |
-| `ai` | `smart` | AI, GitHub, Developer, Apple, Microsoft, 漏网之鱼 |
+| `common` | `smart` | AI, Streaming, Telegram, Social, GitHub, Google, Apple, Microsoft, 漏网之鱼 |
+| `ai` | `smart` | AI, GitHub, Google, Developer, Apple, Microsoft, 漏网之鱼 |
 | `streaming` | `smart` | Streaming, Telegram, Social, Apple, Microsoft, 漏网之鱼 |
-| `router` | `compatible` | Streaming, Telegram, GitHub, Apple, Microsoft, 漏网之鱼 |
+| `router` | `compatible` | Streaming, Telegram, GitHub, Google, Apple, Microsoft, 漏网之鱼 |
 | `extended` | `smart` | common + Crypto, Gaming, Developer |
 
 When the user changes the scenario template, the worker derives the template's recommended `dns_mode` if the settings update omits an explicit DNS value; explicit DNS updates still win so users can override DNS later in Settings. The web app also sends both values when the user switches templates, and route tests cover both the combined write and backend derivation path.

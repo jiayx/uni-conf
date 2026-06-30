@@ -182,10 +182,10 @@ REJECT
 |------|----------|------------------------|
 | 空组合 | 智能防污染 | 无业务分流组，只保留基础出口 |
 | 极简模式 | 智能防污染 | 漏网之鱼 |
-| 默认智能组合 | 智能防污染 | AI、Streaming、Telegram、Social、GitHub、Apple、Microsoft、漏网之鱼 |
-| AI 优先模式 | 智能防污染 | AI、GitHub、Developer、Apple、Microsoft、漏网之鱼 |
+| 默认智能组合 | 智能防污染 | AI、Streaming、Telegram、Social、GitHub、Google、Apple、Microsoft、漏网之鱼 |
+| AI 优先模式 | 智能防污染 | AI、GitHub、Google、Developer、Apple、Microsoft、漏网之鱼 |
 | 流媒体模式 | 智能防污染 | Streaming、Telegram、Social、Apple、Microsoft、漏网之鱼 |
-| 路由器模式 | 兼容优先 | Streaming、Telegram、GitHub、Apple、Microsoft、漏网之鱼 |
+| 路由器模式 | 兼容优先 | Streaming、Telegram、GitHub、Google、Apple、Microsoft、漏网之鱼 |
 | 扩展组合 | 智能防污染 | 默认智能组合 + Crypto、Gaming、Developer |
 
 默认智能组合适合大多数用户，启用这些业务分流组：
@@ -196,6 +196,7 @@ Streaming
 Telegram
 Social
 GitHub
+Google
 Apple
 Microsoft
 漏网之鱼

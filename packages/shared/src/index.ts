@@ -470,6 +470,7 @@ export type InferredRuleSetTargetGroup =
   | 'Telegram'
   | 'Social'
   | 'GitHub'
+  | 'Google'
   | 'Apple'
   | 'Microsoft'
   | 'Crypto'
@@ -562,16 +563,16 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   {
     id: 'common',
     name: '默认智能组合',
-    description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Apple、Microsoft 和兜底分流。',
+    description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Google、Apple、Microsoft 和兜底分流。',
     recommendedDnsMode: 'smart',
-    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'ai',
     name: 'AI 优先模式',
     description: '优先启用 AI、开发和代码服务分流，适合主要使用 OpenAI、Claude、Gemini、Cursor 或 Copilot 的场景。',
     recommendedDnsMode: 'smart',
-    groupNames: ['AI', 'GitHub', 'Developer', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['AI', 'GitHub', 'Google', 'Developer', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'streaming',
@@ -585,14 +586,14 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
     name: '路由器模式',
     description: '适合 OpenClash、软路由和网关场景，保留常用分流并避免过多业务组。',
     recommendedDnsMode: 'compatible',
-    groupNames: ['Streaming', 'Telegram', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['Streaming', 'Telegram', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'extended',
     name: '扩展组合',
     description: '在常用组合基础上增加加密货币、游戏和开发服务。',
     recommendedDnsMode: 'smart',
-    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
+    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
   },
 ];
 
@@ -683,6 +684,7 @@ const CRYPTO_PRESET_IDS = new Set(['crypto']);
 const GITHUB_PRESET_IDS = new Set(['gits']);
 const APPLE_PRESET_IDS = new Set(['apple', 'apple-proxy']);
 const MICROSOFT_PRESET_IDS = new Set(['microsoft', 'onedrive']);
+const GOOGLE_PRESET_IDS = new Set(['google', 'googlefcm']);
 const TELEGRAM_PRESET_IDS = new Set(['telegram']);
 
 export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): InferredRuleSetTargetGroup {
@@ -691,6 +693,7 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
   if (GITHUB_PRESET_IDS.has(preset.id)) return 'GitHub';
   if (APPLE_PRESET_IDS.has(preset.id)) return 'Apple';
   if (MICROSOFT_PRESET_IDS.has(preset.id)) return 'Microsoft';
+  if (GOOGLE_PRESET_IDS.has(preset.id)) return 'Google';
   if (TELEGRAM_PRESET_IDS.has(preset.id)) return 'Telegram';
   if (CRYPTO_PRESET_IDS.has(preset.id)) return 'Crypto';
   if (PROXY_PRESET_IDS.has(preset.id)) return 'PROXY';
