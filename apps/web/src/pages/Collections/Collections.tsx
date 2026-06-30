@@ -608,7 +608,7 @@ export function Collections() {
             )}
           </div>
           <div className={styles.inlineEmpty}>
-            默认只生成自动测速节点组。取消某个国家/地区后，已自动生成的对应节点组会被移除；订阅源节点组会按成员节点直接导入。
+            默认选择自动测速节点组，也可以同时生成手动选择或故障转移节点组。取消某个国家/地区后，已自动生成的对应节点组会被移除；订阅源节点组会按成员节点直接导入。
           </div>
         </div>
       </Modal>
@@ -841,12 +841,6 @@ function makeAutoNodeGroupKey(countryCode: string, type: GeneratedGroupType): st
 
 function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
   const parts = key.split(':')
-  if (parts.length === 2) {
-    const [countryCode, type] = parts
-    if (!countryCode || !isGeneratedGroupType(type)) return null
-    const normalizedCode = countryCode.trim().toUpperCase()
-    return { scope: 'country', countryCode: normalizedCode, type, key: makeAutoNodeGroupKey(normalizedCode, type) }
-  }
   if (parts.length !== 3) return null
 
   const [scope, value, type] = parts
