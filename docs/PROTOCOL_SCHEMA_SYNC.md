@@ -104,14 +104,14 @@ URI/manual input:
 Mihomo export:
 
 - If `raw_config.mihomo` exists, emit it after applying the current node name and enabled state.
-- During the current flat-cache transition, if `raw_config` itself is a Mihomo proxy object (`type`, `server`, `port`), emit that native object after applying the current node name, server, and port.
+- If `raw_config` itself is a Mihomo proxy object (`type`, `server`, `port`), emit that native object after applying the current node name, server, and port.
 - Else convert from `raw_config.singbox` using explicit protocol adapters.
 - Else fall back to `normalized` only for simple protocols.
 
 sing-box export:
 
 - If `raw_config.singbox` exists, emit it after applying the current node tag.
-- During the current flat-cache transition, if `raw_config` itself is a sing-box outbound object (`type`, `server`, `server_port`), emit that native object after applying the current node tag, server, and server port.
+- If `raw_config` itself is a sing-box outbound object (`type`, `server`, `server_port`), emit that native object after applying the current node tag, server, and server port.
 - Else convert from `raw_config.mihomo` using explicit protocol adapters.
 - Else fall back to `normalized` only for simple protocols.
 

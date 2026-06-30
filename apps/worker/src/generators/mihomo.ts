@@ -298,15 +298,26 @@ function nodeToMihomo(node: ProxyNode): string | null {
 }
 
 function nativeMihomoProxy(node: ProxyNode): Record<string, unknown> | null {
-  const raw = node.rawConfig;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  if (typeof raw.type !== 'string' || raw.port === undefined || raw.server === undefined) return null;
+  const raw = nativeObject(node.rawConfig, 'mihomo');
+  if (!isMihomoProxyShape(raw)) return null;
   return {
     ...raw,
     name: node.name,
     server: node.server,
     port: node.port,
   };
+}
+
+function nativeObject(rawConfig: unknown, key: string): Record<string, unknown> | null {
+  if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) return null;
+  const raw = rawConfig as Record<string, unknown>;
+  const nested = raw[key];
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) return nested as Record<string, unknown>;
+  return raw;
+}
+
+function isMihomoProxyShape(value: Record<string, unknown> | null): value is Record<string, unknown> {
+  return Boolean(value && typeof value.type === 'string' && value.port !== undefined && value.server !== undefined);
 }
 
 // ─── Group serialization ──────────────────────────────────────────────────────

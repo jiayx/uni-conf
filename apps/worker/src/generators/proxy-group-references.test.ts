@@ -72,14 +72,16 @@ const nativeMihomoNode: ProxyNode = {
   server: 'new-mihomo.example.com',
   port: 8389,
   rawConfig: {
-    name: 'Original Mihomo SS',
-    type: 'ss',
-    server: 'old-mihomo.example.com',
-    port: 8388,
-    cipher: '2022-blake3-aes-128-gcm',
-    password: 'password',
-    udp: true,
-    'plugin-opts': { mode: 'websocket', host: 'plugin.example.com' },
+    mihomo: {
+      name: 'Original Mihomo SS',
+      type: 'ss',
+      server: 'old-mihomo.example.com',
+      port: 8388,
+      cipher: '2022-blake3-aes-128-gcm',
+      password: 'password',
+      udp: true,
+      'plugin-opts': { mode: 'websocket', host: 'plugin.example.com' },
+    },
   },
 }
 
@@ -90,13 +92,15 @@ const nativeSingboxNode: ProxyNode = {
   server: 'new-singbox.example.com',
   port: 8390,
   rawConfig: {
-    type: 'shadowsocks',
-    tag: 'Original sing-box SS',
-    server: 'old-singbox.example.com',
-    server_port: 8388,
-    method: '2022-blake3-aes-128-gcm',
-    password: 'password',
-    multiplex: { enabled: true },
+    singbox: {
+      type: 'shadowsocks',
+      tag: 'Original sing-box SS',
+      server: 'old-singbox.example.com',
+      server_port: 8388,
+      method: '2022-blake3-aes-128-gcm',
+      password: 'password',
+      multiplex: { enabled: true },
+    },
   },
 }
 

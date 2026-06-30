@@ -385,15 +385,26 @@ function nodeToSingbox(node: ProxyNode): object | null {
 }
 
 function nativeSingboxOutbound(node: ProxyNode): Record<string, unknown> | null {
-  const raw = node.rawConfig;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  if (typeof raw.type !== 'string' || raw.server_port === undefined || raw.server === undefined) return null;
+  const raw = nativeObject(node.rawConfig, 'singbox');
+  if (!isSingboxOutboundShape(raw)) return null;
   return {
     ...raw,
     tag: node.name,
     server: node.server,
     server_port: node.port,
   };
+}
+
+function nativeObject(rawConfig: unknown, key: string): Record<string, unknown> | null {
+  if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) return null;
+  const raw = rawConfig as Record<string, unknown>;
+  const nested = raw[key];
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) return nested as Record<string, unknown>;
+  return raw;
+}
+
+function isSingboxOutboundShape(value: Record<string, unknown> | null): value is Record<string, unknown> {
+  return Boolean(value && typeof value.type === 'string' && value.server_port !== undefined && value.server !== undefined);
 }
 
 // ─── Group serialization ──────────────────────────────────────────────────────
