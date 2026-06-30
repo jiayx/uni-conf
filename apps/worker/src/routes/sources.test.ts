@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName, makeSourceNodeGroupMarker } from '@uni-conf/shared'
+import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName, makeSourceNodeGroupMarker, SOURCE_FORMATS } from '@uni-conf/shared'
 import type { SourceRefreshResult } from '@uni-conf/types'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
@@ -80,6 +80,9 @@ describe('Clash YAML Parser', () => {
     expect(isValidSourceType('remote')).toBe(false)
     expect(isValidSourceFormat('auto')).toBe(true)
     expect(isValidSourceFormat('singbox')).toBe(true)
+    for (const format of SOURCE_FORMATS) {
+      expect(isValidSourceFormat(format)).toBe(true)
+    }
     expect(isValidSourceFormat('yaml')).toBe(false)
     expect(isHttpUrl('https://example.com/sub')).toBe(true)
     expect(isHttpUrl('  https://example.com/sub  ')).toBe(true)

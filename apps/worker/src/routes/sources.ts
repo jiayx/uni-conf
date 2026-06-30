@@ -13,6 +13,7 @@ import {
   extractSourceNodeGroupMarkerKey,
   isSubscriptionInfoNodeName,
   parseSourceNodeGroupKey,
+  SOURCE_FORMATS,
   SOURCE_NODE_GROUP_PREFIX,
 } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
@@ -571,25 +572,14 @@ export function resolveSourceNameInput(name: unknown, url: string | undefined): 
 }
 
 const SOURCE_TYPES: ReadonlySet<SourceType> = new Set(['url', 'manual', 'file', 'clipboard']);
-const SOURCE_FORMATS: ReadonlySet<SourceFormat> = new Set([
-  'clash',
-  'mihomo',
-  'singbox',
-  'base64',
-  'surge',
-  'loon',
-  'quantumultx',
-  'shadowrocket',
-  'raw',
-  'auto',
-]);
+const SOURCE_FORMAT_SET: ReadonlySet<SourceFormat> = new Set(SOURCE_FORMATS);
 
 export function isValidSourceType(value: unknown): value is SourceType {
   return SOURCE_TYPES.has(value as SourceType);
 }
 
 export function isValidSourceFormat(value: unknown): value is SourceFormat {
-  return SOURCE_FORMATS.has(value as SourceFormat);
+  return SOURCE_FORMAT_SET.has(value as SourceFormat);
 }
 
 export function isHttpUrl(value: unknown): boolean {

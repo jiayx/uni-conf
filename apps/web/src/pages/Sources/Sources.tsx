@@ -10,21 +10,27 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
+import { SOURCE_FORMATS } from '@uni-conf/shared'
 import type { ProxySource, SourceFormat } from '@uni-conf/types'
 import styles from './Sources.module.css'
 
-const FORMAT_OPTIONS: { value: SourceFormat; label: string }[] = [
-  { value: 'auto', label: 'Auto detect' },
-  { value: 'mihomo', label: 'Mihomo / Clash.Meta' },
-  { value: 'clash', label: 'Clash' },
-  { value: 'singbox', label: 'sing-box' },
-  { value: 'base64', label: 'Base64 nodes' },
-  { value: 'surge', label: 'Surge' },
-  { value: 'loon', label: 'Loon' },
-  { value: 'quantumultx', label: 'Quantumult X' },
-  { value: 'shadowrocket', label: 'Shadowrocket' },
-  { value: 'raw', label: 'Raw URI lines' },
-]
+const SOURCE_FORMAT_LABELS: Record<SourceFormat, string> = {
+  auto: 'Auto detect',
+  mihomo: 'Mihomo / Clash.Meta',
+  clash: 'Clash',
+  singbox: 'sing-box',
+  base64: 'Base64 nodes',
+  surge: 'Surge',
+  loon: 'Loon',
+  quantumultx: 'Quantumult X',
+  shadowrocket: 'Shadowrocket',
+  raw: 'Raw URI lines',
+}
+
+const FORMAT_OPTIONS: { value: SourceFormat; label: string }[] = SOURCE_FORMATS.map(value => ({
+  value,
+  label: SOURCE_FORMAT_LABELS[value],
+}))
 
 const USER_AGENT_OPTIONS = [
   { value: '', label: 'Default (clash.meta)' },

@@ -16,7 +16,7 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | name | TEXT | Display name |
 | type | TEXT | `url` \| `manual` \| `file` \| `clipboard` |
 | url | TEXT? | Subscription URL (for type=url) |
-| format | TEXT | `auto` \| `clash` \| `singbox` \| `base64` \| `surge` \| `loon` |
+| format | TEXT | `auto` \| `clash` \| `mihomo` \| `singbox` \| `base64` \| `surge` \| `loon` \| `quantumultx` \| `shadowrocket` \| `raw` |
 | enabled | INTEGER | 1=enabled, 0=disabled |
 | node_count | INTEGER | Cached count |
 | last_updated | TEXT? | ISO timestamp of last refresh |

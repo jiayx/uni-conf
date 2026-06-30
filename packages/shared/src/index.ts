@@ -1,3 +1,5 @@
+import type { SourceFormat } from '@uni-conf/types';
+
 export interface CountryInfo {
   country: string;
   countryCode: string;
@@ -20,6 +22,19 @@ export const DEFAULT_HEALTH_CHECK = {
 } as const;
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
+
+export const SOURCE_FORMATS = [
+  'auto',
+  'clash',
+  'mihomo',
+  'singbox',
+  'base64',
+  'surge',
+  'loon',
+  'quantumultx',
+  'shadowrocket',
+  'raw',
+] as const satisfies readonly SourceFormat[];
 
 export interface SourceNodeGroupMarker {
   sourceId: string;

@@ -240,6 +240,10 @@ importers:
         version: 4.101.0(@cloudflare/workers-types@4.20260617.1)
 
   packages/shared:
+    dependencies:
+      '@uni-conf/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       typescript:
         specifier: 'catalog:'
