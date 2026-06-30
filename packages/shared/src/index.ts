@@ -643,6 +643,7 @@ export const QUIXOTIC_RULE_SET_PRESETS: QuixoticRuleSetPreset[] = [
   { id: 'socialmedia', name: 'Social Media', description: '国外社交媒体规则集合，包含 Discord、WhatsApp、Instagram、Telegram、X 等', category: 'social' },
   { id: 'speedtest', name: 'Speedtest', description: 'Ookla SpeedTest 服务器规则', category: 'general' },
   { id: 'spotify', name: 'Spotify', description: 'Spotify 音乐流媒体平台', category: 'streaming' },
+  { id: 'steam', name: 'Steam', description: 'Steam 商店、社区和游戏下载规则', category: 'gaming' },
   { id: 'talkatone', name: 'Talkatone', description: 'Talkatone 互联网语音通话和短信服务', category: 'social' },
   { id: 'tiktok', name: 'TikTok', description: 'TikTok 短视频平台', category: 'social' },
   { id: 'tld-proxy', name: 'TLD Proxy', description: '国外需要代理的顶级域名', category: 'general' },

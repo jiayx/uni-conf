@@ -26,12 +26,14 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'gits')?.targetGroupId).toBe('builtin-github');
     expect(inserted.find((item) => item.presetId === 'apple')?.targetGroupId).toBe('builtin-apple');
     expect(inserted.find((item) => item.presetId === 'microsoft')?.targetGroupId).toBe('builtin-microsoft');
+    expect(inserted.find((item) => item.presetId === 'steam')?.targetGroupId).toBe('builtin-gaming');
     expect(inserted.find((item) => item.presetId === 'adrules')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'httpdns')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'cn')?.targetGroupId).toBe('builtin-direct');
     expect(inserted.find((item) => item.presetId === 'adrules')?.sortOrder).toBe(20);
     expect(inserted.find((item) => item.presetId === 'ai')?.sortOrder).toBe(40);
     expect(inserted.find((item) => item.presetId === 'netflix')?.sortOrder).toBe(60);
+    expect(inserted.find((item) => item.presetId === 'steam')?.sortOrder).toBe(110);
   });
 
   it('does not recreate defaults when preset rule sets already exist with current targets', async () => {
