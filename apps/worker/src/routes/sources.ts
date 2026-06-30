@@ -949,7 +949,7 @@ export function parseClashGroups(content: string): SourceNodeGroup[] {
         const proxies = Array.isArray(groupObj.proxies) ? groupObj.proxies : [];
         const memberNames = proxies
           .map((item) => String(item ?? '').trim())
-          .filter((item) => item && item !== 'DIRECT' && item !== 'REJECT');
+          .filter((item) => item && !isMihomoBuiltinPolicyName(item));
 
         const result: SourceNodeGroup = {
           name,
@@ -1003,7 +1003,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
   return nodes;
 }
 
-function parseSingboxGroups(data: Record<string, unknown>): SourceNodeGroup[] {
+export function parseSingboxGroups(data: Record<string, unknown>): SourceNodeGroup[] {
   const outbounds = data.outbounds as Array<Record<string, unknown>> | undefined;
   if (!Array.isArray(outbounds)) return [];
 
@@ -1019,7 +1019,7 @@ function parseSingboxGroups(data: Record<string, unknown>): SourceNodeGroup[] {
       const members = Array.isArray(outbound.outbounds) ? outbound.outbounds : [];
       const memberNames = members
         .map((item) => String(item ?? '').trim())
-        .filter((item) => item && item !== 'direct' && item !== 'block');
+        .filter((item) => item && !isSingboxBuiltinOutboundName(item));
 
       const result: SourceNodeGroup = {
         name,
@@ -1029,6 +1029,14 @@ function parseSingboxGroups(data: Record<string, unknown>): SourceNodeGroup[] {
       return result;
     })
     .filter((group): group is SourceNodeGroup => group !== null && group.memberNames.length > 0);
+}
+
+function isMihomoBuiltinPolicyName(name: string): boolean {
+  return ['DIRECT', 'REJECT'].includes(name.toUpperCase());
+}
+
+function isSingboxBuiltinOutboundName(name: string): boolean {
+  return ['direct', 'block'].includes(name.toLowerCase());
 }
 
 function singboxTypeToProtocol(type: string): ProxyProtocol {

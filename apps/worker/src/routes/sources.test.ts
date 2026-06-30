@@ -12,6 +12,7 @@ import {
   isValidSourceType,
   parseClashGroups,
   parseClashYaml,
+  parseSingboxGroups,
   refreshSourceById,
   resolveSourceNameInput,
   SourceRefreshError,
@@ -210,19 +211,33 @@ proxies:
     - { name: '🇺🇸 US 02', type: trojan, server: us2.example.com, port: 443, password: pwd }
     - { name: '🇯🇵 JP 01', type: trojan, server: jp1.example.com, port: 443, password: pwd }
 proxy-groups:
-    - { name: 'US Auto', type: url-test, proxies: ['🇺🇸 US 01', '🇺🇸 US 02', DIRECT] }
+    - { name: 'US Auto', type: url-test, proxies: ['🇺🇸 US 01', '🇺🇸 US 02', DIRECT, direct] }
     - name: Streaming
       type: select
       proxies:
         - 🇺🇸 US 01
         - 🇯🇵 JP 01
         - REJECT
+        - reject
 `
     const groups = parseClashGroups(groupsYaml)
 
     expect(groups).toEqual([
       { name: 'US Auto', type: 'url-test', memberNames: ['🇺🇸 US 01', '🇺🇸 US 02'] },
       { name: 'Streaming', type: 'select', memberNames: ['🇺🇸 US 01', '🇯🇵 JP 01'] },
+    ])
+  })
+
+  it('should parse upstream selector groups from sing-box JSON without built-in outbounds', () => {
+    const groups = parseSingboxGroups({
+      outbounds: [
+        { type: 'trojan', tag: '🇺🇸 US 01', server: 'us.example.com', server_port: 443, password: 'pwd' },
+        { type: 'selector', tag: 'Proxy', outbounds: ['🇺🇸 US 01', 'direct', 'DIRECT', 'block', 'BLOCK'] },
+      ],
+    })
+
+    expect(groups).toEqual([
+      { name: 'Proxy', type: 'selector', memberNames: ['🇺🇸 US 01'] },
     ])
   })
 
