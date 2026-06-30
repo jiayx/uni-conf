@@ -21,11 +21,23 @@ describe('zero setup defaults integration', () => {
     expect(db.state.collections.map((row) => row.name).sort()).toEqual([
       'Native Auto',
       'Streaming Auto',
+      '默认可用节点',
       '🇭🇰 HK Auto',
       '🇺🇸 US Auto',
     ]);
+    const defaultNodePool = db.state.collections.find((row) => row.id === 'builtin-default-node-pool');
+    expect(defaultNodePool?.notes).toBe('[uni-conf:default-node-pool]');
+    expect(parseFilters(defaultNodePool?.filters)).toContainEqual(expect.objectContaining({
+      field: 'tag',
+      operator: 'not_in',
+      value: ['high-multiplier'],
+    }));
 
     const groupsByName = new Map(db.state.groups.map((row) => [row.name, row]));
+    expect(groupsByName.get('全部节点')?.collection_ids).toEqual(['builtin-default-node-pool']);
+    expect(groupsByName.get('节点选择')?.collection_ids).toEqual(['builtin-default-node-pool']);
+    expect(groupsByName.get('自动选择')?.collection_ids).toEqual(['builtin-default-node-pool']);
+    expect(groupsByName.get('故障切换')?.collection_ids).toEqual(['builtin-default-node-pool']);
     expect(groupsByName.get('PROXY')?.group_ids).toContain(groupsByName.get('🇺🇸 US Auto')?.id);
     expect(groupsByName.get('AI')?.group_ids).toEqual(expect.arrayContaining([
       'builtin-proxy',
@@ -62,9 +74,13 @@ describe('zero setup defaults integration', () => {
     expect(groupsByName.get('DIRECT')?.enabled).toBe(1);
     expect(groupsByName.get('REJECT')?.enabled).toBe(1);
     expect(groupsByName.get('全部节点')?.enabled).toBe(1);
+    expect(groupsByName.get('全部节点')?.collection_ids).toEqual(['builtin-default-node-pool']);
     expect(groupsByName.get('节点选择')?.enabled).toBe(1);
+    expect(groupsByName.get('节点选择')?.collection_ids).toEqual(['builtin-default-node-pool']);
     expect(groupsByName.get('自动选择')?.enabled).toBe(1);
+    expect(groupsByName.get('自动选择')?.collection_ids).toEqual(['builtin-default-node-pool']);
     expect(groupsByName.get('故障切换')?.enabled).toBe(1);
+    expect(groupsByName.get('故障切换')?.collection_ids).toEqual(['builtin-default-node-pool']);
     expect(groupsByName.get('AI')?.enabled).toBe(0);
     expect(groupsByName.get('Streaming')?.enabled).toBe(0);
     expect(groupsByName.get('Telegram')?.enabled).toBe(0);
@@ -87,7 +103,14 @@ describe('zero setup defaults integration', () => {
 
     await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
 
-    expect(db.state.collections).toEqual([]);
+    expect(db.state.collections.map((row) => row.name)).toEqual(['默认可用节点']);
+    const defaultNodePool = db.state.collections[0];
+    expect(defaultNodePool?.id).toBe('builtin-default-node-pool');
+    expect(parseFilters(defaultNodePool?.filters)).toContainEqual(expect.objectContaining({
+      field: 'tag',
+      operator: 'not_in',
+      value: ['high-multiplier'],
+    }));
 
     const groupsByName = new Map(db.state.groups.map((row) => [row.name, row]));
     expect(groupsByName.get('PROXY')?.enabled).toBe(1);
@@ -97,6 +120,7 @@ describe('zero setup defaults integration', () => {
     expect(groupsByName.get('节点选择')?.enabled).toBe(1);
     expect(groupsByName.get('自动选择')?.enabled).toBe(1);
     expect(groupsByName.get('故障切换')?.enabled).toBe(1);
+    expect(groupsByName.get('自动选择')?.collection_ids).toEqual(['builtin-default-node-pool']);
     expect(groupsByName.get('PROXY')?.group_ids).toEqual(expect.arrayContaining([
       'builtin-auto-select',
       'builtin-node-select',
@@ -262,6 +286,45 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
     }
     return;
   }
+  if (sql.includes('INSERT OR IGNORE INTO collections')) {
+    if (!state.collections.some((row) => row.id === args[0])) {
+      state.collections.push({
+        id: args[0],
+        name: '默认可用节点',
+        source_ids: '[]',
+        node_ids: '[]',
+        filters: args[1],
+        renames: '[]',
+        dedup: 'full_config',
+        sort: 'name',
+        sort_country_order: '[]',
+        enabled: 1,
+        notes: args[2],
+        created_at: args[3],
+        updated_at: args[4],
+      });
+    }
+    return;
+  }
+  if (sql.includes('UPDATE collections SET') && sql.includes("name = '默认可用节点'")) {
+    const row = state.collections.find((item) => item.id === args[3]);
+    if (row) {
+      Object.assign(row, {
+        name: '默认可用节点',
+        source_ids: '[]',
+        node_ids: '[]',
+        filters: args[0],
+        renames: '[]',
+        dedup: 'full_config',
+        sort: 'name',
+        sort_country_order: '[]',
+        enabled: 1,
+        notes: args[1],
+        updated_at: args[2],
+      });
+    }
+    return;
+  }
   if (sql.includes('INSERT INTO collections')) {
     state.collections.push({
       id: args[0],
@@ -291,20 +354,20 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
     return;
   }
   if (sql.includes('UPDATE groups SET') && sql.includes('name = ?') && sql.includes('is_builtin = 1')) {
-    const row = state.groups.find((item) => item.id === args[9]);
+    const row = state.groups.find((item) => item.id === args[10]);
     if (row) {
       Object.assign(row, {
         name: args[0],
         type: args[1],
-        collection_ids: '[]',
-        builtins: args[2],
-        test_url: args[3],
-        interval: args[4],
-        tolerance: args[5],
-        lazy: args[6],
-        sort_order: args[7],
+        collection_ids: parseJsonArray(args[2]),
+        builtins: args[3],
+        test_url: args[4],
+        interval: args[5],
+        tolerance: args[6],
+        lazy: args[7],
+        sort_order: args[8],
         is_builtin: 1,
-        updated_at: args[8],
+        updated_at: args[9],
       });
     }
     return;
@@ -415,18 +478,18 @@ function groupRow(args: unknown[], isBuiltinInsert: boolean): MemoryRow {
       id: args[0],
       name: args[1],
       type: args[2],
-      collection_ids: '[]',
+      collection_ids: parseJsonArray(args[3]),
       group_ids: [],
-      builtins: args[3],
-      test_url: args[4],
-      interval: args[5],
-      tolerance: args[6],
-      lazy: args[7],
+      builtins: args[4],
+      test_url: args[5],
+      interval: args[6],
+      tolerance: args[7],
+      lazy: args[8],
       enabled: 1,
-      sort_order: args[8],
+      sort_order: args[9],
       is_builtin: 1,
-      created_at: args[9],
-      updated_at: args[10],
+      created_at: args[10],
+      updated_at: args[11],
     };
   }
 
@@ -452,4 +515,19 @@ function groupRow(args: unknown[], isBuiltinInsert: boolean): MemoryRow {
 function compareGroupRows(a: MemoryRow, b: MemoryRow): number {
   return Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0)
     || String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
+}
+
+function parseJsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseFilters(value: unknown): unknown[] {
+  return parseJsonArray(value);
 }
