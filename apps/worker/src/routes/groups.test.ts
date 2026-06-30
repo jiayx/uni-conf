@@ -111,6 +111,37 @@ describe('groups route helpers', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
+  it('rejects direct edits to built-in groups', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/builtin-ai', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    }, { DB: db })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'Built-in groups are managed by routing templates',
+    })
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
+  })
+
+  it('only reorders custom groups', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/reorder', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: ['custom-downloads', 'builtin-ai'] }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(readMockGroupOrder(db, 'custom-downloads')).toBe(0)
+    expect(readMockGroupOrder(db, 'builtin-ai')).toBe(1)
+  })
+
   it('initializes zero-setup defaults after deleting a group', async () => {
     const db = createGroupRouteMockDb()
 
@@ -124,9 +155,10 @@ describe('groups route helpers', () => {
 function createGroupRouteMockDb(): D1Database {
   const groups = new Map<string, Record<string, unknown>>([
     ['custom-downloads', groupRow('custom-downloads', 'Downloads')],
+    ['builtin-ai', groupRow('builtin-ai', 'AI', 1, 1)],
   ])
 
-  return {
+  const mockDb = {
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
@@ -144,6 +176,11 @@ function createGroupRouteMockDb(): D1Database {
         run: async () => {
           if (sql.includes('INSERT INTO groups')) {
             groups.set(String(args[0]), groupRow(String(args[0]), String(args[1]), Number(args[11] ?? 11)))
+          }
+          if (sql.includes('UPDATE groups SET sort_order')) {
+            const row = groups.get(String(args[2]))
+            if (row && !row.is_builtin) row.sort_order = args[0]
+            return { success: true }
           }
           if (sql.includes('UPDATE groups SET')) {
             const id = String(args[11])
@@ -165,10 +202,22 @@ function createGroupRouteMockDb(): D1Database {
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
-  } as unknown as D1Database
+    batch: vi.fn(async (statements: Array<{ run: () => Promise<unknown> }>) => {
+      for (const statement of statements) await statement.run()
+      return []
+    }),
+    __groups: groups,
+  }
+
+  return mockDb as unknown as D1Database
 }
 
-function groupRow(id: string, name: string, sortOrder = 10): Record<string, unknown> {
+function readMockGroupOrder(db: D1Database, id: string): unknown {
+  const groups = (db as unknown as { __groups: Map<string, Record<string, unknown>> }).__groups
+  return groups.get(id)?.sort_order
+}
+
+function groupRow(id: string, name: string, sortOrder = 10, isBuiltin = 0): Record<string, unknown> {
   return {
     id,
     name,
@@ -182,7 +231,7 @@ function groupRow(id: string, name: string, sortOrder = 10): Record<string, unkn
     lazy: null,
     enabled: 1,
     sort_order: sortOrder,
-    is_builtin: 0,
+    is_builtin: isBuiltin,
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
   }

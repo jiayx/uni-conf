@@ -79,6 +79,10 @@ export function Groups() {
     () => groups.filter(group => (isRoutingPolicyGroup(group) && group.enabled) || isCustomRoutingGroup(group)),
     [groups]
   )
+  const customRoutingGroups = useMemo(
+    () => visibleGroups.filter(isCustomRoutingGroup),
+    [visibleGroups]
+  )
   const foundationSections = useMemo(
     () => [
       {
@@ -206,21 +210,22 @@ export function Groups() {
     }
   }
 
-  const moveGroup = (index: number, direction: -1 | 1) => {
+  const moveCustomGroup = (groupId: string, direction: -1 | 1) => {
+    const index = customRoutingGroups.findIndex(group => group.id === groupId)
     const target = index + direction
-    if (target < 0 || target >= visibleGroups.length) return
-    const movedGroup = visibleGroups[index]
-    const targetGroup = visibleGroups[target]
+    if (target < 0 || target >= customRoutingGroups.length) return
+    const movedGroup = customRoutingGroups[index]
+    const targetGroup = customRoutingGroups[target]
     if (!movedGroup || !targetGroup) return
 
-    const orderedVisible = [...visibleGroups]
-    const [item] = orderedVisible.splice(index, 1)
+    const orderedCustom = [...customRoutingGroups]
+    const [item] = orderedCustom.splice(index, 1)
     if (!item) return
-    orderedVisible.splice(target, 0, item)
+    orderedCustom.splice(target, 0, item)
 
-    const visibleIds = new Set(visibleGroups.map(group => group.id))
-    const visibleQueue = [...orderedVisible]
-    const ordered = groups.map(group => visibleIds.has(group.id) ? visibleQueue.shift()! : group)
+    const customIds = new Set(customRoutingGroups.map(group => group.id))
+    const customQueue = [...orderedCustom]
+    const ordered = groups.map(group => customIds.has(group.id) ? customQueue.shift()! : group)
     void reorderGroups(ordered.map(group => group.id))
   }
 
@@ -328,61 +333,72 @@ export function Groups() {
       )}
       {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
         <div className={styles.list}>
-          {visibleGroups.map((group, index) => (
-            <Card key={group.id} className={styles.groupCard}>
-              <div className={styles.orderControls}>
-                <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => moveGroup(index, -1)} title="上移">
-                  <ArrowUpIcon />
-                </Button>
-                <Button variant="ghost" size="sm" disabled={index === visibleGroups.length - 1} onClick={() => moveGroup(index, 1)} title="下移">
-                  <ArrowDownIcon />
-                </Button>
-              </div>
-              <div className={styles.cardMain}>
-                <div className={styles.cardTop}>
-                  <div className={styles.groupName}>{group.name}</div>
-                  <Badge variant={group.enabled ? 'success' : 'default'}>
-                    {group.enabled ? t('common.enabled') : t('common.disabled')}
-                  </Badge>
-                </div>
-                <div className={styles.groupMeta}>
-                  <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
-                  {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
-                  <Badge variant="purple">自动出口候选</Badge>
-                </div>
-                <div className={styles.summary}>{describeRoutingGroupMembers(group)}</div>
-                {group.groupIds.length > 0 && (
-                  <label className={styles.preferenceRow}>
-                    <span>默认出口</span>
-                    <select
-                      className={styles.preferenceSelect}
-                      value={outletPreferences[group.id] ?? ''}
-                      onChange={event => void handleOutletPreference(group, event.target.value)}
-                      disabled={savingPreferenceId === group.id}
+          {visibleGroups.map(group => {
+            const customIndex = customRoutingGroups.findIndex(item => item.id === group.id)
+            return (
+              <Card key={group.id} className={styles.groupCard}>
+                {!group.isBuiltin && (
+                  <div className={styles.orderControls}>
+                    <Button variant="ghost" size="sm" disabled={customIndex <= 0} onClick={() => moveCustomGroup(group.id, -1)} title="上移">
+                      <ArrowUpIcon />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={customIndex < 0 || customIndex === customRoutingGroups.length - 1}
+                      onClick={() => moveCustomGroup(group.id, 1)}
+                      title="下移"
                     >
-                      <option value="">系统推荐：{getGroupName(groups, group.groupIds[0])}</option>
-                      {group.groupIds.map(id => (
-                        <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
-                      ))}
-                    </select>
-                  </label>
+                      <ArrowDownIcon />
+                    </Button>
+                  </div>
                 )}
-              </div>
-              {!group.isBuiltin && (
-                <div className={styles.cardActions}>
-                  <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
-                    {group.enabled ? t('common.disable') : t('common.enable')}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(group)}>
-                    {t('common.edit')}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此策略组？')) void deleteGroup(group.id) }}>
-                    <TrashIcon />
-                  </Button>
+                <div className={styles.cardMain}>
+                  <div className={styles.cardTop}>
+                    <div className={styles.groupName}>{group.name}</div>
+                    <Badge variant={group.enabled ? 'success' : 'default'}>
+                      {group.enabled ? t('common.enabled') : t('common.disabled')}
+                    </Badge>
+                  </div>
+                  <div className={styles.groupMeta}>
+                    <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
+                    {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
+                    <Badge variant="purple">自动出口候选</Badge>
+                  </div>
+                  <div className={styles.summary}>{describeRoutingGroupMembers(group)}</div>
+                  {group.groupIds.length > 0 && (
+                    <label className={styles.preferenceRow}>
+                      <span>默认出口</span>
+                      <select
+                        className={styles.preferenceSelect}
+                        value={outletPreferences[group.id] ?? ''}
+                        onChange={event => void handleOutletPreference(group, event.target.value)}
+                        disabled={savingPreferenceId === group.id}
+                      >
+                        <option value="">系统推荐：{getGroupName(groups, group.groupIds[0])}</option>
+                        {group.groupIds.map(id => (
+                          <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
-              )}
-            </Card>
-          ))}
+                {!group.isBuiltin && (
+                  <div className={styles.cardActions}>
+                    <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
+                      {group.enabled ? t('common.disable') : t('common.enable')}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(group)}>
+                      {t('common.edit')}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此策略组？')) void deleteGroup(group.id) }}>
+                      <TrashIcon />
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
           {visibleGroups.length === 0 && <EmptyState title="暂无自定义策略组" description="默认策略组合会自动生成；这里只需要添加额外业务策略。" action={{ label: '添加自定义策略组', onClick: openCreate }} />}
         </div>
       )}

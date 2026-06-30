@@ -38,7 +38,7 @@ app.post('/reorder', async (c) => {
 
   const ts = now();
   const stmts = body.ids.map((id, index) =>
-    c.env.DB.prepare('UPDATE groups SET sort_order = ?, updated_at = ? WHERE id = ?').bind(
+    c.env.DB.prepare('UPDATE groups SET sort_order = ?, updated_at = ? WHERE id = ? AND is_builtin = 0').bind(
       index,
       ts,
       id
@@ -126,6 +126,9 @@ app.put('/:id', async (c) => {
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Group not found' }, 404);
+  if (existing.is_builtin) {
+    return c.json({ success: false, error: 'Built-in groups are managed by routing templates' }, 403);
+  }
 
   const body = await c.req.json<Partial<ProxyGroup>>();
   const ts = now();
