@@ -37,6 +37,20 @@ describe('manual node input', () => {
     });
   });
 
+  it('uses the overridden display name for URI manual node recognition', () => {
+    const input = resolveManualNodeInput({
+      uri: 'trojan://password@us.example.com:443#🇺🇸 US 01',
+      name: '🇨🇦 Netflix CA 2x',
+    });
+
+    expect(input).toMatchObject({
+      name: '🇨🇦 Netflix CA 2x',
+      country: 'Canada',
+      countryCode: 'CA',
+      tags: expect.arrayContaining(['streaming', 'multiplier:2x', 'high-multiplier']),
+    });
+  });
+
   it('keeps structured manual node input supported', () => {
     const input = resolveManualNodeInput({
       name: '🇩🇪 Manual DE Trojan x1',

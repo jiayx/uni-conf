@@ -300,11 +300,17 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
   if (uri) {
     const parsed = parseRawLines(uri.split(/\r?\n/))[0];
     if (!parsed) return null;
-    const name = normalizeNonEmptyText(body.name) ?? parsed.name;
+    const normalizedNameOverride = normalizeNonEmptyText(body.name);
+    const name = normalizedNameOverride ?? parsed.name;
     const protocol = body.protocol ?? parsed.protocol;
     const server = normalizeNonEmptyText(body.server) ?? parsed.server;
     const port = body.port !== undefined ? normalizePort(body.port) : parsed.port;
-    const tags = body.tags !== undefined ? normalizeStringList(body.tags) : parsed.tags;
+    const detectedCountry = normalizedNameOverride ? detectCountry(name) : null;
+    const tags = body.tags !== undefined
+      ? normalizeStringList(body.tags)
+      : normalizedNameOverride
+        ? buildNodeRecognitionTags(name)
+        : parsed.tags;
     if (!name || !isUsableProxyProtocol(protocol) || !server || port === null || !tags) return null;
 
     return {
@@ -313,8 +319,8 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
       protocol,
       server,
       port,
-      country: body.country ?? parsed.country,
-      countryCode: body.countryCode ?? parsed.countryCode,
+      country: body.country ?? detectedCountry?.country ?? parsed.country,
+      countryCode: body.countryCode ?? detectedCountry?.countryCode ?? parsed.countryCode,
       enabled: body.enabled,
       tags,
       notes: body.notes,
