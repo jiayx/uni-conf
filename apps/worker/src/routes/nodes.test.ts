@@ -216,6 +216,28 @@ describe('manual node input', () => {
     });
   });
 
+  it('re-detects country and recognition tags when a manual node is renamed', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb();
+
+    const response = await nodesApp.request('/node-1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: '🇨🇦 Netflix CA 2x' }),
+    }, { DB: db });
+    const payload = await response.json() as { success: boolean; data: { countryCode?: string; tags?: string[] } };
+    const update = readUpdatedNodeWrite(db);
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toMatchObject({ countryCode: 'CA' });
+    expect(update).toMatchObject({
+      name: '🇨🇦 Netflix CA 2x',
+      country: 'Canada',
+      countryCode: 'CA',
+    });
+    expect(update.tags).toEqual(expect.arrayContaining(['streaming', 'multiplier:2x', 'high-multiplier']));
+  });
+
   it('initializes zero-setup defaults after deleting a manual node', async () => {
     vi.clearAllMocks();
     const db = createManualNodeDeleteMockDb();
@@ -240,14 +262,14 @@ function createManualNodeCreateMockDb(): D1Database {
             return {
               id: args[0],
               source_id: inserted.source_id ?? 'manual',
-              name: inserted.name ?? '🇩🇪 DE 01',
+              name: updated.name ?? inserted.name ?? '🇩🇪 DE 01',
               protocol: inserted.protocol ?? 'trojan',
               server: inserted.server ?? 'de.example.com',
               port: inserted.port ?? 443,
-              country: inserted.country ?? 'Germany',
-              country_code: inserted.country_code ?? 'DE',
+              country: updated.country ?? inserted.country ?? 'Germany',
+              country_code: updated.country_code ?? inserted.country_code ?? 'DE',
               enabled: 1,
-              tags: inserted.tags ?? '[]',
+              tags: updated.tags ?? inserted.tags ?? '[]',
               notes: null,
               raw_config: inserted.raw_config ?? '{"password":"password"}',
               parsed_config: updated.parsed_config ?? inserted.parsed_config ?? '{"protocol":"trojan","server":"de.example.com","port":443,"password":"password","extra":{"password":"password"}}',
@@ -276,6 +298,10 @@ function createManualNodeCreateMockDb(): D1Database {
             inserted.updated_at = args[14];
           }
           if (sql.includes('UPDATE nodes SET')) {
+            updated.name = args[0];
+            updated.country = args[4];
+            updated.country_code = args[5];
+            updated.tags = args[7];
             updated.parsed_config = args[10];
           }
           return { success: true };
@@ -294,6 +320,21 @@ function createManualNodeCreateMockDb(): D1Database {
 function readUpdatedParsedConfig(db: D1Database): Record<string, unknown> {
   const updated = (db as unknown as { __updated: Record<string, unknown> }).__updated;
   return JSON.parse(String(updated.parsed_config ?? '{}')) as Record<string, unknown>;
+}
+
+function readUpdatedNodeWrite(db: D1Database): {
+  name?: unknown;
+  country?: unknown;
+  countryCode?: unknown;
+  tags: string[];
+} {
+  const updated = (db as unknown as { __updated: Record<string, unknown> }).__updated;
+  return {
+    name: updated.name,
+    country: updated.country,
+    countryCode: updated.country_code,
+    tags: JSON.parse(String(updated.tags ?? '[]')) as string[],
+  };
 }
 
 function createManualNodeDeleteMockDb(): D1Database {

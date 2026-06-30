@@ -213,6 +213,8 @@ app.put('/:id', async (c) => {
   const nextProtocol = validation.protocol ?? (existing.protocol as ProxyProtocol);
   const nextServer = validation.server ?? String(existing.server);
   const nextPort = validation.port ?? Number(existing.port);
+  const nextName = validation.name ?? String(existing.name);
+  const detectedCountry = validation.name !== undefined ? detectCountry(nextName) : undefined;
   const existingParsedConfig = normalizeRecordValue(existing.parsed_config) ?? {};
   const nextParsedConfig = withNormalizedNodeCore(
     validation.parsedConfig ?? existingParsedConfig,
@@ -236,14 +238,14 @@ app.put('/:id', async (c) => {
      WHERE id = ?`
   )
     .bind(
-      validation.name ?? existing.name,
+      nextName,
       validation.protocol ?? existing.protocol,
       validation.server ?? existing.server,
       validation.port ?? existing.port,
-      validation.country !== undefined ? validation.country : existing.country,
-      validation.countryCode !== undefined ? validation.countryCode : existing.country_code,
+      validation.country !== undefined ? validation.country : detectedCountry?.country ?? existing.country,
+      validation.countryCode !== undefined ? validation.countryCode : detectedCountry?.countryCode ?? existing.country_code,
       validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
-      validation.tags !== undefined ? jsonStringify(validation.tags) : existing.tags,
+      validation.tags !== undefined ? jsonStringify(validation.tags) : validation.name !== undefined ? jsonStringify(buildNodeRecognitionTags(nextName)) : existing.tags,
       validation.notes !== undefined ? validation.notes : existing.notes,
       validation.rawConfig !== undefined ? jsonStringify(validation.rawConfig) : existing.raw_config,
       jsonStringify(nextParsedConfig),
