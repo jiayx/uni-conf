@@ -54,6 +54,8 @@ UI scope summaries should describe the same effective export graph that the work
 
 Node-only exports (`nodes_raw` and `nodes_base64`) intentionally skip policy group, local rule, remote rule set, and DNS validation because those sections are not rendered. They should still validate source readiness, empty node output, duplicate node names, and whether each node protocol can be represented as a subscription URI.
 
+Every full-config exporter must expand collection-backed policy groups through `collectionNodeNames` and then filter those members against the nodes actually serialized by that exporter. This prevents generated groups from pointing at missing proxies/outbounds and keeps Mihomo, Stash, sing-box, Loon, Surge, Shadowrocket, Quantumult X, and Egern aligned when the same node pool is used by default global outlets or auto node groups.
+
 ## Step 4: Add Compatibility Rules
 
 Update `RULE_COMPATIBILITY` in `packages/shared/src/index.ts`.

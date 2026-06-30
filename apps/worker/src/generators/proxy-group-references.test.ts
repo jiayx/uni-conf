@@ -3,7 +3,7 @@ import yaml from 'js-yaml'
 import type { ProxyGroup, ProxyNode } from '@uni-conf/types'
 import { generateMihomoYaml } from './mihomo'
 import { generateSingboxJson } from './singbox'
-import { generateEgern, generateQuantumultX, generateSurge } from './client-configs'
+import { generateEgern, generateQuantumultX, generateShadowrocket, generateStashYaml, generateSurge } from './client-configs'
 import { generateLoon } from './loon'
 
 const createdAt = '2026-01-01T00:00:00.000Z'
@@ -299,6 +299,54 @@ describe('proxy group references', () => {
     expect(auto?.outbounds).toEqual([ssNode.name])
   })
 
+  it('expands collection-backed groups to concrete node members for every full-config exporter', () => {
+    const collectionNodeNames = { 'collection-auto': [ssNode.name] }
+    const rows = [toRow(autoGroup)]
+    const nodeRows = [toNodeRow(ssNode)]
+
+    const mihomo = yaml.load(generateMihomoYaml([ssNode], [autoGroup], [], [], collectionNodeNames)) as {
+      proxies: Array<{ name: string }>;
+      'proxy-groups': Array<{ name: string; proxies: string[] }>;
+    }
+    expect(mihomo.proxies.map((node) => node.name)).toContain(ssNode.name)
+    expect(mihomo['proxy-groups'].find((group) => group.name === autoGroup.name)?.proxies).toContain(ssNode.name)
+
+    const stash = yaml.load(generateStashYaml([ssNode], [autoGroup], [], [], collectionNodeNames)) as {
+      proxies: Array<{ name: string }>;
+      'proxy-groups': Array<{ name: string; proxies: string[] }>;
+    }
+    expect(stash.proxies.map((node) => node.name)).toContain(ssNode.name)
+    expect(stash['proxy-groups'].find((group) => group.name === autoGroup.name)?.proxies).toContain(ssNode.name)
+
+    const singbox = JSON.parse(generateSingboxJson([ssNode], [autoGroup], [], [], collectionNodeNames)) as {
+      outbounds: Array<{ tag: string; outbounds?: string[] }>;
+    }
+    expect(singbox.outbounds.map((outbound) => outbound.tag)).toContain(ssNode.name)
+    expect(singbox.outbounds.find((outbound) => outbound.tag === autoGroup.name)?.outbounds).toContain(ssNode.name)
+
+    const loon = generateLoon(nodeRows, rows, [], [], collectionNodeNames)
+    expect(loon).toContain(`${ssNode.name} = Shadowsocks`)
+    expect(loon).toContain(`${autoGroup.name} = url-latency-benchmark, ${ssNode.name}`)
+
+    const surge = generateSurge(nodeRows, rows, [], [], collectionNodeNames)
+    expect(surge).toContain(`${ssNode.name} = ss`)
+    expect(surge).toContain(`${autoGroup.name} = url-test, ${ssNode.name}`)
+
+    const shadowrocket = generateShadowrocket(nodeRows, rows, [], [], collectionNodeNames)
+    expect(shadowrocket).toContain(`${ssNode.name} = ss`)
+    expect(shadowrocket).toContain(`${autoGroup.name} = url-test, ${ssNode.name}`)
+
+    const quantumultx = generateQuantumultX(nodeRows, rows, [], [], collectionNodeNames)
+    expect(quantumultx).toContain(`url-latency-benchmark=${autoGroup.name}, ${ssNode.name}`)
+
+    const egern = yaml.load(generateEgern(nodeRows, rows, [], [], collectionNodeNames)) as {
+      proxies: Array<{ name: string }>;
+      policy_groups: Array<{ name: string; policies: string[] }>;
+    }
+    expect(egern.proxies.map((node) => node.name)).toContain(ssNode.name)
+    expect(egern.policy_groups.find((group) => group.name === autoGroup.name)?.policies).toContain(ssNode.name)
+  })
+
   it('uses Mihomo built-in DIRECT and REJECT policies without emitting invalid groups', () => {
     const content = generateMihomoYaml(
       [],
@@ -460,5 +508,17 @@ function toRow(group: ProxyGroup): Record<string, unknown> {
     enabled: group.enabled ? 1 : 0,
     test_url: group.testUrl,
     interval: group.interval,
+  }
+}
+
+function toNodeRow(node: ProxyNode): Record<string, unknown> {
+  return {
+    id: node.id,
+    name: node.name,
+    protocol: node.protocol,
+    server: node.server,
+    port: node.port,
+    raw_config: JSON.stringify(node.rawConfig),
+    parsed_config: JSON.stringify(node.parsedConfig),
   }
 }
