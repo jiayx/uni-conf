@@ -10,8 +10,8 @@
   "scripts": {
     "generate:protocols": "node scripts/generate-protocol-metadata.mjs",
     "check:protocols": "node scripts/check-protocol-metadata.mjs",
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "build": "pnpm check:protocols && tsc --noEmit",
+    "typecheck": "pnpm check:protocols && tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "catalog:"

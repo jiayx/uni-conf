@@ -83,6 +83,7 @@ Add a codegen step that:
    - native field paths for URI, mihomo, and sing-box mapping
 
 The generated files should be committed if builds need to run without network access.
+`@uni-conf/types` runs `check:protocols` as part of `build` and `typecheck`, so normal repo validation fails when the protocol registry references a sing-box or mihomo type that is missing from the generated upstream-schema metadata.
 
 The field registry is used in three places:
 

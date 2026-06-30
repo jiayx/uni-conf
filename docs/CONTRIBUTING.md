@@ -114,6 +114,8 @@ pnpm --filter @uni-conf/types generate:protocols
 pnpm --filter @uni-conf/types check:protocols
 ```
 
+`pnpm --filter @uni-conf/types typecheck` and root `pnpm typecheck` also run the protocol metadata check, so registry/schema drift is caught in the normal validation path.
+
 ### New Export Format
 See [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md).
 
