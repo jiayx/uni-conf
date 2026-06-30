@@ -53,7 +53,7 @@ uni-conf/
 
 ## Database Migrations
 
-`apps/worker/migrations/0001_initial_schema.sql` is the canonical fresh-install schema. Later migration files may still exist to preserve the historical migration order, but they must not re-add columns already present in `0001`; repeated `ALTER TABLE ... ADD COLUMN` statements break a new D1 database when migrations are applied from scratch. If a later migration's schema change has been folded into `0001`, keep that migration as a no-op or data backfill only, and verify a fresh SQLite/D1 database can apply every file in lexical order.
+`apps/worker/migrations/0001_initial_schema.sql` is the canonical fresh-install schema. Later migration files may still exist to preserve the historical migration order, but they must not re-add columns already present in `0001`; repeated `ALTER TABLE ... ADD COLUMN` statements break a new D1 database when migrations are applied from scratch. If a later migration's schema change has been folded into `0001`, keep that migration as a no-op or data backfill only, and verify a fresh SQLite/D1 database can apply every file in lexical order. `apps/worker/src/db/migrations.test.ts` enforces this by rejecting later `ADD COLUMN` statements for columns already declared by the initial schema.
 
 ---
 
