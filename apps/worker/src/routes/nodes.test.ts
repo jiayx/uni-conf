@@ -194,6 +194,28 @@ describe('manual node input', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
   });
 
+  it('keeps parsedConfig core fields aligned when updating manual node address fields', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb();
+
+    const response = await nodesApp.request('/node-1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        server: 'new.example.com',
+        port: 8443,
+      }),
+    }, { DB: db });
+
+    expect(response.status).toBe(200);
+    expect(readUpdatedParsedConfig(db)).toMatchObject({
+      protocol: 'trojan',
+      server: 'new.example.com',
+      port: 8443,
+      password: 'password',
+    });
+  });
+
   it('initializes zero-setup defaults after deleting a manual node', async () => {
     vi.clearAllMocks();
     const db = createManualNodeDeleteMockDb();
@@ -207,6 +229,7 @@ describe('manual node input', () => {
 
 function createManualNodeCreateMockDb(): D1Database {
   const inserted: Record<string, unknown> = {};
+  const updated: Record<string, unknown> = {};
   return {
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
@@ -227,7 +250,7 @@ function createManualNodeCreateMockDb(): D1Database {
               tags: inserted.tags ?? '[]',
               notes: null,
               raw_config: inserted.raw_config ?? '{"password":"password"}',
-              parsed_config: inserted.parsed_config ?? '{"protocol":"trojan","server":"de.example.com","port":443,"password":"password","extra":{"password":"password"}}',
+              parsed_config: updated.parsed_config ?? inserted.parsed_config ?? '{"protocol":"trojan","server":"de.example.com","port":443,"password":"password","extra":{"password":"password"}}',
               is_manual: 1,
               created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
               updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',
@@ -252,6 +275,9 @@ function createManualNodeCreateMockDb(): D1Database {
             inserted.created_at = args[13];
             inserted.updated_at = args[14];
           }
+          if (sql.includes('UPDATE nodes SET')) {
+            updated.parsed_config = args[10];
+          }
           return { success: true };
         },
         raw: async () => [],
@@ -261,7 +287,13 @@ function createManualNodeCreateMockDb(): D1Database {
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
+    __updated: updated,
   } as unknown as D1Database;
+}
+
+function readUpdatedParsedConfig(db: D1Database): Record<string, unknown> {
+  const updated = (db as unknown as { __updated: Record<string, unknown> }).__updated;
+  return JSON.parse(String(updated.parsed_config ?? '{}')) as Record<string, unknown>;
 }
 
 function createManualNodeDeleteMockDb(): D1Database {

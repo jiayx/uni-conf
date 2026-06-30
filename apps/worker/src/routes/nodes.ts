@@ -211,7 +211,15 @@ app.put('/:id', async (c) => {
   }
   const ts = now();
   const nextProtocol = validation.protocol ?? (existing.protocol as ProxyProtocol);
-  const nextParsedConfig = validation.parsedConfig ?? normalizeRecordValue(existing.parsed_config) ?? {};
+  const nextServer = validation.server ?? String(existing.server);
+  const nextPort = validation.port ?? Number(existing.port);
+  const existingParsedConfig = normalizeRecordValue(existing.parsed_config) ?? {};
+  const nextParsedConfig = withNormalizedNodeCore(
+    validation.parsedConfig ?? existingParsedConfig,
+    nextProtocol,
+    nextServer,
+    nextPort
+  );
   const nextRawConfig = validation.rawConfig ?? normalizeRecordValue(existing.raw_config) ?? {};
   const missingRequiredFields = missingRequiredProtocolFields(nextProtocol, nextParsedConfig, nextRawConfig);
   if (missingRequiredFields.length > 0) {
@@ -238,7 +246,7 @@ app.put('/:id', async (c) => {
       validation.tags !== undefined ? jsonStringify(validation.tags) : existing.tags,
       validation.notes !== undefined ? validation.notes : existing.notes,
       validation.rawConfig !== undefined ? jsonStringify(validation.rawConfig) : existing.raw_config,
-      validation.parsedConfig !== undefined ? jsonStringify(validation.parsedConfig) : existing.parsed_config,
+      jsonStringify(nextParsedConfig),
       ts,
       id
     )
@@ -450,6 +458,20 @@ function normalizeRecord(value: unknown): Record<string, unknown> | null {
 function normalizeRecordValue(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'string') return jsonParse<Record<string, unknown>>(value) ?? null;
   return normalizeRecord(value);
+}
+
+function withNormalizedNodeCore(
+  config: Record<string, unknown>,
+  protocol: ProxyProtocol,
+  server: string,
+  port: number
+): Record<string, unknown> {
+  return {
+    ...config,
+    protocol,
+    server,
+    port,
+  };
 }
 
 export default app;
