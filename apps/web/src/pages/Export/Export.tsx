@@ -11,9 +11,10 @@ import { api } from '@/lib/api'
 import { saveExportDownload } from '@/core/export/download-file'
 import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
+import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
-import type { ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
+import type { CompatibilityWarning, ExportConfig, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import styles from './Export.module.css'
 
 const BASE_URL = window.location.origin
@@ -52,6 +53,8 @@ export function Export() {
   const [copied, setCopied] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [checkingId, setCheckingId] = useState<string | null>(null)
+  const [validationById, setValidationById] = useState<Record<string, ExportValidationState>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -138,6 +141,32 @@ export function Export() {
     }
   }
 
+  const handleValidate = async (config: ExportConfig) => {
+    setCheckingId(config.id)
+    setValidationById(current => ({
+      ...current,
+      [config.id]: { status: 'checking' },
+    }))
+    try {
+      const result = await api.export.previewFormat(config.format, config.id)
+      setValidationById(current => ({
+        ...current,
+        [config.id]: {
+          status: 'ready',
+          warnings: result.warnings ?? [],
+          lineCount: result.content.split('\n').length,
+        },
+      }))
+    } catch (e) {
+      setValidationById(current => ({
+        ...current,
+        [config.id]: { status: 'error', error: (e as Error).message },
+      }))
+    } finally {
+      setCheckingId(null)
+    }
+  }
+
   const copyUrl = (url: string, id: string) => {
     void navigator.clipboard.writeText(url)
     setCopied(id)
@@ -172,6 +201,7 @@ export function Export() {
             const filename = getExportSubscriptionFilename(cfg.format)
             const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
             const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets)
+            const validation = validationById[cfg.id]
             return (
               <Card key={cfg.id} className={styles.configCard}>
                 <div className={styles.configHeader}>
@@ -187,6 +217,11 @@ export function Export() {
                     <Button variant="secondary" size="sm" onClick={() => openEdit(cfg)}>
                       编辑
                     </Button>
+                    <Button
+                      variant="secondary" size="sm"
+                      loading={checkingId === cfg.id}
+                      onClick={() => void handleValidate(cfg)}
+                    >校验</Button>
                     <Button
                       variant="secondary" size="sm"
                       loading={downloadingId === cfg.id}
@@ -207,6 +242,7 @@ export function Export() {
                     >{copied === cfg.id ? t('common.copied') : t('common.copy')}</Button>
                   </div>
                 </div>
+                {validation && <ExportValidationResult validation={validation} />}
               </Card>
             )
           })}
@@ -285,6 +321,48 @@ export function Export() {
           </div>
         </details>
       </Modal>
+    </div>
+  )
+}
+
+type ExportValidationState =
+  | { status: 'checking' }
+  | { status: 'ready'; warnings: CompatibilityWarning[]; lineCount: number }
+  | { status: 'error'; error: string }
+
+function ExportValidationResult({ validation }: { validation: ExportValidationState }) {
+  if (validation.status === 'checking') {
+    return <div className={styles.validation}>正在校验配置...</div>
+  }
+
+  if (validation.status === 'error') {
+    return (
+      <div className={`${styles.validation} ${styles.validationBlocked}`}>
+        <strong>配置需要处理</strong>
+        <span>{validation.error}</span>
+      </div>
+    )
+  }
+
+  const summary = summarizeExportWarnings(validation.warnings)
+  const visibleWarnings = validation.warnings.slice(0, 3)
+
+  return (
+    <div className={`${styles.validation} ${summary.canUseConfig ? styles.validationReady : styles.validationBlocked}`}>
+      <strong>{summary.canUseConfig ? '配置可用' : '配置需要处理'}</strong>
+      <span>{exportWarningSummaryText(summary)} · 预览 {validation.lineCount} 行</span>
+      {visibleWarnings.length > 0 && (
+        <div className={styles.validationWarnings}>
+          {visibleWarnings.map((warning, index) => (
+            <div key={`${warning.level}-${index}`} className={styles.validationWarning}>
+              {warning.message}
+            </div>
+          ))}
+          {validation.warnings.length > visibleWarnings.length && (
+            <div className={styles.validationMore}>还有 {validation.warnings.length - visibleWarnings.length} 条提示，请到配置预览查看。</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

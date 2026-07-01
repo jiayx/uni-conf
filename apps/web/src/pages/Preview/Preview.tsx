@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { PREVIEW_FORMATS } from '@/core/export/formats'
+import { summarizeExportWarnings } from '@/core/export/warning-summary'
 import { api } from '@/lib/api'
 import type { CompatibilityWarning, ExportConfig, ExportFormat } from '@uni-conf/types'
 import styles from './Preview.module.css'
@@ -18,10 +19,8 @@ export function Preview() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
-  const unsupportedWarnings = warnings.filter(warning => warning.level === 'unsupported')
-  const partialWarnings = warnings.filter(warning => warning.level === 'partial')
-  const convertWarnings = warnings.filter(warning => warning.level === 'convert')
-  const canUseConfig = content && unsupportedWarnings.length === 0
+  const warningSummary = summarizeExportWarnings(warnings)
+  const canUseConfig = content && warningSummary.canUseConfig
 
   const loadConfigs = useCallback(async () => {
     try {
@@ -116,9 +115,9 @@ export function Preview() {
                 {warnings.length === 0
                   ? t('preview.ready_desc')
                   : t('preview.warning_summary', {
-                    unsupported: unsupportedWarnings.length,
-                    partial: partialWarnings.length,
-                    convert: convertWarnings.length,
+                    unsupported: warningSummary.unsupported,
+                    partial: warningSummary.partial,
+                    convert: warningSummary.convert,
                   })}
               </span>
             </div>
