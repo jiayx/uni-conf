@@ -180,25 +180,42 @@ describe('default remote rule sets', () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
       existingPresets: [],
-      groups: listGroups().map((group) => group.id === 'builtin-crypto' ? { ...group, enabled: 0 } : group),
+      groups: listGroups().map((group) => (
+        ['builtin-crypto', 'builtin-gaming', 'builtin-developer'].includes(group.id)
+          ? { ...group, enabled: 0 }
+          : group
+      )),
       inserted,
     });
 
     await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
 
-    expect(inserted).toContainEqual(expect.objectContaining({
-      operation: 'insert',
-      presetId: 'crypto',
-      targetGroupId: 'builtin-crypto',
-      enabled: 0,
-      notes: expect.stringContaining(SYSTEM_DISABLED_NOTE),
-    }));
+    for (const [presetId, targetGroupId] of [
+      ['crypto', 'builtin-crypto'],
+      ['steam', 'builtin-gaming'],
+    ]) {
+      expect(inserted).toContainEqual(expect.objectContaining({
+        operation: 'insert',
+        presetId,
+        targetGroupId,
+        enabled: 0,
+        notes: expect.stringContaining(SYSTEM_DISABLED_NOTE),
+      }));
+    }
     expect(inserted.find((item) => item.presetId === 'adrules')).toMatchObject({
       targetGroupId: 'builtin-reject',
       enabled: 1,
     });
     expect(inserted.find((item) => item.presetId === 'cn')).toMatchObject({
       targetGroupId: 'builtin-direct',
+      enabled: 1,
+    });
+    expect(inserted.find((item) => item.presetId === 'games')).toMatchObject({
+      targetGroupId: 'builtin-proxy',
+      enabled: 1,
+    });
+    expect(inserted.find((item) => item.presetId === 'gits')).toMatchObject({
+      targetGroupId: 'builtin-github',
       enabled: 1,
     });
   });
