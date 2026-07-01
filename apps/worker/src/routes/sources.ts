@@ -56,10 +56,11 @@ app.post('/', async (c) => {
     refreshAfterCreate?: boolean;
   }>();
 
-  if (!body.type) {
+  const sourceType = body.type ?? (body.url ? 'url' : undefined);
+  if (!sourceType) {
     return c.json({ success: false, error: 'type is required' }, 400);
   }
-  if (!isValidSourceType(body.type)) {
+  if (!isValidSourceType(sourceType)) {
     return c.json({ success: false, error: 'invalid source type' }, 400);
   }
   const format = body.format ?? 'auto';
@@ -67,10 +68,10 @@ app.post('/', async (c) => {
     return c.json({ success: false, error: 'invalid source format' }, 400);
   }
   const normalizedUrl = normalizeHttpUrl(body.url);
-  if (body.type === 'url' && !body.url) {
+  if (sourceType === 'url' && !body.url) {
     return c.json({ success: false, error: 'url is required' }, 400);
   }
-  if (body.type === 'url' && !normalizedUrl) {
+  if (sourceType === 'url' && !normalizedUrl) {
     return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
   }
   const sourceFields = validateSourceMutableFields(body);
@@ -89,7 +90,7 @@ app.post('/', async (c) => {
     .bind(
       id,
       sourceName,
-      body.type,
+      sourceType,
       normalizedUrl ?? null,
       format,
       body.enabled !== false ? 1 : 0,
@@ -104,7 +105,7 @@ app.post('/', async (c) => {
 
   let refresh: SourceRefreshResult | undefined;
   let refreshError: string | undefined;
-  const shouldRefreshAfterCreate = body.refreshAfterCreate !== false && body.type === 'url' && Boolean(body.url);
+  const shouldRefreshAfterCreate = body.refreshAfterCreate !== false && sourceType === 'url' && Boolean(body.url);
   if (shouldRefreshAfterCreate) {
     try {
       refresh = await refreshSourceById(c.env.DB, id);

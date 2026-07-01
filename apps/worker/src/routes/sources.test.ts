@@ -578,6 +578,32 @@ proxy-groups:
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
+  it('defaults source type to url when creating with only a subscription URL', async () => {
+    const db = createCreateMockDb()
+
+    const response = await sourcesApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        url: 'https://only-url.example/sub',
+        refreshAfterCreate: false,
+      }),
+    }, { DB: db })
+    const payload = await response.json() as {
+      success: boolean;
+      data: { source: { name: string; type: string; url: string } };
+    }
+
+    expect(response.status).toBe(201)
+    expect(payload.success).toBe(true)
+    expect(payload.data.source).toMatchObject({
+      name: 'only-url.example',
+      type: 'url',
+      url: 'https://only-url.example/sub',
+    })
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
   it('refreshes a URL subscription source by default when creating it', async () => {
     const db = createCreateRefreshMockDb()
     const rawContent = `
