@@ -453,7 +453,7 @@ Other - Manual - 01
 
 `GET /api/export/preview/:format` returns `warnings: CompatibilityWarning[]` alongside the generated content.
 
-Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points.
+Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points. The export renderer has a smoke-test matrix over `EXPORT_SUBSCRIPTION_FORMATS`, including Mihomo/Clash, sing-box, Loon, Surge, Shadowrocket, Quantumult X, Stash, Egern, and node-only raw/base64 subscriptions. This keeps Dashboard quick links, authenticated downloads, and public subscription filenames aligned with the shared format registry when a client format is added or removed.
 
 The worker separates readiness checks from client compatibility checks. Readiness warnings are always returned because they indicate a config that may be empty or structurally broken. A target client with zero renderable nodes is a readiness warning, not a hideable compatibility warning, because download/subscription would be blocked. The `show_compatibility_warnings` setting only hides client capability warnings such as DNS downgrade, per-node protocol skip details, or rule-format support.
 
