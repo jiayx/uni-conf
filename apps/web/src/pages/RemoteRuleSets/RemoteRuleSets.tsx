@@ -18,6 +18,7 @@ import {
 } from '@/core/remote-rules/quixotic-presets'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
+import { GLOBAL_NODE_OUTLET_GROUP_NAMES, RULE_TARGET_FOUNDATION_GROUP_NAMES } from '@uni-conf/shared'
 import type { RemoteRuleSet, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import styles from './RemoteRuleSets.module.css'
 
@@ -236,6 +237,31 @@ export function RemoteRuleSets() {
 
       {error && <div className={styles.error}>{error}</div>}
 
+      <section className={styles.foundationPanel}>
+        <div>
+          <div className={styles.foundationTitle}>固定基础目标</div>
+          <div className={styles.foundationMeta}>PROXY / DIRECT / REJECT 始终内置；规则集只需要选择匹配后使用哪个目标。</div>
+        </div>
+        <div className={styles.foundationRows}>
+          <div className={styles.foundationRow}>
+            <span className={styles.foundationLabel}>规则基础</span>
+            <div className={styles.foundationBadges}>
+              {RULE_TARGET_FOUNDATION_GROUP_NAMES.map(name => (
+                <Badge key={name} variant="default">{name}</Badge>
+              ))}
+            </div>
+          </div>
+          <div className={styles.foundationRow}>
+            <span className={styles.foundationLabel}>节点出口</span>
+            <div className={styles.foundationBadges}>
+              {GLOBAL_NODE_OUTLET_GROUP_NAMES.map(name => (
+                <Badge key={name} variant="default">{name}</Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
@@ -262,7 +288,7 @@ export function RemoteRuleSets() {
                     />
                     <span>{sectionEnabledLabel(section.sets)}</span>
                   </label>
-                  <Badge variant="purple">策略组</Badge>
+                  <Badge variant="purple">分流目标</Badge>
                   <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加补充规则集</Button>
                 </div>
               </div>

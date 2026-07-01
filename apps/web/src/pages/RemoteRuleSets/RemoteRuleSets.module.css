@@ -2,6 +2,16 @@
 .headerActions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .loading { color: var(--color-text-secondary); padding: 2rem; text-align: center; }
 .error { padding: 0.75rem 1rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.875rem; }
+.foundationPanel {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface);
+}
+.foundationTitle { color: var(--color-text-primary); font-size: 0.9375rem; font-weight: 600; }
+.foundationMeta { margin-top: 0.25rem; color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.foundationRows { display: flex; flex-direction: column; gap: 0.625rem; min-width: min(100%, 420px); }
+.foundationRow { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; gap: 0.75rem; }
+.foundationLabel { color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 600; }
+.foundationBadges { display: flex; gap: 0.375rem; flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
 .groupedList { display: flex; flex-direction: column; gap: 1.25rem; }
 .ruleSetSection { display: flex; flex-direction: column; gap: 0.75rem; }
