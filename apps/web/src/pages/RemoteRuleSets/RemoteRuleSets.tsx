@@ -195,15 +195,29 @@ export function RemoteRuleSets() {
     setEditingSet(null)
   }
 
-  const handleToggle = async (set: RemoteRuleSet) => {
-    const updated = await api.remoteRuleSets.update(set.id, { enabled: !set.enabled })
-    setSets(current => current.map(item => (item.id === set.id ? updated : item)))
+  const handleToggle = async (set: RemoteRuleSet, targetEnabled: boolean) => {
+    if (!targetEnabled && !set.enabled) {
+      setError('当前分流目标未在策略组组合中启用，切换组合后才能启用这些规则集')
+      return
+    }
+    setError('')
+    try {
+      const updated = await api.remoteRuleSets.update(set.id, { enabled: !set.enabled })
+      setSets(current => current.map(item => (item.id === set.id ? updated : item)))
+    } catch (e) {
+      setError((e as Error).message)
+    }
   }
 
-  const handleToggleSection = async (groupId: string, sectionSets: RemoteRuleSet[], enabled: boolean) => {
+  const handleToggleSection = async (groupId: string, sectionSets: RemoteRuleSet[], enabled: boolean, targetEnabled: boolean) => {
+    if (enabled && !targetEnabled) {
+      setError('当前分流目标未在策略组组合中启用，切换组合后才能启用这些规则集')
+      return
+    }
     const changedSets = sectionSets.filter(set => set.enabled !== enabled)
     if (changedSets.length === 0) return
 
+    setError('')
     setTogglingGroupId(groupId)
     try {
       const updatedSets = await Promise.all(
@@ -211,6 +225,8 @@ export function RemoteRuleSets() {
       )
       const updatedById = new Map(updatedSets.map(set => [set.id, set]))
       setSets(current => current.map(item => updatedById.get(item.id) ?? item))
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setTogglingGroupId(null)
     }
@@ -283,13 +299,15 @@ export function RemoteRuleSets() {
                     <input
                       type="checkbox"
                       checked={section.sets.some(set => set.enabled)}
-                      onChange={event => void handleToggleSection(section.groupId, section.sets, event.target.checked)}
-                      disabled={togglingGroupId === section.groupId}
+                      onChange={event => void handleToggleSection(section.groupId, section.sets, event.target.checked, section.targetEnabled)}
+                      disabled={togglingGroupId === section.groupId || (!section.targetEnabled && !section.sets.some(set => set.enabled))}
                     />
                     <span>{sectionEnabledLabel(section.sets)}</span>
                   </label>
-                  <Badge variant="purple">分流目标</Badge>
-                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)}>添加补充规则集</Button>
+                  <Badge variant={section.targetEnabled ? 'purple' : 'default'}>
+                    {section.targetEnabled ? '分流目标' : '当前组合未启用'}
+                  </Badge>
+                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)} disabled={!section.targetEnabled}>添加补充规则集</Button>
                 </div>
               </div>
               <div className={styles.grid}>
@@ -297,7 +315,12 @@ export function RemoteRuleSets() {
                   <Card key={set.id} className={styles.card}>
                     <div className={styles.cardHeader}>
                       <label className={styles.enableSwitch}>
-                        <input type="checkbox" checked={set.enabled} onChange={() => void handleToggle(set)} />
+                        <input
+                          type="checkbox"
+                          checked={set.enabled}
+                          onChange={() => void handleToggle(set, section.targetEnabled)}
+                          disabled={!section.targetEnabled && !set.enabled}
+                        />
                         <span>{set.enabled ? t('common.enabled') : t('common.disabled')}</span>
                       </label>
                       <div className={styles.cardTitle}>{set.name}</div>
@@ -443,15 +466,21 @@ function sectionEnabledLabel(sets: RemoteRuleSet[]): string {
   return '部分启用'
 }
 
-function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number }>) {
+function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number; enabled?: boolean }>) {
   const byId = new Map(groups.map(group => [group.id, group.name]))
   const orderById = new Map(groups.map((group, index) => [group.id, group.order ?? index]))
-  const sections = new Map<string, { groupId: string; groupName: string; sets: RemoteRuleSet[] }>()
+  const enabledById = new Map(groups.map(group => [group.id, group.enabled !== false]))
+  const sections = new Map<string, { groupId: string; groupName: string; targetEnabled: boolean; sets: RemoteRuleSet[] }>()
 
   for (const set of sets) {
     const groupId = set.targetGroupId
     const groupName = byId.get(groupId) ?? groupId
-    const section = sections.get(groupId) ?? { groupId, groupName, sets: [] }
+    const section = sections.get(groupId) ?? {
+      groupId,
+      groupName,
+      targetEnabled: enabledById.get(groupId) ?? false,
+      sets: [],
+    }
     section.sets.push(set)
     sections.set(groupId, section)
   }
