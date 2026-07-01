@@ -116,6 +116,8 @@ tolerance: 150
 lazy: true
 ```
 
+Full-config exporters preserve this managed health-check baseline when the target client supports equivalent fields. Mihomo-compatible configs emit `url`, `interval`, `tolerance`, and `lazy`; sing-box urltest groups emit the same URL, interval, and tolerance; Loon, Surge, Shadowrocket, Quantumult X, and Egern emit the compatible URL and interval fields.
+
 **Built-in groups** (pre-seeded, `is_builtin=1`):
 - `builtin-proxy` → PROXY (select)
 - `builtin-ai` → AI (select)

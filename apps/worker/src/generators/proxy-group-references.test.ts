@@ -273,6 +273,25 @@ describe('proxy group references', () => {
     expect(withoutProxy.route.rule_set.every(ruleSet => ruleSet.download_detour === 'direct')).toBe(true)
   })
 
+  it('uses the shared default health check settings for sing-box urltest groups', () => {
+    const content = generateSingboxJson(
+      [ssNode],
+      [autoGroup],
+      [],
+      [],
+      { 'collection-auto': [ssNode.name] }
+    )
+    const config = JSON.parse(content) as { outbounds: Array<Record<string, unknown>> }
+    const group = config.outbounds.find(outbound => outbound.tag === autoGroup.name)
+
+    expect(group).toMatchObject({
+      type: 'urltest',
+      url: 'http://www.gstatic.com/generate_204',
+      interval: '300s',
+      tolerance: 150,
+    })
+  })
+
   it('exports AnyTLS nodes for Mihomo preview configs', () => {
     const content = generateMihomoYaml(
       [anytlsNode],
