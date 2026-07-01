@@ -8,6 +8,11 @@ describe('buildQuickSubscriptionLinks', () => {
       { value: 'clash', label: 'Clash / OpenClash YAML', url: 'https://conf.example.com/sub/token-1/clash.yaml' },
       { value: 'singbox', label: 'sing-box JSON', url: 'https://conf.example.com/sub/token-1/singbox.json' },
       { value: 'loon', label: 'Loon CONF', url: 'https://conf.example.com/sub/token-1/loon.conf' },
+      { value: 'surge', label: 'Surge CONF', url: 'https://conf.example.com/sub/token-1/surge.conf' },
+      { value: 'shadowrocket', label: 'Shadowrocket CONF', url: 'https://conf.example.com/sub/token-1/shadowrocket.conf' },
+      { value: 'quantumultx', label: 'Quantumult X CONF', url: 'https://conf.example.com/sub/token-1/quantumultx.conf' },
+      { value: 'stash', label: 'Stash YAML', url: 'https://conf.example.com/sub/token-1/stash.yaml' },
+      { value: 'egern', label: 'Egern YAML', url: 'https://conf.example.com/sub/token-1/egern.yaml' },
     ])
   })
 
