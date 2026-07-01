@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from '@/core/sources/source-form'
 import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
@@ -94,9 +95,7 @@ export function Sources() {
     // When userAgent is empty string (Default), send undefined to use backend default
     // When userAgent is 'custom', use customUserAgent
     // Otherwise use the selected preset
-    const finalUserAgent = form.userAgent === 'custom'
-      ? form.customUserAgent
-      : (form.userAgent || undefined)
+    const finalUserAgent = resolveCreateSourceUserAgent(form.userAgent, form.customUserAgent)
     const failedUrls: string[] = []
     for (const url of urls) {
       try {
@@ -164,15 +163,13 @@ export function Sources() {
     // When userAgent is empty string (Default), explicitly pass empty string to clear it
     // When userAgent is 'custom', use customUserAgent
     // Otherwise use the selected preset
-    const finalUserAgent = form.userAgent === 'custom'
-      ? form.customUserAgent
-      : form.userAgent
+    const finalUserAgent = resolveUpdateSourceUserAgent(form.userAgent, form.customUserAgent)
     const update = {
       name: form.name,
       url: form.url,
       format: form.format,
       updateInterval: form.updateInterval,
-      userAgent: finalUserAgent || undefined,
+      userAgent: finalUserAgent,
       notes: form.notes,
     }
     const shouldRefreshAfterUpdate = shouldRefreshSourceAfterUpdate(editingSource, update)
