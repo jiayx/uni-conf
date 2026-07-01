@@ -1,4 +1,4 @@
-import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 // ============================================================
@@ -400,5 +400,5 @@ export function parseProxyLinks(text: string, sourceId: string): ProxyNode[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => parseProxyLink(line, sourceId))
-    .filter((node): node is ProxyNode => node !== null)
+    .filter((node): node is ProxyNode => node !== null && !isSubscriptionInfoNodeName(node.name))
 }

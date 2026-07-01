@@ -1,4 +1,4 @@
-import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import { MIHOMO_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 import yaml from 'js-yaml'
@@ -86,7 +86,7 @@ export function parseClashConfig(content: string, sourceId: string): ProxyNode[]
 
     return proxies
       .map((proxy) => clashProxyToNode(proxy, sourceId))
-      .filter((node): node is ProxyNode => node !== null)
+      .filter((node): node is ProxyNode => node !== null && !isSubscriptionInfoNodeName(node.name))
   } catch {
     return []
   }

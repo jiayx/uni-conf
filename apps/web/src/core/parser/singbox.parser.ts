@@ -1,4 +1,4 @@
-import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import { SINGBOX_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
@@ -135,7 +135,7 @@ export function parseSingboxConfig(content: string, sourceId: string): ProxyNode
         return t && !BUILTIN_TYPES.has(t) || (t && PROXY_TYPES.has(t))
       })
       .map((ob) => singboxOutboundToNode(ob, sourceId))
-      .filter((node): node is ProxyNode => node !== null)
+      .filter((node): node is ProxyNode => node !== null && !isSubscriptionInfoNodeName(node.name))
   } catch {
     return []
   }
