@@ -20,6 +20,15 @@ describe('data reset defaults', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, ts)
   })
 
+  it('restores defaults before exporting data', async () => {
+    const db = createMockDb()
+
+    const response = await dataApp.request('/export', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
   it('restores defaults after importing data', async () => {
     const db = createMockDb()
 

@@ -20,6 +20,7 @@ type TableName = typeof TABLES[number]
 type ExportPayload = Partial<Record<TableName, Record<string, unknown>[]>>
 
 app.get('/export', async (c) => {
+  await restoreDefaultData(c.env.DB, now())
   const data: ExportPayload = {}
   for (const table of TABLES) {
     const { results } = await c.env.DB.prepare(`SELECT * FROM ${table}`).all<Record<string, unknown>>()
