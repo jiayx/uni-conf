@@ -5,7 +5,7 @@ import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { findBlockingNodeExportWarning, resolveExportWarnings } from '../services/export-validation'
+import { findBlockingNodeExportWarning, resolveExportWarnings, validateRemoteRuleSetReachability } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import { EXPORT_SUBSCRIPTION_FORMATS, getExportSubscriptionFilename } from '@uni-conf/shared'
@@ -179,8 +179,9 @@ exportRouter.get('/preview/:format', async (c) => {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
     dnsMode: settings.dnsMode,
   })
+  const remoteRuleSetWarnings = await validateRemoteRuleSetReachability(exportData, format as ExportFormat)
 
-  return c.json({ success: true, data: { ...rendered, format, warnings } })
+  return c.json({ success: true, data: { ...rendered, format, warnings: [...warnings, ...remoteRuleSetWarnings] } })
 })
 
 // GET /api/export/download/:format

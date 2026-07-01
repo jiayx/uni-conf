@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportData } from '../export-data';
-import { findBlockingNodeExportWarning, findEmptyNodeExportWarning, resolveExportWarnings, validateExportData } from './export-validation';
+import {
+  findBlockingNodeExportWarning,
+  findEmptyNodeExportWarning,
+  resolveExportWarnings,
+  validateExportData,
+  validateRemoteRuleSetReachability,
+} from './export-validation';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -341,6 +347,55 @@ describe('export validation', () => {
       level: 'unsupported',
       message: expect.stringContaining('不是可下载的 http(s) 地址'),
     }));
+  });
+
+  it('checks whether compatible remote rule sets can be downloaded', async () => {
+    const fetcher = async () => new Response('', { status: 404 });
+    const warnings = await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
+    }), 'mihomo', { fetcher });
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      level: 'unsupported',
+      message: expect.stringContaining('Ads'),
+      messageEn: expect.stringContaining('cannot be downloaded'),
+    }));
+  });
+
+  it('falls back to ranged GET when a remote rule set host does not support HEAD', async () => {
+    const calls: Array<{ url: string; method?: string; range?: string | null }> = [];
+    const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        url: String(url),
+        method: init?.method,
+        range: init?.headers instanceof Headers
+          ? init.headers.get('Range')
+          : (init?.headers as Record<string, string> | undefined)?.Range ?? null,
+      });
+      return new Response('', { status: init?.method === 'HEAD' ? 405 : 206 });
+    };
+    const warnings = await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
+    }), 'mihomo', { fetcher });
+
+    expect(warnings).toEqual([]);
+    expect(calls).toEqual([
+      { url: 'https://example.com/remote.list', method: 'HEAD', range: null },
+      { url: 'https://example.com/remote.list', method: 'GET', range: 'bytes=0-0' },
+    ]);
+  });
+
+  it('skips remote rule set reachability checks for incompatible or node-only exports', async () => {
+    const fetcher = async () => {
+      throw new Error('should not fetch');
+    };
+
+    await expect(validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy', { format: 'singbox' })],
+    }), 'mihomo', { fetcher })).resolves.toEqual([]);
+    await expect(validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
+    }), 'nodes_raw', { fetcher })).resolves.toEqual([]);
   });
 
   it('warns when the export format cannot include managed DNS settings', () => {

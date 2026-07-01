@@ -32,6 +32,37 @@ export function resolveExportWarnings(
   ];
 }
 
+export async function validateRemoteRuleSetReachability(
+  data: ExportData,
+  format: ExportFormat,
+  options: {
+    fetcher?: typeof fetch;
+    timeoutMs?: number;
+  } = {}
+): Promise<CompatibilityWarning[]> {
+  if (isNodeOnlyExportFormat(format)) return [];
+
+  const fetcher = options.fetcher ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 2500;
+  const checks = data.remoteSets.flatMap((ruleSet) => {
+    const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
+    if (!resolved || !isDownloadableHttpUrl(resolved.url) || !isRuleSetFormatCompatible(format, resolved.format)) return [];
+    return [{ ruleSet, url: resolved.url }];
+  });
+
+  const results = await Promise.all(checks.map(async ({ ruleSet, url }): Promise<CompatibilityWarning | null> => {
+    const reachable = await canFetchRemoteRuleSet(fetcher, url, timeoutMs);
+    return reachable ? null : {
+      client: format,
+      level: 'unsupported',
+      message: `远程规则集 "${ruleSet.name}" 当前无法下载，请检查规则集地址或稍后重试`,
+      messageEn: `Remote rule set "${ruleSet.name}" cannot be downloaded right now. Check the rule set URL or retry later.`,
+    } satisfies CompatibilityWarning;
+  }));
+
+  return results.filter((item): item is CompatibilityWarning => Boolean(item));
+}
+
 export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   if (isNodeOnlyExportFormat(format)) {
     return [
@@ -479,4 +510,42 @@ function isDownloadableHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+async function canFetchRemoteRuleSet(
+  fetcher: typeof fetch,
+  url: string,
+  timeoutMs: number
+): Promise<boolean> {
+  const head = await fetchWithTimeout(fetcher, url, { method: 'HEAD' }, timeoutMs);
+  if (isReachableResponse(head)) return true;
+  if (head && ![405, 403, 501].includes(head.status)) return false;
+
+  const get = await fetchWithTimeout(fetcher, url, {
+    method: 'GET',
+    headers: { Range: 'bytes=0-0' },
+  }, timeoutMs);
+  return isReachableResponse(get);
+}
+
+async function fetchWithTimeout(
+  fetcher: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetcher(url, { ...init, signal: controller.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isReachableResponse(response: Response | null): boolean {
+  if (!response) return false;
+  return response.status >= 200 && response.status < 400;
 }
