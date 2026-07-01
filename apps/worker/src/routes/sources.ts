@@ -277,7 +277,7 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     downloadBytes?: number;
     totalBytes?: number;
     expireTime?: number;
-  } = {};
+  };
 
   try {
     const response = await fetch(row.url as string, {
@@ -1345,7 +1345,7 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
   const userinfo = atIdx >= 0 ? hostPart.slice(0, atIdx) : '';
   const hostPort = atIdx >= 0 ? hostPart.slice(atIdx + 1) : hostPart;
 
-  let server = '';
+  let server: string;
   let port = DEFAULT_PORTS[protocol] ?? 0;
   if (hostPort.startsWith('[')) {
     const closeBracket = hostPort.indexOf(']');

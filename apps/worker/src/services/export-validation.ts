@@ -352,13 +352,6 @@ const NODE_SUBSCRIPTION_PROTOCOLS = new Set([
   'socks5',
 ]);
 
-function validateRules(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
-  return [
-    ...validateRuleTargets(data, format),
-    ...validateRuleCompatibility(data, format),
-  ];
-}
-
 function validateRuleTargets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   const groupIds = new Set(data.groups.map((group) => group.id));
   const warnings: CompatibilityWarning[] = [];
@@ -424,14 +417,6 @@ function getExportRuleCompatibility(
 ): 'full' | 'partial' | 'convert' | 'unsupported' {
   if (format === 'nodes_base64' || format === 'nodes_raw') return 'full';
   return getRuleCompatibilityLevel(ruleType, format);
-}
-
-function validateRemoteRuleSets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
-  return [
-    ...validateRemoteRuleSetTargets(data, format),
-    ...validateRemoteRuleSetCompatibility(data, format),
-    ...validateRemoteRuleSetUrls(data, format),
-  ];
 }
 
 function validateRemoteRuleSetTargets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {

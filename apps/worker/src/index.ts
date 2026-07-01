@@ -50,7 +50,7 @@ export default {
   fetch(request, env, ctx) {
     return app.fetch(request, env, ctx)
   },
-  async scheduled(_event, env, _ctx) {
+  async scheduled(_event, env) {
     const result = await refreshDueSources(env.DB)
     if (!result.skipped && (result.refreshedCount > 0 || result.failedCount > 0)) {
       console.log('Auto refresh completed', result)

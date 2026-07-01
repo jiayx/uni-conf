@@ -345,7 +345,7 @@ function createMockDb({
   }));
   const db = {
     prepare: vi.fn((sql: string) => ({
-      bind: (...args: unknown[]) => ({
+      bind: () => ({
         first: async () => {
           return null;
         },

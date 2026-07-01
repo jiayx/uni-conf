@@ -158,7 +158,15 @@ function createScopedDb(): D1Database {
   } as unknown as D1Database;
 }
 
-function statementForSql(sql: string, rows: ReturnType<typeof scopedRows>) {
+interface ScopedRows {
+  nodes: Record<string, unknown>[];
+  collections: Record<string, unknown>[];
+  groups: Record<string, unknown>[];
+  rules: Record<string, unknown>[];
+  sources: Record<string, unknown>[];
+}
+
+function statementForSql(sql: string, rows: ScopedRows) {
   return {
     all: async () => ({ results: rowsForSql(sql, rows) }),
     first: async () => null,
@@ -167,7 +175,7 @@ function statementForSql(sql: string, rows: ReturnType<typeof scopedRows>) {
   };
 }
 
-function rowsForSql(sql: string, rows: ReturnType<typeof scopedRows>): Record<string, unknown>[] {
+function rowsForSql(sql: string, rows: ScopedRows): Record<string, unknown>[] {
   if (sql.includes('FROM nodes n')) return rows.nodes;
   if (sql.includes('SELECT id, notes FROM collections')) return [];
   if (sql.includes('SELECT * FROM collections')) return rows.collections;
@@ -177,16 +185,6 @@ function rowsForSql(sql: string, rows: ReturnType<typeof scopedRows>): Record<st
   if (sql.includes('SELECT * FROM rules')) return rows.rules;
   if (sql.includes('SELECT * FROM remote_rule_sets')) return [];
   return [];
-}
-
-function scopedRows() {
-  return {
-    nodes: [] as Record<string, unknown>[],
-    collections: [] as Record<string, unknown>[],
-    groups: [] as Record<string, unknown>[],
-    rules: [] as Record<string, unknown>[],
-    sources: [] as Record<string, unknown>[],
-  };
 }
 
 function nodeRow(id: string, name: string, server: string, countryCode: string, tags: string[] = []): Record<string, unknown> {
