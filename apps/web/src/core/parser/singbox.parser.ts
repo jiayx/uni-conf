@@ -1,4 +1,4 @@
-import { detectCountry } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared'
 import { SINGBOX_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
@@ -112,7 +112,7 @@ function singboxOutboundToNode(outbound: SingboxOutbound, sourceId: string): Pro
     country: countryInfo?.country,
     countryCode: countryInfo?.countryCode,
     enabled: true,
-    tags: [],
+    tags: buildNodeRecognitionTags(name),
     rawConfig: outbound,
     parsedConfig,
     isManual: false,

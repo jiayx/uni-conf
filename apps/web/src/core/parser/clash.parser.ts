@@ -1,4 +1,4 @@
-import { detectCountry } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared'
 import { MIHOMO_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 import yaml from 'js-yaml'
@@ -67,7 +67,7 @@ function clashProxyToNode(proxy: ClashProxy, sourceId: string): ProxyNode | null
     country: countryInfo?.country,
     countryCode: countryInfo?.countryCode,
     enabled: true,
-    tags: [],
+    tags: buildNodeRecognitionTags(name),
     rawConfig: proxy,
     parsedConfig,
     isManual: false,

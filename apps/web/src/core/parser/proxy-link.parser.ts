@@ -1,4 +1,4 @@
-import { detectCountry } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, detectCountry } from '@uni-conf/shared'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 // ============================================================
@@ -112,16 +112,17 @@ function parseSS(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' |
     const rawConfig: Record<string, unknown> = { method, password, server, port }
     const parsedConfig = makeParsedConfig('ss', server, port, { method, password })
 
-    const countryInfo = detectCountry(name)
+    const nodeName = name || `${server}:${port}`
+    const countryInfo = detectCountry(nodeName)
     return {
-      name: name || `${server}:${port}`,
+      name: nodeName,
       protocol: 'ss',
       server,
       port,
       country: countryInfo?.country,
       countryCode: countryInfo?.countryCode,
       enabled: true,
-      tags: [],
+      tags: buildNodeRecognitionTags(nodeName),
       rawConfig,
       parsedConfig,
       isManual: false,
@@ -165,7 +166,7 @@ function parseVMess(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt
       country: countryInfo?.country,
       countryCode: countryInfo?.countryCode,
       enabled: true,
-      tags: [],
+      tags: buildNodeRecognitionTags(name),
       rawConfig: config,
       parsedConfig,
       isManual: false,
@@ -323,7 +324,7 @@ function parseURLStyle(
       country: countryInfo?.country,
       countryCode: countryInfo?.countryCode,
       enabled: true,
-      tags: [],
+      tags: buildNodeRecognitionTags(nodeName),
       rawConfig,
       parsedConfig,
       isManual: false,
