@@ -309,17 +309,17 @@ export function Sources() {
             placeholder={'https://example.com/sub?token=...\nhttps://example.org/sub?token=...'}
           />
         </label>
-        <label className={styles.checkboxRow}>
-          <input
-            type="checkbox"
-            checked={form.refreshAfterCreate}
-            onChange={e => setForm(f => ({ ...f, refreshAfterCreate: e.target.checked }))}
-          />
-          <span>{t('sources.refresh_now')}</span>
-        </label>
         <details className={styles.advanced}>
           <summary>{t('sources.advanced_options')}</summary>
           <div className={styles.advancedBody}>
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={form.refreshAfterCreate}
+                onChange={e => setForm(f => ({ ...f, refreshAfterCreate: e.target.checked }))}
+              />
+              <span>{t('sources.refresh_now')}</span>
+            </label>
             <Input
               label={t('sources.name_optional')}
               value={form.name}
