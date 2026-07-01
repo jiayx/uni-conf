@@ -273,7 +273,7 @@
     "export_configs": "Export Configs",
     "last_refreshed": "Last Refreshed",
     "quick_export": "Quick Export",
-    "quick_export_desc": "The default subscription link already includes enabled nodes, node groups, routing policies, and compatible rule sets. Paste it into your client to use it.",
+    "quick_export_desc": "Choose a client, then copy its subscription link or download the config. Each link includes enabled nodes, node groups, routing policies, and compatible rule sets.",
     "getting_started": "Getting Started",
     "step1": "Paste Subscription URL",
     "step2": "Auto Generate Config",
@@ -283,7 +283,7 @@
     "source_refresh_failed": "Source saved, but refresh failed: {{error}}",
     "step1_desc": "Paste airport or self-hosted subscription URLs, one per line",
     "step2_desc": "Detect nodes, generate node groups, and enable default routing policies automatically",
-    "step3_desc": "Copy the default subscription link on the dashboard, or use Export for other clients",
+    "step3_desc": "Copy a client-specific subscription link on the dashboard, or use Export for advanced changes",
     "never": "Never",
     "go": "Go"
   }

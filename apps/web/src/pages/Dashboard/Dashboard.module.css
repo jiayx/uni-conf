@@ -123,21 +123,45 @@
   line-height: 1.4;
 }
 
-.exportButtons { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-.subscriptionRow {
+.quickLinks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.75rem;
+}
+.quickLink {
+  display: grid;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface2);
+}
+.quickLinkHeader {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: center;
-  margin-bottom: 1rem;
+}
+.quickLinkHeader strong {
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.quickLinkActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .subscriptionUrl {
   display: block;
   min-width: 0;
-  padding: 0.625rem 0.75rem;
+  padding: 0.5rem 0.625rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface2);
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font-size: 0.8125rem;
   overflow: auto;
@@ -149,5 +173,7 @@
 @media (max-width: 640px) {
   .statCard.wide { grid-column: auto; }
   .sourceForm { grid-template-columns: 1fr; align-items: stretch; }
-  .subscriptionRow { grid-template-columns: 1fr; }
+  .quickLinkHeader { grid-template-columns: 1fr; align-items: stretch; }
+  .quickLinkActions { justify-content: stretch; }
+  .quickLinkActions button { flex: 1 1 auto; }
 }

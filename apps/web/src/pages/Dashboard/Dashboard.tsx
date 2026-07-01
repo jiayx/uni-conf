@@ -8,8 +8,8 @@ import { summarizeDashboardSourceCreateResults } from '@/core/sources/dashboard-
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { saveExportDownload } from '@/core/export/download-file'
+import { buildQuickSubscriptionLinks } from '@/core/export/quick-subscriptions'
 import { api } from '@/lib/api'
-import { getExportSubscriptionFilename } from '@uni-conf/shared'
 import type { DashboardStats } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
@@ -21,7 +21,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copiedFormat, setCopiedFormat] = useState<string | null>(null)
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [creatingSource, setCreatingSource] = useState(false)
@@ -60,15 +60,12 @@ export function Dashboard() {
 
   const hasUsableNodes = (stats?.enabledNodeCount ?? 0) > 0
   const needsSetup = !loading && !hasUsableNodes
-  const defaultSubscriptionUrl = stats?.defaultExportToken && stats.defaultExportFormat
-    ? `${window.location.origin}/sub/${stats.defaultExportToken}/${getExportSubscriptionFilename(stats.defaultExportFormat)}`
-    : ''
+  const quickSubscriptionLinks = buildQuickSubscriptionLinks(window.location.origin, stats?.defaultExportToken)
 
-  const copyDefaultSubscriptionUrl = () => {
-    if (!defaultSubscriptionUrl) return
-    void navigator.clipboard.writeText(defaultSubscriptionUrl)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 2000)
+  const copySubscriptionUrl = (format: string, url: string) => {
+    void navigator.clipboard.writeText(url)
+    setCopiedFormat(format)
+    window.setTimeout(() => setCopiedFormat(null), 2000)
   }
 
   const createSourceFromDashboard = async (event: FormEvent) => {
@@ -178,25 +175,27 @@ export function Dashboard() {
         <Card className={styles.quickExport}>
           <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
           <p className={styles.sectionDescription}>{t('dashboard.quick_export_desc')}</p>
-          {defaultSubscriptionUrl && (
-            <div className={styles.subscriptionRow}>
-              <code className={styles.subscriptionUrl}>{defaultSubscriptionUrl}</code>
-              <Button variant="secondary" size="sm" onClick={copyDefaultSubscriptionUrl}>
-                {copied ? t('common.copied') : t('common.copy')}
-              </Button>
-            </div>
-          )}
-          <div className={styles.exportButtons}>
-            {QUICK_EXPORT_OPTIONS.map(item => (
-              <Button
-                key={item.value}
-                variant="secondary"
-                size="sm"
-                loading={downloadingFormat === item.value}
-                onClick={() => void downloadQuickExport(item.value)}
-              >
-                {item.label}
-              </Button>
+          <div className={styles.quickLinks}>
+            {quickSubscriptionLinks.map(item => (
+              <div key={item.value} className={styles.quickLink}>
+                <div className={styles.quickLinkHeader}>
+                  <strong>{item.label}</strong>
+                  <div className={styles.quickLinkActions}>
+                    <Button variant="secondary" size="sm" onClick={() => copySubscriptionUrl(item.value, item.url)}>
+                      {copiedFormat === item.value ? t('common.copied') : t('export.copy_url')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={downloadingFormat === item.value}
+                      onClick={() => void downloadQuickExport(item.value)}
+                    >
+                      {t('common.download')}
+                    </Button>
+                  </div>
+                </div>
+                <code className={styles.subscriptionUrl}>{item.url}</code>
+              </div>
             ))}
           </div>
         </Card>
