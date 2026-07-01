@@ -208,6 +208,55 @@ describe('proxy group references', () => {
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
   })
 
+  it('renders baseline runtime sections for text based full-config clients', () => {
+    const rows = [toRow(proxyGroup), toRow(autoGroup)]
+    const nodeRows = [toNodeRow(ssNode)]
+    const collectionNodeNames = { 'collection-auto': [ssNode.name] }
+
+    const loon = generateLoon(nodeRows, rows, [], [], collectionNodeNames)
+    expect(loon).toContain('[General]')
+    expect(loon).toContain('ip-mode = v4-only')
+    expect(loon).toContain('dns-server = system, 119.29.29.29, 223.5.5.5, 8.8.8.8')
+    expect(loon).toContain('wifi-access-http-port = 7222')
+    expect(loon).toContain('[Proxy Group]')
+    expect(loon).toContain('FINAL, PROXY')
+
+    const surge = generateSurge(nodeRows, rows, [], [], collectionNodeNames)
+    expect(surge).toContain('[General]')
+    expect(surge).toContain('loglevel = notify')
+    expect(surge).toContain('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
+    expect(surge).toContain('[Proxy Group]')
+    expect(surge).toContain('FINAL,PROXY')
+
+    const shadowrocket = generateShadowrocket(nodeRows, rows, [], [], collectionNodeNames)
+    expect(shadowrocket).toContain('[General]')
+    expect(shadowrocket).toContain('bypass-system = true')
+    expect(shadowrocket).toContain('dns-server = system, 223.5.5.5, 8.8.8.8')
+    expect(shadowrocket).toContain('[Proxy Group]')
+    expect(shadowrocket).toContain('FINAL,PROXY')
+
+    const quantumultx = generateQuantumultX(nodeRows, rows, [], [], collectionNodeNames)
+    expect(quantumultx).toContain('[general]')
+    expect(quantumultx).toContain('server_check_url=http://www.gstatic.com/generate_204')
+    expect(quantumultx).toContain('[policy]')
+    expect(quantumultx).toContain('FINAL,PROXY')
+
+    const egern = yaml.load(generateEgern(nodeRows, rows, [], [], collectionNodeNames)) as {
+      auto_update: { interval: number };
+      ipv6: boolean;
+      http_port: number;
+      socks_port: number;
+      policy_groups: Array<{ name: string }>;
+      rules: Array<Record<string, unknown>>;
+    }
+    expect(egern.auto_update.interval).toBe(86400)
+    expect(egern.ipv6).toBe(false)
+    expect(egern.http_port).toBe(3080)
+    expect(egern.socks_port).toBe(3081)
+    expect(egern.policy_groups.map((group) => group.name)).toContain(autoGroup.name)
+    expect(egern.rules).toContainEqual({ default: 'PROXY' })
+  })
+
   it('uses an existing sing-box outbound for DNS and rule set downloads', () => {
     const withProxy = JSON.parse(generateSingboxJson([], [proxyGroup, autoGroup], [], [])) as {
       dns: { servers: Array<Record<string, unknown>> };

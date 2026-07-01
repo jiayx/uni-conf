@@ -149,6 +149,11 @@ export function generateEgern(
       format: resolved.format === 'egern' ? 'yaml' : 'source',
       update_interval: Number(rs['update_interval'] ?? 24) * 3600,
     }))
+  const localRules = rules
+    .filter((rule) => rule['enabled'])
+    .map((rule) => ruleToEgern(rule, groups))
+    .filter((rule): rule is Record<string, unknown> => Boolean(rule))
+  const hasDefaultRule = rules.some((rule) => rule['enabled'] && String(rule['type']) === 'MATCH')
 
   const config = {
     auto_update: { interval: 86400 },
@@ -170,10 +175,8 @@ export function generateEgern(
           rule_set: safeTag(String(rs['name'] ?? 'remote')),
           policy: resolveGroupName(String(rs['target_group_id'] ?? ''), groups),
         })),
-      ...rules
-        .filter((rule) => rule['enabled'])
-        .map((rule) => ruleToEgern(rule, groups))
-        .filter(Boolean),
+      ...localRules,
+      ...(hasDefaultRule ? [] : [{ default: defaultPolicy(groups) }]),
     ],
   }
 
