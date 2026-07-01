@@ -192,6 +192,7 @@ describe('proxy group references', () => {
 
   it('maps DNS mode to sing-box fakeip settings', () => {
     const smart = JSON.parse(generateSingboxJson([], [], [], [])) as {
+      log: Record<string, unknown>;
       dns: Record<string, unknown>;
       experimental: { cache_file: { store_fakeip: boolean } };
     }
@@ -200,6 +201,7 @@ describe('proxy group references', () => {
       experimental: { cache_file: { store_fakeip: boolean } };
     }
 
+    expect(smart.log).toMatchObject({ level: 'warning', timestamp: true })
     expect(smart.dns.fakeip).toBeUndefined()
     expect(smart.experimental.cache_file.store_fakeip).toBe(false)
     expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))

@@ -37,7 +37,7 @@ The generator should accept:
 
 Use `apps/worker/src/generators/group-members.ts` for generic group member resolution when possible. For Mihomo-compatible YAML, remember that `DIRECT` and `REJECT` are client built-in policies; do not emit invalid `type: direct` or `type: reject` proxy-groups.
 
-Mihomo-compatible full configs should keep the zero-setup baseline aligned with the default smart template: `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`. Do not reintroduce separate `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
+Full-config exporters should keep the zero-setup baseline aligned with the default smart template. Mihomo-compatible configs use `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`; sing-box uses `log.level = warning` with its managed DNS and inbound baseline. Do not reintroduce separate Mihomo `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
 
 Full-config generators must sort remote rule sets by managed priority before rendering rule-provider references and rules. Do not rely only on database query order; preview, download, public subscription, and direct generator tests should produce the same rule order for the same data.
 

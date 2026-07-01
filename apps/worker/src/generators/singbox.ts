@@ -20,7 +20,7 @@ export function generateSingboxJson(
   const proxyDetour = defaultProxyDetour(groups);
   const config = {
     log: {
-      level: 'info',
+      level: 'warning',
       timestamp: true,
     },
     dns: buildDns(dnsMode, proxyDetour),
