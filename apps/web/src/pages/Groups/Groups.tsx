@@ -7,6 +7,10 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import {
+  isVisibleBusinessRoutingGroup,
+  isCustomBusinessRoutingGroup,
+} from '@/core/groups/policy-group-categories'
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
@@ -32,10 +36,6 @@ const GROUP_TYPE_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning
   direct: 'default',
   reject: 'error',
 }
-const DEFAULT_OUTLET_GROUP_ID_SET = new Set<string>([
-  ...RULE_TARGET_FOUNDATION_GROUP_IDS,
-  ...GLOBAL_NODE_OUTLET_GROUP_IDS,
-])
 
 function createEmptyForm(order: number): GroupForm {
   return {
@@ -76,11 +76,11 @@ export function Groups() {
   }, [fetchGroups])
 
   const visibleGroups = useMemo(
-    () => groups.filter(group => (isRoutingPolicyGroup(group) && group.enabled) || isCustomRoutingGroup(group)),
+    () => groups.filter(isVisibleBusinessRoutingGroup),
     [groups]
   )
   const customRoutingGroups = useMemo(
-    () => visibleGroups.filter(isCustomRoutingGroup),
+    () => visibleGroups.filter(isCustomBusinessRoutingGroup),
     [visibleGroups]
   )
   const foundationSections = useMemo(
@@ -457,22 +457,6 @@ function setFormValue<K extends keyof GroupForm>(
   setForm: React.Dispatch<React.SetStateAction<GroupForm>>
 ) {
   setForm(current => ({ ...current, [key]: value }))
-}
-
-function isOutletGroup(group: ProxyGroup): boolean {
-  return !group.isBuiltin && group.collectionIds.length > 0
-}
-
-function isDefaultOutletGroup(group: ProxyGroup): boolean {
-  return DEFAULT_OUTLET_GROUP_ID_SET.has(group.id)
-}
-
-function isRoutingPolicyGroup(group: ProxyGroup): boolean {
-  return group.isBuiltin && !isDefaultOutletGroup(group) && !['direct', 'reject'].includes(group.type)
-}
-
-function isCustomRoutingGroup(group: ProxyGroup): boolean {
-  return !group.isBuiltin && !isOutletGroup(group)
 }
 
 function formatTemplateCount(count: number): string {
