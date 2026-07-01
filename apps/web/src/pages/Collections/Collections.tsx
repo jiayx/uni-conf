@@ -19,7 +19,6 @@ import {
   makeSourceNodeGroupMarker,
   mapUpstreamGroupType,
   nextSourceGroupLinkedOrder,
-  parseSourceNodeGroupMarker,
 } from '@/core/collections/source-group-suggestions'
 import { AUTO_NODE_GROUP_PREFIX, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
 import type {
@@ -30,7 +29,6 @@ import type {
   NodeFilter,
   NodeRename,
   ProxyNode,
-  ProxySource,
   SortStrategy,
 } from '@uni-conf/types'
 import styles from './Collections.module.css'
@@ -146,16 +144,18 @@ export function Collections() {
 
     if (missingIds.length === 0) return
 
-    setLoadingPreviewIds(current => new Set([...current, ...missingIds]))
-    setRequestedPreviewIds(current => new Set([...current, ...missingIds]))
-    void Promise.all(missingIds.map(id => previewCollection(id).catch(() => [])))
-      .finally(() => {
-        setLoadingPreviewIds(current => {
-          const next = new Set(current)
-          for (const id of missingIds) next.delete(id)
-          return next
+    queueMicrotask(() => {
+      setLoadingPreviewIds(current => new Set([...current, ...missingIds]))
+      setRequestedPreviewIds(current => new Set([...current, ...missingIds]))
+      void Promise.all(missingIds.map(id => previewCollection(id).catch(() => [])))
+        .finally(() => {
+          setLoadingPreviewIds(current => {
+            const next = new Set(current)
+            for (const id of missingIds) next.delete(id)
+            return next
+          })
         })
-      })
+    })
   }, [collections, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
 
   const sourceOptions = useMemo(

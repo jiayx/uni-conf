@@ -176,7 +176,17 @@ export function RemoteRuleSets() {
       updateInterval: Number(form.updateInterval) || 24,
       sortOrder: Number(form.sortOrder) || 500,
     }
-    const { presetSource: _presetSource, presetId: _presetId, ...payload } = formPayload
+    const payload = {
+      name: formPayload.name,
+      url: formPayload.url,
+      format: formPayload.format,
+      behavior: formPayload.behavior,
+      targetGroupId: formPayload.targetGroupId,
+      updateInterval: formPayload.updateInterval,
+      enabled: formPayload.enabled,
+      sortOrder: formPayload.sortOrder,
+      notes: formPayload.notes,
+    }
 
     if (!payload.name || !payload.url || !payload.targetGroupId) {
       setFormError('名称、规则集来源和匹配后使用的出口必填')

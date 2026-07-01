@@ -54,7 +54,9 @@ export function Preview() {
   }, [configId, format])
 
   useEffect(() => {
-    void handlePreview()
+    queueMicrotask(() => {
+      void handlePreview()
+    })
   }, [handlePreview])
 
   const handleCopy = () => {
