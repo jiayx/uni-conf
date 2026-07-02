@@ -58,32 +58,64 @@ export function buildStructuredProxyConfig(
   port: number,
   rawConfig: Record<string, unknown> = {}
 ): NormalizedProxyConfig {
+  const extra = normalizeProxyExtra(rawConfig);
   return {
     protocol,
     server,
     port,
     password: protocol === 'hysteria'
-      ? asConfigString(rawConfig.password) ?? asConfigString(rawConfig.auth)
-      : asConfigString(rawConfig.password),
-    uuid: asConfigString(rawConfig.uuid),
+      ? asConfigString(extra.password) ?? asConfigString(extra.auth)
+      : asConfigString(extra.password),
+    uuid: asConfigString(extra.uuid),
     tls: IMPLICIT_TLS_PROXY_PROTOCOL_SET.has(protocol) ||
-      rawConfig.tls === true ||
-      rawConfig.tls === 'true' ||
-      rawConfig.security === 'tls' ||
-      rawConfig.security === 'reality',
-    sni: asConfigString(rawConfig.sni),
-    skipCertVerify: rawConfig.skipCertVerify === true ||
-      rawConfig.skipCertVerify === 'true' ||
-      rawConfig['skip-cert-verify'] === true ||
-      rawConfig['skip-cert-verify'] === 'true',
-    network: asConfigNetwork(rawConfig.network),
-    wsPath: asConfigString(rawConfig.wsPath) ?? asConfigString(rawConfig.path),
-    extra: rawConfig,
+      asConfigBoolean(extra.tls) ||
+      extra.security === 'tls' ||
+      extra.security === 'reality',
+    sni: asConfigString(extra.sni),
+    skipCertVerify: asConfigBoolean(extra.skipCertVerify),
+    network: asConfigNetwork(extra.network),
+    wsPath: asConfigString(extra.wsPath) ?? asConfigString(extra.path),
+    wsHeaders: asConfigHeaders(extra.wsHeaders),
+    extra,
   };
+}
+
+function normalizeProxyExtra(rawConfig: Record<string, unknown>): Record<string, unknown> {
+  const extra = { ...rawConfig };
+  assignAlias(extra, 'password', rawConfig.pass);
+  assignAlias(extra, 'uuid', rawConfig.id);
+  assignAlias(extra, 'sni', rawConfig.servername, rawConfig.host, rawConfig.peer);
+  assignAlias(extra, 'skipCertVerify', rawConfig['skip-cert-verify'], rawConfig.allowInsecure, rawConfig.insecure);
+  assignAlias(extra, 'network', rawConfig.net, rawConfig.type);
+  assignAlias(extra, 'wsPath', rawConfig['ws-path'], rawConfig.path);
+  assignAlias(extra, 'wsHeaders', rawConfig['ws-headers'], rawConfig.headers);
+  assignAlias(extra, 'alterId', rawConfig.aid);
+  assignAlias(extra, 'cipher', rawConfig.scy);
+  assignAlias(extra, 'clientFingerprint', rawConfig['client-fingerprint'], rawConfig.fingerprint, rawConfig.fp);
+  assignAlias(extra, 'publicKey', rawConfig['public-key'], rawConfig.publicKey, rawConfig['peer-public-key'], rawConfig.pbk);
+  assignAlias(extra, 'shortId', rawConfig['short-id'], rawConfig.shortId, rawConfig.sid);
+  assignAlias(extra, 'presharedKey', rawConfig['pre-shared-key'], rawConfig.presharedKey);
+  assignAlias(extra, 'obfsPassword', rawConfig['obfs-password'], rawConfig.obfsPassword);
+  assignAlias(extra, 'congestionControl', rawConfig['congestion-controller'], rawConfig.congestion_control, rawConfig.congestionControl);
+  return extra;
+}
+
+function assignAlias(target: Record<string, unknown>, key: string, ...values: unknown[]): void {
+  if (!isMissingConfigValue(target[key])) return;
+  const value = values.find((item) => !isMissingConfigValue(item));
+  if (value !== undefined) target[key] = value;
+}
+
+function isMissingConfigValue(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
 }
 
 function asConfigString(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
+}
+
+function asConfigBoolean(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true' || value === 'tls';
 }
 
 function asConfigNetwork(value: unknown): NormalizedProxyConfig['network'] | undefined {
@@ -91,6 +123,15 @@ function asConfigNetwork(value: unknown): NormalizedProxyConfig['network'] | und
     return value;
   }
   return undefined;
+}
+
+function asConfigHeaders(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, headerValue]) => typeof headerValue === 'string')
+      .map(([headerName, headerValue]) => [headerName, headerValue as string])
+  );
 }
 
 export const SOURCE_FORMATS = [

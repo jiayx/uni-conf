@@ -19,7 +19,7 @@ describe('frontend parser node recognition', () => {
   })
 
   it('detects and parses AnyTLS URI subscriptions from raw links', () => {
-    const content = 'anytls://secret@hk.example.com:443?security=tls&sni=hk.example.com&alpn=h2,http/1.1#%F0%9F%87%AD%F0%9F%87%B0%20HK%20AnyTLS%2001'
+    const content = 'anytls://secret@hk.example.com:443?security=tls&sni=hk.example.com&alpn=h2,http/1.1&fp=chrome#%F0%9F%87%AD%F0%9F%87%B0%20HK%20AnyTLS%2001'
 
     expect(detectFormat(content)).toBe('base64')
     expect(parseSubscriptionContent(content, 'source-1')).toEqual([
@@ -34,15 +34,37 @@ describe('frontend parser node recognition', () => {
           tls: true,
           sni: 'hk.example.com',
           alpn: 'h2,http/1.1',
+          fp: 'chrome',
         }),
         parsedConfig: expect.objectContaining({
           protocol: 'anytls',
           password: 'secret',
           tls: true,
           sni: 'hk.example.com',
+          extra: expect.objectContaining({
+            clientFingerprint: 'chrome',
+          }),
         }),
       }),
     ])
+  })
+
+  it('normalizes VLESS Reality URI aliases from the shared parser path', () => {
+    const node = parseProxyLink(
+      'vless://12345678-1234-1234-1234-123456789012@us.example.com:443?security=reality&sni=example.com&pbk=public-key&sid=abcd#US%20Reality',
+      'source-1'
+    )
+
+    expect(node?.parsedConfig).toMatchObject({
+      protocol: 'vless',
+      uuid: '12345678-1234-1234-1234-123456789012',
+      tls: true,
+      sni: 'example.com',
+      extra: {
+        publicKey: 'public-key',
+        shortId: 'abcd',
+      },
+    })
   })
 
   it('detects base64 subscriptions that contain AnyTLS URI links', () => {

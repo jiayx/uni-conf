@@ -13,7 +13,7 @@ vi.mock('../services/zero-setup', () => ({
 describe('manual node input', () => {
   it('resolves a node from a share URI', () => {
     const input = resolveManualNodeInput({
-      uri: 'vless://12345678-1234-1234-1234-123456789012@us.example.com:443?security=reality&type=tcp&sni=example.com#🇺🇸 US 2x',
+      uri: 'vless://12345678-1234-1234-1234-123456789012@us.example.com:443?security=reality&type=tcp&sni=example.com&pbk=public-key&sid=abcd#🇺🇸 US 2x',
     });
 
     expect(input).toMatchObject({
@@ -34,12 +34,16 @@ describe('manual node input', () => {
       uuid: '12345678-1234-1234-1234-123456789012',
       tls: true,
       sni: 'example.com',
+      extra: {
+        publicKey: 'public-key',
+        shortId: 'abcd',
+      },
     });
   });
 
   it('resolves AnyTLS share URI manual nodes as a mainstream protocol', () => {
     const input = resolveManualNodeInput({
-      uri: 'anytls://secret@hk.example.com:443?security=tls&sni=hk.example.com&alpn=h2,http/1.1&client-fingerprint=chrome&udp=1#🇭🇰 HK AnyTLS 01',
+      uri: 'anytls://secret@hk.example.com:443?security=tls&sni=hk.example.com&alpn=h2,http/1.1&fp=chrome&udp=1#🇭🇰 HK AnyTLS 01',
     });
 
     expect(input).toMatchObject({
@@ -65,6 +69,9 @@ describe('manual node input', () => {
       password: 'secret',
       tls: true,
       sni: 'hk.example.com',
+      extra: {
+        clientFingerprint: 'chrome',
+      },
     });
   });
 

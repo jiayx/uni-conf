@@ -9,6 +9,7 @@ import {
 } from '../db/helpers';
 import {
   buildNodeRecognitionTags,
+  buildStructuredProxyConfig,
   detectCountry,
   extractSourceNodeGroupMarkerKey,
   getProxyLinkUriScheme,
@@ -1291,6 +1292,8 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
     sni: url.searchParams.get('sni') ?? undefined,
     network: url.searchParams.get('type') ?? 'tcp',
     wsPath: url.searchParams.get('path') ?? undefined,
+    publicKey: url.searchParams.get('public-key') ?? url.searchParams.get('publicKey') ?? url.searchParams.get('pbk') ?? undefined,
+    shortId: url.searchParams.get('short-id') ?? url.searchParams.get('shortId') ?? url.searchParams.get('sid') ?? undefined,
     skipCertVerify: url.searchParams.get('allowInsecure') === '1' ||
       url.searchParams.get('skip-cert-verify') === 'true',
   };
@@ -1303,18 +1306,7 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
     ...countryFields(name),
     ...recognitionTags(name),
     rawConfig,
-    parsedConfig: {
-      protocol: 'vless',
-      server,
-      port,
-      uuid,
-      tls: rawConfig.security === 'tls' || rawConfig.security === 'reality',
-      sni: rawConfig.sni as string | undefined,
-      skipCertVerify: rawConfig.skipCertVerify as boolean,
-      network: (rawConfig.network as NormalizedProxyConfig['network']) ?? 'tcp',
-      wsPath: rawConfig.wsPath as string | undefined,
-      extra: rawConfig,
-    },
+    parsedConfig: buildParsedConfig('vless', server, port, rawConfig),
   };
 }
 
@@ -1463,7 +1455,8 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
     network: params.get('type') ?? params.get('network') ?? 'tcp',
     wsPath: params.get('path') ?? (uriPath && uriPath !== '/' ? uriPath : undefined),
     privateKey: params.get('private-key') ?? params.get('privateKey') ?? password,
-    publicKey: params.get('public-key') ?? params.get('publicKey') ?? params.get('peer-public-key') ?? undefined,
+    publicKey: params.get('public-key') ?? params.get('publicKey') ?? params.get('peer-public-key') ?? params.get('pbk') ?? undefined,
+    shortId: params.get('short-id') ?? params.get('shortId') ?? params.get('sid') ?? undefined,
     presharedKey: params.get('pre-shared-key') ?? params.get('presharedKey') ?? undefined,
     ip: params.get('address') ?? params.get('ip') ?? undefined,
     alpn: params.get('alpn') ?? undefined,
@@ -1492,27 +1485,7 @@ function buildParsedConfig(
   port: number,
   raw: Record<string, unknown>
 ): NormalizedProxyConfig {
-  return {
-    protocol,
-    server,
-    port,
-    password: (raw.password as string | undefined) ?? (raw.pass as string | undefined),
-    uuid: (raw.uuid as string | undefined) ?? (raw.id as string | undefined),
-    tls: raw.tls === true || raw.tls === 'true' || raw.tls === 'tls' || raw.security === 'tls' || raw.security === 'reality',
-    sni: (raw.sni as string | undefined) ?? (raw['servername'] as string | undefined) ?? (raw.host as string | undefined),
-    skipCertVerify: parseBoolean(raw['skip-cert-verify'] ?? raw.skipCertVerify ?? raw.allowInsecure ?? raw.insecure),
-    network: (raw.network as NormalizedProxyConfig['network']) ??
-      (raw.net as NormalizedProxyConfig['network']),
-    wsPath: (raw['ws-path'] as string | undefined) ?? (raw.path as string | undefined),
-    wsHeaders: (raw['ws-headers'] as Record<string, string> | undefined) ??
-      (raw.wsHeaders as Record<string, string> | undefined) ??
-      (raw.headers as Record<string, string> | undefined),
-    extra: raw,
-  };
-}
-
-function parseBoolean(value: unknown): boolean {
-  return value === true || value === 1 || value === '1' || value === 'true';
+  return buildStructuredProxyConfig(protocol, server, port, raw);
 }
 
 function getVmessWsHeaders(data: Record<string, unknown>): Record<string, string> | undefined {

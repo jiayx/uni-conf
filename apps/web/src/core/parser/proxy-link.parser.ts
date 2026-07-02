@@ -1,4 +1,4 @@
-import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import { buildNodeRecognitionTags, buildStructuredProxyConfig, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 // ============================================================
@@ -35,20 +35,7 @@ function makeParsedConfig(
   port: number,
   extra: Record<string, unknown>,
 ): NormalizedProxyConfig {
-  return {
-    protocol,
-    server,
-    port,
-    password: extra.password as string | undefined,
-    uuid: extra.uuid as string | undefined,
-    tls: extra.tls as boolean | undefined,
-    sni: extra.sni as string | undefined,
-    skipCertVerify: extra.skipCertVerify as boolean | undefined,
-    network: extra.network as NormalizedProxyConfig['network'],
-    wsPath: extra.wsPath as string | undefined,
-    wsHeaders: extra.wsHeaders as Record<string, string> | undefined,
-    extra,
-  }
+  return buildStructuredProxyConfig(protocol, server, port, extra)
 }
 
 function decodeSafe(s: string): string {
@@ -344,7 +331,8 @@ function parseURLStyle(
     extra.password = password
     extra.username = username
     extra.privateKey = params.get('private-key') || params.get('privateKey') || password
-    extra.publicKey = params.get('public-key') || params.get('publicKey') || params.get('peer-public-key') || undefined
+    extra.publicKey = params.get('public-key') || params.get('publicKey') || params.get('peer-public-key') || params.get('pbk') || undefined
+    extra.shortId = params.get('short-id') || params.get('shortId') || params.get('sid') || undefined
     extra.presharedKey = params.get('pre-shared-key') || params.get('presharedKey') || undefined
     extra.ip = params.get('address') || params.get('ip') || undefined
     extra.alpn = params.get('alpn') || undefined
