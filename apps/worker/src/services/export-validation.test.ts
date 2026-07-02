@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportData } from '../export-data';
 import {
+  findBlockingExportWarning,
   findBlockingNodeExportWarning,
   findEmptyNodeExportWarning,
   resolveExportWarnings,
@@ -43,6 +44,28 @@ describe('export validation', () => {
     expect(findBlockingNodeExportWarning(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
     }), 'singbox')).toBeNull();
+  });
+
+  it('blocks downloads for structural readiness errors', () => {
+    expect(findBlockingExportWarning(makeExportData({
+      groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
+    }), 'mihomo')).toEqual(expect.objectContaining({
+      groupId: 'proxy',
+      level: 'unsupported',
+    }));
+
+    expect(findBlockingExportWarning(makeExportData({
+      remoteSets: [makeRemoteSet('bad-url', 'proxy', { url: './local-rule.yaml' })],
+    }), 'mihomo')).toEqual(expect.objectContaining({
+      level: 'unsupported',
+      message: expect.stringContaining('不是可下载的 http(s) 地址'),
+    }));
+  });
+
+  it('does not block downloads only because a source has a refresh warning', () => {
+    expect(findBlockingExportWarning(makeExportData({
+      sources: [makeSource('source-1', 'Airport A', { lastRefreshError: 'HTTP 401' })],
+    }), 'mihomo')).toBeNull();
   });
 
   it('keeps no-supported-node readiness warnings when compatibility warnings are disabled', () => {

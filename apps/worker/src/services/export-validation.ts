@@ -102,6 +102,22 @@ export function findBlockingNodeExportWarning(
     : noSupportedNodeExportWarning(format);
 }
 
+export function findBlockingExportWarning(
+  data: ExportData,
+  format: ExportFormat
+): CompatibilityWarning | null {
+  const nodeWarning = findBlockingNodeExportWarning(data, format);
+  if (nodeWarning) return nodeWarning;
+  if (isNodeOnlyExportFormat(format)) return null;
+
+  return [
+    ...validateGroups(data, format),
+    ...validateRuleTargets(data, format),
+    ...validateRemoteRuleSetTargets(data, format),
+    ...validateRemoteRuleSetUrls(data, format),
+  ].find((warning) => warning.level === 'unsupported') ?? null;
+}
+
 export function validateExportCompatibility(
   data: ExportData,
   format: ExportFormat,

@@ -5,7 +5,7 @@ import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { findBlockingNodeExportWarning, resolveExportWarnings, validateRemoteRuleSetReachability } from '../services/export-validation'
+import { findBlockingExportWarning, resolveExportWarnings, validateRemoteRuleSetReachability } from '../services/export-validation'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import { EXPORT_SUBSCRIPTION_FORMATS, getExportSubscriptionFilename } from '@uni-conf/shared'
@@ -194,7 +194,7 @@ exportRouter.get('/download/:format', async (c) => {
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config)
-  const blockingWarning = findBlockingNodeExportWarning(exportData, format)
+  const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
     return c.json({ success: false, error: blockingWarning.message, warnings: [blockingWarning] }, 409)
   }

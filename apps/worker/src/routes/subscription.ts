@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
-import { findBlockingNodeExportWarning } from '../services/export-validation'
+import { findBlockingExportWarning } from '../services/export-validation'
 import type { Env } from '../types'
 import { getExportFormatFromSubscriptionFilename } from '@uni-conf/shared'
 import type { ProxySource } from '@uni-conf/types'
@@ -34,7 +34,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
 
   const exportData = await buildExportData(c.env.DB, config)
   const settings = await getAppSettings(c.env.DB)
-  const blockingWarning = findBlockingNodeExportWarning(exportData, format)
+  const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
     return new Response(`# ${blockingWarning.message}\n`, {
       status: 409,

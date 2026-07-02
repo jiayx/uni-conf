@@ -105,6 +105,52 @@ describe('export download readiness', () => {
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
+  it('blocks authenticated downloads when the export graph has structural errors', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [
+        {
+          id: 'node-ss',
+          sourceId: 'source-1',
+          name: 'SS 01',
+          protocol: 'ss',
+          server: 'ss.example.com',
+          port: 8388,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig: { protocol: 'ss', server: 'ss.example.com', port: 8388, extra: {} },
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      groups: [
+        {
+          id: 'proxy',
+          name: 'PROXY',
+          type: 'select',
+          collectionIds: [],
+          groupIds: ['missing-child'],
+          builtins: [],
+          enabled: true,
+          order: 0,
+          isBuiltin: true,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const response = await exportRouter.request('/download/mihomo', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('引用了不存在或未导出的策略组'),
+    })
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
   it('renders quick downloads with the requested format while reusing the default export scope', async () => {
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
       nodes: [
@@ -176,6 +222,49 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(409)
     await expect(response.text()).resolves.toContain('没有可导出到 mihomo 的节点')
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('blocks public subscriptions when the export graph has structural errors', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [
+        {
+          id: 'node-ss',
+          sourceId: 'source-1',
+          name: 'SS 01',
+          protocol: 'ss',
+          server: 'ss.example.com',
+          port: 8388,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig: { protocol: 'ss', server: 'ss.example.com', port: 8388, extra: {} },
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      groups: [
+        {
+          id: 'proxy',
+          name: 'PROXY',
+          type: 'select',
+          collectionIds: [],
+          groupIds: ['missing-child'],
+          builtins: [],
+          enabled: true,
+          order: 0,
+          isBuiltin: true,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const response = await subscriptionRouter.request('/sub/token/mihomo.yaml', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(409)
+    await expect(response.text()).resolves.toContain('引用了不存在或未导出的策略组')
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
