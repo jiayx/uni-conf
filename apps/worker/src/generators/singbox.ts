@@ -390,7 +390,7 @@ function nodeToSingbox(node: ProxyNode): object | null {
         peer_public_key: (cfg.extra?.publicKey as string) ?? '',
         pre_shared_key: (cfg.extra?.presharedKey as string) ?? '',
         reserved: (cfg.extra?.reserved as number[]) ?? [0, 0, 0],
-        local_address: (cfg.extra?.ip as string[]) ?? ['10.0.0.2/32'],
+        local_address: wireguardLocalAddress(cfg.extra?.ip ?? cfg.extra?.address),
       };
     }
     default:
@@ -627,6 +627,15 @@ function resolveSingboxGroupName(group: ProxyGroup): string {
 
 function nativeSingboxOutboundFromBuiltin(name: string): string {
   return name === 'REJECT' ? 'block' : 'direct';
+}
+
+function wireguardLocalAddress(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const addresses = value.map(String).map((item) => item.trim()).filter(Boolean);
+    return addresses.length > 0 ? addresses : ['10.0.0.2/32'];
+  }
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return ['10.0.0.2/32'];
 }
 
 function isNativeOutletGroup(group: ProxyGroup): boolean {

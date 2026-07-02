@@ -43,6 +43,26 @@ const mihomoUnsupportedNode: ProxyNode = {
   },
 }
 
+const wireguardNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-wireguard-singbox',
+  name: 'US WireGuard',
+  protocol: 'wireguard',
+  server: 'wg.example.com',
+  port: 51820,
+  parsedConfig: {
+    protocol: 'wireguard',
+    server: 'wg.example.com',
+    port: 51820,
+    extra: {
+      privateKey: 'private-key',
+      publicKey: 'peer-key',
+      presharedKey: 'psk',
+      ip: '172.16.0.2/32',
+    },
+  },
+}
+
 const anytlsNode: ProxyNode = {
   ...ssNode,
   id: 'node-anytls',
@@ -426,6 +446,20 @@ describe('proxy group references', () => {
         server_name: 'sg.example.com',
         insecure: true,
       },
+    })
+  })
+
+  it('normalizes WireGuard local address strings for sing-box full configs', () => {
+    const singbox = JSON.parse(generateSingboxJson([wireguardNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === wireguardNode.name)).toMatchObject({
+      type: 'wireguard',
+      tag: 'US WireGuard',
+      server: 'wg.example.com',
+      server_port: 51820,
+      private_key: 'private-key',
+      peer_public_key: 'peer-key',
+      pre_shared_key: 'psk',
+      local_address: ['172.16.0.2/32'],
     })
   })
 
