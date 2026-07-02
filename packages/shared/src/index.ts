@@ -363,6 +363,21 @@ export const COUNTRY_KEYWORD_MAP: Array<[RegExp, string, string]> = [
   [/\b(canada|ca|toronto|vancouver)\b|加拿大|多伦多|温哥华/i, 'Canada', 'CA'],
 ];
 
+export const STANDARD_COUNTRY_NAME_MAP: Record<string, string> = {
+  HK: '香港',
+  JP: '日本',
+  US: '美国',
+  SG: '新加坡',
+  TW: '台湾',
+  KR: '韩国',
+  GB: '英国',
+  DE: '德国',
+  FR: '法国',
+  NL: '荷兰',
+  AU: '澳大利亚',
+  CA: '加拿大',
+};
+
 export function detectCountry(name: string): CountryInfo | null {
   for (const [flag, country, code] of COUNTRY_FLAG_MAP) {
     if (name.includes(flag)) {
@@ -379,9 +394,33 @@ export function detectCountry(name: string): CountryInfo | null {
   return null;
 }
 
+export function standardizeCountryName(name: string): string {
+  let result = name;
+
+  for (const [pattern, country, code] of COUNTRY_KEYWORD_MAP) {
+    const flag = countryCodeToFlag(code);
+    pattern.lastIndex = 0;
+    const hasKeyword = pattern.test(result);
+    const hasFlag = flag ? result.includes(flag) : false;
+    if (!hasKeyword && !hasFlag) continue;
+
+    if (flag) {
+      result = result.split(flag).join(' ');
+    }
+    result = result.replace(toGlobalRegExp(pattern), ' ');
+    result = `${STANDARD_COUNTRY_NAME_MAP[code] ?? country} ${result}`;
+  }
+
+  return result.replace(/\s+/g, ' ').trim();
+}
+
 export function countryCodeToFlag(countryCode: string): string | undefined {
   const normalizedCode = countryCode.trim().toUpperCase();
   return COUNTRY_FLAG_MAP.find(([, , code]) => code === normalizedCode)?.[0];
+}
+
+function toGlobalRegExp(pattern: RegExp): RegExp {
+  return new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`);
 }
 
 export function detectTrafficMultiplier(name: string): TrafficMultiplierInfo | null {

@@ -39,7 +39,7 @@ describe('collection transforms', () => {
     });
 
     const nodes = applyCollectionTransforms([
-      makeNode('node-1', '🇭🇰 HK Auto', [], 'hk-1.example.com'),
+      makeNode('node-1', '🇭🇰 HK Hong Kong Auto', [], 'hk-1.example.com'),
       makeNode('node-2', 'Hong Kong Auto', [], 'hk-2.example.com'),
     ], collection);
 

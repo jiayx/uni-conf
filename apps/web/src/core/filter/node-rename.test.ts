@@ -3,7 +3,7 @@ import { applyRename } from './node-rename'
 
 describe('node rename', () => {
   it('standardizes country aliases once when names contain flag and code', () => {
-    expect(applyRename('🇭🇰 HK Auto', {
+    expect(applyRename('🇭🇰 HK Hong Kong Auto', {
       id: 'country',
       type: 'standardize_country',
       enabled: true,
