@@ -1,8 +1,6 @@
 import type {
   ExportConfig,
   NodeCollection,
-  NodeFilter,
-  NodeRename,
   ProxySource,
   ProxyGroup,
   ProxyNode,
@@ -28,6 +26,7 @@ import {
 import { enabledNodeRowsQuery } from './services/enabled-node-rows'
 import { getAppSettings } from './services/app-settings'
 import { ensureZeroSetupDefaults } from './services/zero-setup'
+import { applyCollectionTransforms } from './services/collection-transforms'
 
 export interface ExportData {
   config?: ExportConfig
@@ -242,20 +241,6 @@ async function buildCollectionNodeRows(
   return collectionRows
 }
 
-export function applyCollectionTransforms(nodes: ProxyNode[], collection: NodeCollection): ProxyNode[] {
-  return applySort(
-    applyDedup(
-      applyRenames(
-        applyFilters(nodes, collection.filters),
-        collection.renames
-      ),
-      collection.dedup
-    ),
-    collection.sort,
-    collection.sortCountryOrder
-  )
-}
-
 function mergeCollectionRows(
   collectionRows: Map<string, Record<string, unknown>[]>,
   collectionIds: string[]
@@ -408,151 +393,4 @@ function scopeRowsForCollection(
     return rows.filter((row) => sourceIds.has(String(row.source_id)))
   }
   return rows
-}
-
-function applyFilters(nodes: ProxyNode[], filters: NodeFilter[]): ProxyNode[] {
-  const enabledFilters = filters.filter((filter) => filter.enabled)
-  if (enabledFilters.length === 0) return nodes
-  return nodes.filter((node) => enabledFilters.every((filter) => matchesFilter(node, filter)))
-}
-
-function matchesFilter(node: ProxyNode, filter: NodeFilter): boolean {
-  const fieldValue = getNodeFieldValue(node, filter.field)
-  const filterValue = filter.value
-  const firstFilterValue = Array.isArray(filterValue) ? filterValue[0] : filterValue
-  if (firstFilterValue === undefined) return true
-
-  switch (filter.operator) {
-    case 'contains':
-      return stringifyField(fieldValue).toLowerCase().includes(firstFilterValue.toLowerCase())
-    case 'not_contains':
-      return !stringifyField(fieldValue).toLowerCase().includes(firstFilterValue.toLowerCase())
-    case 'equals':
-      return stringifyField(fieldValue) === firstFilterValue
-    case 'not_equals':
-      return stringifyField(fieldValue) !== firstFilterValue
-    case 'regex':
-      try { return new RegExp(firstFilterValue, 'i').test(stringifyField(fieldValue)) } catch { return false }
-    case 'not_regex':
-      try { return !new RegExp(firstFilterValue, 'i').test(stringifyField(fieldValue)) } catch { return true }
-    case 'in': {
-      const items = Array.isArray(filterValue) ? filterValue : [filterValue]
-      return Array.isArray(fieldValue)
-        ? fieldValue.some((value) => items.includes(value))
-        : items.includes(fieldValue)
-    }
-    case 'not_in': {
-      const items = Array.isArray(filterValue) ? filterValue : [filterValue]
-      return Array.isArray(fieldValue)
-        ? !fieldValue.some((value) => items.includes(value))
-        : !items.includes(fieldValue)
-    }
-    default:
-      return true
-  }
-}
-
-function getNodeFieldValue(node: ProxyNode, field: NodeFilter['field']): string | string[] {
-  switch (field) {
-    case 'name': return node.name
-    case 'server': return node.server
-    case 'protocol': return node.protocol
-    case 'country': return node.country ?? ''
-    case 'countryCode': return node.countryCode ?? ''
-    case 'tag': return node.tags
-    case 'sourceId': return node.sourceId
-    default: return ''
-  }
-}
-
-function stringifyField(value: string | string[]): string {
-  return Array.isArray(value) ? value.join(' ') : value
-}
-
-function applyDedup(nodes: ProxyNode[], strategy: NodeCollection['dedup']): ProxyNode[] {
-  const seen = new Set<string>()
-  return nodes.filter((node) => {
-    const key = getDedupKey(node, strategy)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function getDedupKey(node: ProxyNode, strategy: NodeCollection['dedup']): string {
-  switch (strategy) {
-    case 'server_port':
-      return `${node.server}:${node.port}`
-    case 'protocol_server_port':
-      return `${node.protocol}:${node.server}:${node.port}`
-    case 'full_config':
-      return JSON.stringify(node.parsedConfig)
-    case 'name':
-    default:
-      return node.name
-  }
-}
-
-function applySort(
-  nodes: ProxyNode[],
-  strategy: NodeCollection['sort'],
-  countryOrder?: string[]
-): ProxyNode[] {
-  const sorted = [...nodes]
-  switch (strategy) {
-    case 'country': {
-      const order = new Map((countryOrder ?? []).map((code, index) => [code, index]))
-      sorted.sort((a, b) => {
-        const ai = order.get(a.countryCode ?? '') ?? 999
-        const bi = order.get(b.countryCode ?? '') ?? 999
-        return ai - bi || (a.countryCode ?? '').localeCompare(b.countryCode ?? '') || a.name.localeCompare(b.name)
-      })
-      break
-    }
-    case 'name':
-      sorted.sort((a, b) => a.name.localeCompare(b.name))
-      break
-    case 'source':
-      sorted.sort((a, b) => a.sourceId.localeCompare(b.sourceId) || a.name.localeCompare(b.name))
-      break
-    case 'protocol':
-      sorted.sort((a, b) => a.protocol.localeCompare(b.protocol) || a.name.localeCompare(b.name))
-      break
-    case 'manual':
-    default:
-      break
-  }
-  return sorted
-}
-
-function applyRenames(nodes: ProxyNode[], renames: NodeRename[]): ProxyNode[] {
-  const enabledRenames = renames
-    .filter((rename) => rename.enabled)
-    .sort((a, b) => a.order - b.order)
-  if (enabledRenames.length === 0) return nodes
-
-  return nodes.map((node, index) => ({
-    ...node,
-    name: enabledRenames.reduce((name, rename) => applyRename(name, rename, index), node.name),
-  }))
-}
-
-function applyRename(name: string, rename: NodeRename, index: number): string {
-  switch (rename.type) {
-    case 'replace':
-      return rename.pattern ? name.replaceAll(rename.pattern, rename.replacement ?? '') : name
-    case 'regex':
-      try { return rename.pattern ? name.replace(new RegExp(rename.pattern, 'g'), rename.replacement ?? '') : name } catch { return name }
-    case 'prefix':
-      return `${rename.replacement ?? ''}${name}`
-    case 'suffix':
-      return `${name}${rename.replacement ?? ''}`
-    case 'strip_emoji':
-      return name.replace(/\p{Emoji_Presentation}/gu, '').trim()
-    case 'auto_number':
-      return `${index + 1}. ${name}`
-    case 'standardize_country':
-    default:
-      return name
-  }
 }

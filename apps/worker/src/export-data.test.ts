@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ExportConfig, NodeCollection, ProxyNode } from '@uni-conf/types'
 import {
-  applyCollectionTransforms,
   applyDefaultExportDedup,
   applyDefaultExportNodeNames,
   applyExportNodeNames,
@@ -10,6 +9,7 @@ import {
   filterRowsByTargetGroup,
   resolveCollectionScopeIds,
 } from './export-data'
+import { applyCollectionTransforms } from './services/collection-transforms'
 
 const baseConfig: ExportConfig = {
   id: 'export-1',
