@@ -333,6 +333,7 @@ const MIHOMO_EXPORT_NODE_PROTOCOLS = new Set([
 
 const SINGBOX_EXPORT_NODE_PROTOCOLS = new Set([
   'ss',
+  'ssr',
   'vmess',
   'vless',
   'trojan',

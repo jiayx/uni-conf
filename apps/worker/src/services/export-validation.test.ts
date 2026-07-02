@@ -333,7 +333,7 @@ describe('export validation', () => {
     }));
   });
 
-  it('accepts ShadowsocksR nodes for Mihomo-family full configs', () => {
+  it('accepts ShadowsocksR nodes for full config exporters that can render it', () => {
     const node = makeNode('node-ssr', 'HK SSR', {
       protocol: 'ssr',
       parsedConfig: {
@@ -349,9 +349,15 @@ describe('export validation', () => {
       },
     });
     const warnings = validateExportData(makeExportData({ nodes: [node] }), 'mihomo');
+    const singboxWarnings = validateExportData(makeExportData({ nodes: [node] }), 'singbox');
 
     expect(findEmptyNodeExportWarning(makeExportData({ nodes: [node] }), 'mihomo')).toBeNull();
+    expect(findEmptyNodeExportWarning(makeExportData({ nodes: [node] }), 'singbox')).toBeNull();
     expect(warnings).not.toContainEqual(expect.objectContaining({
+      nodeId: 'node-ssr',
+      message: expect.stringContaining('ssr'),
+    }));
+    expect(singboxWarnings).not.toContainEqual(expect.objectContaining({
       nodeId: 'node-ssr',
       message: expect.stringContaining('ssr'),
     }));
