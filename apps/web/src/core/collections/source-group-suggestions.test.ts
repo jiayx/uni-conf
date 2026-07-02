@@ -54,6 +54,25 @@ describe('source group suggestions', () => {
     ])
   })
 
+  it('only suggests groups from enabled sources and enabled nodes', () => {
+    const suggestions = buildSourceGroupSuggestions(
+      [
+        makeSource('source-a', 'Airport A', [{ name: 'A Select', type: 'select', memberNames: ['A 01', 'A Disabled'] }]),
+        makeSource('source-disabled', 'Disabled Airport', [{ name: 'Disabled Select', type: 'select', memberNames: ['D 01'] }], false),
+      ],
+      [
+        makeNode('node-a-1', 'source-a', 'A 01'),
+        makeNode('node-a-disabled', 'source-a', 'A Disabled', false),
+        makeNode('node-disabled-source', 'source-disabled', 'D 01'),
+      ],
+      []
+    )
+
+    expect(suggestions.map(item => [item.name, item.nodeIds])).toEqual([
+      ['Airport A / A Select', ['node-a-1']],
+    ])
+  })
+
   it('maps upstream group types to supported node group types', () => {
     expect(mapUpstreamGroupType('select')).toBe('select')
     expect(mapUpstreamGroupType('selector')).toBe('select')
@@ -75,14 +94,15 @@ describe('source group suggestions', () => {
 function makeSource(
   id: string,
   name: string,
-  groups: ProxySource['groups']
+  groups: ProxySource['groups'],
+  enabled = true
 ): ProxySource {
   return {
     id,
     name,
     type: 'url',
     format: 'auto',
-    enabled: true,
+    enabled,
     nodeCount: 0,
     tags: [],
     groups,
@@ -91,7 +111,7 @@ function makeSource(
   }
 }
 
-function makeNode(id: string, sourceId: string, name: string): ProxyNode {
+function makeNode(id: string, sourceId: string, name: string, enabled = true): ProxyNode {
   return {
     id,
     sourceId,
@@ -99,7 +119,7 @@ function makeNode(id: string, sourceId: string, name: string): ProxyNode {
     protocol: 'trojan',
     server: `${id}.example.com`,
     port: 443,
-    enabled: true,
+    enabled,
     tags: [],
     rawConfig: {},
     parsedConfig: { protocol: 'trojan', server: `${id}.example.com`, port: 443, extra: {} },

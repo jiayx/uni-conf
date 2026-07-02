@@ -32,6 +32,7 @@ export function buildSourceGroupSuggestions(
 ): SourceGroupSuggestion[] {
   const nodesBySourceAndName = new Map<string, ProxyNode>()
   for (const node of nodes) {
+    if (!node.enabled) continue
     nodesBySourceAndName.set(makeSourceNodeKey(node.sourceId, node.name), node)
   }
 
@@ -41,7 +42,7 @@ export function buildSourceGroupSuggestions(
       .filter((marker): marker is string => Boolean(marker))
   )
 
-  return sources.flatMap(source => (source.groups ?? []).map(group => {
+  return sources.filter(source => source.enabled).flatMap(source => (source.groups ?? []).map(group => {
     const key = makeSourceNodeGroupKey(source.id, group.name)
     const nodeIds = group.memberNames
       .map(name => nodesBySourceAndName.get(makeSourceNodeKey(source.id, name))?.id)
