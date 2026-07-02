@@ -194,6 +194,7 @@ describe('proxy group references', () => {
     const smart = JSON.parse(generateSingboxJson([], [], [], [])) as {
       log: Record<string, unknown>;
       dns: Record<string, unknown>;
+      inbounds: Array<Record<string, unknown>>;
       experimental: { cache_file: { store_fakeip: boolean } };
     }
     const fakeIp = JSON.parse(generateSingboxJson([], [], [], [], {}, { dnsMode: 'fake-ip' })) as {
@@ -203,6 +204,19 @@ describe('proxy group references', () => {
 
     expect(smart.log).toMatchObject({ level: 'warning', timestamp: true })
     expect(smart.dns.fakeip).toBeUndefined()
+    expect(smart.inbounds).toContainEqual(expect.objectContaining({
+      type: 'tun',
+      tag: 'tun-in',
+      auto_route: true,
+      strict_route: true,
+    }))
+    expect(smart.inbounds).toContainEqual(expect.objectContaining({
+      type: 'mixed',
+      tag: 'mixed-in',
+      listen: '::',
+      listen_port: 2080,
+      set_system_proxy: false,
+    }))
     expect(smart.experimental.cache_file.store_fakeip).toBe(false)
     expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
