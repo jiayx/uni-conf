@@ -37,6 +37,37 @@ describe('manual node input', () => {
     });
   });
 
+  it('resolves AnyTLS share URI manual nodes as a mainstream protocol', () => {
+    const input = resolveManualNodeInput({
+      uri: 'anytls://secret@hk.example.com:443?security=tls&sni=hk.example.com&alpn=h2,http/1.1&client-fingerprint=chrome&udp=1#🇭🇰 HK AnyTLS 01',
+    });
+
+    expect(input).toMatchObject({
+      name: '🇭🇰 HK AnyTLS 01',
+      protocol: 'anytls',
+      server: 'hk.example.com',
+      port: 443,
+      country: 'Hong Kong',
+      countryCode: 'HK',
+    });
+    expect(input?.rawConfig).toMatchObject({
+      sourceFormat: 'uri',
+      uri: expect.stringContaining('anytls://'),
+      password: 'secret',
+      tls: true,
+      sni: 'hk.example.com',
+      alpn: 'h2,http/1.1',
+    });
+    expect(input?.parsedConfig).toMatchObject({
+      protocol: 'anytls',
+      server: 'hk.example.com',
+      port: 443,
+      password: 'secret',
+      tls: true,
+      sni: 'hk.example.com',
+    });
+  });
+
   it('uses the overridden display name for URI manual node recognition', () => {
     const input = resolveManualNodeInput({
       uri: 'trojan://password@us.example.com:443#🇺🇸 US 01',
