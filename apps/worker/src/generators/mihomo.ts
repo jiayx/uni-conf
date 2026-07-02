@@ -225,9 +225,9 @@ function nodeToMihomo(node: ProxyNode): string | null {
       if (flow) obj += `, flow: "${flow}"`;
       if (cfg.sni) obj += `, servername: "${cfg.sni}"`;
       if (cfg.skipCertVerify) obj += `, skip-cert-verify: true`;
-      const reality = cfg.extra?.reality as Record<string, unknown> | undefined;
+      const reality = vlessRealityOptions(cfg.extra);
       if (reality) {
-        obj += `, reality-opts: {public-key: "${reality.publicKey ?? ''}", short-id: "${reality.shortId ?? ''}"}`;
+        obj += `, reality-opts: {public-key: "${reality.publicKey}", short-id: "${reality.shortId}"}`;
       }
       obj += '}';
       return obj;
@@ -321,6 +321,20 @@ function nativeMihomoProxy(node: ProxyNode): Record<string, unknown> | null {
     server: node.server,
     port: node.port,
   };
+}
+
+function vlessRealityOptions(extra: Record<string, unknown> | undefined): { publicKey: string; shortId: string } | null {
+  if (!extra) return null;
+  const nested = extra.reality && typeof extra.reality === 'object' && !Array.isArray(extra.reality)
+    ? extra.reality as Record<string, unknown>
+    : {};
+  const publicKey = configString(extra.publicKey) ?? configString(nested.publicKey);
+  const shortId = configString(extra.shortId) ?? configString(nested.shortId) ?? '';
+  return publicKey ? { publicKey, shortId } : null;
+}
+
+function configString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function nativeObject(rawConfig: unknown, key: string): Record<string, unknown> | null {

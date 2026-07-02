@@ -149,6 +149,29 @@ const hysteria2Node: ProxyNode = {
   },
 }
 
+const vlessRealityNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-vless-reality',
+  name: 'US VLESS Reality',
+  protocol: 'vless',
+  server: 'reality.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'vless',
+    server: 'reality.example.com',
+    port: 443,
+    uuid: '12345678-1234-1234-1234-123456789012',
+    tls: true,
+    sni: 'www.example.com',
+    extra: {
+      security: 'reality',
+      flow: 'xtls-rprx-vision',
+      publicKey: 'reality-public-key',
+      shortId: 'abcd',
+    },
+  },
+}
+
 const nativeMihomoNode: ProxyNode = {
   ...ssNode,
   id: 'node-native-mihomo',
@@ -437,6 +460,29 @@ describe('proxy group references', () => {
       obfs: {
         type: 'salamander',
         password: 'obfs-secret',
+      },
+    })
+  })
+
+  it('exports VLESS Reality fields from protocol registry form values', () => {
+    const mihomo = generateMihomoYaml([vlessRealityNode], [], [], [])
+    expect(mihomo).toContain('type: vless')
+    expect(mihomo).toContain('reality-opts: {public-key: "reality-public-key", short-id: "abcd"}')
+
+    const singbox = JSON.parse(generateSingboxJson([vlessRealityNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === vlessRealityNode.name)).toMatchObject({
+      type: 'vless',
+      tag: 'US VLESS Reality',
+      uuid: '12345678-1234-1234-1234-123456789012',
+      flow: 'xtls-rprx-vision',
+      tls: {
+        enabled: true,
+        server_name: 'www.example.com',
+        reality: {
+          enabled: true,
+          public_key: 'reality-public-key',
+          short_id: 'abcd',
+        },
       },
     })
   })

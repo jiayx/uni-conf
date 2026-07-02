@@ -237,13 +237,13 @@ function nodeToSingbox(node: ProxyNode): object | null {
           insecure: cfg.skipCertVerify ?? false,
         };
       }
-      const reality = cfg.extra?.reality as Record<string, unknown> | undefined;
+      const reality = vlessRealityOptions(cfg.extra);
       if (reality) {
         const tls = (ob.tls ?? {}) as Record<string, unknown>;
         tls.reality = {
           enabled: true,
-          public_key: reality.publicKey ?? '',
-          short_id: reality.shortId ?? '',
+          public_key: reality.publicKey,
+          short_id: reality.shortId,
         };
         ob.tls = tls;
       }
@@ -658,6 +658,20 @@ function configStringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
   if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
   return [];
+}
+
+function vlessRealityOptions(extra: Record<string, unknown> | undefined): { publicKey: string; shortId: string } | null {
+  if (!extra) return null;
+  const nested = extra.reality && typeof extra.reality === 'object' && !Array.isArray(extra.reality)
+    ? extra.reality as Record<string, unknown>
+    : {};
+  const publicKey = configString(extra.publicKey) ?? configString(nested.publicKey);
+  const shortId = configString(extra.shortId) ?? configString(nested.shortId) ?? '';
+  return publicKey ? { publicKey, shortId } : null;
+}
+
+function configString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function isNativeOutletGroup(group: ProxyGroup): boolean {
