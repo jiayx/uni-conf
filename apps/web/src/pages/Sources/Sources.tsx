@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { summarizeDashboardSourceCreateResults } from '@/core/sources/dashboard-source-create'
 import { buildCreateSourcePayload, resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from '@/core/sources/source-form'
 import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
@@ -96,10 +97,8 @@ export function Sources() {
     // When userAgent is 'custom', use customUserAgent
     // Otherwise use the selected preset
     const finalUserAgent = resolveCreateSourceUserAgent(form.userAgent, form.customUserAgent)
-    const failedUrls: string[] = []
-    for (const url of urls) {
-      try {
-        await addSource(buildCreateSourcePayload({
+    const results = await Promise.allSettled(
+      urls.map(url => addSource(buildCreateSourcePayload({
           name: urls.length === 1 ? form.name.trim() || undefined : undefined,
           url,
           format: form.format,
@@ -107,14 +106,16 @@ export function Sources() {
           userAgent: finalUserAgent,
           notes: form.notes,
           refreshAfterCreate: form.refreshAfterCreate,
-        }))
-      } catch {
-        failedUrls.push(url)
+        })))
+    )
+    const summary = summarizeDashboardSourceCreateResults(urls, results)
+    if (summary.nextInput || summary.error) {
+      setForm(f => ({ ...f, url: summary.nextInput }))
+      if (summary.error?.kind === 'save-failed') {
+        setFormError(`${summary.error.count ?? 0} 个订阅源保存失败：${summary.error.message}`)
+      } else if (summary.error?.kind === 'refresh-failed') {
+        setFormError(`${t('sources.refresh_failed')}: ${summary.error.message}`)
       }
-    }
-    if (failedUrls.length > 0) {
-      setForm(f => ({ ...f, url: failedUrls.join('\n') }))
-      setFormError(`${failedUrls.length} 个订阅源保存失败，请检查后重试`)
       return
     }
     setShowAddModal(false)

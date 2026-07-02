@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ProxySource, SourceCreateInput, SourceRefreshResult } from '@uni-conf/types'
+import type { ProxySource, SourceCreateInput, SourceCreateResult, SourceRefreshResult } from '@uni-conf/types'
 import { api } from '@/lib/api'
 
 interface SourcesState {
@@ -9,7 +9,7 @@ interface SourcesState {
   refreshResults: Record<string, SourceRefreshResult>
   refreshErrors: Record<string, string>
   fetchSources: () => Promise<void>
-  addSource: (data: SourceCreateInput) => Promise<ProxySource>
+  addSource: (data: SourceCreateInput) => Promise<SourceCreateResult>
   updateSource: (id: string, data: Partial<ProxySource>) => Promise<void>
   deleteSource: (id: string) => Promise<void>
   refreshSource: (id: string) => Promise<SourceRefreshResult>
@@ -51,7 +51,7 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
         refreshErrors: nextErrors,
       }
     })
-    return result.source
+    return result
   },
 
   updateSource: async (id, data) => {
