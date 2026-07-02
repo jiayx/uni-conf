@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { Input } from '@/components/ui/Input/Input'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
+import { isSystemDisabledRemoteRuleSet, visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
@@ -341,7 +342,10 @@ export function RemoteRuleSets() {
                       <Badge variant="default">{set.updateInterval}h</Badge>
                     </div>
                     <div className={styles.url}>{set.url}</div>
-                    {set.notes && <div className={styles.notes}>{set.notes}</div>}
+                    {isSystemDisabledRemoteRuleSet(set.notes) && (
+                      <div className={styles.systemNotice}>当前组合未启用这个分流目标，切换组合后可自动启用。</div>
+                    )}
+                    {visibleRemoteRuleSetNotes(set.notes) && <div className={styles.notes}>{visibleRemoteRuleSetNotes(set.notes)}</div>}
                     <div className={styles.cardActions}>
                       {canEditRemoteRuleSet(set) ? (
                         <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
