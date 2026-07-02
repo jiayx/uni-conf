@@ -4,17 +4,9 @@ import {
   type ProtocolFieldDefinition,
   type ProxyProtocol,
 } from '@uni-conf/types'
+import { buildStructuredProxyConfig } from '@uni-conf/shared'
 
 export type ManualNodeExtraValue = string | number | boolean | string[]
-
-const IMPLICIT_TLS_PROTOCOLS = new Set<ProxyProtocol>([
-  'https',
-  'hysteria',
-  'hysteria2',
-  'anytls',
-  'shadowtls',
-  'naive',
-])
 
 export function compactManualNodeExtra(
   extra: Record<string, ManualNodeExtraValue>
@@ -50,20 +42,7 @@ export function buildManualNodeParsedConfig(
   const completedExtra = completeManualNodeExtra(protocol, extra)
   return {
     ...(existing ?? { extra: {} }),
-    protocol,
-    server,
-    port,
-    password: getProtocolPassword(protocol, completedExtra),
-    uuid: asString(completedExtra['uuid']),
-    tls: IMPLICIT_TLS_PROTOCOLS.has(protocol) ||
-      asBoolean(completedExtra['tls']) === true ||
-      completedExtra['security'] === 'tls' ||
-      completedExtra['security'] === 'reality',
-    sni: asString(completedExtra['sni']),
-    skipCertVerify: asBoolean(completedExtra['skipCertVerify']),
-    network: asNetwork(completedExtra['network']),
-    wsPath: asString(completedExtra['wsPath']),
-    extra: completedExtra,
+    ...buildStructuredProxyConfig(protocol, server, port, completedExtra),
   }
 }
 
@@ -81,34 +60,9 @@ function protocolFields(protocol: ProxyProtocol): readonly ProtocolFieldDefiniti
   return PROTOCOL_FORM_FIELDS[protocol] as readonly ProtocolFieldDefinition[]
 }
 
-function getProtocolPassword(
-  protocol: ProxyProtocol,
-  extra: Record<string, ManualNodeExtraValue>
-): string | undefined {
-  if (protocol === 'hysteria') {
-    return asString(extra['password']) ?? asString(extra['auth'])
-  }
-  return asString(extra['password'])
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' && value ? value : undefined
-}
-
 function isMissingValue(value: unknown): boolean {
   if (value === undefined || value === null) return true
   if (typeof value === 'string') return value.trim() === ''
   if (Array.isArray(value)) return value.length === 0
   return false
-}
-
-function asBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function asNetwork(value: unknown): NormalizedProxyConfig['network'] | undefined {
-  if (value === 'tcp' || value === 'ws' || value === 'http' || value === 'h2' || value === 'grpc' || value === 'quic') {
-    return value
-  }
-  return undefined
 }

@@ -1,5 +1,5 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { SourceFormat } from '@uni-conf/types';
+import type { NormalizedProxyConfig, ProxyProtocol, SourceFormat } from '@uni-conf/types';
 
 export interface CountryInfo {
   country: string;
@@ -39,6 +39,58 @@ export function getProxyLinkUriScheme(value: string): string | null {
 
 export function hasProxyLinkUri(value: string): boolean {
   return value.split(/\r?\n/).some((line) => getProxyLinkUriScheme(line) !== null);
+}
+
+export const IMPLICIT_TLS_PROXY_PROTOCOLS = [
+  'https',
+  'hysteria',
+  'hysteria2',
+  'anytls',
+  'shadowtls',
+  'naive',
+] as const satisfies readonly ProxyProtocol[];
+
+const IMPLICIT_TLS_PROXY_PROTOCOL_SET = new Set<ProxyProtocol>(IMPLICIT_TLS_PROXY_PROTOCOLS);
+
+export function buildStructuredProxyConfig(
+  protocol: ProxyProtocol,
+  server: string,
+  port: number,
+  rawConfig: Record<string, unknown> = {}
+): NormalizedProxyConfig {
+  return {
+    protocol,
+    server,
+    port,
+    password: protocol === 'hysteria'
+      ? asConfigString(rawConfig.password) ?? asConfigString(rawConfig.auth)
+      : asConfigString(rawConfig.password),
+    uuid: asConfigString(rawConfig.uuid),
+    tls: IMPLICIT_TLS_PROXY_PROTOCOL_SET.has(protocol) ||
+      rawConfig.tls === true ||
+      rawConfig.tls === 'true' ||
+      rawConfig.security === 'tls' ||
+      rawConfig.security === 'reality',
+    sni: asConfigString(rawConfig.sni),
+    skipCertVerify: rawConfig.skipCertVerify === true ||
+      rawConfig.skipCertVerify === 'true' ||
+      rawConfig['skip-cert-verify'] === true ||
+      rawConfig['skip-cert-verify'] === 'true',
+    network: asConfigNetwork(rawConfig.network),
+    wsPath: asConfigString(rawConfig.wsPath) ?? asConfigString(rawConfig.path),
+    extra: rawConfig,
+  };
+}
+
+function asConfigString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function asConfigNetwork(value: unknown): NormalizedProxyConfig['network'] | undefined {
+  if (value === 'tcp' || value === 'ws' || value === 'http' || value === 'h2' || value === 'grpc' || value === 'quic') {
+    return value;
+  }
+  return undefined;
 }
 
 export const SOURCE_FORMATS = [
