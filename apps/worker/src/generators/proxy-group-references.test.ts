@@ -129,6 +129,26 @@ const hysteriaNode: ProxyNode = {
   },
 }
 
+const hysteria2Node: ProxyNode = {
+  ...ssNode,
+  id: 'node-hysteria2',
+  name: 'JP Hysteria2',
+  protocol: 'hysteria2',
+  server: 'hy2.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'hysteria2',
+    server: 'hy2.example.com',
+    port: 443,
+    password: 'hy2-secret',
+    sni: 'hy2.example.com',
+    extra: {
+      obfs: 'salamander',
+      obfsPassword: 'obfs-secret',
+    },
+  },
+}
+
 const nativeMihomoNode: ProxyNode = {
   ...ssNode,
   id: 'node-native-mihomo',
@@ -387,6 +407,38 @@ describe('proxy group references', () => {
     expect(content).toContain('client-fingerprint: "chrome"')
     expect(content).toContain('alpn: ["h2", "http/1.1"]')
     expect(content).toContain('- "HK AnyTLS"')
+  })
+
+  it('exports AnyTLS TLS options for sing-box full configs', () => {
+    const singbox = JSON.parse(generateSingboxJson([anytlsNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === anytlsNode.name)).toMatchObject({
+      type: 'anytls',
+      tag: 'HK AnyTLS',
+      tls: {
+        enabled: true,
+        server_name: 'hk.example.com',
+        utls: { enabled: true, fingerprint: 'chrome' },
+        alpn: ['h2', 'http/1.1'],
+      },
+    })
+  })
+
+  it('exports Hysteria2 obfs fields for Mihomo and sing-box full configs', () => {
+    const mihomo = generateMihomoYaml([hysteria2Node], [], [], [])
+    expect(mihomo).toContain('type: hysteria2')
+    expect(mihomo).toContain('obfs: "salamander"')
+    expect(mihomo).toContain('obfs-password: "obfs-secret"')
+
+    const singbox = JSON.parse(generateSingboxJson([hysteria2Node], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === hysteria2Node.name)).toMatchObject({
+      type: 'hysteria2',
+      tag: 'JP Hysteria2',
+      password: 'hy2-secret',
+      obfs: {
+        type: 'salamander',
+        password: 'obfs-secret',
+      },
+    })
   })
 
   it('exports ShadowsocksR nodes for Mihomo and sing-box full configs', () => {

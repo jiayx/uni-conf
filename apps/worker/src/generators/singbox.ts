@@ -265,7 +265,7 @@ function nodeToSingbox(node: ProxyNode): object | null {
       return ob;
     }
     case 'hysteria2': {
-      return {
+      const ob: Record<string, unknown> = {
         type: 'hysteria2',
         tag,
         server: node.server,
@@ -277,6 +277,14 @@ function nodeToSingbox(node: ProxyNode): object | null {
           insecure: cfg.skipCertVerify ?? false,
         },
       };
+      const obfs = cfg.extra?.obfs as string | undefined;
+      if (obfs) {
+        ob.obfs = {
+          type: obfs,
+          password: (cfg.extra?.obfsPassword as string) ?? '',
+        };
+      }
+      return ob;
     }
     case 'hysteria': {
       return {
@@ -311,17 +319,25 @@ function nodeToSingbox(node: ProxyNode): object | null {
       };
     }
     case 'anytls': {
+      const tls: Record<string, unknown> = {
+        enabled: true,
+        server_name: cfg.sni ?? node.server,
+        insecure: cfg.skipCertVerify ?? false,
+      };
+      const fingerprint = (cfg.extra?.['client-fingerprint'] as string | undefined)
+        ?? (cfg.extra?.clientFingerprint as string | undefined);
+      if (fingerprint) {
+        tls.utls = { enabled: true, fingerprint };
+      }
+      const alpn = configStringArray(cfg.extra?.alpn);
+      if (alpn.length > 0) tls.alpn = alpn;
       return {
         type: 'anytls',
         tag,
         server: node.server,
         server_port: node.port,
         password: cfg.password ?? '',
-        tls: {
-          enabled: true,
-          server_name: cfg.sni ?? node.server,
-          insecure: cfg.skipCertVerify ?? false,
-        },
+        tls,
       };
     }
     case 'shadowtls': {
@@ -636,6 +652,12 @@ function wireguardLocalAddress(value: unknown): string[] {
   }
   if (typeof value === 'string' && value.trim()) return [value.trim()];
   return ['10.0.0.2/32'];
+}
+
+function configStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  return [];
 }
 
 function isNativeOutletGroup(group: ProxyGroup): boolean {

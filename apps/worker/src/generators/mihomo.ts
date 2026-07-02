@@ -242,7 +242,11 @@ function nodeToMihomo(node: ProxyNode): string | null {
     }
     case 'hysteria2': {
       const pass = cfg.password ?? (cfg.extra?.auth as string) ?? '';
+      const obfs = cfg.extra?.obfs as string | undefined;
+      const obfsPassword = cfg.extra?.obfsPassword as string | undefined;
       let obj = `{name: "${name}", type: hysteria2, server: ${node.server}, port: ${node.port}, password: "${pass}"`;
+      if (obfs) obj += `, obfs: "${obfs}"`;
+      if (obfsPassword) obj += `, obfs-password: "${obfsPassword}"`;
       if (cfg.sni) obj += `, sni: "${cfg.sni}"`;
       if (cfg.skipCertVerify) obj += `, skip-cert-verify: true`;
       obj += '}';
