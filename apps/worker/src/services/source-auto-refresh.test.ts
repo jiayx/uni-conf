@@ -80,7 +80,9 @@ describe('source auto refresh', () => {
     const result = await refreshDueSources(db, nowMs);
 
     expect(refreshSourceById).toHaveBeenCalledTimes(2);
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-06-21T12:00:00.000Z');
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledTimes(2);
+    expect(ensureZeroSetupDefaults).toHaveBeenNthCalledWith(1, db, '2026-06-21T12:00:00.000Z');
+    expect(ensureZeroSetupDefaults).toHaveBeenNthCalledWith(2, db, '2026-06-21T12:00:00.000Z');
     expect(refreshSourceById).toHaveBeenNthCalledWith(1, db, 'source-ok');
     expect(refreshSourceById).toHaveBeenNthCalledWith(2, db, 'source-fail');
     expect(recordSourceRefreshError).toHaveBeenCalledWith(db, 'source-fail', 'network failed');
@@ -106,6 +108,17 @@ describe('source auto refresh', () => {
 
     expect(result.skipped).toBe(true);
     expect(ensureZeroSetupDefaults).not.toHaveBeenCalled();
+    expect(refreshSourceById).not.toHaveBeenCalled();
+  });
+
+  it('does not run a second zero-setup sync when no source is due', async () => {
+    const db = createMockDb([{ id: 'source-ok', last_updated: '2026-06-21T11:30:00.000Z', update_interval: 60 }]);
+
+    const result = await refreshDueSources(db, nowMs);
+
+    expect(result.refreshedCount).toBe(0);
+    expect(result.failedCount).toBe(0);
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce();
     expect(refreshSourceById).not.toHaveBeenCalled();
   });
 });

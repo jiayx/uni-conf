@@ -54,6 +54,10 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
     }
   }
 
+  if (dueSources.length > 0) {
+    await ensureZeroSetupDefaults(db, new Date(nowMs).toISOString());
+  }
+
   return {
     checkedCount: results.length,
     refreshedCount: refreshedSourceIds.length,
