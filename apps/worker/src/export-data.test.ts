@@ -101,6 +101,20 @@ describe('export data scoping', () => {
     expect(scopeIds).toEqual(['collection-excluded'])
   })
 
+  it('uses requested node subscription format even when the stored config is a full config', () => {
+    const scopeIds = resolveCollectionScopeIds(
+      {
+        ...baseConfig,
+        format: 'mihomo',
+        includeCollectionIds: ['collection-selected'],
+      },
+      groupRows,
+      'nodes_raw'
+    )
+
+    expect(scopeIds).toEqual(['collection-selected'])
+  })
+
   it('filters rules and remote rule sets whose target group is not exported', () => {
     const filtered = filterRowsByTargetGroup(
       [

@@ -118,7 +118,13 @@ describe('export download readiness', () => {
           enabled: true,
           tags: [],
           rawConfig: {},
-          parsedConfig: { protocol: 'ss', server: 'ss.example.com', port: 8388, extra: {} },
+          parsedConfig: {
+            protocol: 'ss',
+            server: 'ss.example.com',
+            port: 8388,
+            password: 'password',
+            extra: { cipher: 'aes-256-gcm' },
+          },
           isManual: false,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
@@ -178,7 +184,7 @@ describe('export download readiness', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }))
+    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'singbox',
@@ -298,6 +304,63 @@ describe('export download readiness', () => {
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'singbox',
+      expect.objectContaining({ dnsMode: 'smart' })
+    )
+  })
+
+  it('builds public node subscriptions with the requested node-only format scope', async () => {
+    const parsedConfig = {
+      protocol: 'ss' as const,
+      server: 'ss.example.com',
+      port: 8388,
+      password: 'password',
+      extra: { cipher: 'aes-256-gcm' },
+    }
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodeRows: [
+        {
+          id: 'node-ss',
+          source_id: 'source-1',
+          name: 'SS 01',
+          protocol: 'ss',
+          server: 'ss.example.com',
+          port: 8388,
+          enabled: 1,
+          tags: '[]',
+          raw_config: '{}',
+          parsed_config: JSON.stringify(parsedConfig),
+          is_manual: 0,
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      nodes: [
+        {
+          id: 'node-ss',
+          sourceId: 'source-1',
+          name: 'SS 01',
+          protocol: 'ss',
+          server: 'ss.example.com',
+          port: 8388,
+          enabled: true,
+          tags: [],
+          rawConfig: {},
+          parsedConfig,
+          isManual: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    const db = createMockDb()
+    const response = await subscriptionRouter.request('/sub/token/nodes.txt', {}, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'nodes_base64')
+    expect(renderExportData).toHaveBeenCalledWith(
+      expect.anything(),
+      'nodes_base64',
       expect.objectContaining({ dnsMode: 'smart' })
     )
   })

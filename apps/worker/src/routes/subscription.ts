@@ -32,7 +32,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
 
-  const exportData = await buildExportData(c.env.DB, config)
+  const exportData = await buildExportData(c.env.DB, config, format)
   const settings = await getAppSettings(c.env.DB)
   const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {

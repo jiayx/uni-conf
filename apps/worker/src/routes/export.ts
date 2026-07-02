@@ -170,7 +170,7 @@ exportRouter.get('/preview/:format', async (c) => {
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
-  const exportData = await buildExportData(c.env.DB, config)
+  const exportData = await buildExportData(c.env.DB, config, format as ExportFormat)
   const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
   if (!rendered) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
@@ -193,7 +193,7 @@ exportRouter.get('/download/:format', async (c) => {
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
-  const exportData = await buildExportData(c.env.DB, config)
+  const exportData = await buildExportData(c.env.DB, config, format)
   const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
     return c.json({ success: false, error: blockingWarning.message, warnings: [blockingWarning] }, 409)

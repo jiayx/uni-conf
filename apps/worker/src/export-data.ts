@@ -67,7 +67,8 @@ export async function getEnabledExportConfigByToken(
 
 export async function buildExportData(
   db: D1Database,
-  config?: ExportConfig
+  config?: ExportConfig,
+  requestedFormat?: ExportConfig['format']
 ): Promise<ExportData> {
   const ts = now()
   await ensureZeroSetupDefaults(db, ts)
@@ -82,7 +83,7 @@ export async function buildExportData(
     autoCollectionKeysById
   )
   const groupRows = expandReferencedGroupRows(allGroupRows, config?.includeGroupIds)
-  const collectionScopeIds = resolveCollectionScopeIds(config, groupRows)
+  const collectionScopeIds = resolveCollectionScopeIds(config, groupRows, requestedFormat)
   const nodeRows = collectionScopeIds.length
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
@@ -183,9 +184,10 @@ export function expandReferencedGroupRows(
 
 export function resolveCollectionScopeIds(
   config: ExportConfig | undefined,
-  groupRows: Record<string, unknown>[]
+  groupRows: Record<string, unknown>[],
+  requestedFormat?: ExportConfig['format']
 ): string[] {
-  if (config && isNodeOnlyExport(config)) return config.includeCollectionIds
+  if (config && isNodeOnlyExportFormat(requestedFormat ?? config.format)) return config.includeCollectionIds
 
   const groupCollectionIds = collectGroupCollectionIds(groupRows)
   if (groupCollectionIds.length > 0) return groupCollectionIds
@@ -193,8 +195,8 @@ export function resolveCollectionScopeIds(
   return config?.includeCollectionIds ?? []
 }
 
-function isNodeOnlyExport(config: ExportConfig | undefined): boolean {
-  return config?.format === 'nodes_base64' || config?.format === 'nodes_raw'
+function isNodeOnlyExportFormat(format: ExportConfig['format'] | undefined): boolean {
+  return format === 'nodes_base64' || format === 'nodes_raw'
 }
 
 function collectGroupCollectionIds(groupRows: Record<string, unknown>[]): string[] {
