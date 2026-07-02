@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyRoutingPolicyGroupLinks,
+  listAutoCollectionKeysById,
   resolveActiveTemplateGroupNames,
   resolveManagedTemplateGroupNames,
   resolveOutletGroupIds,
@@ -539,10 +540,31 @@ describe('routing policy group sync', () => {
     expect(outletRef(rows, 'streaming-auto')).toBe('auto:tag:streaming:url-test');
     expect(outletRef(rows, 'builtin-auto-select')).toBe('group:builtin-auto-select');
   });
+
+  it('normalizes automatic collection keys from managed notes', async () => {
+    await expect(listAutoCollectionKeysById(createAutoCollectionKeyDb([
+      { id: 'collection-us', notes: '[uni-conf:auto-node-group] country:us:url-test' },
+      { id: 'collection-streaming', notes: '[uni-conf:auto-node-group] tag:streaming:fallback' },
+      { id: 'collection-invalid', notes: '[uni-conf:auto-node-group] US:url-test' },
+    ]))).resolves.toEqual({
+      'collection-us': 'country:US:url-test',
+      'collection-streaming': 'tag:streaming:fallback',
+    });
+  });
 });
 
 function outletRef(rows: Array<Record<string, unknown>>, id: string): unknown {
   return rows.find((row) => row.id === id)?.outlet_ref;
+}
+
+function createAutoCollectionKeyDb(rows: Array<{ id: string; notes: string | null }>): D1Database {
+  return {
+    prepare: () => ({
+      bind: () => ({
+        all: async () => ({ results: rows }),
+      }),
+    }),
+  } as unknown as D1Database;
 }
 
 function createSyncMockDb(batches: Array<Array<{ sql: string; args: unknown[] }>>): D1Database {

@@ -30,7 +30,7 @@ describe('app settings normalization', () => {
     expect(normalizeAutoNodeGroupTypes('not-json')).toEqual(['url-test'])
     expect(normalizeAutoNodeGroupTypes('["invalid"]')).toEqual(['url-test'])
     expect(normalizeAutoNodeGroupTypes('[]')).toEqual([])
-    expect(normalizeAutoNodeGroupTypes('["select","url-test","invalid","select"]')).toEqual(['select', 'url-test'])
+    expect(normalizeAutoNodeGroupTypes('["fallback","url-test","invalid","select","fallback"]')).toEqual(['select', 'url-test', 'fallback'])
     expect(normalizeOptionalStringList(null)).toBeUndefined()
     expect(normalizeOptionalStringList('[]')).toEqual([])
     expect(normalizeOptionalStringList('["country:US:url-test",""]')).toEqual(['country:US:url-test'])

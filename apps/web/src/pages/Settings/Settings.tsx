@@ -18,9 +18,9 @@ const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; name: string
   { id: 'source_region_sequence', name: '来源 + 地区 + 序号', description: '例如 Airport A - HK - 01' },
 ]
 const AUTO_NODE_GROUP_TYPE_PRESETS: Array<{ id: AutoNodeGroupType; name: string; description: string }> = [
-  { id: 'url-test', name: '自动测速', description: '按国家/地区生成延迟优先的出口节点组' },
-  { id: 'select', name: '手动选择', description: '按国家/地区生成可手动切换的出口节点组' },
-  { id: 'fallback', name: '故障转移', description: '按国家/地区生成失败后自动切换的出口节点组' },
+  { id: 'url-test', name: '自动测速', description: '按国家/地区和标签节点池生成延迟优先的出口节点组' },
+  { id: 'select', name: '手动选择', description: '按国家/地区和标签节点池生成可手动切换的出口节点组' },
+  { id: 'fallback', name: '故障转移', description: '按国家/地区和标签节点池生成失败后自动切换的出口节点组' },
 ]
 
 export function Settings() {
@@ -237,7 +237,7 @@ export function Settings() {
             onChange={e => handleAutoNodeGroupsEnabled(e.target.checked)}
             disabled={saving}
           />
-          <span>节点变化后自动按国家/地区同步节点组</span>
+          <span>节点变化后自动按国家/地区和标签节点池同步节点组</span>
         </label>
         <div className={styles.optionGroup}>
           {AUTO_NODE_GROUP_TYPE_PRESETS.map(preset => (
@@ -261,7 +261,7 @@ export function Settings() {
           />
           <span>自动生成的国家/地区节点组名称包含旗帜 Emoji</span>
         </label>
-        <div className={styles.hint}>具体国家/地区和订阅源节点组仍在“节点组”的自动生成面板里选择。</div>
+        <div className={styles.hint}>具体国家/地区、标签节点池和订阅源节点组仍在“节点组”的自动生成面板里选择。</div>
       </Card>
 
       {/* Features */}

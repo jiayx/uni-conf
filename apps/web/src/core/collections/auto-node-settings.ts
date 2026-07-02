@@ -1,18 +1,19 @@
+import {
+  AUTO_NODE_GROUP_TYPE_ORDER,
+  AUTO_NODE_TAG_GROUPS,
+  makeCountryAutoNodeGroupKey,
+  makeTagAutoNodeGroupKey,
+  parseAutoNodeGroupKey,
+  type AutoNodeGroupMarker,
+} from '@uni-conf/shared'
 import type { AppSettings, AutoNodeGroupType, ProxyNode } from '@uni-conf/types'
 
-const AUTO_NODE_GROUP_TYPE_ORDER: AutoNodeGroupType[] = ['select', 'url-test', 'fallback']
-const TAG_AUTO_GROUPS = [
-  { key: 'streaming', label: 'Streaming / Unlock', tags: ['streaming', 'unlock'] },
-  { key: 'native', label: 'Native / Residential', tags: ['residential', 'native-ip'] },
-] as const
-
-export interface AutoNodeGroupMarker {
-  scope: 'country' | 'tag'
-  countryCode?: string
-  tagKey?: string
-  type: AutoNodeGroupType
-  key: string
-}
+export {
+  makeCountryAutoNodeGroupKey,
+  makeTagAutoNodeGroupKey,
+  parseAutoNodeGroupKey,
+  type AutoNodeGroupMarker,
+} from '@uni-conf/shared'
 
 export function normalizeAutoNodeGroupTypeSelection(types: Iterable<AutoNodeGroupType>): AutoNodeGroupType[] {
   const selected = new Set(types)
@@ -63,7 +64,7 @@ export function buildAutoNodeGroupTypeSettingsPatch(
 }
 
 export function buildAutoNodeTagSuggestions(nodes: ProxyNode[]): Array<{ key: string; label: string; count: number }> {
-  return TAG_AUTO_GROUPS
+  return AUTO_NODE_TAG_GROUPS
     .map(group => ({
       key: group.key,
       label: group.label,
@@ -73,31 +74,6 @@ export function buildAutoNodeTagSuggestions(nodes: ProxyNode[]): Array<{ key: st
       ).length,
     }))
     .filter(item => item.count > 0)
-}
-
-export function makeCountryAutoNodeGroupKey(countryCode: string, type: AutoNodeGroupType): string {
-  return `country:${countryCode.trim().toUpperCase()}:${type}`
-}
-
-export function makeTagAutoNodeGroupKey(tagKey: string, type: AutoNodeGroupType): string {
-  return `tag:${tagKey}:${type}`
-}
-
-export function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
-  const parts = key.split(':')
-  if (parts.length !== 3) return null
-
-  const [scope, value, type] = parts
-  if (!AUTO_NODE_GROUP_TYPE_ORDER.includes(type as AutoNodeGroupType)) return null
-  const normalizedType = type as AutoNodeGroupType
-  if (scope === 'country' && value) {
-    const normalizedCode = value.trim().toUpperCase()
-    return { scope, countryCode: normalizedCode, type: normalizedType, key: makeCountryAutoNodeGroupKey(normalizedCode, normalizedType) }
-  }
-  if (scope === 'tag' && value) {
-    return { scope, tagKey: value, type: normalizedType, key: makeTagAutoNodeGroupKey(value, normalizedType) }
-  }
-  return null
 }
 
 export function rebuildAutoNodeGroupKeysForTypes(

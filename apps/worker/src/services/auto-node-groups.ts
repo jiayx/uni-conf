@@ -1,22 +1,19 @@
 import {
   AUTO_NODE_GROUP_PREFIX,
+  AUTO_NODE_TAG_GROUPS,
+  type AutoNodeGroupMarker,
   countryCodeToFlag,
   DEFAULT_HEALTH_CHECK,
   DEFAULT_NODE_POOL_COLLECTION_ID,
   DEFAULT_NODE_POOL_PREFIX,
+  makeCountryAutoNodeGroupMarker,
+  makeTagAutoNodeGroupMarker,
+  parseAutoNodeGroupMarker,
 } from '@uni-conf/shared';
 import { jsonStringify, newId } from '../db/helpers';
 import { enabledNodeRowsQuery } from './enabled-node-rows';
 import { getAppSettings } from './app-settings';
 import type { AutoNodeGroupType } from '@uni-conf/types';
-
-interface AutoNodeGroupMarker {
-  key: string;
-  scope: 'country' | 'tag';
-  countryCode?: string;
-  tagKey?: string;
-  type: AutoNodeGroupType;
-}
 
 interface CountrySummary {
   countryCode: string;
@@ -39,19 +36,6 @@ const EXCLUDE_HIGH_MULTIPLIER_FILTER = {
   enabled: true,
 } as const;
 const HIGH_MULTIPLIER_TAG_PATTERN = '%"high-multiplier"%';
-
-const TAG_GROUPS = [
-  {
-    key: 'streaming',
-    name: 'Streaming Auto',
-    tags: ['streaming', 'unlock'],
-  },
-  {
-    key: 'native',
-    name: 'Native Auto',
-    tags: ['residential', 'native-ip'],
-  },
-] as const;
 
 export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<void> {
   const settings = await getAppSettings(db);
@@ -141,7 +125,7 @@ async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]>
 
 async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
   const keys: string[] = [];
-  for (const group of TAG_GROUPS) {
+  for (const group of AUTO_NODE_TAG_GROUPS) {
     const conditions = group.tags.map(() => 'tags LIKE ?').join(' OR ');
     const row = await db
       .prepare(`SELECT COUNT(*) AS node_count FROM (${enabledNodeRowsQuery()}) enabled_nodes WHERE tags NOT LIKE ? AND (${conditions})`)
@@ -173,7 +157,7 @@ export function buildAutoNodeGroupPlans(
 
   const tagKeySet = new Set(tagKeys);
   const tagPlans = groupTypes.flatMap((type) =>
-    TAG_GROUPS
+    AUTO_NODE_TAG_GROUPS
       .filter((group) => tagKeySet.has(group.key))
       .map((group) => {
         const marker = makeTagAutoNodeGroupMarker(group.key, type);
@@ -341,52 +325,6 @@ function withDefaultAutoFilters(filters: Array<Record<string, unknown>>): Array<
   return [...filters, { ...EXCLUDE_HIGH_MULTIPLIER_FILTER }];
 }
 
-function makeCountryAutoNodeGroupKey(countryCode: string, type: AutoNodeGroupType): string {
-  return `country:${countryCode.trim().toUpperCase()}:${type}`;
-}
-
-function makeTagAutoNodeGroupKey(tagKey: string, type: AutoNodeGroupType): string {
-  return `tag:${tagKey}:${type}`;
-}
-
-function makeCountryAutoNodeGroupMarker(countryCode: string, type: AutoNodeGroupType): { key: string; text: string } {
-  const key = makeCountryAutoNodeGroupKey(countryCode, type);
-  return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
-}
-
-function makeTagAutoNodeGroupMarker(tagKey: string, type: AutoNodeGroupType): { key: string; text: string } {
-  const key = makeTagAutoNodeGroupKey(tagKey, type);
-  return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
-}
-
-function parseAutoNodeGroupMarker(notes?: string | null): AutoNodeGroupMarker | null {
-  if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null;
-  const rawKey = notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim();
-  const parts = rawKey.split(':');
-  if (parts.length !== 3) return null;
-
-  const [scope, value, type] = parts;
-  if (!isAutoNodeGroupType(type)) return null;
-  if (scope === 'country' && value) {
-    const normalizedCode = value.trim().toUpperCase();
-    return {
-      scope,
-      countryCode: normalizedCode,
-      type,
-      key: makeCountryAutoNodeGroupKey(normalizedCode, type),
-    };
-  }
-  if (scope === 'tag' && value) {
-    return {
-      scope,
-      tagKey: value,
-      type,
-      key: makeTagAutoNodeGroupKey(value, type),
-    };
-  }
-  return null;
-}
-
 function makeAutoGroupName(countryCode: string, type: AutoNodeGroupType, includeFlag: boolean): string {
   const normalizedCode = countryCode.trim().toUpperCase();
   const flag = includeFlag ? countryCodeToFlag(normalizedCode) : undefined;
@@ -402,8 +340,4 @@ function autoGroupTypeSuffix(type: AutoNodeGroupType): string {
   if (type === 'select') return 'Select';
   if (type === 'fallback') return 'Fallback';
   return 'Auto';
-}
-
-function isAutoNodeGroupType(value: string | undefined): value is AutoNodeGroupType {
-  return value === 'select' || value === 'url-test' || value === 'fallback';
 }

@@ -1,5 +1,5 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { NormalizedProxyConfig, ProxyProtocol, SourceFormat } from '@uni-conf/types';
+import type { AutoNodeGroupType, NormalizedProxyConfig, ProxyProtocol, SourceFormat } from '@uni-conf/types';
 
 export interface CountryInfo {
   country: string;
@@ -16,6 +16,84 @@ export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
 export const DEFAULT_NODE_POOL_COLLECTION_ID = 'builtin-default-node-pool';
 export const DEFAULT_NODE_POOL_PREFIX = '[uni-conf:default-node-pool]';
 export const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
+
+export const AUTO_NODE_GROUP_TYPE_ORDER = ['select', 'url-test', 'fallback'] as const satisfies readonly AutoNodeGroupType[];
+
+export const AUTO_NODE_TAG_GROUPS = [
+  {
+    key: 'streaming',
+    label: 'Streaming / Unlock',
+    name: 'Streaming Auto',
+    tags: ['streaming', 'unlock'],
+  },
+  {
+    key: 'native',
+    label: 'Native / Residential',
+    name: 'Native Auto',
+    tags: ['residential', 'native-ip'],
+  },
+] as const;
+
+export interface AutoNodeGroupMarker {
+  key: string;
+  scope: 'country' | 'tag';
+  countryCode?: string;
+  tagKey?: string;
+  type: AutoNodeGroupType;
+}
+
+export function isAutoNodeGroupType(value: string | undefined): value is AutoNodeGroupType {
+  return AUTO_NODE_GROUP_TYPE_ORDER.includes(value as AutoNodeGroupType);
+}
+
+export function makeCountryAutoNodeGroupKey(countryCode: string, type: AutoNodeGroupType): string {
+  return `country:${countryCode.trim().toUpperCase()}:${type}`;
+}
+
+export function makeTagAutoNodeGroupKey(tagKey: string, type: AutoNodeGroupType): string {
+  return `tag:${tagKey}:${type}`;
+}
+
+export function makeCountryAutoNodeGroupMarker(countryCode: string, type: AutoNodeGroupType): { key: string; text: string } {
+  const key = makeCountryAutoNodeGroupKey(countryCode, type);
+  return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
+}
+
+export function makeTagAutoNodeGroupMarker(tagKey: string, type: AutoNodeGroupType): { key: string; text: string } {
+  const key = makeTagAutoNodeGroupKey(tagKey, type);
+  return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
+}
+
+export function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
+  const parts = key.split(':');
+  if (parts.length !== 3) return null;
+
+  const [scope, value, type] = parts;
+  if (!isAutoNodeGroupType(type)) return null;
+  if (scope === 'country' && value) {
+    const normalizedCode = value.trim().toUpperCase();
+    return {
+      scope,
+      countryCode: normalizedCode,
+      type,
+      key: makeCountryAutoNodeGroupKey(normalizedCode, type),
+    };
+  }
+  if (scope === 'tag' && value) {
+    return {
+      scope,
+      tagKey: value,
+      type,
+      key: makeTagAutoNodeGroupKey(value, type),
+    };
+  }
+  return null;
+}
+
+export function parseAutoNodeGroupMarker(notes?: string | null): AutoNodeGroupMarker | null {
+  if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null;
+  return parseAutoNodeGroupKey(notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim());
+}
 
 export const DEFAULT_HEALTH_CHECK = {
   testUrl: 'http://www.gstatic.com/generate_204',

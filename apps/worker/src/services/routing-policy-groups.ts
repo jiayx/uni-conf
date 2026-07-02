@@ -5,6 +5,7 @@ import {
   DEFAULT_HEALTH_CHECK,
   DEFAULT_NODE_POOL_COLLECTION_ID,
   GLOBAL_NODE_OUTLET_GROUP_IDS,
+  parseAutoNodeGroupMarker,
   ROUTING_POLICY_TEMPLATES,
   type RoutingPolicyTemplate,
 } from '@uni-conf/shared';
@@ -340,10 +341,7 @@ function outletReferenceForGroup(row: GroupRow | undefined, autoCollectionKeysBy
 }
 
 function autoCollectionKeyFromNotes(notes?: string | null): string | undefined {
-  if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return undefined;
-  const key = notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim();
-  const parts = key.split(':');
-  return parts.length === 3 && parts.every(Boolean) ? key : undefined;
+  return parseAutoNodeGroupMarker(notes)?.key;
 }
 
 function parseIds(value: unknown): string[] {

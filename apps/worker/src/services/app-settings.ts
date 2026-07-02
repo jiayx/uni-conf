@@ -1,3 +1,4 @@
+import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType } from '@uni-conf/shared';
 import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode } from '@uni-conf/types';
 import { now } from '../db/helpers';
 
@@ -8,7 +9,6 @@ const EXPORT_NODE_NAMING_MODES = new Set<ExportNodeNamingMode>([
   'source_region_sequence',
   'smart',
 ]);
-const AUTO_NODE_GROUP_TYPES = new Set<AutoNodeGroupType>(['select', 'url-test', 'fallback']);
 const DEFAULT_AUTO_NODE_GROUP_TYPES: AutoNodeGroupType[] = ['url-test'];
 
 export async function getAppSettings(db: D1Database): Promise<AppSettings> {
@@ -80,9 +80,11 @@ export function normalizeAutoNodeGroupTypes(value: unknown): AutoNodeGroupType[]
   if (rawItems.length === 0) return [];
   const types = rawItems
     .map((item) => typeof item === 'string' ? item : '')
-    .filter((item): item is AutoNodeGroupType => AUTO_NODE_GROUP_TYPES.has(item as AutoNodeGroupType));
+    .filter(isAutoNodeGroupType);
   const uniqueTypes = [...new Set(types)];
-  return uniqueTypes.length > 0 ? uniqueTypes : DEFAULT_AUTO_NODE_GROUP_TYPES;
+  return uniqueTypes.length > 0
+    ? AUTO_NODE_GROUP_TYPE_ORDER.filter((type) => uniqueTypes.includes(type))
+    : DEFAULT_AUTO_NODE_GROUP_TYPES;
 }
 
 export function normalizeOptionalStringList(value: unknown): string[] | undefined {

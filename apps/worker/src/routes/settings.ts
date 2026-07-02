@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, ThemePreference } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { DNS_MODE_PRESETS, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import { DNS_MODE_PRESETS, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -102,7 +102,6 @@ const EXPORT_NODE_NAMING_MODES: ReadonlySet<ExportNodeNamingMode> = new Set([
   'source_region_sequence',
   'smart',
 ])
-const AUTO_NODE_GROUP_TYPES: ReadonlySet<AutoNodeGroupType> = new Set(['select', 'url-test', 'fallback'])
 
 export function validateSettingsPatch(body: Partial<AppSettings>): string | null {
   if (body.language !== undefined && !LANGUAGES.has(body.language)) return 'invalid language'
@@ -125,7 +124,7 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
     return 'invalid export node naming mode'
   }
   if (body.autoNodeGroupTypes !== undefined) {
-    if (!Array.isArray(body.autoNodeGroupTypes) || body.autoNodeGroupTypes.some((type) => !AUTO_NODE_GROUP_TYPES.has(type))) {
+    if (!Array.isArray(body.autoNodeGroupTypes) || body.autoNodeGroupTypes.some((type) => !isAutoNodeGroupType(type))) {
       return 'invalid auto node group type'
     }
   }
@@ -179,7 +178,7 @@ function isAutoNodeGroupKey(value: unknown): value is string {
   if (parts.length !== 3) return false
   const [scope, key, type] = parts
   if (!scope || !key || !type) return false
-  if (!AUTO_NODE_GROUP_TYPES.has(type as AutoNodeGroupType)) return false
+  if (!isAutoNodeGroupType(type)) return false
   if (scope === 'country') return /^[A-Z]{2}$/.test(key)
   if (scope === 'tag') return /^[a-z0-9_-]+$/.test(key)
   return false
