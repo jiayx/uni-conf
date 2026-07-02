@@ -1,3 +1,4 @@
+import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { SourceFormat } from '@uni-conf/types';
 
 export interface CountryInfo {
@@ -24,6 +25,21 @@ export const DEFAULT_HEALTH_CHECK = {
 } as const;
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
+
+const WEB_URL_PROXY_SCHEMES = new Set(['http', 'https']);
+
+export const PROXY_LINK_URI_SCHEMES = Object.keys(URI_SCHEME_TO_PROTOCOL)
+  .filter((scheme) => !WEB_URL_PROXY_SCHEMES.has(scheme))
+  .sort((a, b) => b.length - a.length || a.localeCompare(b));
+
+export function getProxyLinkUriScheme(value: string): string | null {
+  const trimmed = value.trimStart().toLowerCase();
+  return PROXY_LINK_URI_SCHEMES.find((scheme) => trimmed.startsWith(`${scheme}://`)) ?? null;
+}
+
+export function hasProxyLinkUri(value: string): boolean {
+  return value.split(/\r?\n/).some((line) => getProxyLinkUriScheme(line) !== null);
+}
 
 export const SOURCE_FORMATS = [
   'auto',

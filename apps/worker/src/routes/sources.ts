@@ -11,6 +11,7 @@ import {
   buildNodeRecognitionTags,
   detectCountry,
   extractSourceNodeGroupMarkerKey,
+  getProxyLinkUriScheme,
   isSubscriptionInfoNodeName,
   parseSourceNodeGroupKey,
   SOURCE_FORMATS,
@@ -1057,22 +1058,7 @@ export function parseRawLines(lines: string[]): ParsedNodeRaw[] {
       } else if (trimmed.startsWith('hysteria2://') || trimmed.startsWith('hy2://')) {
         const node = parseHysteria2Uri(trimmed);
         if (node) nodes.push(node);
-      } else if (
-        trimmed.startsWith('hysteria://') ||
-        trimmed.startsWith('hy://') ||
-        trimmed.startsWith('tuic://') ||
-        trimmed.startsWith('anytls://') ||
-        trimmed.startsWith('shadowtls://') ||
-        trimmed.startsWith('wireguard://') ||
-        trimmed.startsWith('wg://') ||
-        trimmed.startsWith('ssh://') ||
-        trimmed.startsWith('naive://') ||
-        trimmed.startsWith('naive+https://') ||
-        trimmed.startsWith('socks://') ||
-        trimmed.startsWith('socks5://') ||
-        trimmed.startsWith('http://') ||
-        trimmed.startsWith('https://')
-      ) {
+      } else if (getProxyLinkUriScheme(trimmed) !== null || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
         const node = parseGenericUrlUri(trimmed);
         if (node) nodes.push(node);
       }

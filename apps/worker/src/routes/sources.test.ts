@@ -207,6 +207,21 @@ proxies:
     expect(anytlsNodes.length).toBeGreaterThan(0)
   })
 
+  it('parses mainstream raw URI schemes through the shared protocol registry', () => {
+    const result = detectAndParse([
+      'shadowtls://secret@sg.example.com:443?sni=sg.example.com#SG%20ShadowTLS',
+      'wireguard://private-key@us.example.com:51820?public-key=peer-key&address=172.16.0.2#US%20WireGuard',
+      'naive+https://user:pass@jp.example.com:443#JP%20Naive',
+    ].join('\n'), 'raw')
+
+    expect(result.format).toBe('raw')
+    expect(result.nodes).toEqual([
+      expect.objectContaining({ name: 'SG ShadowTLS', protocol: 'shadowtls', server: 'sg.example.com', port: 443 }),
+      expect.objectContaining({ name: 'US WireGuard', protocol: 'wireguard', server: 'us.example.com', port: 51820 }),
+      expect.objectContaining({ name: 'JP Naive', protocol: 'naive', server: 'jp.example.com', port: 443 }),
+    ])
+  })
+
   it('should parse upstream proxy groups from Clash YAML', () => {
     const groupsYaml = `
 proxies:

@@ -1,4 +1,5 @@
 import type { ProxyNode } from '@uni-conf/types'
+import { hasProxyLinkUri } from '@uni-conf/shared'
 import yaml from 'js-yaml'
 import { parseBase64Subscription } from './base64.parser'
 import { parseClashConfig } from './clash.parser'
@@ -6,8 +7,6 @@ import { parseSingboxConfig } from './singbox.parser'
 import { parseProxyLinks } from './proxy-link.parser'
 
 export type DetectedFormat = 'clash' | 'singbox' | 'base64' | 'surge' | 'loon' | 'unknown'
-
-const PROXY_SCHEME_RE = /^(ss|vmess|vless|trojan|hysteria2?|hy2|tuic|anytls|socks5):\/\//m
 
 function isValidBase64(s: string): boolean {
   const trimmed = s.trim().replace(/\s/g, '')
@@ -51,7 +50,7 @@ export function detectFormat(content: string): DetectedFormat {
   }
 
   // 4. Check for direct proxy:// links
-  if (PROXY_SCHEME_RE.test(trimmed)) {
+  if (hasProxyLinkUri(trimmed)) {
     return 'base64' // raw lines, treated same as base64 path
   }
 
@@ -61,7 +60,7 @@ export function detectFormat(content: string): DetectedFormat {
       const normalized = trimmed.replace(/-/g, '+').replace(/_/g, '/')
       const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
       const decoded = atob(padded)
-      if (PROXY_SCHEME_RE.test(decoded)) {
+      if (hasProxyLinkUri(decoded)) {
         return 'base64'
       }
     } catch {
@@ -86,7 +85,7 @@ export function parseSubscriptionContent(
       return parseSingboxConfig(content, sourceId)
     case 'base64':
       // Could be raw lines or actual base64
-      if (PROXY_SCHEME_RE.test(content.trim())) {
+      if (hasProxyLinkUri(content.trim())) {
         return parseProxyLinks(content, sourceId)
       }
       return parseBase64Subscription(content, sourceId)

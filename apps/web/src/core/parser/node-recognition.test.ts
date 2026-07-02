@@ -58,6 +58,12 @@ describe('frontend parser node recognition', () => {
     ])
   })
 
+  it('detects mainstream URI schemes from the shared protocol registry without treating subscription URLs as node content', () => {
+    expect(detectFormat('shadowtls://secret@sg.example.com:443?sni=sg.example.com#SG%20ShadowTLS')).toBe('base64')
+    expect(detectFormat('naive+https://user:pass@jp.example.com:443#JP%20Naive')).toBe('base64')
+    expect(detectFormat('https://airport.example.com/sub?token=abc')).toBe('unknown')
+  })
+
   it('filters subscription information pseudo nodes in URI lists', () => {
     const nodes = parseProxyLinks([
       'trojan://password@info.example.com:443#%E5%AE%98%E7%BD%91%EF%BC%9Ahttps%3A%2F%2Fexample.com',
