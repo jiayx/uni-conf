@@ -7,7 +7,7 @@ import { parseProxyLinks } from './proxy-link.parser'
 
 export type DetectedFormat = 'clash' | 'singbox' | 'base64' | 'surge' | 'loon' | 'unknown'
 
-const PROXY_SCHEME_RE = /^(ss|vmess|vless|trojan|hysteria2?|hy2|tuic|socks5):\/\//m
+const PROXY_SCHEME_RE = /^(ss|vmess|vless|trojan|hysteria2?|hy2|tuic|anytls|socks5):\/\//m
 
 function isValidBase64(s: string): boolean {
   const trimmed = s.trim().replace(/\s/g, '')

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { detectFormat, parseSubscriptionContent } from './auto-detect.parser'
 import { parseClashConfig } from './clash.parser'
 import { parseProxyLink, parseProxyLinks } from './proxy-link.parser'
 import { parseSingboxConfig } from './singbox.parser'
@@ -15,6 +16,46 @@ describe('frontend parser node recognition', () => {
       countryCode: 'HK',
       tags: ['multiplier:2x', 'high-multiplier', 'streaming'],
     })
+  })
+
+  it('detects and parses AnyTLS URI subscriptions from raw links', () => {
+    const content = 'anytls://secret@hk.example.com:443?security=tls&sni=hk.example.com&alpn=h2,http/1.1#%F0%9F%87%AD%F0%9F%87%B0%20HK%20AnyTLS%2001'
+
+    expect(detectFormat(content)).toBe('base64')
+    expect(parseSubscriptionContent(content, 'source-1')).toEqual([
+      expect.objectContaining({
+        name: '🇭🇰 HK AnyTLS 01',
+        protocol: 'anytls',
+        server: 'hk.example.com',
+        port: 443,
+        countryCode: 'HK',
+        rawConfig: expect.objectContaining({
+          password: 'secret',
+          tls: true,
+          sni: 'hk.example.com',
+          alpn: 'h2,http/1.1',
+        }),
+        parsedConfig: expect.objectContaining({
+          protocol: 'anytls',
+          password: 'secret',
+          tls: true,
+          sni: 'hk.example.com',
+        }),
+      }),
+    ])
+  })
+
+  it('detects base64 subscriptions that contain AnyTLS URI links', () => {
+    const encoded = btoa('anytls://secret@de.example.com:443?security=tls&sni=de.example.com#%F0%9F%87%A9%F0%9F%87%AA%20DE%20AnyTLS%2001')
+
+    expect(detectFormat(encoded)).toBe('base64')
+    expect(parseSubscriptionContent(encoded, 'source-1')).toEqual([
+      expect.objectContaining({
+        name: '🇩🇪 DE AnyTLS 01',
+        protocol: 'anytls',
+        countryCode: 'DE',
+      }),
+    ])
   })
 
   it('filters subscription information pseudo nodes in URI lists', () => {
