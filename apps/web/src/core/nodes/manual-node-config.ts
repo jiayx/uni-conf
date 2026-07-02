@@ -7,6 +7,15 @@ import {
 
 export type ManualNodeExtraValue = string | number | boolean | string[]
 
+const IMPLICIT_TLS_PROTOCOLS = new Set<ProxyProtocol>([
+  'https',
+  'hysteria',
+  'hysteria2',
+  'anytls',
+  'shadowtls',
+  'naive',
+])
+
 export function compactManualNodeExtra(
   extra: Record<string, ManualNodeExtraValue>
 ): Record<string, ManualNodeExtraValue> {
@@ -44,9 +53,12 @@ export function buildManualNodeParsedConfig(
     protocol,
     server,
     port,
-    password: asString(completedExtra['password']),
+    password: getProtocolPassword(protocol, completedExtra),
     uuid: asString(completedExtra['uuid']),
-    tls: asBoolean(completedExtra['tls']) || completedExtra['security'] === 'tls' || completedExtra['security'] === 'reality',
+    tls: IMPLICIT_TLS_PROTOCOLS.has(protocol) ||
+      asBoolean(completedExtra['tls']) === true ||
+      completedExtra['security'] === 'tls' ||
+      completedExtra['security'] === 'reality',
     sni: asString(completedExtra['sni']),
     skipCertVerify: asBoolean(completedExtra['skipCertVerify']),
     network: asNetwork(completedExtra['network']),
@@ -67,6 +79,16 @@ export function getMissingRequiredManualNodeFields(
 
 function protocolFields(protocol: ProxyProtocol): readonly ProtocolFieldDefinition[] {
   return PROTOCOL_FORM_FIELDS[protocol] as readonly ProtocolFieldDefinition[]
+}
+
+function getProtocolPassword(
+  protocol: ProxyProtocol,
+  extra: Record<string, ManualNodeExtraValue>
+): string | undefined {
+  if (protocol === 'hysteria') {
+    return asString(extra['password']) ?? asString(extra['auth'])
+  }
+  return asString(extra['password'])
 }
 
 function asString(value: unknown): string | undefined {

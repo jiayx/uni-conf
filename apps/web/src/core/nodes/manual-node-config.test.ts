@@ -65,6 +65,27 @@ describe('manual node config helpers', () => {
     })
   })
 
+  it('treats implicit TLS protocols like URI parsing for structured manual input', () => {
+    expect(buildManualNodeParsedConfig('anytls', 'hk.example.com', 443, {
+      password: 'secret',
+    })).toMatchObject({
+      protocol: 'anytls',
+      password: 'secret',
+      tls: true,
+    })
+
+    expect(buildManualNodeParsedConfig('hysteria', 'sg.example.com', 443, {
+      auth: 'auth-secret',
+    })).toMatchObject({
+      protocol: 'hysteria',
+      password: 'auth-secret',
+      tls: true,
+      extra: {
+        auth: 'auth-secret',
+      },
+    })
+  })
+
   it('reports missing required fields from the protocol registry', () => {
     expect(completeManualNodeExtra('ss', {})).toMatchObject({ method: 'aes-256-gcm' })
     expect(getMissingRequiredManualNodeFields('ss', {})).toEqual(['Password'])
