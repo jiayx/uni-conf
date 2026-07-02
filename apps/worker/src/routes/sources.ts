@@ -486,7 +486,7 @@ async function syncImportedSourceNodeGroups(
   if (collections.length === 0) return;
 
   const { results: nodeRows } = await db.prepare(
-    'SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0'
+    'SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0 AND enabled = 1'
   )
     .bind(sourceId)
     .all<{ id: string; name: string }>();

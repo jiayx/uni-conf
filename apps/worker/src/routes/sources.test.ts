@@ -576,15 +576,16 @@ proxies:
 proxies:
   - { name: '🇺🇸 US 01', type: trojan, server: us-new.example.com, port: 443, password: pwd-new }
   - { name: '🇯🇵 JP 01', type: trojan, server: jp.example.com, port: 443, password: pwd }
+  - { name: 'Disabled 01', type: trojan, server: disabled-new.example.com, port: 443, password: pwd-new }
 proxy-groups:
-  - { name: 'Upstream Auto', type: url-test, proxies: ['🇺🇸 US 01', '🇯🇵 JP 01'] }
+  - { name: 'Upstream Auto', type: url-test, proxies: ['🇺🇸 US 01', '🇯🇵 JP 01', 'Disabled 01'] }
 `,
     })))
 
     await expect(refreshSourceById(db, 'source-1')).resolves.toMatchObject({
       success: true,
       addedCount: 1,
-      updatedCount: 1,
+      updatedCount: 2,
       removedCount: 0,
       sourceGroupCount: 1,
     })
@@ -592,6 +593,7 @@ proxy-groups:
     const collectionUpdate = db.operations.find((item) => item.operation === 'update-collection-node-ids')
     expect(collectionUpdate).toBeDefined()
     expect(JSON.parse(String(collectionUpdate?.nodeIds))).toEqual(['node-us', expect.any(String)])
+    expect(JSON.parse(String(collectionUpdate?.nodeIds))).not.toContain('node-disabled')
   })
 
   it('initializes zero-setup defaults after a subscription refresh failure', async () => {
@@ -914,6 +916,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
   const nodes = [{
     id: 'node-us',
     name: '🇺🇸 US 01',
+    enabled: 1,
     server: 'us-old.example.com',
     port: 443,
     protocol: 'trojan',
@@ -922,6 +925,18 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
     tags: '[]',
     raw_config: JSON.stringify({ name: '🇺🇸 US 01', type: 'trojan', server: 'us-old.example.com', port: 443, password: 'pwd-old' }),
     parsed_config: JSON.stringify({ protocol: 'trojan', server: 'us-old.example.com', port: 443, password: 'pwd-old', extra: { password: 'pwd-old' } }),
+  }, {
+    id: 'node-disabled',
+    name: 'Disabled 01',
+    enabled: 0,
+    server: 'disabled.example.com',
+    port: 443,
+    protocol: 'trojan',
+    country: '',
+    country_code: '',
+    tags: '[]',
+    raw_config: JSON.stringify({ name: 'Disabled 01', type: 'trojan', server: 'disabled.example.com', port: 443, password: 'pwd' }),
+    parsed_config: JSON.stringify({ protocol: 'trojan', server: 'disabled.example.com', port: 443, password: 'pwd', extra: { password: 'pwd' } }),
   }]
   const collection = {
     id: 'collection-upstream',
@@ -952,8 +967,8 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
           if (sql.includes('SELECT id, name, server, port, protocol')) return { results: nodes }
           if (sql.includes('SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?')) return { results: [{ cnt: nodes.length }] }
           if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE notes LIKE ?')) return { results: [collection] }
-          if (sql.includes('SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0')) {
-            return { results: nodes.map(node => ({ id: node.id, name: node.name })) }
+          if (sql.includes('SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0 AND enabled = 1')) {
+            return { results: nodes.filter(node => node.enabled !== 0).map(node => ({ id: node.id, name: node.name })) }
           }
           return { results: [] }
         },
@@ -962,6 +977,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
             nodes.push({
               id: String(args[0]),
               name: String(args[2]),
+              enabled: 1,
               protocol: String(args[3]),
               server: String(args[4]),
               port: Number(args[5]),
