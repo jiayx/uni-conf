@@ -97,13 +97,7 @@ export function Dashboard() {
     try {
       const results = await Promise.allSettled(
         urls.map(url => api.sources.create({
-          type: 'url',
           url,
-          format: 'auto',
-          enabled: true,
-          tags: [],
-          updateInterval: 0,
-          refreshAfterCreate: true,
         }))
       )
       const summary = summarizeDashboardSourceCreateResults(urls, results)
