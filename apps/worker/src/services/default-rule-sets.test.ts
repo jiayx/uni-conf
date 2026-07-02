@@ -38,6 +38,47 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'steam')?.sortOrder).toBe(110);
   });
 
+  it('keeps managed rule set sort order aligned with the default routing pipeline', () => {
+    const orderedPresetIds = [
+      'private',
+      'adrules',
+      'cn',
+      'ai',
+      'telegram',
+      'netflix',
+      'gits',
+      'apple',
+      'microsoft',
+      'google',
+      'steam',
+      'crypto',
+      'socialmedia',
+      'proxy',
+      'ecommerce',
+    ];
+
+    const orders = orderedPresetIds.map(resolveQuixoticRuleSetSortOrder);
+
+    expect(orders).toEqual([...orders].sort((a, b) => a - b));
+    expect(Object.fromEntries(orderedPresetIds.map((id) => [id, resolveQuixoticRuleSetSortOrder(id)]))).toEqual({
+      private: 10,
+      adrules: 20,
+      cn: 30,
+      ai: 40,
+      telegram: 50,
+      netflix: 60,
+      gits: 70,
+      apple: 80,
+      microsoft: 90,
+      google: 100,
+      steam: 110,
+      crypto: 120,
+      socialmedia: 130,
+      proxy: 140,
+      ecommerce: 150,
+    });
+  });
+
   it('does not recreate defaults when preset rule sets already exist with current targets', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
