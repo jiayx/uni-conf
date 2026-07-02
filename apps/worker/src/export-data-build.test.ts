@@ -54,6 +54,7 @@ describe('buildExportData', () => {
     ]);
     expect(data.nodes.map((node) => node.server).sort()).toEqual(['hk.example.com', 'us.example.com']);
     expect(data.nodes.map((node) => node.server)).not.toContain('us-high.example.com');
+    expect(data.nodes.map((node) => node.server)).not.toContain('us-disabled.example.com');
     expect(data.collectionNodeNames['collection-us']).toEqual(['Airport A - US - 01']);
     expect(data.collectionNodeNames['collection-hk']).toEqual(['Airport A - HK - 01']);
   });
@@ -104,6 +105,7 @@ function createScopedDb(): D1Database {
       nodeRow('node-us', 'US 01', 'us.example.com', 'US'),
       nodeRow('node-hk', 'HK 01', 'hk.example.com', 'HK'),
       nodeRow('node-us-high', 'US 10x', 'us-high.example.com', 'US', ['high-multiplier']),
+      nodeRow('node-disabled-source', 'US Disabled 01', 'us-disabled.example.com', 'US', [], 'source-disabled'),
     ],
     collections: [
       collectionRow('builtin-default-node-pool', '默认可用节点'),
@@ -132,6 +134,29 @@ function createScopedDb(): D1Database {
         format: 'auto',
         enabled: 1,
         node_count: 2,
+        last_updated: null,
+        last_refresh_error: null,
+        update_interval: 0,
+        user_agent: null,
+        notes: null,
+        tags: '[]',
+        source_groups: '[]',
+        raw_content: null,
+        upload_bytes: null,
+        download_bytes: null,
+        total_bytes: null,
+        expire_time: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'source-disabled',
+        name: 'Disabled Airport',
+        type: 'url',
+        url: 'https://disabled.example.com/sub',
+        format: 'auto',
+        enabled: 0,
+        node_count: 1,
         last_updated: null,
         last_refresh_error: null,
         update_interval: 0,
@@ -176,7 +201,11 @@ function statementForSql(sql: string, rows: ScopedRows) {
 }
 
 function rowsForSql(sql: string, rows: ScopedRows): Record<string, unknown>[] {
-  if (sql.includes('FROM nodes n')) return rows.nodes;
+  if (sql.includes('FROM nodes n')) {
+    if (!sql.includes('INNER JOIN sources s') || !sql.includes('s.enabled = 1')) return rows.nodes;
+    const enabledSourceIds = new Set(rows.sources.filter((source) => source['enabled'] === 1).map((source) => source['id']));
+    return rows.nodes.filter((node) => enabledSourceIds.has(node['source_id']));
+  }
   if (sql.includes('SELECT id, notes FROM collections')) return [];
   if (sql.includes('SELECT * FROM collections')) return rows.collections;
   if (sql.includes('SELECT * FROM groups')) return rows.groups;
@@ -187,10 +216,17 @@ function rowsForSql(sql: string, rows: ScopedRows): Record<string, unknown>[] {
   return [];
 }
 
-function nodeRow(id: string, name: string, server: string, countryCode: string, tags: string[] = []): Record<string, unknown> {
+function nodeRow(
+  id: string,
+  name: string,
+  server: string,
+  countryCode: string,
+  tags: string[] = [],
+  sourceId = 'source-a'
+): Record<string, unknown> {
   return {
     id,
-    source_id: 'source-a',
+    source_id: sourceId,
     name,
     protocol: 'ss',
     server,
