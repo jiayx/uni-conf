@@ -614,7 +614,7 @@ proxy-groups:
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
-  it('refreshes a URL subscription source by default when creating it', async () => {
+  it('refreshes a subscription source by default when creating it with only a URL', async () => {
     const db = createCreateRefreshMockDb()
     const rawContent = `
 proxies:
@@ -634,7 +634,6 @@ proxy-groups:
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        type: 'url',
         url: 'https://airport.example/sub',
       }),
     }, { DB: db })
@@ -642,6 +641,8 @@ proxy-groups:
       success: boolean;
       data: {
         source: {
+          type: string;
+          url: string;
           rawContent?: string;
           groups: Array<{ name: string; type: string; memberNames: string[] }>;
           uploadBytes?: number;
@@ -655,6 +656,10 @@ proxy-groups:
 
     expect(response.status).toBe(201)
     expect(payload.success).toBe(true)
+    expect(payload.data.source).toMatchObject({
+      type: 'url',
+      url: 'https://airport.example/sub',
+    })
     expect(payload.data.refresh).toMatchObject({
       success: true,
       addedCount: 1,
