@@ -26,4 +26,6 @@ export const QUICK_EXPORT_OPTIONS: Array<{ value: ExportFormat; label: string }>
   { value: 'quantumultx', label: 'Quantumult X CONF' },
   { value: 'stash', label: 'Stash YAML' },
   { value: 'egern', label: 'Egern YAML' },
+  { value: 'nodes_base64', label: 'Node Subscription (Base64)' },
+  { value: 'nodes_raw', label: 'Node Subscription (Raw)' },
 ]

@@ -13,6 +13,8 @@ describe('buildQuickSubscriptionLinks', () => {
       { value: 'quantumultx', label: 'Quantumult X CONF', url: 'https://conf.example.com/sub/token-1/quantumultx.conf' },
       { value: 'stash', label: 'Stash YAML', url: 'https://conf.example.com/sub/token-1/stash.yaml' },
       { value: 'egern', label: 'Egern YAML', url: 'https://conf.example.com/sub/token-1/egern.yaml' },
+      { value: 'nodes_base64', label: 'Node Subscription (Base64)', url: 'https://conf.example.com/sub/token-1/nodes.txt' },
+      { value: 'nodes_raw', label: 'Node Subscription (Raw)', url: 'https://conf.example.com/sub/token-1/nodes-raw.txt' },
     ])
   })
 
