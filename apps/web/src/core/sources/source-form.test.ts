@@ -1,7 +1,38 @@
 import { describe, expect, it } from 'vitest'
-import { resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from './source-form'
+import { buildCreateSourcePayload, resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from './source-form'
 
 describe('source form helpers', () => {
+  it('builds the minimal default create payload from a subscription URL', () => {
+    expect(buildCreateSourcePayload({
+      url: 'https://example.com/sub',
+      format: 'auto',
+      updateInterval: 0,
+      refreshAfterCreate: true,
+    })).toEqual({
+      url: 'https://example.com/sub',
+    })
+  })
+
+  it('includes only user-changed advanced create fields', () => {
+    expect(buildCreateSourcePayload({
+      name: ' Airport ',
+      url: 'https://example.com/sub',
+      format: 'mihomo',
+      updateInterval: 60,
+      userAgent: 'Clash.Meta',
+      notes: ' note ',
+      refreshAfterCreate: false,
+    })).toEqual({
+      name: 'Airport',
+      url: 'https://example.com/sub',
+      format: 'mihomo',
+      updateInterval: 60,
+      userAgent: 'Clash.Meta',
+      notes: 'note',
+      refreshAfterCreate: false,
+    })
+  })
+
   it('omits default User-Agent on source creation', () => {
     expect(resolveCreateSourceUserAgent('', '')).toBeUndefined()
   })

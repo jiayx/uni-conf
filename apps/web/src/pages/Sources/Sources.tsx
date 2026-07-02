@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
-import { resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from '@/core/sources/source-form'
+import { buildCreateSourcePayload, resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from '@/core/sources/source-form'
 import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
@@ -99,18 +99,15 @@ export function Sources() {
     const failedUrls: string[] = []
     for (const url of urls) {
       try {
-        await addSource({
+        await addSource(buildCreateSourcePayload({
           name: urls.length === 1 ? form.name.trim() || undefined : undefined,
-          type: 'url',
           url,
           format: form.format,
-          enabled: true,
-          tags: [],
           updateInterval: form.updateInterval,
           userAgent: finalUserAgent,
           notes: form.notes,
           refreshAfterCreate: form.refreshAfterCreate,
-        })
+        }))
       } catch {
         failedUrls.push(url)
       }
