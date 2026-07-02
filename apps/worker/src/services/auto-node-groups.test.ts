@@ -2,20 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '@uni-conf/types';
 import { buildAutoNodeGroupPlans, syncAutoNodeGroups } from './auto-node-groups';
 import { getAppSettings } from './app-settings';
-import { syncRoutingPolicyGroups } from './routing-policy-groups';
 
 vi.mock('./app-settings', () => ({
   getAppSettings: vi.fn(),
 }));
 
-vi.mock('./routing-policy-groups', () => ({
-  syncRoutingPolicyGroups: vi.fn(),
-}));
-
 describe('auto node groups', () => {
   beforeEach(() => {
     vi.mocked(getAppSettings).mockReset();
-    vi.mocked(syncRoutingPolicyGroups).mockReset();
   });
 
   it('builds country and tag-backed auto node group plans', () => {
@@ -111,7 +105,6 @@ describe('auto node groups', () => {
       operation: 'delete-collection',
       id: 'collection-streaming',
     });
-    expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
   });
 
   it('keeps the default node pool even when country auto groups are disabled', async () => {
@@ -195,7 +188,6 @@ describe('auto node groups', () => {
       expect.objectContaining({ operation: 'insert-group', name: 'Streaming Auto', type: 'url-test' }),
       expect.objectContaining({ operation: 'insert-group', name: 'Native Auto', type: 'url-test' }),
     ]));
-    expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
   });
 });
 

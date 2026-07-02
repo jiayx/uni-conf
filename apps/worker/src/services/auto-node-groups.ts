@@ -7,7 +7,6 @@ import {
 } from '@uni-conf/shared';
 import { jsonStringify, newId } from '../db/helpers';
 import { enabledNodeRowsQuery } from './enabled-node-rows';
-import { syncRoutingPolicyGroups } from './routing-policy-groups';
 import { getAppSettings } from './app-settings';
 import type { AutoNodeGroupType } from '@uni-conf/types';
 
@@ -64,7 +63,6 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
     for (const item of autoCollections) {
       await deleteCollectionAndLinkedGroups(db, item.id);
     }
-    await syncRoutingPolicyGroups(db, ts);
     return;
   }
 
@@ -97,7 +95,6 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
     }
   }
 
-  await syncRoutingPolicyGroups(db, ts);
 }
 
 async function ensureDefaultNodePoolCollection(db: D1Database, ts: string): Promise<void> {
