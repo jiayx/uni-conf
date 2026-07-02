@@ -533,12 +533,13 @@ proxy-groups:
 
   it('initializes zero-setup defaults after a subscription refresh failure', async () => {
     const db = createRefreshMockDb()
+    const rawContent = 'not a usable proxy subscription'
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
-      headers: { get: () => null },
-      text: async () => 'not a usable proxy subscription',
+      headers: { get: (name: string) => name === 'subscription-userinfo' ? 'upload=1; download=2; total=3; expire=1893456000' : null },
+      text: async () => rawContent,
     })))
 
     const response = await sourcesApp.request('/source-1/refresh', {
@@ -554,6 +555,15 @@ proxy-groups:
       id: 'source-1',
       error: expect.stringContaining('No usable proxy nodes parsed'),
     }))
+    expect(db.operations).toContainEqual({
+      operation: 'cache-raw-content',
+      rawContent,
+      uploadBytes: 1,
+      downloadBytes: 2,
+      totalBytes: 3,
+      expireTime: 1893456000,
+      id: 'source-1',
+    })
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
