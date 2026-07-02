@@ -315,6 +315,8 @@ Netflix / YouTube / Disney+ / 流媒体 -> streaming
 
 节点组可以直接按 `tag = high-multiplier` 排除高倍率节点，或用 `tag contains multiplier:` 做倍率节点筛选。系统也会复用这些标签维护默认可用节点池和自动生成专用节点组；全局节点出口使用的默认可用节点池、自动生成的国家 / 地区节点组、Streaming Auto、Native Auto 默认都会加上 `tag not_in high-multiplier`，避免高倍率节点成为默认出口。自动组生成时也按这个默认过滤后的结果判断是否创建，所以某个国家 / 标签池如果只有高倍率节点，不会生成空节点组。手动节点组不强制排除，用户可以按自己的成本策略调整。
 
+节点组的预览和最终导出必须使用同一条处理顺序：先按来源 / 指定节点 / 过滤条件选出候选节点，再应用节点组重命名，然后按节点组去重规则去重，最后排序。这样用户在节点组页看到的节点和最终策略组引用的节点保持一致；例如两个节点重命名成同一个名称时，按名称去重会保留重命名后的第一个节点。
+
 ```text
 Streaming Auto：匹配 streaming / unlock，优先放入 Streaming 策略组
 Native Auto：匹配 residential / native-ip，优先放入 AI 和 Streaming 策略组

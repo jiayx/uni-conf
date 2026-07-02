@@ -229,15 +229,10 @@ async function buildCollectionNodeRows(
   for (const collection of collections) {
     const scopedRows = scopeRowsForCollection(allNodeRows, collection)
     const scopedNodes = scopedRows.map(mapNode)
-    const filteredNodes = applySort(
-      applyDedup(applyFilters(scopedNodes, collection.filters), collection.dedup),
-      collection.sort,
-      collection.sortCountryOrder
-    )
-    const renamedNodes = applyRenames(filteredNodes, collection.renames)
+    const transformedNodes = applyCollectionTransforms(scopedNodes, collection)
     const rows: Record<string, unknown>[] = []
 
-    for (const node of renamedNodes) {
+    for (const node of transformedNodes) {
       const row = rowsById.get(node.id)
       if (row) rows.push({ ...row, name: node.name })
     }
@@ -245,6 +240,20 @@ async function buildCollectionNodeRows(
   }
 
   return collectionRows
+}
+
+export function applyCollectionTransforms(nodes: ProxyNode[], collection: NodeCollection): ProxyNode[] {
+  return applySort(
+    applyDedup(
+      applyRenames(
+        applyFilters(nodes, collection.filters),
+        collection.renames
+      ),
+      collection.dedup
+    ),
+    collection.sort,
+    collection.sortCountryOrder
+  )
 }
 
 function mergeCollectionRows(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { ExportConfig } from '@uni-conf/types'
+import type { ExportConfig, NodeCollection, ProxyNode } from '@uni-conf/types'
 import {
+  applyCollectionTransforms,
   applyDefaultExportDedup,
   applyDefaultExportNodeNames,
   applyExportNodeNames,
@@ -181,6 +182,25 @@ describe('export data scoping', () => {
     expect(rows.map(row => row.id)).toEqual(['node-1', 'node-3'])
   })
 
+  it('applies collection renames before collection dedup so preview and export stay aligned', () => {
+    const collection = makeCollection({
+      dedup: 'name',
+      renames: [
+        { id: 'strip-number', type: 'regex', pattern: '\\s+0[12]$', replacement: '', enabled: true, order: 0 },
+      ],
+      sort: 'manual',
+    })
+
+    const nodes = applyCollectionTransforms([
+      makeNode('node-1', 'HK 01'),
+      makeNode('node-2', 'HK 02'),
+    ], collection)
+
+    expect(nodes.map(node => [node.id, node.name])).toEqual([
+      ['node-1', 'HK'],
+    ])
+  })
+
   it('builds collection node names from final exported names', () => {
     const collectionRows = new Map([
       ['collection-hk', [
@@ -224,3 +244,39 @@ describe('export data scoping', () => {
     })
   })
 })
+
+function makeCollection(patch: Partial<NodeCollection>): NodeCollection {
+  return {
+    id: 'collection-1',
+    name: 'Collection',
+    sourceIds: [],
+    nodeIds: [],
+    filters: [],
+    renames: [],
+    dedup: 'name',
+    sort: 'country',
+    sortCountryOrder: [],
+    enabled: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...patch,
+  }
+}
+
+function makeNode(id: string, name: string): ProxyNode {
+  return {
+    id,
+    sourceId: 'source-a',
+    name,
+    protocol: 'trojan',
+    server: `${id}.example.com`,
+    port: 443,
+    enabled: true,
+    tags: [],
+    rawConfig: {},
+    parsedConfig: { protocol: 'trojan', server: `${id}.example.com`, port: 443, extra: {} },
+    isManual: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+}
