@@ -90,6 +90,16 @@ export function parseAutoNodeGroupKey(key: string): AutoNodeGroupMarker | null {
   return null;
 }
 
+export function isCanonicalAutoNodeGroupKey(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const key = value.trim();
+  const marker = parseAutoNodeGroupKey(key);
+  if (!marker || marker.key !== key) return false;
+  if (marker.scope === 'country') return Boolean(marker.countryCode && /^[A-Z]{2}$/.test(marker.countryCode));
+  if (marker.scope === 'tag') return Boolean(marker.tagKey && /^[a-z0-9_-]+$/.test(marker.tagKey));
+  return false;
+}
+
 export function parseAutoNodeGroupMarker(notes?: string | null): AutoNodeGroupMarker | null {
   if (!notes?.startsWith(AUTO_NODE_GROUP_PREFIX)) return null;
   return parseAutoNodeGroupKey(notes.slice(AUTO_NODE_GROUP_PREFIX.length).trim());

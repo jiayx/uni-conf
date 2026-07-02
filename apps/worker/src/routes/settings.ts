@@ -4,7 +4,7 @@ import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, RoutingPolic
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { DNS_MODE_PRESETS, isAutoNodeGroupType, parseAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import { DNS_MODE_PRESETS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -129,7 +129,7 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
     }
   }
   if (body.autoNodeGroupKeys !== undefined) {
-    if (!Array.isArray(body.autoNodeGroupKeys) || body.autoNodeGroupKeys.some((key) => !isAutoNodeGroupKey(key))) {
+    if (!Array.isArray(body.autoNodeGroupKeys) || body.autoNodeGroupKeys.some((key) => !isCanonicalAutoNodeGroupKey(key))) {
       return 'invalid auto node group key'
     }
   }
@@ -168,19 +168,7 @@ function isRoutingOutletPreferenceRef(value: unknown): value is string {
   const trimmed = value.trim()
   if (!trimmed) return false
   if (trimmed.startsWith('group:')) return Boolean(trimmed.slice('group:'.length).trim())
-  if (trimmed.startsWith('auto:')) return parseAutoNodeGroupKey(trimmed.slice('auto:'.length)) !== null
-  return false
-}
-
-function isAutoNodeGroupKey(value: unknown): value is string {
-  if (typeof value !== 'string') return false
-  const parts = value.trim().split(':')
-  if (parts.length !== 3) return false
-  const [scope, key, type] = parts
-  if (!scope || !key || !type) return false
-  if (!isAutoNodeGroupType(type)) return false
-  if (scope === 'country') return /^[A-Z]{2}$/.test(key)
-  if (scope === 'tag') return /^[a-z0-9_-]+$/.test(key)
+  if (trimmed.startsWith('auto:')) return isCanonicalAutoNodeGroupKey(trimmed.slice('auto:'.length))
   return false
 }
 
