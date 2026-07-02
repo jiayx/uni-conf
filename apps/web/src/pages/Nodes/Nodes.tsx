@@ -13,6 +13,10 @@ import {
   getMissingRequiredManualNodeFields,
   type ManualNodeExtraValue,
 } from '@/core/nodes/manual-node-config'
+import {
+  MANUAL_NODE_URI_HELP_TEXT,
+  MANUAL_NODE_URI_PLACEHOLDER,
+} from '@/core/nodes/manual-node-uri-help'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { MAINSTREAM_PROXY_PROTOCOLS, PROTOCOL_FORM_FIELDS } from '@uni-conf/types'
@@ -259,11 +263,11 @@ export function Nodes() {
               className={styles.textarea}
               value={uriInput}
               onChange={e => setUriInput(e.target.value)}
-              placeholder="ss://... / vmess://... / vless://... / trojan://... / hysteria2://... / tuic://..."
+              placeholder={MANUAL_NODE_URI_PLACEHOLDER}
               rows={4}
             />
             <div className={styles.helperText}>
-              Supports SS, VMess, VLESS, Trojan, Hysteria2, TUIC, SOCKS5, HTTP, and HTTPS share links.
+              {MANUAL_NODE_URI_HELP_TEXT}
             </div>
             <div className={styles.divider}><span>or</span></div>
           </div>
