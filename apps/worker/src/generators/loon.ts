@@ -50,7 +50,7 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
     case 'anytls': {
       const password = String(parsed['password'] ?? '')
       const sni = parsed['sni'] ? `, tls-name=${parsed['sni']}` : ''
-      const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint']
+      const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint'] ?? extra['fingerprint'] ?? extra['fp']
       const fp = fingerprint ? `, client-fingerprint=${fingerprint}` : ''
       const udp = extra['udp'] !== undefined ? `, udp-relay=${Boolean(extra['udp'])}` : ''
       const alpn = Array.isArray(extra['alpn']) ? `, alpn=${extra['alpn'].map(String).join('|')}` : ''

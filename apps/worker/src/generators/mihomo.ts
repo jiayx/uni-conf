@@ -202,7 +202,8 @@ function nodeToMihomo(node: ProxyNode): string | null {
       const uuid = cfg.uuid ?? '';
       const alterId = (cfg.extra?.alterId as number) ?? 0;
       const network = cfg.network ?? 'tcp';
-      let obj = `{name: "${name}", type: vmess, server: ${node.server}, port: ${node.port}, uuid: "${uuid}", alterId: ${alterId}, cipher: auto, tls: ${cfg.tls ?? false}, network: "${network}"`;
+      const cipher = (cfg.extra?.cipher as string | undefined) ?? (cfg.extra?.security as string | undefined) ?? 'auto';
+      let obj = `{name: "${name}", type: vmess, server: ${node.server}, port: ${node.port}, uuid: "${uuid}", alterId: ${alterId}, cipher: ${cipher}, tls: ${cfg.tls ?? false}, network: "${network}"`;
       if (network === 'ws') {
         const wsPath = cfg.wsPath ?? '/';
         obj += `, ws-opts: {path: "${wsPath}"`;
@@ -274,8 +275,7 @@ function nodeToMihomo(node: ProxyNode): string | null {
     }
     case 'anytls': {
       const pass = cfg.password ?? '';
-      const fingerprint = (cfg.extra?.['client-fingerprint'] as string | undefined)
-        ?? (cfg.extra?.clientFingerprint as string | undefined);
+      const fingerprint = anytlsFingerprint(cfg.extra);
       const alpn = cfg.extra?.alpn;
       let obj = `{name: "${name}", type: anytls, server: ${node.server}, port: ${node.port}, password: "${pass}"`;
       if (fingerprint) obj += `, client-fingerprint: "${fingerprint}"`;
@@ -335,6 +335,13 @@ function vlessRealityOptions(extra: Record<string, unknown> | undefined): { publ
 
 function configString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function anytlsFingerprint(extra: Record<string, unknown> | undefined): string | undefined {
+  return configString(extra?.['client-fingerprint'])
+    ?? configString(extra?.clientFingerprint)
+    ?? configString(extra?.fingerprint)
+    ?? configString(extra?.fp);
 }
 
 function nativeObject(rawConfig: unknown, key: string): Record<string, unknown> | null {

@@ -145,6 +145,8 @@ function buildParams(
   if (Array.isArray(extra?.['alpn'])) params.set('alpn', extra['alpn'].map(String).join(','))
   if (extra?.['client-fingerprint']) params.set('fp', String(extra['client-fingerprint']))
   if (extra?.['clientFingerprint']) params.set('fp', String(extra['clientFingerprint']))
+  if (extra?.['fingerprint']) params.set('fp', String(extra['fingerprint']))
+  if (extra?.['fp']) params.set('fp', String(extra['fp']))
   if (extra?.['udp'] !== undefined) params.set('udp', String(Boolean(extra['udp'])))
 
   return params.toString()

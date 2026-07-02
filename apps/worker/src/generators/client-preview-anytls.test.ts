@@ -42,6 +42,24 @@ const otherRow: Record<string, unknown> = {
   }),
 }
 
+const fingerprintRow: Record<string, unknown> = {
+  ...anytlsRow,
+  id: 'node-fingerprint',
+  name: 'HK AnyTLS FP',
+  parsed_config: JSON.stringify({
+    protocol: 'anytls',
+    server: 'hk.example.com',
+    port: 443,
+    password: 'secret',
+    sni: 'hk.example.com',
+    skipCertVerify: false,
+    extra: {
+      fingerprint: 'safari',
+      udp: true,
+    },
+  }),
+}
+
 const ssrRow: Record<string, unknown> = {
   id: 'node-ssr',
   name: '🇭🇰 HK SSR 01',
@@ -111,6 +129,13 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('anytls://secret@hk.example.com:443')
     expect(content).toContain('sni=hk.example.com')
     expect(content).toContain('fp=chrome')
+  })
+
+  it('exports AnyTLS fingerprint aliases in node subscription URIs', () => {
+    const content = generateNodeSubscriptionRaw([fingerprintRow])
+
+    expect(content).toContain('anytls://secret@hk.example.com:443')
+    expect(content).toContain('fp=safari')
   })
 
   it('exports ShadowsocksR node subscription URIs', () => {

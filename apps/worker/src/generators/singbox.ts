@@ -196,7 +196,7 @@ function nodeToSingbox(node: ProxyNode): object | null {
         server_port: node.port,
         uuid: cfg.uuid ?? '',
         alter_id: (cfg.extra?.alterId as number) ?? 0,
-        security: 'auto',
+        security: (cfg.extra?.cipher as string) ?? (cfg.extra?.security as string) ?? 'auto',
       };
       if (cfg.tls) {
         ob.tls = {
@@ -324,8 +324,7 @@ function nodeToSingbox(node: ProxyNode): object | null {
         server_name: cfg.sni ?? node.server,
         insecure: cfg.skipCertVerify ?? false,
       };
-      const fingerprint = (cfg.extra?.['client-fingerprint'] as string | undefined)
-        ?? (cfg.extra?.clientFingerprint as string | undefined);
+      const fingerprint = anytlsFingerprint(cfg.extra);
       if (fingerprint) {
         tls.utls = { enabled: true, fingerprint };
       }
@@ -672,6 +671,13 @@ function vlessRealityOptions(extra: Record<string, unknown> | undefined): { publ
 
 function configString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function anytlsFingerprint(extra: Record<string, unknown> | undefined): string | undefined {
+  return configString(extra?.['client-fingerprint'])
+    ?? configString(extra?.clientFingerprint)
+    ?? configString(extra?.fingerprint)
+    ?? configString(extra?.fp);
 }
 
 function isNativeOutletGroup(group: ProxyGroup): boolean {

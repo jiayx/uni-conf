@@ -85,6 +85,19 @@ const anytlsNode: ProxyNode = {
   },
 }
 
+const anytlsFingerprintNode: ProxyNode = {
+  ...anytlsNode,
+  id: 'node-anytls-fp',
+  name: 'HK AnyTLS FP',
+  parsedConfig: {
+    ...anytlsNode.parsedConfig,
+    extra: {
+      fingerprint: 'safari',
+      alpn: 'h3,h2',
+    },
+  },
+}
+
 const ssrNode: ProxyNode = {
   ...ssNode,
   id: 'node-ssr',
@@ -168,6 +181,26 @@ const vlessRealityNode: ProxyNode = {
       flow: 'xtls-rprx-vision',
       publicKey: 'reality-public-key',
       shortId: 'abcd',
+    },
+  },
+}
+
+const vmessNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-vmess',
+  name: 'US VMess',
+  protocol: 'vmess',
+  server: 'vmess.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'vmess',
+    server: 'vmess.example.com',
+    port: 443,
+    uuid: '12345678-1234-1234-1234-123456789012',
+    tls: true,
+    extra: {
+      alterId: 0,
+      cipher: 'aes-128-gcm',
     },
   },
 }
@@ -443,6 +476,32 @@ describe('proxy group references', () => {
         utls: { enabled: true, fingerprint: 'chrome' },
         alpn: ['h2', 'http/1.1'],
       },
+    })
+  })
+
+  it('exports AnyTLS fingerprint aliases for full configs', () => {
+    const mihomo = generateMihomoYaml([anytlsFingerprintNode], [], [], [])
+    expect(mihomo).toContain('client-fingerprint: "safari"')
+
+    const singbox = JSON.parse(generateSingboxJson([anytlsFingerprintNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === anytlsFingerprintNode.name)).toMatchObject({
+      type: 'anytls',
+      tls: {
+        utls: { enabled: true, fingerprint: 'safari' },
+        alpn: ['h3', 'h2'],
+      },
+    })
+  })
+
+  it('exports VMess cipher fields for Mihomo and sing-box full configs', () => {
+    const mihomo = generateMihomoYaml([vmessNode], [], [], [])
+    expect(mihomo).toContain('type: vmess')
+    expect(mihomo).toContain('cipher: aes-128-gcm')
+
+    const singbox = JSON.parse(generateSingboxJson([vmessNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === vmessNode.name)).toMatchObject({
+      type: 'vmess',
+      security: 'aes-128-gcm',
     })
   })
 

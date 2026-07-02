@@ -272,7 +272,7 @@ function nodeToIniProxy(node: Row): string | null {
   }
   if (protocol === 'anytls') {
     const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
-    const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint']
+    const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint'] ?? extra['fingerprint'] ?? extra['fp']
     const fp = fingerprint ? `, client-fingerprint=${fingerprint}` : ''
     const udp = extra['udp'] !== undefined ? `, udp-relay=${Boolean(extra['udp'])}` : ''
     const alpn = Array.isArray(extra['alpn']) ? `, alpn=${extra['alpn'].map(String).join('|')}` : ''
@@ -401,7 +401,7 @@ function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
     return { name, type: 'trojan', server, port, password: parsed['password'] ?? '', sni: parsed['sni'] }
   }
   if (protocol === 'anytls') {
-    const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint']
+    const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint'] ?? extra['fingerprint'] ?? extra['fp']
     return {
       name,
       type: 'anytls',
