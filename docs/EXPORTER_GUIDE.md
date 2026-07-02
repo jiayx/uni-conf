@@ -39,7 +39,7 @@ Use `apps/worker/src/generators/group-members.ts` for generic group member resol
 
 Full-config exporters should keep the zero-setup baseline aligned with the default smart template. Mihomo-compatible configs use `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`; sing-box uses `log.level = warning` with its managed DNS and inbound baseline. Do not reintroduce separate Mihomo `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
 
-Every full-config exporter must emit a usable fallback route when the data has no explicit `MATCH` / `FINAL` rule. Use `漏网之鱼` when present, otherwise `PROXY`, then the first available policy, then the client's direct policy. This applies to YAML, JSON, INI-style clients, Quantumult X, and Egern alike; a generated full config must not end with an empty rule list.
+Every full-config exporter must emit a usable fallback route when the data has no enabled `MATCH` / `FINAL` rule. Disabled fallback rows do not count. Use `漏网之鱼` when present, otherwise `PROXY`, then the first available policy, then the client's direct policy. This applies to YAML, JSON, INI-style clients, Quantumult X, and Egern alike; a generated full config must not end with an empty rule list.
 
 Full-config generators must sort remote rule sets by managed priority before rendering rule-provider references and rules. Do not rely only on database query order; preview, download, public subscription, and direct generator tests should produce the same rule order for the same data.
 

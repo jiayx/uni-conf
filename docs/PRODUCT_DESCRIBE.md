@@ -253,7 +253,7 @@ Microsoft / OneDrive -> Microsoft
 其他国外流量 / 兜底 MATCH -> 漏网之鱼
 ```
 
-如果当前组合没有启用某个专用业务策略组，对应的系统托管规则集会以“系统停用”的状态创建或更新，而不是隐藏起来或回退到 `PROXY`。切换到包含该业务组的组合后，系统再自动启用并指回对应策略组；但如果是用户手动关闭了某条托管规则集，后台同步不会强行打开。`PROXY / DIRECT / REJECT` 这些基础目标始终存在，所以国内直连、广告拦截、默认代理等基础规则不受空组合影响。如果没有显式 MATCH 规则，导出器优先用 `漏网之鱼` 作为兜底，未启用时再回退到 `PROXY`。这样空组合能保持“只保留基础能力”的语义，同时用户切换组合时不会产生悬空规则。
+如果当前组合没有启用某个专用业务策略组，对应的系统托管规则集会以“系统停用”的状态创建或更新，而不是隐藏起来或回退到 `PROXY`。切换到包含该业务组的组合后，系统再自动启用并指回对应策略组；但如果是用户手动关闭了某条托管规则集，后台同步不会强行打开。`PROXY / DIRECT / REJECT` 这些基础目标始终存在，所以国内直连、广告拦截、默认代理等基础规则不受空组合影响。如果没有启用的 MATCH 规则，导出器优先用 `漏网之鱼` 作为兜底，未启用时再回退到 `PROXY`。这样空组合能保持“只保留基础能力”的语义，同时用户切换组合时不会产生悬空规则。
 
 QuixoticHeart/rule-set 是默认远程规则包来源。第一版用 Quixotic 的 Advertising 与 HTTPDNS 规则承担广告、追踪、恶意域名和 HTTPDNS 拦截，并统一分配到 `REJECT`；AI 聚合规则承担 OpenAI、Gemini、Copilot、Claude 等 AI 服务分流；Netflix、YouTube、Disney+、Spotify 等规则进入 `Streaming`；TikTok、论坛、国外社交进入 `Social`；Git 仓库规则进入 `GitHub`。对于 Quixotic 当前没有独立拆分的 Telegram，系统额外内置 MetaCubeX/meta-rules-dat 的 `geosite/telegram.list`，并把它分配到 `Telegram` 策略组。Steam、Crypto 等扩展规则也会创建托管行，但在默认智能组合未启用对应业务组时保持“系统停用”，切换到扩展组合后再自动启用；通用 Games 规则默认走 `PROXY`，DIRECT / REJECT 基础规则不受组合影响。
 

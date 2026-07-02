@@ -180,7 +180,7 @@ export function generateLoon(
     if (line) lines.push(line)
   }
   // Ensure FINAL rule exists
-  const hasFinal = rules.some(r => String(r['type']) === 'MATCH')
+  const hasFinal = rules.some(r => Boolean(r['enabled']) && String(r['type']) === 'MATCH')
   if (!hasFinal) {
     lines.push(`FINAL, ${defaultPolicy(groups)}`)
   }

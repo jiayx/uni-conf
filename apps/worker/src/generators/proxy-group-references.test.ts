@@ -414,6 +414,30 @@ describe('proxy group references', () => {
     expect(egern.rules).toContainEqual({ default: 'PROXY' })
   })
 
+  it('still appends text-client fallback rules when MATCH is disabled', () => {
+    const rows = [toRow(proxyGroup), toRow(autoGroup)]
+    const nodeRows = [toNodeRow(ssNode)]
+    const disabledMatchRule = {
+      id: 'rule-disabled-match',
+      type: 'MATCH',
+      payload: '',
+      target_group_id: proxyGroup.id,
+      enabled: 0,
+      order: 100,
+      no_resolve: 0,
+    }
+
+    expect(generateLoon(nodeRows, rows, [disabledMatchRule], [])).toContain('FINAL, PROXY')
+    expect(generateSurge(nodeRows, rows, [disabledMatchRule], [])).toContain('FINAL,PROXY')
+    expect(generateShadowrocket(nodeRows, rows, [disabledMatchRule], [])).toContain('FINAL,PROXY')
+    expect(generateQuantumultX(nodeRows, rows, [disabledMatchRule], [])).toContain('FINAL,PROXY')
+
+    const egern = yaml.load(generateEgern(nodeRows, rows, [disabledMatchRule], [])) as {
+      rules: Array<Record<string, unknown>>;
+    }
+    expect(egern.rules).toContainEqual({ default: 'PROXY' })
+  })
+
   it('uses an existing sing-box outbound for DNS and rule set downloads', () => {
     const withProxy = JSON.parse(generateSingboxJson([], [proxyGroup, autoGroup], [], [])) as {
       dns: { servers: Array<Record<string, unknown>> };

@@ -116,7 +116,7 @@ export function generateQuantumultX(
     const line = ruleToQuantumultX(rule, groups)
     if (line) lines.push(line)
   }
-  if (!rules.some((rule) => String(rule['type']) === 'MATCH')) {
+  if (!hasEnabledMatchRule(rules)) {
     lines.push(`FINAL,${defaultPolicy(groups)}`)
   }
   lines.push('')
@@ -240,7 +240,7 @@ function buildIniConfig({
     const line = ruleToIni(rule, groups, client)
     if (line) lines.push(line)
   }
-  if (!rules.some((rule) => String(rule['type']) === 'MATCH')) {
+  if (!hasEnabledMatchRule(rules)) {
     lines.push(`FINAL,${defaultPolicy(groups)}`)
   }
   lines.push('')
@@ -459,6 +459,10 @@ function defaultPolicy(groups: Row[]): string {
       ?? groups[0]?.['name']
       ?? 'DIRECT'
   )
+}
+
+function hasEnabledMatchRule(rules: Row[]): boolean {
+  return rules.some((rule) => Boolean(rule['enabled']) && String(rule['type']) === 'MATCH')
 }
 
 function sortRemoteRuleSetRows(remoteSets: Row[]): Row[] {
