@@ -53,16 +53,26 @@ function makeParsedConfig(
 
 function decodeSafe(s: string): string {
   try {
-    return atob(s)
+    return decodeBase64Utf8(s)
   } catch {
     // Try URL-safe base64
     try {
       const normalized = s.replace(/-/g, '+').replace(/_/g, '/')
       const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
-      return atob(padded)
+      return decodeBase64Utf8(padded)
     } catch {
       return s
     }
+  }
+}
+
+function decodeBase64Utf8(s: string): string {
+  const binary = atob(s)
+  try {
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return binary
   }
 }
 
@@ -129,6 +139,47 @@ function parseSS(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' |
     }
   } catch {
     return null
+  }
+}
+
+function parseSSR(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' | 'updatedAt'> | null {
+  const decoded = decodeSafe(uri.slice('ssr://'.length))
+  const querySeparator = decoded.indexOf('/?')
+  const main = querySeparator >= 0 ? decoded.slice(0, querySeparator) : decoded
+  const query = querySeparator >= 0 ? decoded.slice(querySeparator + 2) : ''
+  const [server, portValue, ssrProtocol, method, obfs, passwordValue] = main.split(':')
+  const port = parseInt(portValue ?? '', 10)
+  const password = decodeSafe(passwordValue ?? '')
+  if (!server || isNaN(port) || !ssrProtocol || !method || !obfs || !password) return null
+
+  const params = new URLSearchParams(query)
+  const obfsParam = decodeSafe(params.get('obfsparam') ?? '') || undefined
+  const protocolParam = decodeSafe(params.get('protoparam') ?? '') || undefined
+  const group = decodeSafe(params.get('group') ?? '') || undefined
+  const nodeName = decodeSafe(params.get('remarks') ?? '') || `${server}:${port}`
+  const extra: Record<string, unknown> = {
+    method,
+    password,
+    protocol: ssrProtocol,
+    obfs,
+    obfsParam,
+    protocolParam,
+    group,
+  }
+  const countryInfo = detectCountry(nodeName)
+
+  return {
+    name: nodeName,
+    protocol: 'ssr',
+    server,
+    port,
+    country: countryInfo?.country,
+    countryCode: countryInfo?.countryCode,
+    enabled: true,
+    tags: buildNodeRecognitionTags(nodeName),
+    rawConfig: extra,
+    parsedConfig: makeParsedConfig('ssr', server, port, extra),
+    isManual: false,
   }
 }
 
@@ -344,6 +395,8 @@ export function parseProxyLink(uri: string, sourceId: string): ProxyNode | null 
 
   if (trimmed.startsWith('ss://')) {
     partial = parseSS(trimmed)
+  } else if (trimmed.startsWith('ssr://')) {
+    partial = parseSSR(trimmed)
   } else if (trimmed.startsWith('vmess://')) {
     partial = parseVMess(trimmed)
   } else if (trimmed.startsWith('vless://')) {

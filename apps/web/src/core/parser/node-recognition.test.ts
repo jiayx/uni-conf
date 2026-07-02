@@ -64,6 +64,42 @@ describe('frontend parser node recognition', () => {
     expect(detectFormat('https://airport.example.com/sub?token=abc')).toBe('unknown')
   })
 
+  it('parses ShadowsocksR URI nodes from shared mainstream scheme detection', () => {
+    const nodes = parseSubscriptionContent(makeSsrUri({
+      server: 'hk.example.com',
+      port: 443,
+      method: 'aes-256-cfb',
+      password: 'secret',
+      protocol: 'auth_sha1_v4',
+      obfs: 'tls1.2_ticket_auth',
+      name: '🇭🇰 HK SSR 01',
+      obfsParam: 'cdn.example.com',
+      protocolParam: '32',
+    }), 'source-1')
+
+    expect(nodes).toEqual([
+      expect.objectContaining({
+        name: '🇭🇰 HK SSR 01',
+        protocol: 'ssr',
+        server: 'hk.example.com',
+        port: 443,
+        countryCode: 'HK',
+        rawConfig: expect.objectContaining({
+          method: 'aes-256-cfb',
+          password: 'secret',
+          protocol: 'auth_sha1_v4',
+          obfs: 'tls1.2_ticket_auth',
+          obfsParam: 'cdn.example.com',
+          protocolParam: '32',
+        }),
+        parsedConfig: expect.objectContaining({
+          protocol: 'ssr',
+          password: 'secret',
+        }),
+      }),
+    ])
+  })
+
   it('filters subscription information pseudo nodes in URI lists', () => {
     const nodes = parseProxyLinks([
       'trojan://password@info.example.com:443#%E5%AE%98%E7%BD%91%EF%BC%9Ahttps%3A%2F%2Fexample.com',
@@ -150,3 +186,34 @@ proxies:
     expect(nodes.map(node => node.name)).toEqual(['🇺🇸 US 01'])
   })
 })
+
+function makeSsrUri(input: {
+  server: string
+  port: number
+  method: string
+  password: string
+  protocol: string
+  obfs: string
+  name: string
+  obfsParam?: string
+  protocolParam?: string
+}): string {
+  const main = [
+    input.server,
+    input.port,
+    input.protocol,
+    input.method,
+    input.obfs,
+    encodeBase64Url(input.password),
+  ].join(':')
+  const params = new URLSearchParams({
+    remarks: encodeBase64Url(input.name),
+  })
+  if (input.obfsParam) params.set('obfsparam', encodeBase64Url(input.obfsParam))
+  if (input.protocolParam) params.set('protoparam', encodeBase64Url(input.protocolParam))
+  return `ssr://${encodeBase64Url(`${main}/?${params.toString()}`)}`
+}
+
+function encodeBase64Url(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}

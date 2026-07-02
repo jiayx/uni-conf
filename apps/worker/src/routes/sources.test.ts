@@ -222,6 +222,42 @@ proxies:
     ])
   })
 
+  it('parses ShadowsocksR raw URI nodes from the mainstream protocol registry', () => {
+    const result = detectAndParse(makeSsrUri({
+      server: 'hk.example.com',
+      port: 443,
+      method: 'aes-256-cfb',
+      password: 'secret',
+      protocol: 'auth_sha1_v4',
+      obfs: 'tls1.2_ticket_auth',
+      name: '🇭🇰 HK SSR 01',
+      obfsParam: 'cdn.example.com',
+      protocolParam: '32',
+    }), 'raw')
+
+    expect(result.nodes).toEqual([
+      expect.objectContaining({
+        name: '🇭🇰 HK SSR 01',
+        protocol: 'ssr',
+        server: 'hk.example.com',
+        port: 443,
+        countryCode: 'HK',
+        rawConfig: expect.objectContaining({
+          method: 'aes-256-cfb',
+          password: 'secret',
+          protocol: 'auth_sha1_v4',
+          obfs: 'tls1.2_ticket_auth',
+          obfsParam: 'cdn.example.com',
+          protocolParam: '32',
+        }),
+        parsedConfig: expect.objectContaining({
+          protocol: 'ssr',
+          password: 'secret',
+        }),
+      }),
+    ])
+  })
+
   it('should parse upstream proxy groups from Clash YAML', () => {
     const groupsYaml = `
 proxies:
@@ -701,6 +737,37 @@ proxy-groups:
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 })
+
+function makeSsrUri(input: {
+  server: string;
+  port: number;
+  method: string;
+  password: string;
+  protocol: string;
+  obfs: string;
+  name: string;
+  obfsParam?: string;
+  protocolParam?: string;
+}): string {
+  const main = [
+    input.server,
+    input.port,
+    input.protocol,
+    input.method,
+    input.obfs,
+    encodeBase64Url(input.password),
+  ].join(':')
+  const params = new URLSearchParams({
+    remarks: encodeBase64Url(input.name),
+  })
+  if (input.obfsParam) params.set('obfsparam', encodeBase64Url(input.obfsParam))
+  if (input.protocolParam) params.set('protoparam', encodeBase64Url(input.protocolParam))
+  return `ssr://${encodeBase64Url(`${main}/?${params.toString()}`)}`
+}
+
+function encodeBase64Url(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
 
 function createRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
   const operations: Array<Record<string, unknown>> = []

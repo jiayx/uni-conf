@@ -65,6 +65,28 @@ const anytlsNode: ProxyNode = {
   },
 }
 
+const ssrNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-ssr',
+  name: 'HK SSR',
+  protocol: 'ssr',
+  server: 'hk.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'ssr',
+    server: 'hk.example.com',
+    port: 443,
+    password: 'secret',
+    extra: {
+      method: 'aes-256-cfb',
+      protocol: 'auth_sha1_v4',
+      obfs: 'tls1.2_ticket_auth',
+      protocolParam: '32',
+      obfsParam: 'cdn.example.com',
+    },
+  },
+}
+
 const nativeMihomoNode: ProxyNode = {
   ...ssNode,
   id: 'node-native-mihomo',
@@ -323,6 +345,42 @@ describe('proxy group references', () => {
     expect(content).toContain('client-fingerprint: "chrome"')
     expect(content).toContain('alpn: ["h2", "http/1.1"]')
     expect(content).toContain('- "HK AnyTLS"')
+  })
+
+  it('exports ShadowsocksR nodes for Mihomo and sing-box full configs', () => {
+    const mihomo = generateMihomoYaml(
+      [ssrNode],
+      [autoGroup],
+      [],
+      [],
+      { 'collection-auto': [ssrNode.name] }
+    )
+    expect(mihomo).toContain('type: ssr')
+    expect(mihomo).toContain('cipher: "aes-256-cfb"')
+    expect(mihomo).toContain('protocol: "auth_sha1_v4"')
+    expect(mihomo).toContain('obfs: "tls1.2_ticket_auth"')
+    expect(mihomo).toContain('- "HK SSR"')
+
+    const singbox = JSON.parse(generateSingboxJson(
+      [ssrNode],
+      [autoGroup],
+      [],
+      [],
+      { 'collection-auto': [ssrNode.name] }
+    )) as { outbounds: Array<Record<string, unknown>> }
+    const outbound = singbox.outbounds.find(item => item.tag === ssrNode.name)
+    expect(outbound).toMatchObject({
+      type: 'shadowsocksr',
+      tag: 'HK SSR',
+      server: 'hk.example.com',
+      server_port: 443,
+      method: 'aes-256-cfb',
+      password: 'secret',
+      protocol: 'auth_sha1_v4',
+      protocol_param: '32',
+      obfs: 'tls1.2_ticket_auth',
+      obfs_param: 'cdn.example.com',
+    })
   })
 
   it('prefers native Mihomo node config while applying current identity fields', () => {

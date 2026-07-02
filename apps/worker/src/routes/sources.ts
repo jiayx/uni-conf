@@ -1049,6 +1049,9 @@ export function parseRawLines(lines: string[]): ParsedNodeRaw[] {
       } else if (trimmed.startsWith('ss://')) {
         const node = parseSsUri(trimmed);
         if (node) nodes.push(node);
+      } else if (trimmed.startsWith('ssr://')) {
+        const node = parseSsrUri(trimmed);
+        if (node) nodes.push(node);
       } else if (trimmed.startsWith('trojan://')) {
         const node = parseTrojanUri(trimmed);
         if (node) nodes.push(node);
@@ -1178,6 +1181,51 @@ function parseSsUri(uri: string): ParsedNodeRaw | null {
   };
 }
 
+function parseSsrUri(uri: string): ParsedNodeRaw | null {
+  const decoded = decodeBase64Url(uri.slice('ssr://'.length));
+  if (!decoded) return null;
+
+  const querySeparator = decoded.indexOf('/?');
+  const main = querySeparator >= 0 ? decoded.slice(0, querySeparator) : decoded;
+  const query = querySeparator >= 0 ? decoded.slice(querySeparator + 2) : '';
+  const [server, portValue, ssrProtocol, method, obfs, passwordValue] = main.split(':');
+  const port = parseInt(portValue ?? '', 10);
+  const password = decodeBase64Url(passwordValue ?? '');
+  if (!server || !port || !ssrProtocol || !method || !obfs || !password) return null;
+
+  const params = new URLSearchParams(query);
+  const obfsParam = decodeBase64Url(params.get('obfsparam') ?? '') || undefined;
+  const protocolParam = decodeBase64Url(params.get('protoparam') ?? '') || undefined;
+  const group = decodeBase64Url(params.get('group') ?? '') || undefined;
+  const name = decodeBase64Url(params.get('remarks') ?? '') || 'SSR';
+  const rawConfig: Record<string, unknown> = {
+    method,
+    password,
+    protocol: ssrProtocol,
+    obfs,
+    obfsParam,
+    protocolParam,
+    group,
+  };
+
+  return {
+    name,
+    protocol: 'ssr',
+    server,
+    port,
+    ...countryFields(name),
+    ...recognitionTags(name),
+    rawConfig,
+    parsedConfig: {
+      protocol: 'ssr',
+      server,
+      port,
+      password,
+      extra: rawConfig,
+    },
+  };
+}
+
 function parseTrojanUri(uri: string): ParsedNodeRaw | null {
   const url = new URL(uri.replace('trojan://', 'https://'));
   const name = url.hash ? decodeURIComponent(url.hash.slice(1)) : 'Trojan';
@@ -1212,6 +1260,19 @@ function parseTrojanUri(uri: string): ParsedNodeRaw | null {
       extra: rawConfig,
     },
   };
+}
+
+function decodeBase64Url(value: string): string {
+  if (!value) return '';
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
+  }
 }
 
 function parseVlessUri(uri: string): ParsedNodeRaw | null {

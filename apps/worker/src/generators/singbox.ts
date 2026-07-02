@@ -174,6 +174,20 @@ function nodeToSingbox(node: ProxyNode): object | null {
         password: cfg.password ?? '',
       };
     }
+    case 'ssr': {
+      return {
+        type: 'shadowsocksr',
+        tag,
+        server: node.server,
+        server_port: node.port,
+        method: (cfg.extra?.cipher as string) ?? (cfg.extra?.method as string) ?? 'aes-256-cfb',
+        password: cfg.password ?? '',
+        protocol: (cfg.extra?.protocol as string) ?? 'origin',
+        protocol_param: (cfg.extra?.protocolParam as string) ?? '',
+        obfs: (cfg.extra?.obfs as string) ?? 'plain',
+        obfs_param: (cfg.extra?.obfsParam as string) ?? '',
+      };
+    }
     case 'vmess': {
       const ob: Record<string, unknown> = {
         type: 'vmess',

@@ -187,6 +187,17 @@ function nodeToMihomo(node: ProxyNode): string | null {
       const pass = cfg.password ?? '';
       return `{name: "${name}", type: ss, server: ${node.server}, port: ${node.port}, cipher: "${method}", password: "${pass}"}`;
     }
+    case 'ssr': {
+      const method = (cfg.extra?.cipher as string) ?? (cfg.extra?.method as string) ?? 'aes-256-cfb';
+      const pass = cfg.password ?? '';
+      const protocol = (cfg.extra?.protocol as string) ?? 'origin';
+      const obfs = (cfg.extra?.obfs as string) ?? 'plain';
+      let obj = `{name: "${name}", type: ssr, server: ${node.server}, port: ${node.port}, cipher: "${method}", password: "${pass}", protocol: "${protocol}", obfs: "${obfs}"`;
+      if (cfg.extra?.protocolParam) obj += `, protocol-param: "${String(cfg.extra.protocolParam)}"`;
+      if (cfg.extra?.obfsParam) obj += `, obfs-param: "${String(cfg.extra.obfsParam)}"`;
+      obj += '}';
+      return obj;
+    }
     case 'vmess': {
       const uuid = cfg.uuid ?? '';
       const alterId = (cfg.extra?.alterId as number) ?? 0;
