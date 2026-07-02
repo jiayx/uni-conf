@@ -318,6 +318,8 @@ function parseURLStyle(
 
     const tls =
       protocol === 'https' ||
+      protocol === 'hysteria' ||
+      protocol === 'hysteria2' ||
       protocol === 'anytls' ||
       protocol === 'shadowtls' ||
       protocol === 'naive' ||

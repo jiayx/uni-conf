@@ -365,6 +365,7 @@ const NODE_SUBSCRIPTION_PROTOCOLS = new Set([
   'vmess',
   'vless',
   'trojan',
+  'hysteria',
   'hysteria2',
   'tuic',
   'anytls',

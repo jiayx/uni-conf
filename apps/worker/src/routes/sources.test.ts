@@ -212,6 +212,7 @@ proxies:
       'shadowtls://secret@sg.example.com:443?sni=sg.example.com#SG%20ShadowTLS',
       'wireguard://private-key@us.example.com:51820?public-key=peer-key&address=172.16.0.2#US%20WireGuard',
       'naive+https://user:pass@jp.example.com:443#JP%20Naive',
+      'hysteria://auth-secret@tw.example.com:443?sni=tw.example.com#TW%20Hysteria',
     ].join('\n'), 'raw')
 
     expect(result.format).toBe('raw')
@@ -219,6 +220,17 @@ proxies:
       expect.objectContaining({ name: 'SG ShadowTLS', protocol: 'shadowtls', server: 'sg.example.com', port: 443 }),
       expect.objectContaining({ name: 'US WireGuard', protocol: 'wireguard', server: 'us.example.com', port: 51820 }),
       expect.objectContaining({ name: 'JP Naive', protocol: 'naive', server: 'jp.example.com', port: 443 }),
+      expect.objectContaining({
+        name: 'TW Hysteria',
+        protocol: 'hysteria',
+        server: 'tw.example.com',
+        port: 443,
+        parsedConfig: expect.objectContaining({
+          password: 'auth-secret',
+          tls: true,
+          sni: 'tw.example.com',
+        }),
+      }),
     ])
   })
 

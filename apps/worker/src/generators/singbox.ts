@@ -286,7 +286,7 @@ function nodeToSingbox(node: ProxyNode): object | null {
         server_port: node.port,
         up_mbps: (cfg.extra?.upMbps as number) ?? 100,
         down_mbps: (cfg.extra?.downMbps as number) ?? 100,
-        auth_str: (cfg.extra?.authStr as string) ?? (cfg.extra?.auth as string) ?? '',
+        auth_str: cfg.password ?? (cfg.extra?.authStr as string) ?? (cfg.extra?.auth as string) ?? '',
         tls: {
           enabled: true,
           server_name: cfg.sni ?? node.server,

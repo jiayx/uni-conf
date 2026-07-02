@@ -79,6 +79,12 @@ export function nodeToSubscriptionUri(node: Record<string, unknown>): string | n
     return `trojan://${password}@${server}:${port}${params ? `?${params}` : ''}#${name}`
   }
 
+  if (protocol === 'hysteria') {
+    const auth = encodeURIComponent(String(parsed?.['password'] ?? extra?.['authStr'] ?? extra?.['auth'] ?? ''))
+    const params = buildParams(parsed)
+    return `hysteria://${auth}@${server}:${port}${params ? `?${params}` : ''}#${name}`
+  }
+
   if (protocol === 'hysteria2' || protocol === 'hy2') {
     const password = encodeURIComponent(String(parsed?.['password'] ?? extra?.['auth'] ?? ''))
     const params = buildParams(parsed)

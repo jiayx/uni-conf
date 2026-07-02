@@ -87,6 +87,28 @@ const ssrNode: ProxyNode = {
   },
 }
 
+const hysteriaNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-hysteria',
+  name: 'SG Hysteria',
+  protocol: 'hysteria',
+  server: 'sg.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'hysteria',
+    server: 'sg.example.com',
+    port: 443,
+    password: 'auth-secret',
+    sni: 'sg.example.com',
+    skipCertVerify: true,
+    extra: {
+      protocol: 'udp',
+      upMbps: 80,
+      downMbps: 120,
+    },
+  },
+}
+
 const nativeMihomoNode: ProxyNode = {
   ...ssNode,
   id: 'node-native-mihomo',
@@ -380,6 +402,30 @@ describe('proxy group references', () => {
       protocol_param: '32',
       obfs: 'tls1.2_ticket_auth',
       obfs_param: 'cdn.example.com',
+    })
+  })
+
+  it('uses parsed Hysteria auth strings for Mihomo and sing-box full configs', () => {
+    const mihomo = generateMihomoYaml([hysteriaNode], [], [], [])
+    expect(mihomo).toContain('type: hysteria')
+    expect(mihomo).toContain('auth-str: "auth-secret"')
+    expect(mihomo).toContain('up: "80 Mbps"')
+    expect(mihomo).toContain('down: "120 Mbps"')
+
+    const singbox = JSON.parse(generateSingboxJson([hysteriaNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
+    expect(singbox.outbounds.find(item => item.tag === hysteriaNode.name)).toMatchObject({
+      type: 'hysteria',
+      tag: 'SG Hysteria',
+      server: 'sg.example.com',
+      server_port: 443,
+      auth_str: 'auth-secret',
+      up_mbps: 80,
+      down_mbps: 120,
+      tls: {
+        enabled: true,
+        server_name: 'sg.example.com',
+        insecure: true,
+      },
     })
   })
 

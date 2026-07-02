@@ -64,6 +64,24 @@ describe('frontend parser node recognition', () => {
     expect(detectFormat('https://airport.example.com/sub?token=abc')).toBe('unknown')
   })
 
+  it('parses Hysteria URI auth as TLS-enabled normalized config', () => {
+    const nodes = parseSubscriptionContent('hysteria://auth-secret@tw.example.com:443?sni=tw.example.com#TW%20Hysteria', 'source-1')
+
+    expect(nodes).toEqual([
+      expect.objectContaining({
+        name: 'TW Hysteria',
+        protocol: 'hysteria',
+        server: 'tw.example.com',
+        port: 443,
+        parsedConfig: expect.objectContaining({
+          password: 'auth-secret',
+          tls: true,
+          sni: 'tw.example.com',
+        }),
+      }),
+    ])
+  })
+
   it('parses ShadowsocksR URI nodes from shared mainstream scheme detection', () => {
     const nodes = parseSubscriptionContent(makeSsrUri({
       server: 'hk.example.com',

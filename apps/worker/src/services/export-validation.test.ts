@@ -333,6 +333,26 @@ describe('export validation', () => {
     }));
   });
 
+  it('accepts Hysteria nodes for node-only subscriptions', () => {
+    const node = makeNode('node-hysteria', 'SG Hysteria', {
+      protocol: 'hysteria',
+      parsedConfig: {
+        protocol: 'hysteria',
+        server: 'node-hysteria.example.com',
+        port: 443,
+        password: 'auth-secret',
+        extra: {},
+      },
+    });
+    const warnings = validateExportData(makeExportData({ nodes: [node] }), 'nodes_raw');
+
+    expect(findBlockingNodeExportWarning(makeExportData({ nodes: [node] }), 'nodes_raw')).toBeNull();
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      nodeId: 'node-hysteria',
+      message: expect.stringContaining('订阅 URI'),
+    }));
+  });
+
   it('accepts ShadowsocksR nodes for full config exporters that can render it', () => {
     const node = makeNode('node-ssr', 'HK SSR', {
       protocol: 'ssr',

@@ -249,7 +249,7 @@ function nodeToMihomo(node: ProxyNode): string | null {
       return obj;
     }
     case 'hysteria': {
-      const authStr = (cfg.extra?.authStr as string) ?? (cfg.extra?.auth as string) ?? '';
+      const authStr = cfg.password ?? (cfg.extra?.authStr as string) ?? (cfg.extra?.auth as string) ?? '';
       const protocol = (cfg.extra?.protocol as string) ?? 'udp';
       const upMbps = (cfg.extra?.upMbps as number) ?? 100;
       const downMbps = (cfg.extra?.downMbps as number) ?? 100;

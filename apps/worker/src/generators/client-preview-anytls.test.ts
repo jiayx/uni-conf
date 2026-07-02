@@ -65,6 +65,29 @@ const ssrRow: Record<string, unknown> = {
   }),
 }
 
+const hysteriaRow: Record<string, unknown> = {
+  id: 'node-hysteria',
+  name: 'SG Hysteria',
+  protocol: 'hysteria',
+  server: 'sg.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'hysteria',
+    server: 'sg.example.com',
+    port: 443,
+    password: 'auth-secret',
+    tls: true,
+    sni: 'sg.example.com',
+    skipCertVerify: true,
+    extra: {
+      protocol: 'udp',
+      upMbps: 80,
+      downMbps: 120,
+    },
+  }),
+}
+
 const autoGroupRow: Record<string, unknown> = {
   id: 'group-auto',
   name: 'HK Auto',
@@ -106,6 +129,16 @@ describe('AnyTLS preview generators', () => {
       protocolParam: '32',
       group: 'Airport',
     })
+  })
+
+  it('exports Hysteria node subscription URIs with parsed auth strings', () => {
+    const content = generateNodeSubscriptionRaw([hysteriaRow])
+
+    expect(content).toContain('hysteria://auth-secret@sg.example.com:443')
+    expect(content).toContain('security=tls')
+    expect(content).toContain('sni=sg.example.com')
+    expect(content).toContain('allowInsecure=1')
+    expect(content).toContain('#SG%20Hysteria')
   })
 
   it('exports AnyTLS nodes in Loon preview', () => {
