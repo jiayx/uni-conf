@@ -1,5 +1,5 @@
 import yaml from 'js-yaml'
-import { getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
+import { DEFAULT_HEALTH_CHECK, getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
 import { collectGroupMembers } from './group-members'
 import { nodeToSubscriptionUri } from './node-subscription'
@@ -38,7 +38,7 @@ export function generateSurge(
       '[General]',
       'loglevel = notify',
       'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
-      'proxy-test-url = http://www.gstatic.com/generate_204',
+      `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
       'test-timeout = 5',
       '',
     ],
@@ -87,7 +87,7 @@ export function generateQuantumultX(
   const nodeNames = serializedNodes.map((item) => String(item.node['name'] ?? '')).filter(Boolean)
   const lines: string[] = [
     '[general]',
-    'server_check_url=http://www.gstatic.com/generate_204',
+    `server_check_url=${DEFAULT_HEALTH_CHECK.testUrl}`,
     'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
     '',
     '[server_local]',
@@ -297,8 +297,8 @@ function groupToIni(
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
   const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames)
-  if (type === 'url-test') return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
-  if (type === 'fallback') return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
+  if (type === 'url-test') return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+  if (type === 'fallback') return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   if (type === 'load-balance') return `${name} = load-balance, ${members.join(', ')}`
   return `${name} = select, ${members.join(', ')}`
 }
@@ -312,8 +312,8 @@ function groupToQuantumultX(
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
   const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames).join(',')
-  if (type === 'url-test') return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
-  if (type === 'fallback') return `fallback=${name}, ${members}, url=${group['test_url'] ?? 'http://www.gstatic.com/generate_204'}, interval=${group['interval'] ?? 300}`
+  if (type === 'url-test') return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+  if (type === 'fallback') return `fallback=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   return `static=${name}, ${members}`
 }
 
@@ -328,8 +328,8 @@ function groupToEgern(
     name: String(group['name'] ?? ''),
     type: type === 'url-test' ? 'url_test' : type === 'load-balance' ? 'load_balance' : type,
     policies: collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames),
-    url: group['test_url'] ?? 'http://www.gstatic.com/generate_204',
-    interval: Number(group['interval'] ?? 300),
+    url: group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl,
+    interval: Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval),
   }
 }
 

@@ -218,6 +218,8 @@ describe('proxy group references', () => {
     expect(loon).toContain('ip-mode = v4-only')
     expect(loon).toContain('dns-server = system, 119.29.29.29, 223.5.5.5, 8.8.8.8')
     expect(loon).toContain('wifi-access-http-port = 7222')
+    expect(loon).toContain('proxy-test-url = http://www.gstatic.com/generate_204')
+    expect(loon).toContain('Auto = url-latency-benchmark, Supported SS, url=http://www.gstatic.com/generate_204, interval=300')
     expect(loon).toContain('[Proxy Group]')
     expect(loon).toContain('FINAL, PROXY')
 
@@ -238,6 +240,7 @@ describe('proxy group references', () => {
     const quantumultx = generateQuantumultX(nodeRows, rows, [], [], collectionNodeNames)
     expect(quantumultx).toContain('[general]')
     expect(quantumultx).toContain('server_check_url=http://www.gstatic.com/generate_204')
+    expect(quantumultx).toContain('url-latency-benchmark=Auto, Supported SS, url=http://www.gstatic.com/generate_204, interval=300')
     expect(quantumultx).toContain('[policy]')
     expect(quantumultx).toContain('FINAL,PROXY')
 

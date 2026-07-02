@@ -1,4 +1,4 @@
-import { isRuleSetFormatCompatible } from '@uni-conf/shared';
+import { DEFAULT_HEALTH_CHECK, isRuleSetFormatCompatible } from '@uni-conf/shared';
 import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
@@ -361,8 +361,8 @@ function groupToMihomo(
   }
 
   if (['url-test', 'fallback', 'load-balance'].includes(group.type)) {
-    lines.push(`    url: "${group.testUrl ?? 'http://www.gstatic.com/generate_204'}"`);
-    lines.push(`    interval: ${group.interval ?? 300}`);
+    lines.push(`    url: "${group.testUrl ?? DEFAULT_HEALTH_CHECK.testUrl}"`);
+    lines.push(`    interval: ${group.interval ?? DEFAULT_HEALTH_CHECK.interval}`);
     if (group.tolerance !== undefined) {
       lines.push(`    tolerance: ${group.tolerance}`);
     }

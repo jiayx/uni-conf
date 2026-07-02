@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
 import type { ProxyGroup } from '@uni-conf/types';
 import { listAutoCollectionKeysById, withOutletRefs } from '../services/routing-policy-groups';
-import { FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
+import { DEFAULT_HEALTH_CHECK, FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -252,8 +252,8 @@ export function validateGroupWrite(
     groupIds: groupIds.value,
     builtins: builtins.value,
     testUrl: body.testUrl !== undefined ? normalizeOptionalText(body.testUrl) ?? null : undefined,
-    interval: options.create ? interval.value ?? 300 : interval.value,
-    tolerance: options.create ? tolerance.value ?? 150 : tolerance.value,
+    interval: options.create ? interval.value ?? DEFAULT_HEALTH_CHECK.interval : interval.value,
+    tolerance: options.create ? tolerance.value ?? DEFAULT_HEALTH_CHECK.tolerance : tolerance.value,
     lazy: options.create ? body.lazy !== false : body.lazy,
     enabled: options.create ? body.enabled !== false : body.enabled,
   };

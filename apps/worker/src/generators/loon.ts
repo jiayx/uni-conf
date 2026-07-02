@@ -5,7 +5,7 @@
 
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
-import { getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
+import { DEFAULT_HEALTH_CHECK, getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
 
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
@@ -88,13 +88,13 @@ function groupToLoon(
 
   if (type === 'select') return `${name} = select, ${members}`
   if (type === 'url-test') {
-    const testUrl = String(group['test_url'] ?? 'http://www.google.com/generate_204')
-    const interval = Number(group['interval'] ?? 300)
+    const testUrl = String(group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl)
+    const interval = Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval)
     return `${name} = url-latency-benchmark, ${members}, url=${testUrl}, interval=${interval}`
   }
   if (type === 'fallback') {
-    const testUrl = String(group['test_url'] ?? 'http://www.google.com/generate_204')
-    const interval = Number(group['interval'] ?? 300)
+    const testUrl = String(group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl)
+    const interval = Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval)
     return `${name} = fallback, ${members}, url=${testUrl}, interval=${interval}`
   }
   if (type === 'load-balance') return `${name} = load-balance, ${members}`
@@ -147,7 +147,7 @@ export function generateLoon(
   lines.push('interface-mode = auto')
   lines.push('test-timeout = 5')
   lines.push('disconnect-on-policy-change = false')
-  lines.push('proxy-test-url = http://www.google.com/generate_204')
+  lines.push(`proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`)
   lines.push('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
   lines.push('')
 
