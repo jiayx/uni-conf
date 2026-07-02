@@ -10,7 +10,9 @@ import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { saveExportDownload } from '@/core/export/download-file'
 import { buildQuickSubscriptionLinks } from '@/core/export/quick-subscriptions'
 import { api } from '@/lib/api'
-import type { DashboardStats } from '@uni-conf/types'
+import { useSettingsStore } from '@/store/settings.store'
+import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import type { DashboardStats, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3']
@@ -18,6 +20,7 @@ const STEP_PATHS = ['/sources', '/preview', '/export']
 
 export function Dashboard() {
   const { t } = useTranslation()
+  const applySettings = useSettingsStore(state => state.applySettings)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +30,8 @@ export function Dashboard() {
   const [creatingSource, setCreatingSource] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null)
+  const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   const loadStats = async () => {
     const nextStats = await api.dashboard.stats()
@@ -41,6 +46,17 @@ export function Dashboard() {
         .finally(() => setLoading(false))
     })
   }, [])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void api.settings.get()
+        .then(settings => {
+          applySettings(settings)
+          setActiveTemplate(settings.routingPolicyTemplate)
+        })
+        .catch(e => setError((e as Error).message))
+    })
+  }, [applySettings])
 
   const statCards = [
     { label: t('dashboard.sources'), value: stats?.sourceCount ?? 0, icon: <PackageIcon /> },
@@ -106,6 +122,25 @@ export function Dashboard() {
     }
   }
 
+  const selectTemplate = async (templateId: RoutingPolicyTemplateId) => {
+    const template = ROUTING_POLICY_TEMPLATES.find(item => item.id === templateId)
+    setSavingTemplate(true)
+    setError(null)
+    try {
+      const updated = await api.settings.update({
+        routingPolicyTemplate: templateId,
+        dnsMode: template?.recommendedDnsMode,
+      })
+      applySettings(updated)
+      setActiveTemplate(updated.routingPolicyTemplate)
+      await loadStats()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
   const downloadQuickExport = async (format: typeof QUICK_EXPORT_OPTIONS[number]['value']) => {
     setDownloadingFormat(format)
     setDownloadError(null)
@@ -144,6 +179,26 @@ export function Dashboard() {
           <p className={styles.sectionDescription}>{t(
             (stats?.sourceCount ?? 0) > 0 ? 'dashboard.no_usable_nodes' : 'dashboard.no_data'
           )}</p>
+          <div className={styles.templatePicker}>
+            <div className={styles.templateHeader}>
+              <div className={styles.templateTitle}>{t('dashboard.template_title')}</div>
+              <div className={styles.templateDesc}>{t('dashboard.template_desc')}</div>
+            </div>
+            <div className={styles.templateOptions}>
+              {ROUTING_POLICY_TEMPLATES.map(template => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className={`${styles.templateOption} ${activeTemplate === template.id ? styles.templateOptionActive : ''}`}
+                  onClick={() => void selectTemplate(template.id)}
+                  disabled={savingTemplate}
+                >
+                  <span>{template.name}</span>
+                  <small>{template.description}</small>
+                </button>
+              ))}
+            </div>
+          </div>
           <form className={styles.sourceForm} onSubmit={createSourceFromDashboard}>
             <label className={styles.sourceInput}>
               <span>{t('sources.url')}</span>

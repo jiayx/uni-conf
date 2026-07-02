@@ -275,6 +275,8 @@
     "quick_export": "Quick Export",
     "quick_export_desc": "Choose a client, then copy its subscription link or download the config. Each link includes enabled nodes, node groups, routing policies, and compatible rule sets.",
     "getting_started": "Getting Started",
+    "template_title": "Scenario",
+    "template_desc": "Choose a default routing template. Foundation proxy, direct, reject, and node-selection outlets always stay enabled.",
     "step1": "Paste Subscription URL",
     "step2": "Auto Generate Config",
     "step3": "Copy Default Link",
