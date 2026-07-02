@@ -101,6 +101,54 @@ describe('manual node input', () => {
     });
   });
 
+  it('normalizes structured manual protocol fields like URI input', () => {
+    const anytls = resolveManualNodeInput({
+      name: '🇭🇰 Manual HK AnyTLS',
+      protocol: 'anytls',
+      server: 'hk.example.com',
+      port: 443,
+      rawConfig: {
+        password: 'secret',
+        sni: 'hk.example.com',
+      },
+    });
+    const hysteria = resolveManualNodeInput({
+      name: '🇸🇬 Manual SG Hysteria',
+      protocol: 'hysteria',
+      server: 'sg.example.com',
+      port: 443,
+      rawConfig: {
+        auth: 'auth-secret',
+        sni: 'sg.example.com',
+      },
+    });
+
+    expect(anytls?.parsedConfig).toMatchObject({
+      protocol: 'anytls',
+      server: 'hk.example.com',
+      port: 443,
+      password: 'secret',
+      tls: true,
+      sni: 'hk.example.com',
+      extra: {
+        password: 'secret',
+        sni: 'hk.example.com',
+      },
+    });
+    expect(hysteria?.parsedConfig).toMatchObject({
+      protocol: 'hysteria',
+      server: 'sg.example.com',
+      port: 443,
+      password: 'auth-secret',
+      tls: true,
+      sni: 'sg.example.com',
+      extra: {
+        auth: 'auth-secret',
+        sni: 'sg.example.com',
+      },
+    });
+  });
+
   it('does not override explicit structured manual country fields', () => {
     const input = resolveManualNodeInput({
       name: '🇩🇪 Override Region',

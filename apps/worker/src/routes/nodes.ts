@@ -28,6 +28,15 @@ type ManualNodeCreateBody = {
 type ResolvedManualNodeInput = Required<Pick<ManualNodeCreateBody, 'name' | 'protocol' | 'server' | 'port'>> &
   Pick<ManualNodeCreateBody, 'sourceId' | 'country' | 'countryCode' | 'enabled' | 'tags' | 'notes' | 'rawConfig' | 'parsedConfig'>;
 
+const IMPLICIT_TLS_PROTOCOLS = new Set<ProxyProtocol>([
+  'https',
+  'hysteria',
+  'hysteria2',
+  'anytls',
+  'shadowtls',
+  'naive',
+]);
+
 // ─── List nodes with filtering/pagination ─────────────────────────────────────
 
 app.get('/', async (c) => {
@@ -351,8 +360,40 @@ export function resolveManualNodeInput(body: ManualNodeCreateBody): ResolvedManu
     tags: normalizeStringList(body.tags) ?? buildNodeRecognitionTags(name),
     notes: body.notes,
     rawConfig: body.rawConfig,
-    parsedConfig: body.parsedConfig,
+    parsedConfig: body.parsedConfig ?? buildStructuredParsedConfig(body.protocol, server, port, body.rawConfig),
   };
+}
+
+function buildStructuredParsedConfig(
+  protocol: ProxyProtocol,
+  server: string,
+  port: number,
+  rawConfig?: Record<string, unknown>
+): Record<string, unknown> {
+  const raw = rawConfig ?? {};
+  return {
+    protocol,
+    server,
+    port,
+    password: protocol === 'hysteria'
+      ? asString(raw.password) ?? asString(raw.auth)
+      : asString(raw.password),
+    uuid: asString(raw.uuid),
+    tls: IMPLICIT_TLS_PROTOCOLS.has(protocol) ||
+      raw.tls === true ||
+      raw.tls === 'true' ||
+      raw.security === 'tls' ||
+      raw.security === 'reality',
+    sni: asString(raw.sni),
+    skipCertVerify: raw.skipCertVerify === true || raw['skip-cert-verify'] === true,
+    network: asString(raw.network),
+    wsPath: asString(raw.wsPath) ?? asString(raw.path),
+    extra: raw,
+  };
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 type ManualNodeUpdateValidation =
