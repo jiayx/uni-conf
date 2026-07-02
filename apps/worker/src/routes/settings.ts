@@ -4,7 +4,7 @@ import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, RoutingPolic
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { DNS_MODE_PRESETS, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import { DNS_MODE_PRESETS, isAutoNodeGroupType, parseAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -168,7 +168,7 @@ function isRoutingOutletPreferenceRef(value: unknown): value is string {
   const trimmed = value.trim()
   if (!trimmed) return false
   if (trimmed.startsWith('group:')) return Boolean(trimmed.slice('group:'.length).trim())
-  if (trimmed.startsWith('auto:')) return Boolean(trimmed.slice('auto:'.length).trim())
+  if (trimmed.startsWith('auto:')) return parseAutoNodeGroupKey(trimmed.slice('auto:'.length)) !== null
   return false
 }
 
