@@ -318,6 +318,7 @@ function isNodeOnlyExportFormat(format: ExportFormat): boolean {
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = new Set([
   'ss',
+  'ssr',
   'vmess',
   'vless',
   'trojan',
