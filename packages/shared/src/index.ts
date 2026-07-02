@@ -727,7 +727,7 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   {
     id: 'empty',
     name: '空组合',
-    description: '只保留基础出口，所有业务分流策略由用户自己添加。',
+    description: '只保留 PROXY / DIRECT / REJECT 和节点选择能力，所有业务分流策略由用户自己添加。',
     recommendedDnsMode: 'smart',
     groupNames: [],
   },

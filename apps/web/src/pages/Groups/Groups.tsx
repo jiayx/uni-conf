@@ -460,7 +460,7 @@ function setFormValue<K extends keyof GroupForm>(
 }
 
 function formatTemplateCount(count: number): string {
-  return count > 0 ? `${count} 个业务组` : '仅基础出口'
+  return count > 0 ? `${count} 个业务组` : '仅基础目标'
 }
 
 function PlusIcon() {
