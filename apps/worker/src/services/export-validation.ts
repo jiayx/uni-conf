@@ -359,6 +359,7 @@ const TEXT_CLIENT_EXPORT_NODE_PROTOCOLS = new Set([
 
 const NODE_SUBSCRIPTION_PROTOCOLS = new Set([
   'ss',
+  'ssr',
   'vmess',
   'vless',
   'trojan',

@@ -42,6 +42,29 @@ const otherRow: Record<string, unknown> = {
   }),
 }
 
+const ssrRow: Record<string, unknown> = {
+  id: 'node-ssr',
+  name: '🇭🇰 HK SSR 01',
+  protocol: 'ssr',
+  server: 'hk.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'ssr',
+    server: 'hk.example.com',
+    port: 443,
+    password: 'secret',
+    extra: {
+      method: 'aes-256-cfb',
+      protocol: 'auth_sha1_v4',
+      obfs: 'tls1.2_ticket_auth',
+      obfsParam: 'cdn.example.com',
+      protocolParam: '32',
+      group: 'Airport',
+    },
+  }),
+}
+
 const autoGroupRow: Record<string, unknown> = {
   id: 'group-auto',
   name: 'HK Auto',
@@ -65,6 +88,24 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('anytls://secret@hk.example.com:443')
     expect(content).toContain('sni=hk.example.com')
     expect(content).toContain('fp=chrome')
+  })
+
+  it('exports ShadowsocksR node subscription URIs', () => {
+    const content = generateNodeSubscriptionRaw([ssrRow])
+
+    expect(content).toMatch(/^ssr:\/\//)
+    expect(decodeSsrUri(content)).toMatchObject({
+      server: 'hk.example.com',
+      port: '443',
+      protocol: 'auth_sha1_v4',
+      method: 'aes-256-cfb',
+      obfs: 'tls1.2_ticket_auth',
+      password: 'secret',
+      remarks: '🇭🇰 HK SSR 01',
+      obfsParam: 'cdn.example.com',
+      protocolParam: '32',
+      group: 'Airport',
+    })
   })
 
   it('exports AnyTLS nodes in Loon preview', () => {
@@ -131,3 +172,28 @@ describe('AnyTLS preview generators', () => {
     expect(egern.policy_groups.find((group) => group.name === 'HK Auto')?.policies).toEqual(['HK AnyTLS'])
   })
 })
+
+function decodeSsrUri(uri: string): Record<string, string> {
+  const decoded = decodeBase64Url(uri.slice('ssr://'.length))
+  const [main, query = ''] = decoded.split('/?')
+  const [server, port, protocol, method, obfs, password] = (main ?? '').split(':')
+  const params = new URLSearchParams(query)
+  return {
+    server: server ?? '',
+    port: port ?? '',
+    protocol: protocol ?? '',
+    method: method ?? '',
+    obfs: obfs ?? '',
+    password: decodeBase64Url(password ?? ''),
+    remarks: decodeBase64Url(params.get('remarks') ?? ''),
+    obfsParam: decodeBase64Url(params.get('obfsparam') ?? ''),
+    protocolParam: decodeBase64Url(params.get('protoparam') ?? ''),
+    group: decodeBase64Url(params.get('group') ?? ''),
+  }
+}
+
+function decodeBase64Url(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
+  return Buffer.from(padded, 'base64').toString('utf8')
+}

@@ -309,6 +309,30 @@ describe('export validation', () => {
     }));
   });
 
+  it('accepts ShadowsocksR nodes for node-only subscriptions', () => {
+    const node = makeNode('node-ssr', 'HK SSR', {
+      protocol: 'ssr',
+      parsedConfig: {
+        protocol: 'ssr',
+        server: 'node-ssr.example.com',
+        port: 443,
+        password: 'secret',
+        extra: {
+          method: 'aes-256-cfb',
+          protocol: 'auth_sha1_v4',
+          obfs: 'tls1.2_ticket_auth',
+        },
+      },
+    });
+    const warnings = validateExportData(makeExportData({ nodes: [node] }), 'nodes_raw');
+
+    expect(findBlockingNodeExportWarning(makeExportData({ nodes: [node] }), 'nodes_raw')).toBeNull();
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      nodeId: 'node-ssr',
+      message: expect.stringContaining('订阅 URI'),
+    }));
+  });
+
   it('blocks node-only downloads when no node row can be serialized as a subscription URI', () => {
     const node = makeNode('node-ss', 'Broken SS', { protocol: 'ss' });
     const data = makeExportData({

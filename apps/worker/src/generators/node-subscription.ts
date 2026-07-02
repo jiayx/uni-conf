@@ -26,6 +26,28 @@ export function nodeToSubscriptionUri(node: Record<string, unknown>): string | n
     return `ss://${credentials}@${server}:${port}#${name}`
   }
 
+  if (protocol === 'ssr') {
+    const method = String(extra?.['cipher'] ?? extra?.['method'] ?? 'aes-256-cfb')
+    const password = String(parsed?.['password'] ?? '')
+    const ssrProtocol = String(extra?.['protocol'] ?? 'origin')
+    const obfs = String(extra?.['obfs'] ?? 'plain')
+    const params = new URLSearchParams({
+      remarks: encodeBase64Url(decodeURIComponent(name)),
+    })
+    if (extra?.['obfsParam']) params.set('obfsparam', encodeBase64Url(String(extra['obfsParam'])))
+    if (extra?.['protocolParam']) params.set('protoparam', encodeBase64Url(String(extra['protocolParam'])))
+    if (extra?.['group']) params.set('group', encodeBase64Url(String(extra['group'])))
+    const main = [
+      server,
+      port,
+      ssrProtocol,
+      method,
+      obfs,
+      encodeBase64Url(password),
+    ].join(':')
+    return `ssr://${encodeBase64Url(`${main}/?${params.toString()}`)}`
+  }
+
   if (protocol === 'vmess') {
     const vmessObj = {
       v: '2',
@@ -125,4 +147,10 @@ function buildParams(
 function getWsHost(parsed: Record<string, unknown> | null): string | undefined {
   const headers = asRecord(parsed?.['wsHeaders'])
   return (headers?.['Host'] ?? headers?.['host']) as string | undefined
+}
+
+function encodeBase64Url(value: string): string {
+  return btoa(encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_, hex: string) =>
+    String.fromCharCode(parseInt(hex, 16))
+  )).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
