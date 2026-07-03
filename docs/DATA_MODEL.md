@@ -278,7 +278,7 @@ Export config create/update validation rejects malformed advanced overrides:
 | format | `mihomo` |
 | include_*_ids | `[]` (export all enabled data) |
 
-`app_settings.default_export_token` points to this default config token unless the user explicitly changes it.
+`app_settings.default_export_token` points to this default config token unless the user explicitly changes it. If the token of the currently referenced export config is reset, the settings row is updated in the same request so the default subscription link keeps pointing at that config instead of falling back to another export config on the next zero-setup sync.
 
 Authenticated preview and download endpoints reuse the selected export config for scope only. The rendered client format comes from the route parameter (`/api/export/preview/:format` or `/api/export/download/:format`), so zero-setup quick downloads can produce sing-box, Loon, or other supported formats from the same default Mihomo-scoped config without creating separate configs first. Public subscription URLs use the token plus canonical filename to identify both the config and the requested format.
 

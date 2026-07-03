@@ -129,12 +129,20 @@ exportRouter.put('/configs/:id', async (c) => {
   }
 
   // Reset token if requested
-  if (body.token === 'reset') { fields.push('token = ?'); values.push(generateExportToken()) }
+  let nextToken: string | undefined
+  if (body.token === 'reset') {
+    nextToken = generateExportToken()
+    fields.push('token = ?')
+    values.push(nextToken)
+  }
 
   if (fields.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400)
   fields.push('updated_at = ?'); values.push(ts); values.push(id)
 
   await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run()
+  if (nextToken) {
+    await syncDefaultExportTokenAfterReset(c.env.DB, String(existing.token ?? ''), nextToken, ts)
+  }
   await ensureZeroSetupDefaults(c.env.DB, ts)
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
@@ -153,16 +161,33 @@ exportRouter.delete('/configs/:id', async (c) => {
 // POST /api/export/configs/:id/reset-token
 exportRouter.post('/configs/:id/reset-token', async (c) => {
   const id = c.req.param('id')
-  const existing = await c.env.DB.prepare('SELECT id FROM export_configs WHERE id = ?').bind(id).first()
+  const existing = await c.env.DB.prepare('SELECT id, token FROM export_configs WHERE id = ?').bind(id).first<Record<string, unknown>>()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
 
+  const ts = now()
+  const nextToken = generateExportToken()
   await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ?')
-    .bind(generateExportToken(), now(), id)
+    .bind(nextToken, ts, id)
     .run()
-  await ensureZeroSetupDefaults(c.env.DB, now())
+  await syncDefaultExportTokenAfterReset(c.env.DB, String(existing.token ?? ''), nextToken, ts)
+  await ensureZeroSetupDefaults(c.env.DB, ts)
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
 })
+
+async function syncDefaultExportTokenAfterReset(
+  db: D1Database,
+  previousToken: string,
+  nextToken: string,
+  ts: string
+): Promise<void> {
+  if (!previousToken) return
+  await db.prepare(
+    "UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = 'singleton' AND default_export_token = ?"
+  )
+    .bind(nextToken, ts, previousToken)
+    .run()
+}
 
 // GET /api/export/preview/:format
 exportRouter.get('/preview/:format', async (c) => {
