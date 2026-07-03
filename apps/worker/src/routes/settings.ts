@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, AppSettingsPatch, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, ThemePreference } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
@@ -16,7 +16,7 @@ app.get('/', async (c) => {
 })
 
 app.put('/', async (c) => {
-  const body = await c.req.json<Partial<AppSettings>>()
+  const body = await c.req.json<AppSettingsPatch>()
   const current = await getSettings(c.env.DB)
   const ts = now()
   const validationError = validateSettingsPatch(body)
@@ -105,7 +105,7 @@ const EXPORT_NODE_NAMING_MODES: ReadonlySet<ExportNodeNamingMode> = new Set([
   'smart',
 ])
 
-export function validateSettingsPatch(body: Partial<AppSettings>): string | null {
+export function validateSettingsPatch(body: AppSettingsPatch): string | null {
   if (body.language !== undefined && !LANGUAGES.has(body.language)) return 'invalid language'
   if (body.theme !== undefined && !THEMES.has(body.theme)) return 'invalid theme'
   if (body.routingPolicyTemplate !== undefined && !ROUTING_POLICY_TEMPLATE_IDS.has(body.routingPolicyTemplate)) {
@@ -166,7 +166,7 @@ function normalizeDefaultExportToken(value: unknown): string | null | undefined 
   return trimmed ? trimmed : undefined
 }
 
-export function resolveNextDnsMode(current: AppSettings, body: Partial<AppSettings>): DnsMode {
+export function resolveNextDnsMode(current: AppSettings, body: AppSettingsPatch): DnsMode {
   if (body.dnsMode !== undefined) return body.dnsMode
   if (body.routingPolicyTemplate === undefined || body.routingPolicyTemplate === current.routingPolicyTemplate) {
     return current.dnsMode

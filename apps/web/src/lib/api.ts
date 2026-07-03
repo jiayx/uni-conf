@@ -13,6 +13,7 @@ import type {
   ExportResult,
   DashboardStats,
   AppSettings,
+  AppSettingsPatch,
   PaginatedResponse,
 } from '@uni-conf/types'
 import { parseContentDispositionFilename, type ExportDownloadFile } from '@/core/export/download-file'
@@ -230,7 +231,7 @@ const dashboard = {
 
 const settingsApi = {
   get: (): Promise<AppSettings> => get('/settings'),
-  update: (data: Partial<AppSettings>): Promise<AppSettings> => put('/settings', data),
+  update: (data: AppSettingsPatch): Promise<AppSettings> => put('/settings', data),
   exportData: (): Promise<Blob> =>
     fetch(`${BASE}/data/export`, { method: 'GET' }).then(r => r.blob()),
   importData: (data: unknown): Promise<void> => post('/data/import', data),

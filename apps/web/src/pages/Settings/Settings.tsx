@@ -8,7 +8,7 @@ import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-nod
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-conf/shared'
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
+import type { AppSettingsPatch, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; name: string; description: string }> = [
@@ -52,7 +52,7 @@ export function Settings() {
     applySettings,
   } = useSettingsStore()
 
-  const persistSettings = useCallback(async (patch: Partial<AppSettings>) => {
+  const persistSettings = useCallback(async (patch: AppSettingsPatch) => {
     setSaving(true)
     try {
       const updated = await api.settings.update(patch)

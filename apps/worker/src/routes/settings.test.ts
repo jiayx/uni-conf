@@ -23,8 +23,8 @@ describe('settings route helpers', () => {
       autoRefreshInterval: 1440,
       defaultExportToken: ' token-1 ',
     })).toBeNull()
-    expect(validateSettingsPatch({ defaultExportToken: null as never })).toBeNull()
-    expect(validateSettingsPatch({ routingOutletPreferences: null as never })).toBeNull()
+    expect(validateSettingsPatch({ defaultExportToken: null })).toBeNull()
+    expect(validateSettingsPatch({ routingOutletPreferences: null })).toBeNull()
   })
 
   it('rejects invalid enum settings', () => {

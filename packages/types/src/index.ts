@@ -336,6 +336,11 @@ export interface AppSettings {
   autoNodeGroupIncludeFlag: boolean;
 }
 
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'routingOutletPreferences' | 'defaultExportToken'>> & {
+  routingOutletPreferences?: Record<string, string> | null;
+  defaultExportToken?: string | null;
+};
+
 // ============================================================
 // API Request/Response Types
 // ============================================================
