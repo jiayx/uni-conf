@@ -36,7 +36,7 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
     dnsMode: normalizeDnsMode(row.dns_mode),
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
-    defaultExportToken: (row.default_export_token as string | null) ?? undefined,
+    defaultExportToken: normalizeOptionalString(row.default_export_token),
     showCompatibilityWarnings: normalizeBooleanDefault(row.show_compatibility_warnings, true),
     enableAutoRefresh: normalizeBooleanDefault(row.enable_auto_refresh, true),
     autoRefreshInterval: normalizePositiveInteger(row.auto_refresh_interval, 1440),
@@ -116,6 +116,12 @@ export function normalizeOptionalStringList(value: unknown): string[] | undefine
   return rawItems
     .map((item) => typeof item === 'string' ? item.trim() : '')
     .filter(Boolean);
+}
+
+export function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 export function normalizeOptionalStringMap(value: unknown): Record<string, string> | undefined {

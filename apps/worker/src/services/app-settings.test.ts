@@ -5,6 +5,7 @@ import {
   normalizeDnsMode,
   normalizeExportNodeNamingMode,
   normalizeLanguage,
+  normalizeOptionalString,
   normalizeOptionalStringList,
   normalizePositiveInteger,
   normalizeRoutingPolicyTemplate,
@@ -43,5 +44,9 @@ describe('app settings normalization', () => {
     expect(normalizeOptionalStringList(null)).toBeUndefined()
     expect(normalizeOptionalStringList('[]')).toEqual([])
     expect(normalizeOptionalStringList('["country:US:url-test",""]')).toEqual(['country:US:url-test'])
+    expect(normalizeOptionalString(null)).toBeUndefined()
+    expect(normalizeOptionalString(123)).toBeUndefined()
+    expect(normalizeOptionalString('   ')).toBeUndefined()
+    expect(normalizeOptionalString(' token-1 ')).toBe('token-1')
   })
 })
