@@ -124,7 +124,7 @@ export function Export() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('删除此导出配置？')) return
+    if (!confirm(t('export.delete_confirm'))) return
     await api.export.deleteConfig(id)
     await load()
   }
@@ -194,13 +194,13 @@ export function Export() {
       {loading ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : configs.length === 0 ? (
-        <EmptyState title="暂无导出配置" description="创建导出配置以生成订阅链接" action={{ label: t('export.new_config'), onClick: () => setShowModal(true) }} />
+        <EmptyState title={t('export.empty_title')} description={t('export.empty_description')} action={{ label: t('export.new_config'), onClick: () => setShowModal(true) }} />
       ) : (
         <div className={styles.list}>
           {configs.map(cfg => {
             const filename = getExportSubscriptionFilename(cfg.format)
             const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
-            const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets)
+            const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets, t)
             const validation = validationById[cfg.id]
             return (
               <Card key={cfg.id} className={styles.configCard}>
@@ -209,19 +209,19 @@ export function Export() {
                     <div className={styles.configName}>{cfg.name}</div>
                     <div className={styles.badges}>
                       <Badge variant="purple">{cfg.format.toUpperCase()}</Badge>
-                      <Badge variant={cfg.enabled ? 'success' : 'default'}>{cfg.enabled ? '启用' : '停用'}</Badge>
+                      <Badge variant={cfg.enabled ? 'success' : 'default'}>{cfg.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
                     </div>
                     <div className={styles.scopeText}>{scopeText}</div>
                   </div>
                   <div className={styles.configActions}>
                     <Button variant="secondary" size="sm" onClick={() => openEdit(cfg)}>
-                      编辑
+                      {t('common.edit')}
                     </Button>
                     <Button
                       variant="secondary" size="sm"
                       loading={checkingId === cfg.id}
                       onClick={() => void handleValidate(cfg)}
-                    >校验</Button>
+                    >{t('export.validate')}</Button>
                     <Button
                       variant="secondary" size="sm"
                       loading={downloadingId === cfg.id}
@@ -251,16 +251,16 @@ export function Export() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingId ? '编辑导出配置' : t('export.new_config')}
+        title={editingId ? t('export.edit_config') : t('export.new_config')}
         footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button><Button onClick={() => void handleSave()}>{t('common.save')}</Button></>}
       >
         <div className={styles.defaultScopeHint}>
-          <div className={styles.defaultScopeTitle}>默认导出完整配置</div>
+          <div className={styles.defaultScopeTitle}>{t('export.default_full_title')}</div>
           <div className={styles.defaultScopeText}>
-            只选择目标客户端即可；不调整高级范围时，会导出所有启用节点、节点组、策略组、手动规则和兼容的分流规则集。
+            {t('export.default_full_text')}
           </div>
         </div>
-        <Input label="名称（可选）" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="留空时使用默认导出名称" />
+        <Input label={t('export.name_optional')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('export.name_placeholder')} />
         <div>
           <label className={styles.selectLabel}>{t('export.format')}</label>
           <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as ExportFormat)}>
@@ -269,49 +269,52 @@ export function Export() {
         </div>
         <label className={styles.checkboxRow}>
           <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
-          <span>启用此配置</span>
+          <span>{t('export.enable_config')}</span>
         </label>
         <details className={styles.advanced}>
-          <summary>高级范围设置</summary>
+          <summary>{t('export.advanced_scope')}</summary>
           <div className={styles.advancedBody}>
             <MultiSelect
-              label="节点组"
-              emptyText="导出全部启用节点组"
+              label={t('export.scope_collections')}
+              emptyText={t('export.scope_collections_all')}
               options={collections.map(item => ({ id: item.id, label: item.name }))}
               value={form.includeCollectionIds}
               onChange={includeCollectionIds => setForm(f => ({ ...f, includeCollectionIds }))}
             />
             <MultiSelect
-              label="策略组与出口"
-              emptyText="导出全部启用策略组与出口"
+              label={t('export.scope_groups')}
+              emptyText={t('export.scope_groups_all')}
               options={groups.map(item => ({ id: item.id, label: item.name }))}
               value={form.includeGroupIds}
               onChange={includeGroupIds => setForm(f => ({ ...f, includeGroupIds }))}
             />
             <MultiSelect
-              label="手动分流规则"
-              emptyText="导出全部启用手动规则"
+              label={t('export.scope_rules')}
+              emptyText={t('export.scope_rules_all')}
               options={rules.map(item => ({ id: item.id, label: `${item.type}, ${item.payload}` }))}
               value={form.includeRuleIds}
               onChange={includeRuleIds => setForm(f => ({ ...f, includeRuleIds }))}
             />
             <MultiSelect
-              label="分流策略规则集"
-              emptyText="导出全部兼容规则集"
-              hint={`当前 ${form.format} 可使用：${describeCompatibleRuleSetFormats(form.format)}`}
+              label={t('export.scope_remote_sets')}
+              emptyText={t('export.scope_remote_sets_all')}
+              hint={t('export.compatible_remote_sets_hint', {
+                format: form.format,
+                formats: describeCompatibleRuleSetFormats(form.format, t),
+              })}
               options={remoteSets.map(item => {
                 const compatible = isRemoteRuleSetCompatible(form.format, item)
                 const formatLabel = item.presetSource === 'quixotic'
-                  ? '预置 · 动态格式'
+                  ? t('export.remote_set_dynamic_preset')
                   : item.presetSource === 'uni-conf'
-                    ? `内置 · ${item.format}`
+                    ? t('export.remote_set_builtin_format', { format: item.format })
                     : item.format
                 return {
                   id: item.id,
                   label: item.name,
                   description: compatible
-                    ? `${formatLabel} · 会用于 ${form.format} 导出`
-                    : `${formatLabel} · 不兼容 ${form.format}，导出时会跳过`,
+                    ? t('export.remote_set_compatible_desc', { label: formatLabel, format: form.format })
+                    : t('export.remote_set_incompatible_desc', { label: formatLabel, format: form.format }),
                   disabled: !compatible,
                 }
               })}
@@ -331,14 +334,16 @@ type ExportValidationState =
   | { status: 'error'; error: string }
 
 function ExportValidationResult({ validation }: { validation: ExportValidationState }) {
+  const { t } = useTranslation()
+
   if (validation.status === 'checking') {
-    return <div className={styles.validation}>正在校验配置...</div>
+    return <div className={styles.validation}>{t('export.validation_checking')}</div>
   }
 
   if (validation.status === 'error') {
     return (
       <div className={`${styles.validation} ${styles.validationBlocked}`}>
-        <strong>配置需要处理</strong>
+        <strong>{t('export.validation_blocked')}</strong>
         <span>{validation.error}</span>
       </div>
     )
@@ -349,8 +354,11 @@ function ExportValidationResult({ validation }: { validation: ExportValidationSt
 
   return (
     <div className={`${styles.validation} ${summary.canUseConfig ? styles.validationReady : styles.validationBlocked}`}>
-      <strong>{summary.canUseConfig ? '配置可用' : '配置需要处理'}</strong>
-      <span>{exportWarningSummaryText(summary)} · 预览 {validation.lineCount} 行</span>
+      <strong>{summary.canUseConfig ? t('export.validation_ready') : t('export.validation_blocked')}</strong>
+      <span>{t('export.validation_summary_with_lines', {
+        summary: exportWarningSummaryText(summary, t),
+        lineCount: validation.lineCount,
+      })}</span>
       {visibleWarnings.length > 0 && (
         <div className={styles.validationWarnings}>
           {visibleWarnings.map((warning, index) => (
@@ -359,7 +367,9 @@ function ExportValidationResult({ validation }: { validation: ExportValidationSt
             </div>
           ))}
           {validation.warnings.length > visibleWarnings.length && (
-            <div className={styles.validationMore}>还有 {validation.warnings.length - visibleWarnings.length} 条提示，请到配置预览查看。</div>
+            <div className={styles.validationMore}>
+              {t('export.validation_more', { count: validation.warnings.length - visibleWarnings.length })}
+            </div>
           )}
         </div>
       )}
@@ -384,6 +394,7 @@ interface MultiSelectProps {
 }
 
 function MultiSelect({ label, emptyText, hint, options, value, onChange }: MultiSelectProps) {
+  const { t } = useTranslation()
   const selected = new Set(value)
   const toggle = (option: MultiSelectOption) => {
     if (option.disabled) return
@@ -397,13 +408,13 @@ function MultiSelect({ label, emptyText, hint, options, value, onChange }: Multi
         <span className={styles.selectLabel}>{label}</span>
         {value.length > 0 && (
           <button className={styles.clearButton} type="button" onClick={() => onChange([])}>
-            改为全部
+            {t('export.scope_reset_all')}
           </button>
         )}
       </div>
       {hint && <div className={styles.selectorHint}>{hint}</div>}
       {options.length === 0 ? (
-        <div className={styles.selectorEmpty}>暂无可选项</div>
+        <div className={styles.selectorEmpty}>{t('common.empty')}</div>
       ) : (
         <div className={styles.optionList}>
           <label className={styles.optionItem}>

@@ -27,9 +27,12 @@ export function resolveRemoteRuleSetForExport(
   return resolved
 }
 
-export function describeCompatibleRuleSetFormats(format: ExportFormat): string {
+export function describeCompatibleRuleSetFormats(
+  format: ExportFormat,
+  t: (key: string) => string
+): string {
   const formats = getCompatibleRuleSetFormats(format)
-  return formats.length > 0 ? formats.join(', ') : '不支持远程规则集'
+  return formats.length > 0 ? formats.join(', ') : t('remoteRuleSets.unsupported_formats')
 }
 
 function isRuleSetFormat(value: string): value is RuleSetFormat {

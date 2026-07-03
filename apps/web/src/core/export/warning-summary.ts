@@ -22,10 +22,20 @@ export function summarizeExportWarnings(warnings: CompatibilityWarning[]): Expor
   }
 }
 
-export function exportWarningSummaryText(summary: ExportWarningSummary): string {
-  if (summary.total === 0) return '配置可用'
+export function exportWarningSummaryText(
+  summary: ExportWarningSummary,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (summary.total === 0) return t('export.validation_ready')
   if (summary.unsupported > 0) {
-    return `需要处理 ${summary.unsupported} 个阻塞问题，另有 ${summary.partial} 个自动调整项、${summary.convert} 个格式转换提示`
+    return t('export.validation_blocked_summary', {
+      unsupported: summary.unsupported,
+      partial: summary.partial,
+      convert: summary.convert,
+    })
   }
-  return `配置可用，包含 ${summary.partial} 个自动调整项、${summary.convert} 个格式转换提示`
+  return t('export.validation_warning_summary', {
+    partial: summary.partial,
+    convert: summary.convert,
+  })
 }

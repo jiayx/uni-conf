@@ -3,6 +3,14 @@ import type { ExportConfig, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet
 import { exportConfigScopeSummary } from './scope-summary'
 
 const createdAt = '2026-01-01T00:00:00.000Z'
+const t = createTestT({
+  'export.scope_collections': '节点组',
+  'export.scope_groups': '策略组与出口',
+  'export.scope_rules': '手动规则',
+  'export.scope_remote_sets': '兼容分流规则集',
+  'export.scope_all_enabled': '{{label}}: 全部启用 {{count}}',
+  'export.scope_selected': '{{label}}: 已选 {{selected}}/{{count}}',
+})
 
 describe('export config scope summary', () => {
   it('summarizes the zero-setup default scope with enabled and compatible items only', () => {
@@ -24,7 +32,8 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-singbox', true, 'singbox'),
         makeRemoteSet('remote-mihomo', true, 'mihomo'),
         makeRemoteSet('remote-disabled', false, 'singbox'),
-      ]
+      ],
+      t
     )).toBe('节点组: 全部启用 1 / 策略组与出口: 全部启用 1 / 手动规则: 全部启用 1 / 兼容分流规则集: 全部启用 1')
   })
 
@@ -40,7 +49,8 @@ describe('export config scope summary', () => {
       [makeCollection('collection-us', true), makeCollection('collection-hk', true)],
       [makeGroup('builtin-proxy', true), makeGroup('builtin-ai', true)],
       [makeRule('rule-enabled', true), makeRule('rule-ai', true)],
-      [makeRemoteSet('remote-singbox', true, 'singbox'), makeRemoteSet('remote-mihomo', true, 'mihomo')]
+      [makeRemoteSet('remote-singbox', true, 'singbox'), makeRemoteSet('remote-mihomo', true, 'mihomo')],
+      t
     )).toBe('节点组: 已选 1/2 / 策略组与出口: 已选 1/2 / 手动规则: 已选 1/2 / 兼容分流规则集: 已选 1/1')
   })
 
@@ -68,7 +78,8 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-proxy', true, 'singbox', 'builtin-proxy'),
         makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
         makeRemoteSet('remote-disabled-target', true, 'singbox', 'disabled-policy'),
-      ]
+      ],
+      t
     )).toBe('节点组: 全部启用 1 / 策略组与出口: 已选 2/3 / 手动规则: 全部启用 2 / 兼容分流规则集: 全部启用 2')
   })
 
@@ -100,10 +111,21 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-disabled', false, 'singbox', 'builtin-streaming'),
         makeRemoteSet('remote-mihomo', true, 'mihomo', 'builtin-streaming'),
         makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
-      ]
+      ],
+      t
     )).toBe('节点组: 已选 1/1 / 策略组与出口: 已选 2/3 / 手动规则: 已选 1/1 / 兼容分流规则集: 已选 1/1')
   })
 })
+
+function createTestT(messages: Record<string, string>) {
+  return (key: string, options?: Record<string, unknown>): string => {
+    let text = messages[key] ?? key
+    for (const [name, value] of Object.entries(options ?? {})) {
+      text = text.replaceAll(`{{${name}}}`, String(value))
+    }
+    return text
+  }
+}
 
 function makeConfig(patch: Partial<ExportConfig> = {}): ExportConfig {
   return {

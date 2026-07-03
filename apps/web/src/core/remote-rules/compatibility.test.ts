@@ -50,6 +50,9 @@ describe('remote rule set compatibility', () => {
   })
 
   it('describes unsupported exporters without remote rule set support', () => {
-    expect(describeCompatibleRuleSetFormats('nodes_base64')).toBe('不支持远程规则集')
+    expect(describeCompatibleRuleSetFormats('nodes_base64', key => {
+      if (key === 'remoteRuleSets.unsupported_formats') return '不支持远程规则集'
+      return key
+    })).toBe('不支持远程规则集')
   })
 })
