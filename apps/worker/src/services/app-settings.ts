@@ -1,7 +1,9 @@
 import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode } from '@uni-conf/types';
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types';
 import { now } from '../db/helpers';
 
+const LANGUAGES = new Set<Language>(['zh', 'en']);
+const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
 const DNS_MODES = new Set<DnsMode>(['compatible', 'smart', 'fake-ip']);
 const ROUTING_POLICY_TEMPLATE_IDS = new Set<AppSettings['routingPolicyTemplate']>(
   ROUTING_POLICY_TEMPLATES.map((template) => template.id as AppSettings['routingPolicyTemplate'])
@@ -28,8 +30,8 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
   }
 
   return {
-    language: row.language as AppSettings['language'],
-    theme: row.theme as AppSettings['theme'],
+    language: normalizeLanguage(row.language),
+    theme: normalizeTheme(row.theme),
     routingPolicyTemplate: normalizeRoutingPolicyTemplate(row.routing_policy_template),
     routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
     dnsMode: normalizeDnsMode(row.dns_mode),
@@ -47,6 +49,14 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
 
 export function normalizeDnsMode(value: unknown): DnsMode {
   return typeof value === 'string' && DNS_MODES.has(value as DnsMode) ? value as DnsMode : 'smart';
+}
+
+export function normalizeLanguage(value: unknown): Language {
+  return typeof value === 'string' && LANGUAGES.has(value as Language) ? value as Language : 'zh';
+}
+
+export function normalizeTheme(value: unknown): ThemePreference {
+  return typeof value === 'string' && THEMES.has(value as ThemePreference) ? value as ThemePreference : 'system';
 }
 
 export function normalizeRoutingPolicyTemplate(value: unknown): AppSettings['routingPolicyTemplate'] {

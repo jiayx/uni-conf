@@ -4,9 +4,11 @@ import {
   normalizeBooleanDefault,
   normalizeDnsMode,
   normalizeExportNodeNamingMode,
+  normalizeLanguage,
   normalizeOptionalStringList,
   normalizePositiveInteger,
   normalizeRoutingPolicyTemplate,
+  normalizeTheme,
 } from './app-settings'
 
 describe('app settings normalization', () => {
@@ -22,6 +24,10 @@ describe('app settings normalization', () => {
     expect(normalizePositiveInteger(null, 1440)).toBe(1440)
     expect(normalizePositiveInteger(0, 1440)).toBe(1440)
     expect(normalizePositiveInteger('30', 1440)).toBe(30)
+    expect(normalizeLanguage('fr')).toBe('zh')
+    expect(normalizeLanguage('en')).toBe('en')
+    expect(normalizeTheme('sepia')).toBe('system')
+    expect(normalizeTheme('dark')).toBe('dark')
     expect(normalizeDnsMode('unknown')).toBe('smart')
     expect(normalizeRoutingPolicyTemplate('unknown')).toBe('common')
     expect(normalizeRoutingPolicyTemplate('router')).toBe('router')
