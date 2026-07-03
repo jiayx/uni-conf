@@ -55,7 +55,7 @@ app.put('/', async (c) => {
       nextDnsMode,
       body.exportNodeNamingMode ?? current.exportNodeNamingMode,
       body.defaultExportToken !== undefined
-        ? body.defaultExportToken
+        ? normalizeDefaultExportToken(body.defaultExportToken)
         : current.defaultExportToken ?? null,
       body.showCompatibilityWarnings !== undefined
         ? (body.showCompatibilityWarnings ? 1 : 0)
@@ -123,6 +123,9 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
   if (body.exportNodeNamingMode !== undefined && !EXPORT_NODE_NAMING_MODES.has(body.exportNodeNamingMode)) {
     return 'invalid export node naming mode'
   }
+  if (body.defaultExportToken !== undefined && normalizeDefaultExportToken(body.defaultExportToken) === undefined) {
+    return 'invalid default export token'
+  }
   if (body.autoNodeGroupTypes !== undefined) {
     if (!Array.isArray(body.autoNodeGroupTypes) || body.autoNodeGroupTypes.some((type) => !isAutoNodeGroupType(type))) {
       return 'invalid auto node group type'
@@ -152,6 +155,13 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
     return 'invalid auto refresh interval'
   }
   return null
+}
+
+function normalizeDefaultExportToken(value: unknown): string | null | undefined {
+  if (value === null) return null
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
 }
 
 export function resolveNextDnsMode(current: AppSettings, body: Partial<AppSettings>): DnsMode {

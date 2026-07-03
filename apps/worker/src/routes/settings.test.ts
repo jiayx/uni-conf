@@ -21,7 +21,9 @@ describe('settings route helpers', () => {
       showCompatibilityWarnings: true,
       enableAutoRefresh: true,
       autoRefreshInterval: 1440,
+      defaultExportToken: ' token-1 ',
     })).toBeNull()
+    expect(validateSettingsPatch({ defaultExportToken: null as never })).toBeNull()
   })
 
   it('rejects invalid enum settings', () => {
@@ -42,6 +44,8 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ autoNodeGroupKeys: ['country:US:load-balance'] })).toBe('invalid auto node group key')
     expect(validateSettingsPatch({ autoNodeGroupsEnabled: 'true' as never })).toBe('invalid auto node groups enabled')
     expect(validateSettingsPatch({ autoNodeGroupIncludeFlag: 'true' as never })).toBe('invalid auto node group include flag')
+    expect(validateSettingsPatch({ defaultExportToken: '' })).toBe('invalid default export token')
+    expect(validateSettingsPatch({ defaultExportToken: 123 as never })).toBe('invalid default export token')
     expect(validateSettingsPatch({ showCompatibilityWarnings: 1 as never })).toBe('invalid compatibility warnings setting')
     expect(validateSettingsPatch({ enableAutoRefresh: 1 as never })).toBe('invalid auto refresh setting')
   })
