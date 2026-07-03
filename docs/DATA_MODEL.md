@@ -85,6 +85,8 @@ When subscription parsing caches native client config in `raw_config.mihomo` or 
 
 Generated node groups are regular `collections` plus one node-backed outlet `groups` row. Product UI treats the pair as one node group outlet; users do not manually link a collection to a policy group. Generated collection `notes` start with `[uni-conf:auto-node-group]` and use the explicit marker format `country:{countryCode}:{type}` or `tag:{tagKey}:{type}`. There is no legacy marker compatibility.
 
+The node group UI must lead with localized zero-setup language: the main action is automatic generation by country/region, tag pool, or upstream subscription group, generated rows are labeled as automatic, and the auto-generation modal explains that `url-test` groups are selected by default while manual select/fallback and upstream groups are optional. `apps/web/src/core/collections/collections-i18n.test.ts` guards those labels so the page does not imply users must manually build node filters before export works.
+
 Collection writes validate the node filtering model before persistence. Names are required, `source_ids`, `node_ids`, and `sort_country_order` must be arrays of non-empty string IDs/country codes, `filters` must use supported fields and operators, regex filters and regex renames must compile, `dedup` and `sort` must be known strategies, and list filters are trimmed and de-duplicated. This keeps advanced manual node groups from corrupting the generated outlet pools used by default policy groups.
 
 ### `groups` — Proxy Strategy Groups

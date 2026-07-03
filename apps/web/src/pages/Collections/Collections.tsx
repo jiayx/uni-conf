@@ -45,10 +45,10 @@ import styles from './Collections.module.css'
 type CollectionForm = Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>
 type GeneratedGroupType = Extract<GroupType, 'select' | 'url-test' | 'fallback'>
 
-const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; label: string; suffix: string }> = [
-  { value: 'select', label: '手动选择', suffix: 'Select' },
-  { value: 'url-test', label: '自动测速', suffix: 'Auto' },
-  { value: 'fallback', label: '故障转移', suffix: 'Fallback' },
+const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; labelKey: string; suffix: string }> = [
+  { value: 'select', labelKey: 'collections.group_type_select', suffix: 'Select' },
+  { value: 'url-test', labelKey: 'collections.group_type_url_test', suffix: 'Auto' },
+  { value: 'fallback', labelKey: 'collections.group_type_fallback', suffix: 'Fallback' },
 ]
 const FILTER_FIELDS: Array<{ value: NodeFilter['field']; label: string }> = [
   { value: 'name', label: '名称' },
@@ -383,15 +383,15 @@ export function Collections() {
     <div className={styles.page}>
       <PageHeader
         title={t('collections.title')}
-        description={`按国家/地区等条件生成出口节点组，共 ${collections.length} 个`}
-        actions={<><Button variant="secondary" onClick={() => void openAutoGenerate()}>自动生成</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
+        description={t('collections.description', { count: collections.length })}
+        actions={<><Button variant="secondary" onClick={() => void openAutoGenerate()}>{t('collections.auto_generate')}</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
       />
       {loading && collections.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : collections.length === 0 ? (
         <EmptyState
-          title="暂无节点组"
-          description="节点组用于定义一组节点过滤条件和选择方式，并作为业务分流组可选择的出口候选"
+          title={t('collections.empty_title')}
+          description={t('collections.empty_description')}
           action={{ label: t('collections.new'), onClick: openCreate }}
         />
       ) : (
@@ -410,11 +410,11 @@ export function Collections() {
 
               <div className={styles.cardMeta}>
                 <Badge variant="info">{scopeText(collection)}</Badge>
-                <Badge variant={isAutoNodeGroup(collection) ? 'success' : 'default'}>{isAutoNodeGroup(collection) ? '自动' : '手动'}</Badge>
+                <Badge variant={isAutoNodeGroup(collection) ? 'success' : 'default'}>{isAutoNodeGroup(collection) ? t('collections.auto_label') : t('collections.manual_label')}</Badge>
                 <Badge variant="default">{sortLabel(collection.sort)}</Badge>
                 <Badge variant="default">{dedupLabel(collection.dedup)}</Badge>
-                {collection.filters.length > 0 && <Badge variant="warning">{collection.filters.length} 过滤</Badge>}
-                {collection.renames.length > 0 && <Badge variant="purple">{collection.renames.length} 重命名</Badge>}
+                {collection.filters.length > 0 && <Badge variant="warning">{t('collections.filter_count', { count: collection.filters.length })}</Badge>}
+                {collection.renames.length > 0 && <Badge variant="purple">{t('collections.rename_count', { count: collection.renames.length })}</Badge>}
               </div>
 
               <PreviewList
@@ -432,7 +432,7 @@ export function Collections() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { if (confirm('删除此节点组？')) void deleteCollection(collection.id) }}
+                      onClick={() => { if (confirm(t('collections.delete_confirm'))) void deleteCollection(collection.id) }}
                     >
                       {t('common.delete')}
                     </Button>
@@ -461,9 +461,9 @@ export function Collections() {
         <div className={styles.formGrid}>
           <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} />
           <div>
-            <label className={styles.selectLabel}>节点组类型</label>
+            <label className={styles.selectLabel}>{t('collections.group_type')}</label>
             <select className={styles.select} value={manualGroupType} onChange={e => setManualGroupType(e.target.value as GeneratedGroupType)}>
-              {GENERATED_GROUP_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+              {GENERATED_GROUP_TYPES.map(type => <option key={type.value} value={type.value}>{t(type.labelKey)}</option>)}
             </select>
           </div>
           <div>
@@ -551,18 +551,18 @@ export function Collections() {
       <Modal
         open={showAutoModal}
         onOpenChange={setShowAutoModal}
-        title="自动生成节点组"
+        title={t('collections.auto_generate_title')}
         size="lg"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowAutoModal(false)}>{t('common.cancel')}</Button>
-            <Button loading={autoApplying} onClick={() => void applyAutoGenerate()}>应用</Button>
+            <Button loading={autoApplying} onClick={() => void applyAutoGenerate()}>{t('common.apply')}</Button>
           </>
         }
       >
         <div className={styles.autoPanel}>
           <div className={styles.autoSection}>
-            <div className={styles.sectionHeader}>节点组类型</div>
+            <div className={styles.sectionHeader}>{t('collections.group_type')}</div>
             <div className={styles.optionListCompact}>
               {GENERATED_GROUP_TYPES.map(type => (
                 <label key={type.value} className={styles.optionItem}>
@@ -571,7 +571,7 @@ export function Collections() {
                     checked={selectedAutoTypes.has(type.value)}
                     onChange={() => toggleAutoType(type.value)}
                   />
-                  <span>{type.label}</span>
+                  <span>{t(type.labelKey)}</span>
                 </label>
               ))}
             </div>
@@ -581,13 +581,13 @@ export function Collections() {
                 checked={autoNamesIncludeFlag}
                 onChange={e => setAutoNamesIncludeFlag(e.target.checked)}
               />
-              <span>名称包含旗帜 Emoji</span>
+              <span>{t('collections.include_flag')}</span>
             </label>
           </div>
           <div className={styles.autoSection}>
-            <div className={styles.sectionHeader}>可识别国家/地区</div>
+            <div className={styles.sectionHeader}>{t('collections.recognized_countries')}</div>
             {countrySuggestions.length === 0 ? (
-              <div className={styles.inlineEmpty}>当前没有可按国家/地区识别的节点</div>
+              <div className={styles.inlineEmpty}>{t('collections.no_recognized_countries')}</div>
             ) : (
               <div className={styles.autoSuggestionList}>
                 {countrySuggestions.map(item => (
@@ -598,16 +598,16 @@ export function Collections() {
                       onChange={() => setSelectedAutoKeys(current => toggleCountryKeys(current, item.countryCode, selectedAutoTypes))}
                     />
                     <span className={styles.autoSuggestionMain}>{item.label}</span>
-                    <span className={styles.autoSuggestionMeta}>{item.count} 个节点</span>
+                    <span className={styles.autoSuggestionMeta}>{t('collections.node_count', { count: item.count })}</span>
                   </label>
                 ))}
               </div>
             )}
           </div>
           <div className={styles.autoSection}>
-            <div className={styles.sectionHeader}>可识别标签节点池</div>
+            <div className={styles.sectionHeader}>{t('collections.recognized_tag_pools')}</div>
             {tagSuggestions.length === 0 ? (
-              <div className={styles.inlineEmpty}>当前没有可按流媒体、解锁、家宽或原生标签识别的节点</div>
+              <div className={styles.inlineEmpty}>{t('collections.no_recognized_tag_pools')}</div>
             ) : (
               <div className={styles.autoSuggestionList}>
                 {tagSuggestions.map(item => (
@@ -618,16 +618,16 @@ export function Collections() {
                       onChange={() => setSelectedAutoKeys(current => toggleTagKeys(current, item.key, selectedAutoTypes))}
                     />
                     <span className={styles.autoSuggestionMain}>{item.label}</span>
-                    <span className={styles.autoSuggestionMeta}>{item.count} 个节点</span>
+                    <span className={styles.autoSuggestionMeta}>{t('collections.node_count', { count: item.count })}</span>
                   </label>
                 ))}
               </div>
             )}
           </div>
           <div className={styles.autoSection}>
-            <div className={styles.sectionHeader}>订阅源节点组</div>
+            <div className={styles.sectionHeader}>{t('collections.source_groups')}</div>
             {sourceGroupSuggestions.length === 0 ? (
-              <div className={styles.inlineEmpty}>当前订阅源没有可导入的节点组</div>
+              <div className={styles.inlineEmpty}>{t('collections.no_source_groups')}</div>
             ) : (
               <div className={styles.autoSuggestionList}>
                 {sourceGroupSuggestions.map(item => (
@@ -640,7 +640,9 @@ export function Collections() {
                     />
                     <span className={styles.autoSuggestionMain}>{item.name}</span>
                     <span className={styles.autoSuggestionMeta}>
-                      {item.exists ? '已添加' : `${item.nodeIds.length}/${item.group.memberNames.length} 个节点`}
+                      {item.exists
+                        ? t('collections.already_added')
+                        : t('collections.source_group_node_count', { selected: item.nodeIds.length, total: item.group.memberNames.length })}
                     </span>
                   </label>
                 ))}
@@ -648,7 +650,7 @@ export function Collections() {
             )}
           </div>
           <div className={styles.inlineEmpty}>
-            默认选择自动测速节点组，也可以同时生成手动选择或故障转移节点组。取消某个国家/地区或标签节点池后，已自动生成的对应节点组会被移除；订阅源节点组会按成员节点直接导入。
+            {t('collections.auto_generate_help')}
           </div>
         </div>
       </Modal>
