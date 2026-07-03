@@ -11,16 +11,16 @@ import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-co
 import type { AppSettingsPatch, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
-const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; name: string; description: string }> = [
-  { id: 'smart', name: '智能命名', description: '国家/地区 + 来源 + 序号，适合多订阅混合导出' },
-  { id: 'original', name: '保留原名', description: '导出时保留订阅或节点组处理后的名称' },
-  { id: 'region_sequence', name: '地区 + 序号', description: '例如 HK - 01' },
-  { id: 'source_region_sequence', name: '来源 + 地区 + 序号', description: '例如 Airport A - HK - 01' },
+const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; nameKey: string; descriptionKey: string }> = [
+  { id: 'smart', nameKey: 'settings.naming_smart', descriptionKey: 'settings.naming_smart_desc' },
+  { id: 'original', nameKey: 'settings.naming_original', descriptionKey: 'settings.naming_original_desc' },
+  { id: 'region_sequence', nameKey: 'settings.naming_region_sequence', descriptionKey: 'settings.naming_region_sequence_desc' },
+  { id: 'source_region_sequence', nameKey: 'settings.naming_source_region_sequence', descriptionKey: 'settings.naming_source_region_sequence_desc' },
 ]
-const AUTO_NODE_GROUP_TYPE_PRESETS: Array<{ id: AutoNodeGroupType; name: string; description: string }> = [
-  { id: 'url-test', name: '自动测速', description: '按国家/地区和标签节点池生成延迟优先的出口节点组' },
-  { id: 'select', name: '手动选择', description: '按国家/地区和标签节点池生成可手动切换的出口节点组' },
-  { id: 'fallback', name: '故障转移', description: '按国家/地区和标签节点池生成失败后自动切换的出口节点组' },
+const AUTO_NODE_GROUP_TYPE_PRESETS: Array<{ id: AutoNodeGroupType; nameKey: string; descriptionKey: string }> = [
+  { id: 'url-test', nameKey: 'settings.auto_node_type_url_test', descriptionKey: 'settings.auto_node_type_url_test_desc' },
+  { id: 'select', nameKey: 'settings.auto_node_type_select', descriptionKey: 'settings.auto_node_type_select_desc' },
+  { id: 'fallback', nameKey: 'settings.auto_node_type_fallback', descriptionKey: 'settings.auto_node_type_fallback_desc' },
 ]
 
 export function Settings() {
@@ -195,7 +195,7 @@ export function Settings() {
 
       {/* DNS */}
       <Card className={styles.section}>
-        <h2 className={styles.sectionTitle}>DNS 模式</h2>
+        <h2 className={styles.sectionTitle}>{t('settings.dns_mode')}</h2>
         <div className={styles.optionGroup}>
           {DNS_MODE_PRESETS.map(preset => (
             <button
@@ -203,9 +203,9 @@ export function Settings() {
               className={`${styles.optionBtn} ${dnsMode === preset.id ? styles.active : ''}`}
               onClick={() => handleDnsMode(preset.id)}
               disabled={saving}
-              title={preset.description}
+              title={t(dnsDescriptionKey(preset.id))}
             >
-              {preset.name}
+              {t(dnsNameKey(preset.id))}
             </button>
           ))}
         </div>
@@ -220,16 +220,16 @@ export function Settings() {
               className={`${styles.optionBtn} ${exportNodeNamingMode === preset.id ? styles.active : ''}`}
               onClick={() => handleExportNodeNamingMode(preset.id)}
               disabled={saving}
-              title={preset.description}
+              title={t(preset.descriptionKey)}
             >
-              {preset.name}
+              {t(preset.nameKey)}
             </button>
           ))}
         </div>
       </Card>
 
       <Card className={styles.section}>
-        <h2 className={styles.sectionTitle}>自动节点组</h2>
+        <h2 className={styles.sectionTitle}>{t('settings.auto_node_groups')}</h2>
         <label className={styles.toggleRow}>
           <input
             type="checkbox"
@@ -237,7 +237,7 @@ export function Settings() {
             onChange={e => handleAutoNodeGroupsEnabled(e.target.checked)}
             disabled={saving}
           />
-          <span>节点变化后自动按国家/地区和标签节点池同步节点组</span>
+          <span>{t('settings.auto_node_groups_enabled')}</span>
         </label>
         <div className={styles.optionGroup}>
           {AUTO_NODE_GROUP_TYPE_PRESETS.map(preset => (
@@ -246,9 +246,9 @@ export function Settings() {
               className={`${styles.optionBtn} ${autoNodeGroupTypes.includes(preset.id) ? styles.active : ''}`}
               onClick={() => handleAutoNodeGroupType(preset.id)}
               disabled={saving || !autoNodeGroupsEnabled}
-              title={preset.description}
+              title={t(preset.descriptionKey)}
             >
-              {preset.name}
+              {t(preset.nameKey)}
             </button>
           ))}
         </div>
@@ -259,9 +259,9 @@ export function Settings() {
             onChange={e => handleAutoNodeGroupIncludeFlag(e.target.checked)}
             disabled={saving || !autoNodeGroupsEnabled}
           />
-          <span>自动生成的国家/地区节点组名称包含旗帜 Emoji</span>
+          <span>{t('settings.auto_node_include_flag')}</span>
         </label>
-        <div className={styles.hint}>具体国家/地区、标签节点池和订阅源节点组仍在“节点组”的自动生成面板里选择。</div>
+        <div className={styles.hint}>{t('settings.auto_node_groups_hint')}</div>
       </Card>
 
       {/* Features */}
@@ -330,7 +330,7 @@ export function Settings() {
           onChange={e => void handleImport(e.target.files?.[0])}
         />
         {status && <div className={styles.status}>{status}</div>}
-        {saving && <div className={styles.status}>Saving...</div>}
+        {saving && <div className={styles.status}>{t('settings.saving')}</div>}
       </Card>
 
       {/* About */}
@@ -384,4 +384,12 @@ function MoonIcon() {
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
     </svg>
   )
+}
+
+function dnsNameKey(mode: DnsMode): string {
+  return `settings.dns_${mode.replace('-', '_')}`
+}
+
+function dnsDescriptionKey(mode: DnsMode): string {
+  return `settings.dns_${mode.replace('-', '_')}_desc`
 }
