@@ -16,27 +16,11 @@ import { SOURCE_FORMATS } from '@uni-conf/shared'
 import type { ProxySource, SourceFormat } from '@uni-conf/types'
 import styles from './Sources.module.css'
 
-const SOURCE_FORMAT_LABELS: Record<SourceFormat, string> = {
-  auto: 'Auto detect',
-  mihomo: 'Mihomo / Clash.Meta',
-  clash: 'Clash',
-  singbox: 'sing-box',
-  base64: 'Base64 nodes',
-  surge: 'Surge',
-  loon: 'Loon',
-  quantumultx: 'Quantumult X',
-  shadowrocket: 'Shadowrocket',
-  raw: 'Raw URI lines',
-}
-
-const FORMAT_OPTIONS: { value: SourceFormat; label: string }[] = SOURCE_FORMATS.map(value => ({
-  value,
-  label: SOURCE_FORMAT_LABELS[value],
-}))
+const FORMAT_OPTIONS: SourceFormat[] = [...SOURCE_FORMATS]
 
 const USER_AGENT_OPTIONS = [
-  { value: '', label: 'Default (clash.meta)' },
-  { value: 'clash.meta/v1.19.23', label: 'Clash Meta (Recommended)' },
+  { value: '', labelKey: 'sources.user_agent_default' },
+  { value: 'clash.meta/v1.19.23', labelKey: 'sources.user_agent_clash_meta' },
   { value: 'Quantumult%20X/1.4.1', label: 'Quantumult X' },
   { value: 'Surge/5.9.0', label: 'Surge' },
   { value: 'Shadowrocket/1850', label: 'Shadowrocket' },
@@ -47,7 +31,7 @@ const USER_AGENT_OPTIONS = [
   { value: 'ClashForWindows/0.20.39', label: 'Clash for Windows' },
   { value: 'ClashForAndroid/2.5.12', label: 'Clash for Android' },
   { value: 'v2rayNG/1.8.5', label: 'v2rayNG' },
-  { value: 'custom', label: 'Custom...' },
+  { value: 'custom', labelKey: 'sources.user_agent_custom' },
 ]
 
 function formatBytes(bytes: number): string {
@@ -112,7 +96,7 @@ export function Sources() {
     if (summary.nextInput || summary.error) {
       setForm(f => ({ ...f, url: summary.nextInput }))
       if (summary.error?.kind === 'save-failed') {
-        setFormError(`${summary.error.count ?? 0} 个订阅源保存失败：${summary.error.message}`)
+        setFormError(t('sources.save_failed_count', { count: summary.error.count ?? 0, message: summary.error.message }))
       } else if (summary.error?.kind === 'refresh-failed') {
         setFormError(`${t('sources.refresh_failed')}: ${summary.error.message}`)
       }
@@ -254,12 +238,12 @@ export function Sources() {
                 <div className={styles.subscriptionInfo}>
                   {source.totalBytes !== undefined && (
                     <span>
-                      流量: <strong>{formatBytes((source.downloadBytes || 0) + (source.uploadBytes || 0))} / {formatBytes(source.totalBytes)}</strong>
+                      {t('sources.traffic')}: <strong>{formatBytes((source.downloadBytes || 0) + (source.uploadBytes || 0))} / {formatBytes(source.totalBytes)}</strong>
                     </span>
                   )}
                   {source.expireTime !== undefined && (
                     <span>
-                      到期: <strong>{new Date(source.expireTime * 1000).toLocaleDateString()}</strong>
+                      {t('sources.expire')}: <strong>{new Date(source.expireTime * 1000).toLocaleDateString()}</strong>
                     </span>
                   )}
                 </div>
@@ -304,7 +288,7 @@ export function Sources() {
             className={styles.textarea}
             value={form.url}
             onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-            placeholder={'https://example.com/sub?token=...\nhttps://example.org/sub?token=...'}
+            placeholder={t('sources.url_placeholder')}
           />
         </label>
         <details className={styles.advanced}>
@@ -331,8 +315,8 @@ export function Sources() {
                 value={form.format}
                 onChange={e => setForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
               >
-                {FORMAT_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                {FORMAT_OPTIONS.map(format => (
+                  <option key={format} value={format}>{t(`sources.format_${format}`)}</option>
                 ))}
               </select>
             </div>
@@ -345,20 +329,20 @@ export function Sources() {
               helperText={t('sources.update_interval_hint')}
             />
             <div>
-              <label className={styles.selectLabel}>User-Agent</label>
+              <label className={styles.selectLabel}>{t('sources.user_agent')}</label>
               <select
                 className={styles.select}
                 value={form.userAgent}
                 onChange={e => setForm(f => ({ ...f, userAgent: e.target.value }))}
               >
                 {USER_AGENT_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  <option key={opt.value} value={opt.value}>{opt.labelKey ? t(opt.labelKey) : opt.label}</option>
                 ))}
               </select>
             </div>
             {form.userAgent === 'custom' && (
               <Input
-                label="Custom User-Agent"
+                label={t('sources.custom_user_agent')}
                 value={form.customUserAgent}
                 onChange={e => setForm(f => ({ ...f, customUserAgent: e.target.value }))}
                 placeholder="YourClient/1.0.0"
@@ -396,7 +380,7 @@ export function Sources() {
           label={t('sources.url')}
           value={form.url}
           onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-          placeholder="https://example.com/sub?token=..."
+          placeholder={t('sources.url_single_placeholder')}
         />
         <div>
           <label className={styles.selectLabel}>{t('sources.format')}</label>
@@ -406,7 +390,7 @@ export function Sources() {
             onChange={e => setForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
           >
             {FORMAT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt} value={opt}>{t(`sources.format_${opt}`)}</option>
             ))}
           </select>
         </div>
@@ -419,23 +403,23 @@ export function Sources() {
           helperText={t('sources.update_interval_hint')}
         />
         <div>
-          <label className={styles.selectLabel}>User-Agent</label>
+          <label className={styles.selectLabel}>{t('sources.user_agent')}</label>
           <select
             className={styles.select}
             value={form.userAgent}
             onChange={e => setForm(f => ({ ...f, userAgent: e.target.value }))}
           >
             {USER_AGENT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{opt.labelKey ? t(opt.labelKey) : opt.label}</option>
             ))}
           </select>
           <div className={styles.helperText}>
-            Some airports check User-Agent. Recommended: clash.meta (works with most airports).
+            {t('sources.user_agent_recommendation')}
           </div>
         </div>
         {form.userAgent === 'custom' && (
           <Input
-            label="Custom User-Agent"
+            label={t('sources.custom_user_agent')}
             value={form.customUserAgent}
             onChange={e => setForm(f => ({ ...f, customUserAgent: e.target.value }))}
             placeholder="YourClient/1.0.0"

@@ -374,6 +374,8 @@ Source writes validate `type`, `format`, URL shape, refresh interval, advanced t
 
 The web source form treats creation and update differently for User-Agent defaults. Creation omits an empty User-Agent so the worker can use its default fetch header. Updating an existing source sends an explicit empty string when the user selects the default option, which lets the worker clear a previously saved custom User-Agent; changing URL, parser format, or User-Agent then triggers an immediate refresh from the web flow.
 
+The source-management UI keeps the zero-setup create path focused on the subscription URL. Name, parser format, refresh interval, User-Agent, notes, and the refresh toggle remain in the advanced section, and user-facing labels, placeholders, User-Agent choices, save/refresh errors, and subscription traffic fields are all localized through `apps/web/src/i18n/*`. This keeps the dashboard and source page aligned on the same “paste links first” workflow.
+
 Refresh caches fetched `raw_content` and `subscription-userinfo` immediately after a successful HTTP response, before node parsing validates usable proxies. This preserves complete upstream configs for future parser/export reuse even when the current parser cannot yet turn the content into usable nodes, and the route test covers this parse-failure cache path.
 
 During refresh, `format = auto` uses content detection. Any explicit source format is treated as a parser hint and is tried first: Clash/Mihomo as YAML, sing-box as JSON, base64 as encoded URI lines, and raw/client-line formats as URI lines. This keeps the advanced format selector meaningful while preserving the one-link default path.
