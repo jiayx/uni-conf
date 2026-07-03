@@ -86,21 +86,21 @@ export function Groups() {
   const foundationSections = useMemo(
     () => [
       {
-        title: '规则基础目标',
-        description: '规则可以直接命中，用于默认代理、直连和拒绝。',
+        title: t('groups.foundation_rule_targets'),
+        description: t('groups.foundation_rule_targets_desc'),
         groups: RULE_TARGET_FOUNDATION_GROUP_IDS
           .map(id => groups.find(group => group.id === id))
           .filter((group): group is ProxyGroup => Boolean(group)),
       },
       {
-        title: '全局节点出口',
-        description: '作为业务分流组里的出口候选，不直接作为规则目标。',
+        title: t('groups.global_node_outlets'),
+        description: t('groups.global_node_outlets_desc'),
         groups: GLOBAL_NODE_OUTLET_GROUP_IDS
           .map(id => groups.find(group => group.id === id))
           .filter((group): group is ProxyGroup => Boolean(group)),
       },
     ].filter(section => section.groups.length > 0),
-    [groups]
+    [groups, t]
   )
   const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate)
     ?? ROUTING_POLICY_TEMPLATES.find(template => template.id === 'common')
@@ -242,14 +242,14 @@ export function Groups() {
     <div className={styles.page}>
       <PageHeader
         title={t('groups.title')}
-        description="先选择一套分流方案，再按需添加业务分流组；PROXY / DIRECT / REJECT 始终内置，默认规则会自动关联。"
-        actions={<Button onClick={openCreate} icon={<PlusIcon />}>添加自定义策略组</Button>}
+        description={t('groups.description')}
+        actions={<Button onClick={openCreate} icon={<PlusIcon />}>{t('groups.new')}</Button>}
       />
       <section className={styles.templatePanel}>
         <div className={styles.templateHeader}>
           <div>
-            <div className={styles.templateTitle}>默认分流方案</div>
-            <div className={styles.templateMeta}>方案只决定额外启用哪些业务分流组；PROXY / DIRECT / REJECT 和节点选择能力始终保留。</div>
+            <div className={styles.templateTitle}>{t('groups.template_title')}</div>
+            <div className={styles.templateMeta}>{t('groups.template_meta')}</div>
           </div>
           <Button variant="secondary" onClick={() => void fetchGroups()} loading={savingTemplate}>{t('common.refresh')}</Button>
         </div>
@@ -265,34 +265,34 @@ export function Groups() {
               <div className={styles.templateItemTop}>
                 <span className={styles.templateName}>{template.name}</span>
                 <Badge variant={template.active ? 'success' : 'default'}>
-                  {template.active ? '当前' : formatTemplateCount(template.displayGroupNames.length)}
+                  {template.active ? t('common.current') : formatTemplateCount(template.displayGroupNames.length, t)}
                 </Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
-              <div className={styles.templateFoundation}>规则基础：{RULE_TARGET_FOUNDATION_GROUP_NAMES.join(' / ')}</div>
-              <div className={styles.templateFoundation}>节点出口：{GLOBAL_NODE_OUTLET_GROUP_NAMES.join(' / ')}</div>
+              <div className={styles.templateFoundation}>{t('groups.rule_foundation')}: {RULE_TARGET_FOUNDATION_GROUP_NAMES.join(' / ')}</div>
+              <div className={styles.templateFoundation}>{t('groups.node_outlets')}: {GLOBAL_NODE_OUTLET_GROUP_NAMES.join(' / ')}</div>
               <div className={styles.templateMembers}>
-                业务组：{template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : '无'}
+                {t('groups.business_groups')}: {template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : t('common.none')}
               </div>
             </button>
           ))}
         </div>
         <div className={styles.activeTemplateGroups}>
-          <span className={styles.activeTemplateLabel}>固定规则基础</span>
+          <span className={styles.activeTemplateLabel}>{t('groups.fixed_rule_foundation')}</span>
           {RULE_TARGET_FOUNDATION_GROUP_NAMES.map(name => (
             <Badge key={name} variant="default">{name}</Badge>
           ))}
         </div>
         <div className={styles.activeTemplateGroups}>
-          <span className={styles.activeTemplateLabel}>固定节点出口</span>
+          <span className={styles.activeTemplateLabel}>{t('groups.fixed_node_outlets')}</span>
           {GLOBAL_NODE_OUTLET_GROUP_NAMES.map(name => (
             <Badge key={name} variant="default">{name}</Badge>
           ))}
         </div>
         <div className={styles.activeTemplateGroups}>
-          <span className={styles.activeTemplateLabel}>当前业务分流组</span>
+          <span className={styles.activeTemplateLabel}>{t('groups.current_business_groups')}</span>
           {templateGroups.length === 0 ? (
-            <Badge variant="default">无额外业务分流组</Badge>
+            <Badge variant="default">{t('groups.no_extra_business_groups')}</Badge>
           ) : (
             templateGroups.map(item => (
               <Badge key={item.name} variant={item.group?.enabled ? 'purple' : 'default'}>
@@ -306,8 +306,8 @@ export function Groups() {
         <section className={styles.foundationPanel}>
           <div className={styles.foundationHeader}>
             <div>
-              <div className={styles.foundationTitle}>基础目标与节点出口</div>
-              <div className={styles.foundationMeta}>始终存在；规则可直接命中 PROXY / DIRECT / REJECT，业务分流组会自动包含规则基础和节点出口。</div>
+              <div className={styles.foundationTitle}>{t('groups.foundation_title')}</div>
+              <div className={styles.foundationMeta}>{t('groups.foundation_meta')}</div>
             </div>
           </div>
           {foundationSections.map(section => (
@@ -323,7 +323,7 @@ export function Groups() {
                       <span className={styles.foundationName}>{group.name}</span>
                       <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
                     </div>
-                    <div className={styles.foundationSummary}>{describeFoundationGroup(group)}</div>
+                    <div className={styles.foundationSummary}>{describeFoundationGroup(group, t)}</div>
                   </div>
                 ))}
               </div>
@@ -339,7 +339,7 @@ export function Groups() {
               <Card key={group.id} className={styles.groupCard}>
                 {!group.isBuiltin && (
                   <div className={styles.orderControls}>
-                    <Button variant="ghost" size="sm" disabled={customIndex <= 0} onClick={() => moveCustomGroup(group.id, -1)} title="上移">
+                    <Button variant="ghost" size="sm" disabled={customIndex <= 0} onClick={() => moveCustomGroup(group.id, -1)} title={t('common.move_up')}>
                       <ArrowUpIcon />
                     </Button>
                     <Button
@@ -347,7 +347,7 @@ export function Groups() {
                       size="sm"
                       disabled={customIndex < 0 || customIndex === customRoutingGroups.length - 1}
                       onClick={() => moveCustomGroup(group.id, 1)}
-                      title="下移"
+                      title={t('common.move_down')}
                     >
                       <ArrowDownIcon />
                     </Button>
@@ -363,19 +363,19 @@ export function Groups() {
                   <div className={styles.groupMeta}>
                     <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
                     {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
-                    <Badge variant="purple">自动出口候选</Badge>
+                    <Badge variant="purple">{t('groups.auto_outlet_candidates')}</Badge>
                   </div>
-                  <div className={styles.summary}>{describeRoutingGroupMembers(group)}</div>
+                  <div className={styles.summary}>{describeRoutingGroupMembers(group, t)}</div>
                   {group.groupIds.length > 0 && (
                     <label className={styles.preferenceRow}>
-                      <span>默认出口</span>
+                      <span>{t('groups.default_outlet')}</span>
                       <select
                         className={styles.preferenceSelect}
                         value={outletPreferences[group.id] ?? ''}
                         onChange={event => void handleOutletPreference(group, event.target.value)}
                         disabled={savingPreferenceId === group.id}
                       >
-                        <option value="">系统推荐：{getGroupName(groups, group.groupIds[0])}</option>
+                        <option value="">{t('groups.system_recommended', { outlet: getGroupName(groups, group.groupIds[0]) })}</option>
                         {group.groupIds.map(id => (
                           <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
                         ))}
@@ -391,7 +391,7 @@ export function Groups() {
                     <Button variant="ghost" size="sm" onClick={() => openEdit(group)}>
                       {t('common.edit')}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此策略组？')) void deleteGroup(group.id) }}>
+                    <Button variant="ghost" size="sm" onClick={() => { if (confirm(t('groups.delete_confirm'))) void deleteGroup(group.id) }}>
                       <TrashIcon />
                     </Button>
                   </div>
@@ -399,7 +399,7 @@ export function Groups() {
               </Card>
             )
           })}
-          {visibleGroups.length === 0 && <EmptyState title="暂无自定义策略组" description="默认策略组合会自动生成；这里只需要添加额外业务策略。" action={{ label: '添加自定义策略组', onClick: openCreate }} />}
+          {visibleGroups.length === 0 && <EmptyState title={t('groups.empty_title')} description={t('groups.empty_description')} action={{ label: t('groups.new'), onClick: openCreate }} />}
         </div>
       )}
 
@@ -441,10 +441,8 @@ export function Groups() {
         </div>
 
         <div className={styles.autoMembersInfo}>
-          <div className={styles.autoMembersTitle}>出口候选自动维护</div>
-          <div className={styles.autoMembersText}>
-            保存后系统会自动加入 PROXY、DIRECT、REJECT、全部节点、节点选择、自动选择、故障切换，以及当前可用的国家 / 标签节点组；全局节点出口默认使用排除高倍率节点后的可用节点池。
-          </div>
+          <div className={styles.autoMembersTitle}>{t('groups.auto_members_title')}</div>
+          <div className={styles.autoMembersText}>{t('groups.auto_members_text')}</div>
         </div>
       </Modal>
     </div>
@@ -459,8 +457,8 @@ function setFormValue<K extends keyof GroupForm>(
   setForm(current => ({ ...current, [key]: value }))
 }
 
-function formatTemplateCount(count: number): string {
-  return count > 0 ? `${count} 个业务组` : '仅基础目标'
+function formatTemplateCount(count: number, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return count > 0 ? t('groups.business_group_count', { count }) : t('groups.foundation_only')
 }
 
 function PlusIcon() {
@@ -479,24 +477,24 @@ function ArrowDownIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
 }
 
-function describeFoundationGroup(group: ProxyGroup): string {
-  if (group.name === 'PROXY') return '默认代理出口，自动聚合规则基础、默认可用节点池出口和可用节点组。'
-  if (group.name === 'DIRECT') return '直连出口，国内规则、局域网和无需代理的流量会命中这里。'
-  if (group.name === 'REJECT') return '拒绝出口，广告、HTTPDNS 等拦截规则会命中这里。'
-  if (group.name === '全部节点') return '包含默认可用节点池，默认排除高倍率节点，适合需要完整低成本节点池的手动选择场景。'
-  if (group.name === '节点选择') return '从默认可用节点池里手动选择一个具体节点或节点组，适合临时指定出口。'
-  if (group.name === '自动选择') return '从默认可用节点池里按延迟自动选择节点，作为默认代理出口的优先候选。'
-  if (group.name === '故障切换') return '从默认可用节点池里做故障切换，当前节点不可用时自动切到下一个。'
-  return '系统内置基础出口。'
+function describeFoundationGroup(group: ProxyGroup, t: (key: string) => string): string {
+  if (group.name === 'PROXY') return t('groups.foundation_proxy_desc')
+  if (group.name === 'DIRECT') return t('groups.foundation_direct_desc')
+  if (group.name === 'REJECT') return t('groups.foundation_reject_desc')
+  if (group.name === '全部节点') return t('groups.foundation_all_nodes_desc')
+  if (group.name === '节点选择') return t('groups.foundation_node_select_desc')
+  if (group.name === '自动选择') return t('groups.foundation_auto_select_desc')
+  if (group.name === '故障切换') return t('groups.foundation_fallback_desc')
+  return t('groups.foundation_default_desc')
 }
 
-function describeRoutingGroupMembers(group: ProxyGroup): string {
-  if (group.name === 'PROXY') return '默认代理出口，自动聚合规则基础、全局节点出口和可用节点组。'
-  return '自动包含基础出口、全局节点出口和可用节点组。'
+function describeRoutingGroupMembers(group: ProxyGroup, t: (key: string) => string): string {
+  if (group.name === 'PROXY') return t('groups.routing_proxy_summary')
+  return t('groups.routing_group_summary')
 }
 
 function getGroupName(groups: ProxyGroup[], id: string | undefined): string {
-  if (!id) return '无可用出口'
+  if (!id) return 'N/A'
   return groups.find(group => group.id === id)?.name ?? id
 }
 
