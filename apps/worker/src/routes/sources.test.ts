@@ -130,6 +130,14 @@ describe('Clash YAML Parser', () => {
       valid: false,
       error: 'tags must be an array of strings',
     })
+    expect(validateSourceMutableFields({ userAgent: 1 })).toEqual({
+      valid: false,
+      error: 'userAgent must be a string or null',
+    })
+    expect(validateSourceMutableFields({ notes: { text: 'note' } })).toEqual({
+      valid: false,
+      error: 'notes must be a string or null',
+    })
   })
 
   it('uses explicit source format hints before auto detection', () => {

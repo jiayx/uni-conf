@@ -620,6 +620,12 @@ export function validateSourceMutableFields(body: {
   if (body.updateInterval !== undefined && updateInterval === undefined) {
     return { valid: false, error: 'updateInterval must be a non-negative integer' };
   }
+  if (body.userAgent !== undefined && body.userAgent !== null && typeof body.userAgent !== 'string') {
+    return { valid: false, error: 'userAgent must be a string or null' };
+  }
+  if (body.notes !== undefined && body.notes !== null && typeof body.notes !== 'string') {
+    return { valid: false, error: 'notes must be a string or null' };
+  }
 
   let tags: string[] | undefined;
   if (body.tags !== undefined) {
