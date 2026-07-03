@@ -295,7 +295,7 @@ export interface ExportConfig {
   includeRuleIds: string[];
   includeRemoteSetIds: string[];
   // Format-specific overrides
-  extraConfig?: Record<string, unknown>;
+  extraConfig?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }

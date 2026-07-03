@@ -260,11 +260,16 @@ Remote rule set API writes validate custom rule sets before persistence. Names, 
 | include_group_ids | TEXT | JSON array (empty=all) |
 | include_rule_ids | TEXT | JSON array (empty=all) |
 | include_remote_set_ids | TEXT | JSON array (empty=all) |
-| extra_config | TEXT? | JSON of format-specific overrides |
+| extra_config | TEXT? | Optional JSON object of format-specific overrides; `NULL` means no overrides |
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
 The system ensures a built-in default export config exists:
+
+Export config create/update validation rejects malformed advanced overrides:
+
+- `extra_config` may only be a JSON object or `NULL`.
+- Scalar values and arrays are rejected before the config is stored.
 
 | Field | Value |
 |-------|-------|

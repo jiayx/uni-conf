@@ -45,7 +45,7 @@ exportRouter.post('/configs', async (c) => {
     JSON.stringify(selection.includeGroupIds),
     JSON.stringify(selection.includeRuleIds),
     JSON.stringify(selection.includeRemoteSetIds),
-    body.extraConfig ? JSON.stringify(body.extraConfig) : null,
+    selection.extraConfig ? JSON.stringify(selection.extraConfig) : null,
     ts, ts
   ).run()
 
@@ -123,7 +123,10 @@ exportRouter.put('/configs/:id', async (c) => {
   if (body.includeGroupIds !== undefined) { fields.push('include_group_ids = ?'); values.push(JSON.stringify(selection.includeGroupIds)) }
   if (body.includeRuleIds !== undefined) { fields.push('include_rule_ids = ?'); values.push(JSON.stringify(selection.includeRuleIds)) }
   if (body.includeRemoteSetIds !== undefined) { fields.push('include_remote_set_ids = ?'); values.push(JSON.stringify(selection.includeRemoteSetIds)) }
-  if (body.extraConfig !== undefined) { fields.push('extra_config = ?'); values.push(JSON.stringify(body.extraConfig)) }
+  if (body.extraConfig !== undefined) {
+    fields.push('extra_config = ?')
+    values.push(selection.extraConfig === null ? null : JSON.stringify(selection.extraConfig))
+  }
 
   // Reset token if requested
   if (body.token === 'reset') { fields.push('token = ?'); values.push(generateExportToken()) }
@@ -235,6 +238,7 @@ type ExportSelectionValidation =
       includeGroupIds: string[]
       includeRuleIds: string[]
       includeRemoteSetIds: string[]
+      extraConfig?: Record<string, unknown> | null
     }
   | { valid: false; error: string }
 
@@ -247,6 +251,8 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
   if (!includeRuleIds.valid) return includeRuleIds
   const includeRemoteSetIds = normalizeIdList(body.includeRemoteSetIds, 'includeRemoteSetIds')
   if (!includeRemoteSetIds.valid) return includeRemoteSetIds
+  const extraConfig = normalizeExtraConfig(body.extraConfig)
+  if (!extraConfig.valid) return extraConfig
 
   return {
     valid: true,
@@ -254,6 +260,7 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
     includeGroupIds: includeGroupIds.value,
     includeRuleIds: includeRuleIds.value,
     includeRemoteSetIds: includeRemoteSetIds.value,
+    ...(extraConfig.value !== undefined ? { extraConfig: extraConfig.value } : {}),
   }
 }
 
@@ -271,4 +278,17 @@ function normalizeIdList(value: unknown, field: string): IdListValidation {
     ids.push(item.trim())
   }
   return { valid: true, value: [...new Set(ids)] }
+}
+
+type ExtraConfigValidation =
+  | { valid: true; value?: Record<string, unknown> | null }
+  | { valid: false; error: string }
+
+function normalizeExtraConfig(value: unknown): ExtraConfigValidation {
+  if (value === undefined) return { valid: true, value: undefined }
+  if (value === null) return { valid: true, value: null }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return { valid: true, value: value as Record<string, unknown> }
+  }
+  return { valid: false, error: 'extraConfig must be an object or null' }
 }
