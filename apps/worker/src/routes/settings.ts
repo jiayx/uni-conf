@@ -48,7 +48,9 @@ app.put('/', async (c) => {
       body.theme ?? current.theme,
       nextRoutingPolicyTemplate,
       body.routingOutletPreferences !== undefined
-        ? JSON.stringify(body.routingOutletPreferences)
+        ? body.routingOutletPreferences === null
+          ? null
+          : JSON.stringify(body.routingOutletPreferences)
         : current.routingOutletPreferences !== undefined
           ? JSON.stringify(current.routingOutletPreferences)
           : null,
@@ -111,10 +113,10 @@ export function validateSettingsPatch(body: Partial<AppSettings>): string | null
   }
   if (body.routingOutletPreferences !== undefined) {
     if (
-      !body.routingOutletPreferences
-      || typeof body.routingOutletPreferences !== 'object'
+      body.routingOutletPreferences !== null
+      && (typeof body.routingOutletPreferences !== 'object'
       || Array.isArray(body.routingOutletPreferences)
-      || Object.entries(body.routingOutletPreferences).some(([key, value]) => !key.trim() || !isRoutingOutletPreferenceRef(value))
+      || Object.entries(body.routingOutletPreferences).some(([key, value]) => !key.trim() || !isRoutingOutletPreferenceRef(value)))
     ) {
       return 'invalid routing outlet preferences'
     }

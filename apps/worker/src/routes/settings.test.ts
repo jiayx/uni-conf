@@ -24,6 +24,7 @@ describe('settings route helpers', () => {
       defaultExportToken: ' token-1 ',
     })).toBeNull()
     expect(validateSettingsPatch({ defaultExportToken: null as never })).toBeNull()
+    expect(validateSettingsPatch({ routingOutletPreferences: null as never })).toBeNull()
   })
 
   it('rejects invalid enum settings', () => {
