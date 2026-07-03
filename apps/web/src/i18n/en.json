@@ -237,7 +237,17 @@
     "reorder_hint": "Default routing comes from routing policies; keep only manually added rules here, ordered by priority",
     "order": "Order",
     "payload_placeholder": "Enter match value",
-    "name_optional": "Rule name (optional)"
+    "name_optional": "Rule name (optional)",
+    "batch_add": "Batch Add Manual Rules",
+    "empty_title": "No manual traffic rules",
+    "empty_description": "Manual rules are usually unnecessary. Default routing is generated from preset rule sets in Routing Policies.",
+    "edit": "Edit Manual Rule",
+    "default_target": "System default: PROXY",
+    "batch_text": "Rule Text",
+    "batch_help": "Supports Clash line format. The target used after a match can be omitted; omitted targets use the selected target above, or PROXY when none is selected. Normal routing should prefer preset rule sets in Routing Policies.",
+    "delete_confirm": "Delete this rule?",
+    "payload_required": "Match value is required",
+    "no_valid_rules": "No valid rules found"
   },
   "remoteRuleSets": {
     "title": "Routing Policies",

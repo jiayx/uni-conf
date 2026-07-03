@@ -102,7 +102,7 @@ export function Rules() {
     }
 
     if (payload.type !== 'MATCH' && !payload.payload) {
-      setFormError('payload is required')
+      setFormError(t('rules.payload_required'))
       return
     }
     if (editingRule) {
@@ -119,7 +119,7 @@ export function Rules() {
   const handleBatchImport = async () => {
     const parsed = parseManualRules(batchText, batchTargetGroupId || defaultTargetGroupId, targetGroups, rules.length)
     if (parsed.length === 0) {
-      setBatchError('no valid rules found')
+      setBatchError(t('rules.no_valid_rules'))
       return
     }
 
@@ -146,15 +146,15 @@ export function Rules() {
         description={t('rules.reorder_hint')}
         actions={
           <div className={styles.headerActions}>
-            <Button variant="secondary" onClick={openBatch}>批量添加手动规则</Button>
+            <Button variant="secondary" onClick={openBatch}>{t('rules.batch_add')}</Button>
             <Button onClick={openCreate} icon={<PlusIcon />}>{t('rules.new')}</Button>
           </div>
         }
       />
       {loading && rules.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : rules.length === 0 ? (
         <EmptyState
-          title="暂无手动分流规则"
-          description="通常不需要添加手动规则；默认分流由「分流策略」里的预置规则集生成。"
+          title={t('rules.empty_title')}
+          description={t('rules.empty_description')}
           action={{ label: t('rules.new'), onClick: openCreate }}
         />
       ) : (
@@ -175,8 +175,8 @@ export function Rules() {
                     <div className={styles.orderCell}>
                       <span>{index + 1}</span>
                       <div className={styles.orderControls}>
-                        <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => moveRule(index, -1)} title="上移"><ArrowUpIcon /></Button>
-                        <Button variant="ghost" size="sm" disabled={index === rules.length - 1} onClick={() => moveRule(index, 1)} title="下移"><ArrowDownIcon /></Button>
+                        <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => moveRule(index, -1)} title={t('common.move_up')}><ArrowUpIcon /></Button>
+                        <Button variant="ghost" size="sm" disabled={index === rules.length - 1} onClick={() => moveRule(index, 1)} title={t('common.move_down')}><ArrowDownIcon /></Button>
                       </div>
                     </div>
                   </td>
@@ -200,7 +200,7 @@ export function Rules() {
                       <Button variant="ghost" size="sm" onClick={() => openEdit(rule)}>
                         {t('common.edit')}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => { if (confirm('删除此规则？')) void deleteRule(rule.id) }}>
+                      <Button variant="ghost" size="sm" onClick={() => { if (confirm(t('rules.delete_confirm'))) void deleteRule(rule.id) }}>
                         <TrashIcon />
                       </Button>
                     </div>
@@ -215,7 +215,7 @@ export function Rules() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingRule ? '编辑手动规则' : t('rules.new')}
+        title={editingRule ? t('rules.edit') : t('rules.new')}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
@@ -245,7 +245,7 @@ export function Rules() {
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
-            <option value="">系统默认：PROXY</option>
+            <option value="">{t('rules.default_target')}</option>
             {targetGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
@@ -263,7 +263,7 @@ export function Rules() {
       <Modal
         open={showBatchModal}
         onOpenChange={setShowBatchModal}
-        title="批量添加手动规则"
+        title={t('rules.batch_add')}
         size="lg"
         footer={
           <>
@@ -276,12 +276,12 @@ export function Rules() {
         <div>
           <label className={styles.label}>{t('rules.target')}</label>
           <select className={styles.select} value={batchTargetGroupId} onChange={e => setBatchTargetGroupId(e.target.value)}>
-            <option value="">系统默认：PROXY</option>
+            <option value="">{t('rules.default_target')}</option>
             {targetGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         </div>
         <div>
-          <label className={styles.label}>规则文本</label>
+          <label className={styles.label}>{t('rules.batch_text')}</label>
           <textarea
             className={styles.textarea}
             value={batchText}
@@ -290,7 +290,7 @@ export function Rules() {
           />
         </div>
         <div className={styles.helpText}>
-          支持 Clash 行格式；匹配后使用的出口可省略，省略时使用上方选择的出口，未选择则默认 PROXY。普通分流优先使用「分流策略」里的预置规则集。
+          {t('rules.batch_help')}
         </div>
       </Modal>
     </div>
