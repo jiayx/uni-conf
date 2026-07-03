@@ -71,7 +71,9 @@ app.put('/', async (c) => {
         : current.autoNodeGroupsEnabled ? 1 : 0,
       JSON.stringify(body.autoNodeGroupTypes ?? current.autoNodeGroupTypes),
       body.autoNodeGroupKeys !== undefined
-        ? JSON.stringify(body.autoNodeGroupKeys)
+        ? body.autoNodeGroupKeys === null
+          ? null
+          : JSON.stringify(body.autoNodeGroupKeys)
         : current.autoNodeGroupKeys !== undefined
           ? JSON.stringify(current.autoNodeGroupKeys)
           : null,
@@ -134,7 +136,10 @@ export function validateSettingsPatch(body: AppSettingsPatch): string | null {
     }
   }
   if (body.autoNodeGroupKeys !== undefined) {
-    if (!Array.isArray(body.autoNodeGroupKeys) || body.autoNodeGroupKeys.some((key) => !isCanonicalAutoNodeGroupKey(key))) {
+    if (
+      body.autoNodeGroupKeys !== null
+      && (!Array.isArray(body.autoNodeGroupKeys) || body.autoNodeGroupKeys.some((key) => !isCanonicalAutoNodeGroupKey(key)))
+    ) {
       return 'invalid auto node group key'
     }
   }

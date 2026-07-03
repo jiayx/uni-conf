@@ -336,9 +336,10 @@ export interface AppSettings {
   autoNodeGroupIncludeFlag: boolean;
 }
 
-export type AppSettingsPatch = Partial<Omit<AppSettings, 'routingOutletPreferences' | 'defaultExportToken'>> & {
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'routingOutletPreferences' | 'defaultExportToken' | 'autoNodeGroupKeys'>> & {
   routingOutletPreferences?: Record<string, string> | null;
   defaultExportToken?: string | null;
+  autoNodeGroupKeys?: string[] | null;
 };
 
 // ============================================================
