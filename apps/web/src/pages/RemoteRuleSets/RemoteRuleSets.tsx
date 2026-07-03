@@ -39,10 +39,10 @@ const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> 
   general: 'General',
 }
 
-const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; label: string }> = [
-  { value: 'domain', label: '域名' },
-  { value: 'ipcidr', label: 'IP CIDR' },
-  { value: 'classical', label: '完整规则行' },
+const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; labelKey: string }> = [
+  { value: 'domain', labelKey: 'remoteRuleSets.behavior_domain' },
+  { value: 'ipcidr', labelKey: 'remoteRuleSets.behavior_ipcidr' },
+  { value: 'classical', labelKey: 'remoteRuleSets.behavior_classical' },
 ]
 
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
@@ -190,7 +190,7 @@ export function RemoteRuleSets() {
     }
 
     if (!payload.name || !payload.url || !payload.targetGroupId) {
-      setFormError('名称、规则集来源和匹配后使用的出口必填')
+      setFormError(t('remoteRuleSets.required_error'))
       return
     }
 
@@ -208,7 +208,7 @@ export function RemoteRuleSets() {
 
   const handleToggle = async (set: RemoteRuleSet, targetEnabled: boolean) => {
     if (!targetEnabled && !set.enabled) {
-      setError('当前分流目标未在策略组组合中启用，切换组合后才能启用这些规则集')
+      setError(t('remoteRuleSets.disabled_target_error'))
       return
     }
     setError('')
@@ -222,7 +222,7 @@ export function RemoteRuleSets() {
 
   const handleToggleSection = async (groupId: string, sectionSets: RemoteRuleSet[], enabled: boolean, targetEnabled: boolean) => {
     if (enabled && !targetEnabled) {
-      setError('当前分流目标未在策略组组合中启用，切换组合后才能启用这些规则集')
+      setError(t('remoteRuleSets.disabled_target_error'))
       return
     }
     const changedSets = sectionSets.filter(set => set.enabled !== enabled)
@@ -244,7 +244,7 @@ export function RemoteRuleSets() {
   }
 
   const handleDelete = async (set: RemoteRuleSet) => {
-    if (!confirm(`删除规则集 ${set.name}?`)) return
+    if (!confirm(t('remoteRuleSets.delete_confirm', { name: set.name }))) return
     await api.remoteRuleSets.remove(set.id)
     setSets(current => current.filter(item => item.id !== set.id))
   }
@@ -252,12 +252,12 @@ export function RemoteRuleSets() {
   return (
     <div className={styles.page}>
       <PageHeader
-        title="分流策略"
-        description={`${setsByTargetGroup.length} 个策略，${sets.length} 个规则集`}
+        title={t('remoteRuleSets.title')}
+        description={t('remoteRuleSets.description', { strategyCount: setsByTargetGroup.length, setCount: sets.length })}
         actions={
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
-            <Button onClick={() => openCreate()} icon={<PlusIcon />}>添加补充规则集</Button>
+            <Button onClick={() => openCreate()} icon={<PlusIcon />}>{t('remoteRuleSets.add_supplement')}</Button>
           </div>
         }
       />
@@ -266,12 +266,12 @@ export function RemoteRuleSets() {
 
       <section className={styles.foundationPanel}>
         <div>
-          <div className={styles.foundationTitle}>固定基础目标</div>
-          <div className={styles.foundationMeta}>PROXY / DIRECT / REJECT 始终内置；规则集只需要选择匹配后使用哪个目标。</div>
+          <div className={styles.foundationTitle}>{t('remoteRuleSets.foundation_title')}</div>
+          <div className={styles.foundationMeta}>{t('remoteRuleSets.foundation_meta')}</div>
         </div>
         <div className={styles.foundationRows}>
           <div className={styles.foundationRow}>
-            <span className={styles.foundationLabel}>规则基础</span>
+            <span className={styles.foundationLabel}>{t('groups.rule_foundation')}</span>
             <div className={styles.foundationBadges}>
               {RULE_TARGET_FOUNDATION_GROUP_NAMES.map(name => (
                 <Badge key={name} variant="default">{name}</Badge>
@@ -279,7 +279,7 @@ export function RemoteRuleSets() {
             </div>
           </div>
           <div className={styles.foundationRow}>
-            <span className={styles.foundationLabel}>节点出口</span>
+            <span className={styles.foundationLabel}>{t('groups.node_outlets')}</span>
             <div className={styles.foundationBadges}>
               {GLOBAL_NODE_OUTLET_GROUP_NAMES.map(name => (
                 <Badge key={name} variant="default">{name}</Badge>
@@ -292,17 +292,24 @@ export function RemoteRuleSets() {
       {loading && sets.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : sets.length === 0 ? (
-        <EmptyState title="暂无分流策略" description="默认分流策略会由系统自动生成；这里通常只需要添加补充规则集。" action={{ label: '添加补充规则集', onClick: () => openCreate() }} />
+        <EmptyState
+          title={t('remoteRuleSets.empty_title')}
+          description={t('remoteRuleSets.empty_description')}
+          action={{ label: t('remoteRuleSets.add_supplement'), onClick: () => openCreate() }}
+        />
       ) : (
         <div className={styles.groupedList}>
           {setsByTargetGroup.map(section => (
             <section key={section.groupId} className={styles.ruleSetSection}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <div className={styles.sectionKicker}>匹配后使用</div>
+                  <div className={styles.sectionKicker}>{t('remoteRuleSets.target')}</div>
                   <div className={styles.sectionTitle}>{section.groupName}</div>
                   <div className={styles.sectionMeta}>
-                    {section.sets.length} 个匹配规则集，{section.sets.filter(set => set.enabled).length} 个启用
+                    {t('remoteRuleSets.section_meta', {
+                      setCount: section.sets.length,
+                      enabledCount: section.sets.filter(set => set.enabled).length,
+                    })}
                   </div>
                 </div>
                 <div className={styles.sectionActions}>
@@ -313,12 +320,14 @@ export function RemoteRuleSets() {
                       onChange={event => void handleToggleSection(section.groupId, section.sets, event.target.checked, section.targetEnabled)}
                       disabled={togglingGroupId === section.groupId || (!section.targetEnabled && !section.sets.some(set => set.enabled))}
                     />
-                    <span>{sectionEnabledLabel(section.sets)}</span>
+                    <span>{sectionEnabledLabel(section.sets, t)}</span>
                   </label>
                   <Badge variant={section.targetEnabled ? 'purple' : 'default'}>
-                    {section.targetEnabled ? '分流目标' : '当前组合未启用'}
+                    {section.targetEnabled ? t('remoteRuleSets.rule_target') : t('remoteRuleSets.target_disabled')}
                   </Badge>
-                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)} disabled={!section.targetEnabled}>添加补充规则集</Button>
+                  <Button variant="secondary" size="sm" onClick={() => openCreate(section.groupId)} disabled={!section.targetEnabled}>
+                    {t('remoteRuleSets.add_supplement')}
+                  </Button>
                 </div>
               </div>
               <div className={styles.grid}>
@@ -337,13 +346,13 @@ export function RemoteRuleSets() {
                       <div className={styles.cardTitle}>{set.name}</div>
                     </div>
                     <div className={styles.meta}>
-                      <Badge variant="info">{ruleSetBadgeLabel(set)}</Badge>
-                      <Badge variant="default">{ruleSetBehaviorLabel(set.behavior)}</Badge>
+                      <Badge variant="info">{ruleSetBadgeLabel(set, t)}</Badge>
+                      <Badge variant="default">{ruleSetBehaviorLabel(set.behavior, t)}</Badge>
                       <Badge variant="default">{set.updateInterval}h</Badge>
                     </div>
                     <div className={styles.url}>{set.url}</div>
                     {isSystemDisabledRemoteRuleSet(set.notes) && (
-                      <div className={styles.systemNotice}>当前组合未启用这个分流目标，切换组合后可自动启用。</div>
+                      <div className={styles.systemNotice}>{t('remoteRuleSets.system_disabled_notice')}</div>
                     )}
                     {visibleRemoteRuleSetNotes(set.notes) && <div className={styles.notes}>{visibleRemoteRuleSetNotes(set.notes)}</div>}
                     <div className={styles.cardActions}>
@@ -352,7 +361,7 @@ export function RemoteRuleSets() {
                           {t('common.edit')}
                         </Button>
                       ) : (
-                        <Badge variant="default">系统维护</Badge>
+                        <Badge variant="default">{t('remoteRuleSets.system_managed')}</Badge>
                       )}
                       {canEditRemoteRuleSet(set) && (
                         <Button variant="ghost" size="sm" onClick={() => void handleDelete(set)}>
@@ -371,7 +380,7 @@ export function RemoteRuleSets() {
       <Modal
         open={showModal}
         onOpenChange={setShowModal}
-        title={editingSet ? '编辑补充规则集' : '添加补充规则集'}
+        title={editingSet ? t('remoteRuleSets.edit_supplement') : t('remoteRuleSets.add_supplement')}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
@@ -382,9 +391,9 @@ export function RemoteRuleSets() {
         {formError && <div className={styles.formError}>{formError}</div>}
         {!editingSet && (
           <div className={styles.presetSection}>
-            <label className={styles.label}>从规则集资源库添加</label>
+            <label className={styles.label}>{t('remoteRuleSets.preset_label')}</label>
             <select className={styles.select} value={selectedPresetId} onChange={e => applyPreset(e.target.value)}>
-              <option value="">手动填写规则集 URL</option>
+              <option value="">{t('remoteRuleSets.manual_url_option')}</option>
               {Object.entries(presetsByCategory).map(([category, presets]) => (
                 <optgroup key={category} label={PRESET_CATEGORY_LABELS[category as QuixoticRuleSetPreset['category']] ?? category}>
                   {presets.map(preset => (
@@ -394,46 +403,46 @@ export function RemoteRuleSets() {
               ))}
             </select>
             <div className={styles.helperText}>
-              选择预置后会自动填充匹配规则，并建议“匹配后使用”的出口。
+              {t('remoteRuleSets.preset_help')}
             </div>
           </div>
         )}
         <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} />
         {formPresetId ? (
           <div>
-            <label className={styles.label}>规则集来源</label>
-            <div className={styles.helperText}>已从 QuixoticHeart/rule-set:{formPresetId} 按当前格式填充 URL；保存后作为可删除的补充规则集。</div>
+            <label className={styles.label}>{t('remoteRuleSets.source_label')}</label>
+            <div className={styles.helperText}>{t('remoteRuleSets.preset_source_help', { presetId: formPresetId })}</div>
           </div>
         ) : (
           <>
             <Input label="URL" value={form.url} onChange={e => setFormValue('url', e.target.value, setForm)} />
             <div>
-              <label className={styles.label}>规则集格式</label>
+              <label className={styles.label}>{t('remoteRuleSets.format_label')}</label>
               <select className={styles.select} value={form.format} onChange={e => handleFormatChange(e.target.value as RuleSetFormat)}>
                 {RULE_SET_FORMAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               {selectedFormatOption && (
-                <div className={styles.helperText}>适用导出目标：{selectedFormatOption.exportTargets}</div>
+                <div className={styles.helperText}>{t('remoteRuleSets.export_targets', { targets: selectedFormatOption.exportTargets })}</div>
               )}
             </div>
             <div>
-              <label className={styles.label}>匹配内容</label>
+              <label className={styles.label}>{t('remoteRuleSets.behavior_label')}</label>
               <select className={styles.select} value={form.behavior} onChange={e => setFormValue('behavior', e.target.value as RuleSetBehavior, setForm)}>
-                {RULE_SET_BEHAVIOR_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                {RULE_SET_BEHAVIOR_OPTIONS.map(option => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
               </select>
-              <div className={styles.helperText}>描述规则内容语义；纯域名列表选“域名”，Clash/Mihomo 完整规则行选“完整规则行”，导出时会按目标客户端转换。</div>
+              <div className={styles.helperText}>{t('remoteRuleSets.behavior_help')}</div>
             </div>
           </>
         )}
 
         <div>
-          <label className={styles.label}>匹配后使用</label>
+          <label className={styles.label}>{t('remoteRuleSets.target')}</label>
           <select className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
-            <option value="">系统默认：PROXY</option>
+            <option value="">{t('remoteRuleSets.default_target')}</option>
             {targetGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </div>
-        <Input label="更新间隔（小时）" type="number" min="1" value={form.updateInterval} onChange={e => setFormValue('updateInterval', Number(e.target.value), setForm)} />
+        <Input label={t('remoteRuleSets.update_interval')} type="number" min="1" value={form.updateInterval} onChange={e => setFormValue('updateInterval', Number(e.target.value), setForm)} />
         <Input label={t('common.notes')} value={form.notes ?? ''} onChange={e => setFormValue('notes', e.target.value, setForm)} />
         <label className={styles.checkboxRow}>
           <input type="checkbox" checked={form.enabled} onChange={e => setFormValue('enabled', e.target.checked, setForm)} />
@@ -459,25 +468,26 @@ function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
   }, {} as Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>)
 }
 
-function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>): string {
-  if (set.presetSource === 'quixotic') return '预置'
-  if (set.presetSource === 'uni-conf') return '内置'
+function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>, t: (key: string) => string): string {
+  if (set.presetSource === 'quixotic') return t('remoteRuleSets.preset_badge')
+  if (set.presetSource === 'uni-conf') return t('remoteRuleSets.builtin_badge')
   return set.format
 }
 
-function ruleSetBehaviorLabel(behavior: RuleSetBehavior): string {
-  return RULE_SET_BEHAVIOR_OPTIONS.find(option => option.value === behavior)?.label ?? behavior
+function ruleSetBehaviorLabel(behavior: RuleSetBehavior, t: (key: string) => string): string {
+  const option = RULE_SET_BEHAVIOR_OPTIONS.find(option => option.value === behavior)
+  return option ? t(option.labelKey) : behavior
 }
 
 function canEditRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetId'>): boolean {
   return !(set.presetSource && set.presetId)
 }
 
-function sectionEnabledLabel(sets: RemoteRuleSet[]): string {
+function sectionEnabledLabel(sets: RemoteRuleSet[], t: (key: string) => string): string {
   const enabledCount = sets.filter(set => set.enabled).length
-  if (enabledCount === 0) return '全部停用'
-  if (enabledCount === sets.length) return '全部启用'
-  return '部分启用'
+  if (enabledCount === 0) return t('remoteRuleSets.all_disabled')
+  if (enabledCount === sets.length) return t('remoteRuleSets.all_enabled')
+  return t('remoteRuleSets.partially_enabled')
 }
 
 function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number; enabled?: boolean }>) {
