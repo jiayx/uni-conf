@@ -171,6 +171,24 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- Insert default settings
 INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES ('singleton', datetime('now'));
 
+-- Insert managed default node pool
+INSERT OR IGNORE INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at) VALUES
+  (
+    'builtin-default-node-pool',
+    '默认可用节点',
+    '[]',
+    '[]',
+    '[{"id":"default-exclude-high-multiplier","field":"tag","operator":"not_in","value":["high-multiplier"],"enabled":true}]',
+    '[]',
+    'full_config',
+    'name',
+    '[]',
+    1,
+    '[uni-conf:default-node-pool]',
+    datetime('now'),
+    datetime('now')
+  );
+
 -- Insert default builtin groups
 INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtins, enabled, sort_order, is_builtin, created_at, updated_at) VALUES
   ('builtin-proxy',     'PROXY',     'select',   '[]', '[]', '[]',         1, 0,  1, datetime('now'), datetime('now')),
@@ -179,15 +197,16 @@ INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtin
   ('builtin-telegram',  'Telegram',  'select',   '[]', '[]', '[]', 1, 3,  1, datetime('now'), datetime('now')),
   ('builtin-social',    'Social',    'select',   '[]', '[]', '[]', 1, 4,  1, datetime('now'), datetime('now')),
   ('builtin-github',    'GitHub',    'select',   '[]', '[]', '[]', 1, 5,  1, datetime('now'), datetime('now')),
-  ('builtin-apple',     'Apple',     'select',   '[]', '[]', '[]', 1, 6,  1, datetime('now'), datetime('now')),
-  ('builtin-microsoft', 'Microsoft', 'select',   '[]', '[]', '[]', 1, 7,  1, datetime('now'), datetime('now')),
-  ('builtin-final',     '漏网之鱼',   'select',   '[]', '[]', '[]', 1, 8,  1, datetime('now'), datetime('now')),
-  ('builtin-crypto',    'Crypto',    'select',   '[]', '[]', '[]', 0, 9,  1, datetime('now'), datetime('now')),
-  ('builtin-gaming',    'Gaming',    'select',   '[]', '[]', '[]', 0, 10, 1, datetime('now'), datetime('now')),
-  ('builtin-developer', 'Developer', 'select',   '[]', '[]', '[]', 0, 11, 1, datetime('now'), datetime('now')),
-  ('builtin-direct',    'DIRECT',    'direct',   '[]', '[]', '["DIRECT"]',  1, 12, 1, datetime('now'), datetime('now')),
-  ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 13, 1, datetime('now'), datetime('now')),
-  ('builtin-all-nodes', '全部节点',   'select',   '[]', '[]', '[]',          1, 14, 1, datetime('now'), datetime('now')),
-  ('builtin-node-select', '节点选择', 'select',   '[]', '[]', '[]',          1, 15, 1, datetime('now'), datetime('now')),
-  ('builtin-auto-select', '自动选择', 'url-test', '[]', '[]', '[]',          1, 16, 1, datetime('now'), datetime('now')),
-  ('builtin-fallback-select', '故障切换', 'fallback', '[]', '[]', '[]',      1, 17, 1, datetime('now'), datetime('now'));
+  ('builtin-google',    'Google',    'select',   '[]', '[]', '[]', 1, 6,  1, datetime('now'), datetime('now')),
+  ('builtin-apple',     'Apple',     'select',   '[]', '[]', '[]', 1, 7,  1, datetime('now'), datetime('now')),
+  ('builtin-microsoft', 'Microsoft', 'select',   '[]', '[]', '[]', 1, 8,  1, datetime('now'), datetime('now')),
+  ('builtin-final',     '漏网之鱼',   'select',   '[]', '[]', '[]', 1, 9,  1, datetime('now'), datetime('now')),
+  ('builtin-crypto',    'Crypto',    'select',   '[]', '[]', '[]', 0, 10, 1, datetime('now'), datetime('now')),
+  ('builtin-gaming',    'Gaming',    'select',   '[]', '[]', '[]', 0, 11, 1, datetime('now'), datetime('now')),
+  ('builtin-developer', 'Developer', 'select',   '[]', '[]', '[]', 0, 12, 1, datetime('now'), datetime('now')),
+  ('builtin-direct',    'DIRECT',    'direct',   '[]', '[]', '["DIRECT"]',  1, 13, 1, datetime('now'), datetime('now')),
+  ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 14, 1, datetime('now'), datetime('now')),
+  ('builtin-all-nodes', '全部节点',   'select',   '["builtin-default-node-pool"]', '[]', '[]', 1, 15, 1, datetime('now'), datetime('now')),
+  ('builtin-node-select', '节点选择', 'select',   '["builtin-default-node-pool"]', '[]', '[]', 1, 16, 1, datetime('now'), datetime('now')),
+  ('builtin-auto-select', '自动选择', 'url-test', '["builtin-default-node-pool"]', '[]', '[]', 1, 17, 1, datetime('now'), datetime('now')),
+  ('builtin-fallback-select', '故障切换', 'fallback', '["builtin-default-node-pool"]', '[]', '[]', 1, 18, 1, datetime('now'), datetime('now'));

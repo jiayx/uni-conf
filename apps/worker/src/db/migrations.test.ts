@@ -51,6 +51,25 @@ describe('database migrations', () => {
       expect(migration).toContain(`WHEN '${id}' THEN '["builtin-default-node-pool"]'`)
     }
   })
+
+  it('keeps the fresh install schema aligned with the managed zero-setup graph', () => {
+    const initialSchema = readFileSync(join(migrationsDir, '0001_initial_schema.sql'), 'utf8')
+
+    expect(initialSchema).toContain('builtin-default-node-pool')
+    expect(initialSchema).toContain('[uni-conf:default-node-pool]')
+    expect(initialSchema).toContain('"operator":"not_in"')
+    expect(initialSchema).toContain('"high-multiplier"')
+    expect(initialSchema).toContain("'builtin-google',    'Google'")
+    for (const id of [
+      'builtin-all-nodes',
+      'builtin-node-select',
+      'builtin-auto-select',
+      'builtin-fallback-select',
+    ]) {
+      const line = initialSchema.split('\n').find((item) => item.includes(`('${id}'`))
+      expect(line).toContain("'[\"builtin-default-node-pool\"]'")
+    }
+  })
 })
 
 function parseCreateTableColumns(sql: string): Map<string, Set<string>> {
