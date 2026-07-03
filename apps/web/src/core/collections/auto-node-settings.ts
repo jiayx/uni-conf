@@ -6,7 +6,19 @@ import {
   parseAutoNodeGroupKey,
   type AutoNodeGroupMarker,
 } from '@uni-conf/shared'
-import type { AppSettings, AutoNodeGroupType, ProxyNode } from '@uni-conf/types'
+import type { AppSettingsPatch, AutoNodeGroupType, ProxyNode } from '@uni-conf/types'
+
+type AutoNodeGroupSettingsPatch = Pick<AppSettingsPatch, 'autoNodeGroupsEnabled' | 'autoNodeGroupTypes' | 'autoNodeGroupKeys' | 'autoNodeGroupIncludeFlag'> & {
+  autoNodeGroupsEnabled: boolean
+  autoNodeGroupTypes: AutoNodeGroupType[]
+  autoNodeGroupKeys: string[]
+  autoNodeGroupIncludeFlag: boolean
+}
+
+type AutoNodeGroupTypeSettingsPatch = Pick<AppSettingsPatch, 'autoNodeGroupsEnabled' | 'autoNodeGroupTypes'> & {
+  autoNodeGroupsEnabled: boolean
+  autoNodeGroupTypes: AutoNodeGroupType[]
+}
 
 export {
   makeCountryAutoNodeGroupKey,
@@ -41,7 +53,7 @@ export function buildAutoNodeGroupSettingsPatch({
   selectedTypes: Iterable<AutoNodeGroupType>
   selectedKeys: Iterable<string>
   includeFlag: boolean
-}): Pick<AppSettings, 'autoNodeGroupsEnabled' | 'autoNodeGroupTypes' | 'autoNodeGroupKeys' | 'autoNodeGroupIncludeFlag'> {
+}): AutoNodeGroupSettingsPatch {
   const autoNodeGroupTypes = normalizeAutoNodeGroupTypeSelection(selectedTypes)
   const autoNodeGroupKeys = [...selectedKeys]
   return {
@@ -55,7 +67,7 @@ export function buildAutoNodeGroupSettingsPatch({
 export function buildAutoNodeGroupTypeSettingsPatch(
   currentTypes: readonly AutoNodeGroupType[],
   type: AutoNodeGroupType
-): Pick<AppSettings, 'autoNodeGroupsEnabled' | 'autoNodeGroupTypes'> {
+): AutoNodeGroupTypeSettingsPatch {
   const autoNodeGroupTypes = toggleAutoNodeGroupTypeSelection(currentTypes, type)
   return {
     autoNodeGroupsEnabled: autoNodeGroupTypes.length > 0,
