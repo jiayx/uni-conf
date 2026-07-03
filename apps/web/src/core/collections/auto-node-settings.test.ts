@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildAutoNodeGroupSettingsPatch,
+  buildAutoNodeGroupKeysForSuggestions,
   buildAutoNodeGroupTypeSettingsPatch,
   buildAutoNodeTagSuggestions,
   parseAutoNodeGroupKey,
@@ -88,6 +89,19 @@ describe('auto node group settings helpers', () => {
       'country:US:fallback',
       'tag:streaming:select',
       'tag:streaming:fallback',
+    ])
+  })
+
+  it('builds default auto node group keys from country and tag suggestions', () => {
+    expect([...buildAutoNodeGroupKeysForSuggestions({
+      countryCodes: ['us', 'HK'],
+      tagKeys: ['streaming', 'native'],
+      types: ['url-test'],
+    })]).toEqual([
+      'country:US:url-test',
+      'country:HK:url-test',
+      'tag:streaming:url-test',
+      'tag:native:url-test',
     ])
   })
 })

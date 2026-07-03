@@ -76,6 +76,30 @@ export function buildAutoNodeTagSuggestions(nodes: ProxyNode[]): Array<{ key: st
     .filter(item => item.count > 0)
 }
 
+export function buildAutoNodeGroupKeysForSuggestions({
+  countryCodes,
+  tagKeys,
+  types,
+}: {
+  countryCodes: Iterable<string>
+  tagKeys: Iterable<string>
+  types: Iterable<AutoNodeGroupType>
+}): Set<string> {
+  const selectedTypes = [...types]
+  const keys = new Set<string>()
+  for (const countryCode of countryCodes) {
+    for (const type of selectedTypes) {
+      keys.add(makeCountryAutoNodeGroupKey(countryCode, type))
+    }
+  }
+  for (const tagKey of tagKeys) {
+    for (const type of selectedTypes) {
+      keys.add(makeTagAutoNodeGroupKey(tagKey, type))
+    }
+  }
+  return keys
+}
+
 export function rebuildAutoNodeGroupKeysForTypes(
   source: Iterable<string>,
   types: Iterable<AutoNodeGroupType>

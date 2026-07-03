@@ -15,6 +15,7 @@ import { useSettingsStore } from '@/store/settings.store'
 import { api } from '@/lib/api'
 import {
   buildAutoNodeGroupSettingsPatch,
+  buildAutoNodeGroupKeysForSuggestions,
   buildAutoNodeTagSuggestions,
   makeCountryAutoNodeGroupKey,
   makeTagAutoNodeGroupKey,
@@ -225,9 +226,11 @@ export function Collections() {
       ? new Set<string>()
       : configuredKeys ?? (existingKeys.size > 0
           ? existingKeys
-          : new Set(countrySuggestions.flatMap(item =>
-              (configuredTypes.length > 0 ? configuredTypes : (['url-test'] as GeneratedGroupType[])).map(type => makeCountryAutoNodeGroupKey(item.countryCode, type))
-            )))
+          : buildAutoNodeGroupKeysForSuggestions({
+              countryCodes: countrySuggestions.map(item => item.countryCode),
+              tagKeys: tagSuggestions.map(item => item.key),
+              types: configuredTypes.length > 0 ? configuredTypes : (['url-test'] as GeneratedGroupType[]),
+            }))
     const defaultTypes = new Set<GeneratedGroupType>(configuredTypes.filter(isGeneratedGroupType))
     for (const key of defaultKeys) {
       const marker = parseAutoNodeGroupKey(key)
@@ -548,7 +551,7 @@ export function Collections() {
       <Modal
         open={showAutoModal}
         onOpenChange={setShowAutoModal}
-        title="按国家/地区自动生成节点组"
+        title="自动生成节点组"
         size="lg"
         footer={
           <>
@@ -645,7 +648,7 @@ export function Collections() {
             )}
           </div>
           <div className={styles.inlineEmpty}>
-            默认选择自动测速节点组，也可以同时生成手动选择或故障转移节点组。取消某个国家/地区后，已自动生成的对应节点组会被移除；订阅源节点组会按成员节点直接导入。
+            默认选择自动测速节点组，也可以同时生成手动选择或故障转移节点组。取消某个国家/地区或标签节点池后，已自动生成的对应节点组会被移除；订阅源节点组会按成员节点直接导入。
           </div>
         </div>
       </Modal>
