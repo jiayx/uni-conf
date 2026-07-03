@@ -104,7 +104,7 @@ export function Dashboard() {
 
       setSourceUrl(summary.nextInput)
       if (summary.error?.kind === 'save-failed') {
-        setSourceError(`${summary.error.count ?? 0} 个订阅源保存失败：${summary.error.message}`)
+        setSourceError(t('sources.save_failed_count', { count: summary.error.count ?? 0, message: summary.error.message }))
       } else if (summary.error?.kind === 'refresh-failed') {
         setSourceError(t('dashboard.source_refresh_failed', { error: summary.error.message }))
       }
@@ -228,7 +228,7 @@ export function Dashboard() {
             {quickSubscriptionLinks.map(item => (
               <div key={item.value} className={styles.quickLink}>
                 <div className={styles.quickLinkHeader}>
-                  <strong>{item.label}</strong>
+                  <strong>{t(`export.formats.${item.value}`)}</strong>
                   <div className={styles.quickLinkActions}>
                     <Button variant="secondary" size="sm" onClick={() => copySubscriptionUrl(item.value, item.url)}>
                       {copiedFormat === item.value ? t('common.copied') : t('export.copy_url')}
