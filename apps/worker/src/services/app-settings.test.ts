@@ -6,6 +6,7 @@ import {
   normalizeExportNodeNamingMode,
   normalizeOptionalStringList,
   normalizePositiveInteger,
+  normalizeRoutingPolicyTemplate,
 } from './app-settings'
 
 describe('app settings normalization', () => {
@@ -22,6 +23,8 @@ describe('app settings normalization', () => {
     expect(normalizePositiveInteger(0, 1440)).toBe(1440)
     expect(normalizePositiveInteger('30', 1440)).toBe(30)
     expect(normalizeDnsMode('unknown')).toBe('smart')
+    expect(normalizeRoutingPolicyTemplate('unknown')).toBe('common')
+    expect(normalizeRoutingPolicyTemplate('router')).toBe('router')
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')
   })
 
