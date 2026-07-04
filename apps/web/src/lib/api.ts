@@ -118,10 +118,7 @@ function buildNodeListQuery(params?: NodeListParams): string {
 }
 
 const nodes = {
-  list: async (params?: NodeListParams): Promise<ProxyNode[]> => {
-    const result = await get<PaginatedResponse<ProxyNode>>(`/nodes${buildNodeListQuery(params)}`)
-    return result.items
-  },
+  list: (params?: NodeListParams): Promise<ProxyNode[]> => listAllNodes(params),
   listPage: (params?: NodeListParams): Promise<PaginatedResponse<ProxyNode>> =>
     get(`/nodes${buildNodeListQuery(params)}`),
   get: (id: string): Promise<ProxyNode> => get(`/nodes/${id}`),
@@ -129,6 +126,21 @@ const nodes = {
     post('/nodes', data),
   update: (id: string, data: Partial<ProxyNode>): Promise<ProxyNode> => put(`/nodes/${id}`, data),
   remove: (id: string): Promise<void> => del(`/nodes/${id}`),
+}
+
+async function listAllNodes(params?: NodeListParams): Promise<ProxyNode[]> {
+  const pageSize = 200
+  const firstPage = await nodes.listPage({ ...params, page: 1, pageSize })
+  const items = [...firstPage.items]
+  const total = firstPage.total
+
+  for (let page = 2; items.length < total; page += 1) {
+    const nextPage = await nodes.listPage({ ...params, page, pageSize })
+    if (nextPage.items.length === 0) break
+    items.push(...nextPage.items)
+  }
+
+  return items
 }
 
 // ============================================================

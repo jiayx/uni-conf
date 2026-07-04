@@ -113,6 +113,36 @@ export function nodeToSubscriptionUri(node: Record<string, unknown>): string | n
     return `socks5://${userPart}${server}:${port}#${name}`
   }
 
+  if (protocol === 'http' || protocol === 'https') {
+    const username = String(extra?.['username'] ?? '')
+    const password = String(parsed?.['password'] ?? '')
+    const userPart = username || password
+      ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
+      : ''
+    return `${protocol}://${userPart}${server}:${port}#${name}`
+  }
+
+  if (protocol === 'ssh') {
+    const username = String(extra?.['username'] ?? 'root')
+    const password = String(parsed?.['password'] ?? '')
+    const userPart = password
+      ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
+      : `${encodeURIComponent(username)}@`
+    return `ssh://${userPart}${server}:${port}#${name}`
+  }
+
+  if (protocol === 'shadowtls') {
+    const password = encodeURIComponent(String(parsed?.['password'] ?? ''))
+    const params = buildParams(parsed)
+    return `shadowtls://${password}@${server}:${port}${params ? `?${params}` : ''}#${name}`
+  }
+
+  if (protocol === 'wireguard') {
+    const privateKey = encodeURIComponent(String(extra?.['privateKey'] ?? parsed?.['password'] ?? ''))
+    const params = buildParams(parsed)
+    return `wireguard://${privateKey}@${server}:${port}${params ? `?${params}` : ''}#${name}`
+  }
+
   return null
 }
 
@@ -148,6 +178,10 @@ function buildParams(
   if (extra?.['fingerprint']) params.set('fp', String(extra['fingerprint']))
   if (extra?.['fp']) params.set('fp', String(extra['fp']))
   if (extra?.['udp'] !== undefined) params.set('udp', String(Boolean(extra['udp'])))
+  if (extra?.['publicKey']) params.set('public-key', String(extra['publicKey']))
+  if (extra?.['presharedKey']) params.set('pre-shared-key', String(extra['presharedKey']))
+  if (extra?.['ip']) params.set('address', normalizeAddressParam(extra['ip']))
+  if (extra?.['address']) params.set('address', normalizeAddressParam(extra['address']))
 
   return params.toString()
 }
@@ -161,4 +195,9 @@ function encodeBase64Url(value: string): string {
   return btoa(encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_, hex: string) =>
     String.fromCharCode(parseInt(hex, 16))
   )).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function normalizeAddressParam(value: unknown): string {
+  if (Array.isArray(value)) return value.map(String).join(',')
+  return String(value)
 }

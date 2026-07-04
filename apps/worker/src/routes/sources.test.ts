@@ -278,6 +278,65 @@ proxies:
     ])
   })
 
+  it('parses text client proxy sections instead of treating them as raw URI files', () => {
+    const result = detectAndParse(`
+[General]
+loglevel = notify
+
+[Proxy]
+HK SS = ss, hk.example.com, 8388, encrypt-method=aes-256-gcm, password=secret
+SG Trojan = trojan, sg.example.com, 443, password=pwd, sni=sg.example.com
+HTTPS Proxy = http, https.example.com, 443, tls=true
+`, 'surge')
+
+    expect(result.format).toBe('surge')
+    expect(result.nodes).toEqual([
+      expect.objectContaining({
+        name: 'HK SS',
+        protocol: 'ss',
+        server: 'hk.example.com',
+        port: 8388,
+        parsedConfig: expect.objectContaining({
+          password: 'secret',
+          extra: expect.objectContaining({ cipher: 'aes-256-gcm' }),
+        }),
+      }),
+      expect.objectContaining({
+        name: 'SG Trojan',
+        protocol: 'trojan',
+        server: 'sg.example.com',
+        parsedConfig: expect.objectContaining({
+          password: 'pwd',
+          sni: 'sg.example.com',
+        }),
+      }),
+      expect.objectContaining({
+        name: 'HTTPS Proxy',
+        protocol: 'https',
+        parsedConfig: expect.objectContaining({ tls: true }),
+      }),
+    ])
+  })
+
+  it('parses Quantumult X server_local URI sections', () => {
+    const result = detectAndParse(`
+[general]
+server_check_url=http://www.gstatic.com/generate_204
+
+[server_local]
+trojan://pwd@jp.example.com:443?sni=jp.example.com#JP%20Trojan
+`, 'quantumultx')
+
+    expect(result.format).toBe('quantumultx')
+    expect(result.nodes).toEqual([
+      expect.objectContaining({
+        name: 'JP Trojan',
+        protocol: 'trojan',
+        server: 'jp.example.com',
+      }),
+    ])
+  })
+
   it('should parse upstream proxy groups from Clash YAML', () => {
     const groupsYaml = `
 proxies:

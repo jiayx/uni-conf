@@ -297,14 +297,16 @@ describe('export validation', () => {
     expect(warnings).not.toContainEqual(expect.objectContaining({ message: expect.stringContaining('高级 fake-ip') }));
   });
 
-  it('keeps node protocol warnings for node-only subscriptions', () => {
+  it('accepts WireGuard nodes for node-only subscriptions', () => {
     const warnings = validateExportData(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
     }), 'nodes_raw');
 
-    expect(warnings).toContainEqual(expect.objectContaining({
+    expect(findBlockingNodeExportWarning(makeExportData({
+      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+    }), 'nodes_raw')).toBeNull();
+    expect(warnings).not.toContainEqual(expect.objectContaining({
       nodeId: 'node-wg',
-      level: 'partial',
       message: expect.stringContaining('wireguard'),
     }));
   });

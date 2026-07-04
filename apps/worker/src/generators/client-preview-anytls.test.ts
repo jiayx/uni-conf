@@ -106,6 +106,62 @@ const hysteriaRow: Record<string, unknown> = {
   }),
 }
 
+const wireguardRow: Record<string, unknown> = {
+  id: 'node-wireguard',
+  name: 'US WireGuard',
+  protocol: 'wireguard',
+  server: 'wg.example.com',
+  port: 51820,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'wireguard',
+    server: 'wg.example.com',
+    port: 51820,
+    extra: {
+      privateKey: 'private-key',
+      publicKey: 'public-key',
+      presharedKey: 'psk',
+      ip: ['10.0.0.2/32', 'fd00::2/128'],
+    },
+  }),
+}
+
+const httpsRow: Record<string, unknown> = {
+  id: 'node-https',
+  name: 'HTTPS Proxy',
+  protocol: 'https',
+  server: 'https.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'https',
+    server: 'https.example.com',
+    port: 443,
+    password: 'pass',
+    extra: {
+      username: 'user',
+    },
+  }),
+}
+
+const shadowTlsRow: Record<string, unknown> = {
+  id: 'node-shadowtls',
+  name: 'ShadowTLS Proxy',
+  protocol: 'shadowtls',
+  server: 'shadowtls.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'shadowtls',
+    server: 'shadowtls.example.com',
+    port: 443,
+    password: 'secret',
+    tls: true,
+    sni: 'gateway.example.com',
+    extra: {},
+  }),
+}
+
 const autoGroupRow: Record<string, unknown> = {
   id: 'group-auto',
   name: 'HK Auto',
@@ -164,6 +220,17 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('sni=sg.example.com')
     expect(content).toContain('allowInsecure=1')
     expect(content).toContain('#SG%20Hysteria')
+  })
+
+  it('exports additional mainstream protocols in node subscription URIs', () => {
+    const content = generateNodeSubscriptionRaw([wireguardRow, httpsRow, shadowTlsRow])
+
+    expect(content).toContain('wireguard://private-key@wg.example.com:51820')
+    expect(content).toContain('public-key=public-key')
+    expect(content).toContain('address=10.0.0.2%2F32%2Cfd00%3A%3A2%2F128')
+    expect(content).toContain('https://user:pass@https.example.com:443#HTTPS%20Proxy')
+    expect(content).toContain('shadowtls://secret@shadowtls.example.com:443')
+    expect(content).toContain('sni=gateway.example.com')
   })
 
   it('exports AnyTLS nodes in Loon preview', () => {

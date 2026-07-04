@@ -86,6 +86,16 @@ describe('frontend parser node recognition', () => {
     expect(detectFormat('https://airport.example.com/sub?token=abc')).toBe('unknown')
   })
 
+  it('detects structured config formats and best-effort client formats', () => {
+    expect(detectFormat(JSON.stringify({ outbounds: [] }))).toBe('singbox')
+    expect(detectFormat('{"outbounds":')).toBe('unknown')
+    expect(detectFormat('proxies:\n  - name: HK\n    type: trojan\n    server: hk.example.com\n    port: 443\n    password: p')).toBe('clash')
+    expect(detectFormat('proxies: [')).toBe('unknown')
+    expect(detectFormat('[General]\nloglevel = notify\n[Proxy]\nHK = trojan, hk.example.com, 443, password=p')).toBe('surge')
+    expect(detectFormat('[General]\n[Proxy Group]\nAuto = select, HK')).toBe('loon')
+    expect(detectFormat('not a subscription')).toBe('unknown')
+  })
+
   it('parses Hysteria URI auth as TLS-enabled normalized config', () => {
     const nodes = parseSubscriptionContent('hysteria://auth-secret@tw.example.com:443?sni=tw.example.com#TW%20Hysteria', 'source-1')
 
@@ -102,6 +112,54 @@ describe('frontend parser node recognition', () => {
         }),
       }),
     ])
+  })
+
+  it('parses additional URI-style protocol edge cases', () => {
+    expect(parseProxyLink('wireguard://private-key@wg.example.com?public-key=public-key&address=10.0.0.2%2F32#WG', 'source-1')).toMatchObject({
+      name: 'WG',
+      protocol: 'wireguard',
+      server: 'wg.example.com',
+      port: 51820,
+      rawConfig: expect.objectContaining({
+        privateKey: 'private-key',
+        publicKey: 'public-key',
+        address: '10.0.0.2/32',
+      }),
+    })
+    expect(parseProxyLink('ssh://user:pass@[2001:db8::1]#SSH%20IPv6', 'source-1')).toMatchObject({
+      name: 'SSH IPv6',
+      protocol: 'ssh',
+      server: '2001:db8::1',
+      port: 22,
+      rawConfig: expect.objectContaining({
+        username: 'user',
+        password: 'pass',
+      }),
+    })
+    expect(parseProxyLink('naive+https://user:pass@naive.example.com#Naive', 'source-1')).toMatchObject({
+      protocol: 'naive',
+      port: 443,
+      rawConfig: expect.objectContaining({
+        username: 'user',
+        password: 'pass',
+        tls: true,
+      }),
+    })
+    expect(parseProxyLink('socks://user@socks.example.com#Socks', 'source-1')).toMatchObject({
+      protocol: 'socks5',
+      port: 1080,
+      rawConfig: expect.objectContaining({
+        username: 'user',
+      }),
+    })
+    expect(parseProxyLink('http://proxy.example.com#HTTP', 'source-1')).toMatchObject({
+      protocol: 'http',
+      port: 80,
+      rawConfig: expect.objectContaining({
+        tls: false,
+      }),
+    })
+    expect(parseProxyLink('not-a-proxy-link', 'source-1')).toBeNull()
   })
 
   it('parses ShadowsocksR URI nodes from shared mainstream scheme detection', () => {

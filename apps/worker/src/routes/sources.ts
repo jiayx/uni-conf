@@ -867,6 +867,10 @@ export function detectAndParse(
     return { nodes, groups, format: 'mihomo' };
   }
 
+  if (looksLikeIniClientConfig(trimmed)) {
+    return { nodes: parseClientTextConfigProxies(trimmed), groups: [], format: 'surge' };
+  }
+
   // Try JSON (sing-box format)
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
@@ -931,6 +935,14 @@ function parseBySourceFormat(
     } catch {
       return { nodes: [], groups: [], format };
     }
+  }
+
+  if (format === 'surge' || format === 'loon' || format === 'shadowrocket' || format === 'quantumultx') {
+    return {
+      nodes: parseClientTextConfigProxies(trimmed),
+      groups: [],
+      format,
+    };
   }
 
   return {
@@ -1131,6 +1143,138 @@ export function parseSingboxGroups(data: Record<string, unknown>): SourceNodeGro
       return result;
     })
     .filter((group): group is SourceNodeGroup => group !== null && group.memberNames.length > 0);
+}
+
+function looksLikeIniClientConfig(content: string): boolean {
+  return /^\s*\[(Proxy|Proxy Group|General|Remote Proxy|Rule|server_local)\]/im.test(content);
+}
+
+function parseClientTextConfigProxies(content: string): ParsedNodeRaw[] {
+  const iniNodes = parseIniClientProxies(content);
+  const quantumultXNodes = extractIniSection(content, 'server_local').length > 0
+    ? parseRawLines(extractIniSection(content, 'server_local'))
+    : [];
+  return [...iniNodes, ...quantumultXNodes];
+}
+
+function parseIniClientProxies(content: string): ParsedNodeRaw[] {
+  const proxyLines = extractIniSection(content, 'Proxy');
+  return proxyLines
+    .map(parseIniProxyLine)
+    .filter((node): node is ParsedNodeRaw => node !== null);
+}
+
+function extractIniSection(content: string, sectionName: string): string[] {
+  const lines = content.split(/\r?\n/);
+  const result: string[] = [];
+  let inSection = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
+
+    const section = trimmed.match(/^\[([^\]]+)\]$/);
+    if (section) {
+      inSection = section[1]?.trim().toLowerCase() === sectionName.toLowerCase();
+      continue;
+    }
+
+    if (inSection) result.push(trimmed);
+  }
+
+  return result;
+}
+
+function parseIniProxyLine(line: string): ParsedNodeRaw | null {
+  const separatorIndex = line.indexOf('=');
+  if (separatorIndex <= 0) return null;
+
+  const name = line.slice(0, separatorIndex).trim();
+  const parts = splitCommaList(line.slice(separatorIndex + 1));
+  const type = parts[0]?.trim().toLowerCase();
+  const server = parts[1]?.trim();
+  const port = parseInt(parts[2]?.trim() ?? '', 10);
+  if (!name || !type || !server || !port) return null;
+
+  const protocol = iniTypeToProtocol(type);
+  if (protocol === 'unknown') return null;
+
+  const rawConfig = parseIniProxyOptions(parts.slice(3));
+  if (rawConfig.password === undefined && rawConfig.pass !== undefined) rawConfig.password = rawConfig.pass;
+  if (rawConfig.username === undefined && rawConfig.user !== undefined) rawConfig.username = rawConfig.user;
+  if (rawConfig.method === undefined && rawConfig['encrypt-method'] !== undefined) rawConfig.method = rawConfig['encrypt-method'];
+  if (rawConfig.cipher === undefined && rawConfig.method !== undefined) rawConfig.cipher = rawConfig.method;
+
+  return {
+    name,
+    protocol,
+    server,
+    port,
+    ...countryFields(name),
+    ...recognitionTags(name),
+    rawConfig,
+    parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),
+  };
+}
+
+function splitCommaList(value: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+
+  for (const char of value) {
+    if ((char === '"' || char === "'") && quote === null) {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (quote === char) {
+      quote = null;
+      current += char;
+      continue;
+    }
+    if (char === ',' && quote === null) {
+      result.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+
+  if (current.trim()) result.push(current.trim());
+  return result;
+}
+
+function parseIniProxyOptions(parts: string[]): Record<string, unknown> {
+  const rawConfig: Record<string, unknown> = {};
+  for (const part of parts) {
+    const separatorIndex = part.indexOf('=');
+    if (separatorIndex <= 0) continue;
+    const key = part.slice(0, separatorIndex).trim();
+    const value = trimQuotes(part.slice(separatorIndex + 1).trim());
+    rawConfig[key] = coerceIniValue(value);
+  }
+  return rawConfig;
+}
+
+function trimQuotes(value: string): string {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function coerceIniValue(value: string): unknown {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (/^-?\d+$/.test(value)) return Number(value);
+  return value;
+}
+
+function iniTypeToProtocol(type: string): ProxyProtocol {
+  if (type === 'socks5' || type === 'socks') return 'socks5';
+  if (type === 'hy2') return 'hysteria2';
+  return MIHOMO_TYPE_TO_PROTOCOL[type] ?? URI_SCHEME_TO_PROTOCOL[type] ?? 'unknown';
 }
 
 function isMihomoBuiltinPolicyName(name: string): boolean {

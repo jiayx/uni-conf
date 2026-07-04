@@ -30,6 +30,13 @@ function matchOperator(
   const strValue = Array.isArray(fieldValue) ? fieldValue.join(',') : fieldValue
   const filterStr = Array.isArray(filterValue) ? filterValue[0] : filterValue
   const filterArr = Array.isArray(filterValue) ? filterValue : [filterValue]
+  const createRegex = () => {
+    try {
+      return new RegExp(filterStr, 'i')
+    } catch {
+      return null
+    }
+  }
 
   switch (operator) {
     case 'contains':
@@ -45,7 +52,8 @@ function matchOperator(
       return !normalize(strValue).includes(normalize(filterStr))
 
     case 'regex': {
-      const re = new RegExp(filterStr, 'i')
+      const re = createRegex()
+      if (!re) return false
       if (Array.isArray(fieldValue)) {
         return fieldValue.some((v) => re.test(v))
       }
@@ -53,7 +61,8 @@ function matchOperator(
     }
 
     case 'not_regex': {
-      const re = new RegExp(filterStr, 'i')
+      const re = createRegex()
+      if (!re) return true
       if (Array.isArray(fieldValue)) {
         return !fieldValue.some((v) => re.test(v))
       }

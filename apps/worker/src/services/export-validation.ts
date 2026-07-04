@@ -410,7 +410,12 @@ const NODE_SUBSCRIPTION_PROTOCOLS = new Set([
   'hysteria2',
   'tuic',
   'anytls',
+  'shadowtls',
+  'ssh',
   'socks5',
+  'http',
+  'https',
+  'wireguard',
 ]);
 
 function validateRuleTargets(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
