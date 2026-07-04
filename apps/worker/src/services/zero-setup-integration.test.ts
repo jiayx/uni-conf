@@ -388,23 +388,23 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
     }
     return;
   }
-  if (sql.includes('INSERT INTO remote_rule_sets') && sql.includes("'mihomo', 'classical', 'quixotic'")) {
+  if (sql.includes('INSERT INTO remote_rule_sets') && sql.includes("'mihomo', ?, 'quixotic'")) {
     state.remoteRuleSets.push({
       id: args[0],
       name: args[1],
       url: args[2],
       format: 'mihomo',
-      behavior: 'classical',
+      behavior: args[3],
       preset_source: 'quixotic',
-      preset_id: args[3],
-      target_group_id: args[4],
+      preset_id: args[4],
+      target_group_id: args[5],
       update_interval: 24,
-      enabled: args[5],
-      sort_order: args[6],
+      enabled: args[6],
+      sort_order: args[7],
       last_updated: null,
-      notes: args[7],
-      created_at: args[8],
-      updated_at: args[9],
+      notes: args[8],
+      created_at: args[9],
+      updated_at: args[10],
     });
     return;
   }

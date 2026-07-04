@@ -1,5 +1,5 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { AutoNodeGroupType, NormalizedProxyConfig, ProxyProtocol, SourceFormat } from '@uni-conf/types';
+import type { AutoNodeGroupType, NormalizedProxyConfig, ProxyProtocol, RuleSetBehavior, SourceFormat } from '@uni-conf/types';
 
 export interface CountryInfo {
   country: string;
@@ -467,7 +467,8 @@ export function isRemoteRuleSetCompatible(
   ruleSet: Pick<RemoteRuleSetLike, 'format' | 'presetSource' | 'presetId'>
 ): boolean {
   if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
-    return supportsQuixoticRuleSetExport(exportFormat);
+    if (!supportsQuixoticRuleSetExport(exportFormat)) return false;
+    return isRuleSetFormatCompatible(exportFormat, resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat).format);
   }
   return isRuleSetFormatCompatible(exportFormat, ruleSet.format);
 }
@@ -686,6 +687,7 @@ const NATIVE_NODE_PATTERNS: RegExp[] = [
 ];
 
 const QUIXOTIC_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset';
+const QUIXOTIC_MASTER_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master';
 
 const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; ruleSetFormat: string }> = {
   mihomo: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
@@ -701,21 +703,40 @@ const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; r
 
 const QUIXOTIC_DEFAULT_FORMAT = QUIXOTIC_FORMAT_PATHS.mihomo!;
 
+const QUIXOTIC_CUSTOM_PRESETS: Record<string, { path: string; ruleSetFormat: string; behavior: RuleSetBehavior }> = {
+  'fake-ip-filter': { path: 'custom/domain/fake-ip-filter.list', ruleSetFormat: 'text', behavior: 'domain' },
+};
+
 export function supportsQuixoticRuleSetExport(format: string): boolean {
   return format in QUIXOTIC_FORMAT_PATHS;
 }
 
 export function buildQuixoticRuleSetUrl(id: string, format: string): string {
+  const custom = QUIXOTIC_CUSTOM_PRESETS[id];
+  if (custom) return `${QUIXOTIC_MASTER_RAW_BASE}/${custom.path}`;
+
   const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
   return `${QUIXOTIC_RAW_BASE}/${target.path}/${id}.${target.extension}`;
 }
 
 export function resolveQuixoticRuleSetForExport(id: string, format: string): { url: string; format: string } {
+  const custom = QUIXOTIC_CUSTOM_PRESETS[id];
+  if (custom) {
+    return {
+      url: buildQuixoticRuleSetUrl(id, format),
+      format: custom.ruleSetFormat,
+    };
+  }
+
   const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
   return {
     url: buildQuixoticRuleSetUrl(id, format),
     format: target.ruleSetFormat,
   };
+}
+
+export function resolveQuixoticRuleSetBehavior(id: string): RuleSetBehavior {
+  return QUIXOTIC_CUSTOM_PRESETS[id]?.behavior ?? 'classical';
 }
 
 export interface QuixoticRuleSetPreset {

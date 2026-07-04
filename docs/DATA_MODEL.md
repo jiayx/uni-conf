@@ -233,7 +233,7 @@ Manual rules are an advanced override path. Writes validate `type` against the s
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
-Built-in remote rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority. `preset_source = 'quixotic'` means the URL is resolved dynamically per export format from QuixoticHeart/rule-set; `preset_source = 'uni-conf'` means a UniConf-maintained built-in rule set. The Telegram default is `uni-conf:telegram`, backed by MetaCubeX/meta-rules-dat `geosite/telegram.list`, because the Quixotic preset list currently folds Telegram into `socialmedia`.
+Built-in remote rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority. `preset_source = 'quixotic'` means the URL is resolved dynamically per export format from QuixoticHeart/rule-set; `preset_source = 'uni-conf'` means a UniConf-maintained built-in rule set. Quixotic `fake-ip-filter` is an exception to the generated `ruleset/{format}` path: it resolves to `https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list` and uses `domain` behavior. The Telegram default is `uni-conf:telegram`, backed by MetaCubeX/meta-rules-dat `geosite/telegram.list`, because the Quixotic preset list currently folds Telegram into `socialmedia`.
 
 Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`; the UniConf Telegram domain list uses `domain`.
 

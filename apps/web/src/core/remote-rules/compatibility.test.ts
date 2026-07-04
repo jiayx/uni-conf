@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup } from './quixotic-presets'
+import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible, isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from './compatibility'
 import type { RemoteRuleSet } from '@uni-conf/types'
 
@@ -14,6 +14,13 @@ describe('remote rule set compatibility', () => {
     expect(buildQuixoticRuleSetUrl('ai', 'egern')).toBe(
       'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/egern/ai.yaml'
     )
+    expect(buildQuixoticRuleSetUrl('fake-ip-filter', 'mihomo')).toBe(
+      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list'
+    )
+    expect(buildQuixoticRuleSetUrl('fake-ip-filter', 'singbox')).toBe(
+      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list'
+    )
+    expect(resolveQuixoticRuleSetBehavior('fake-ip-filter')).toBe('domain')
   })
 
   it('keeps remote rule set formats scoped to compatible exporters', () => {
@@ -39,6 +46,19 @@ describe('remote rule set compatibility', () => {
       'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/singbox/version5/ai.srs'
     )
     expect(isRemoteRuleSetCompatible('nodes_raw', set)).toBe(false)
+
+    const fakeIpFilterSet = {
+      ...set,
+      name: 'Fake IP Filter',
+      url: buildQuixoticRuleSetUrl('fake-ip-filter', 'mihomo'),
+      presetId: 'fake-ip-filter',
+    } as RemoteRuleSet
+    expect(resolveRemoteRuleSetForExport(fakeIpFilterSet, 'mihomo')).toMatchObject({
+      url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list',
+      format: 'text',
+    })
+    expect(isRemoteRuleSetCompatible('mihomo', fakeIpFilterSet)).toBe(true)
+    expect(isRemoteRuleSetCompatible('singbox', fakeIpFilterSet)).toBe(false)
   })
 
   it('infers target groups from preset category and known direct/reject exceptions', () => {

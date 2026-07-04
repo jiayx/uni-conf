@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
+import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetBehavior, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
 import { ensureDefaultRemoteRuleSets } from './default-rule-sets';
 
 const SYSTEM_DISABLED_NOTE = '[uni-conf:auto-disabled:missing-target]';
@@ -21,6 +21,11 @@ describe('default remote rule sets', () => {
     });
     expect(inserted.find((item) => item.presetId === 'ai')).toMatchObject({
       behavior: 'classical',
+    });
+    expect(inserted.find((item) => item.presetId === 'fake-ip-filter')).toMatchObject({
+      url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list',
+      behavior: 'domain',
+      targetGroupId: 'builtin-direct',
     });
     expect(inserted.find((item) => item.presetId === 'netflix')?.targetGroupId).toBe('builtin-streaming');
     expect(inserted.find((item) => item.presetId === 'gits')?.targetGroupId).toBe('builtin-github');
@@ -88,7 +93,7 @@ describe('default remote rule sets', () => {
         preset_id: preset.id,
         url: buildQuixoticRuleSetUrl(preset.id, 'mihomo'),
         format: 'mihomo',
-        behavior: 'classical',
+        behavior: resolveQuixoticRuleSetBehavior(preset.id),
         target_group_id: expectedTargetGroupId(preset.id),
         enabled: 1,
         sort_order: resolveQuixoticRuleSetSortOrder(preset.id),
@@ -442,13 +447,13 @@ function createMockDb({
             operation: 'insert',
             name: args[1],
             url: args[2],
-            behavior: 'classical',
+            behavior: args[3],
             presetSource: 'quixotic',
-            presetId: args[3],
-            targetGroupId: args[4],
-            enabled: args[5],
-            sortOrder: args[6],
-            notes: args[7],
+            presetId: args[4],
+            targetGroupId: args[5],
+            enabled: args[6],
+            sortOrder: args[7],
+            notes: args[8],
           });
         }
       }

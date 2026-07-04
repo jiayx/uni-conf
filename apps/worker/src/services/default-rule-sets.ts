@@ -2,6 +2,7 @@ import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
 } from '@uni-conf/shared';
 import { newId } from '../db/helpers';
@@ -10,7 +11,6 @@ import type { RemoteRuleSet } from '@uni-conf/types';
 type PresetSource = NonNullable<RemoteRuleSet['presetSource']>;
 type TargetGroupInfo = { id: string; enabled: boolean };
 const QUIXOTIC_DEFAULT_FORMAT: RemoteRuleSet['format'] = 'mihomo';
-const QUIXOTIC_DEFAULT_BEHAVIOR: RemoteRuleSet['behavior'] = 'classical';
 const SYSTEM_DISABLED_MISSING_TARGET_NOTE = '[uni-conf:auto-disabled:missing-target]';
 
 const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
@@ -46,6 +46,7 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
       const targetGroup = resolveTargetGroup(groups, inferQuixoticTargetGroup(preset));
       const sortOrder = resolveQuixoticRuleSetSortOrder(preset.id);
       const url = buildQuixoticRuleSetUrl(preset.id, QUIXOTIC_DEFAULT_FORMAT);
+      const behavior = resolveQuixoticRuleSetBehavior(preset.id);
       const notes = `QuixoticHeart/rule-set:${preset.id} ${preset.description}`;
       if (!targetGroup) return disableExistingPreset(db, existing, notes, ts);
       const state = resolveManagedPresetState(existing, targetGroup.enabled, notes);
@@ -53,7 +54,7 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
         if (
           existing.url === url
           && existing.format === QUIXOTIC_DEFAULT_FORMAT
-          && existing.behavior === QUIXOTIC_DEFAULT_BEHAVIOR
+          && existing.behavior === behavior
           && existing.target_group_id === targetGroup.id
           && existing.enabled === state.enabled
           && existing.sort_order === sortOrder
@@ -61,18 +62,19 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
         ) return null;
         return db
           .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = ?, sort_order = ?, notes = ?, updated_at = ? WHERE id = ?')
-          .bind(url, QUIXOTIC_DEFAULT_FORMAT, QUIXOTIC_DEFAULT_BEHAVIOR, targetGroup.id, state.enabled, sortOrder, state.notes, ts, existing.id);
+          .bind(url, QUIXOTIC_DEFAULT_FORMAT, behavior, targetGroup.id, state.enabled, sortOrder, state.notes, ts, existing.id);
       }
       return db
         .prepare(
           `INSERT INTO remote_rule_sets
             (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-           VALUES (?, ?, ?, 'mihomo', 'classical', 'quixotic', ?, ?, 24, ?, ?, NULL, ?, ?, ?)`
+           VALUES (?, ?, ?, 'mihomo', ?, 'quixotic', ?, ?, 24, ?, ?, NULL, ?, ?, ?)`
         )
         .bind(
           newId(),
           preset.name,
           url,
+          behavior,
           preset.id,
           targetGroup.id,
           state.enabled,

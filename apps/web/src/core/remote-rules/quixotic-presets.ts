@@ -3,6 +3,7 @@ import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
   type InferredRuleSetTargetGroup,
   type QuixoticRuleSetPreset,
@@ -12,6 +13,7 @@ export {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
 }
 

@@ -14,6 +14,7 @@ import {
   inferQuixoticTargetGroup,
   QUIXOTIC_RULE_SET_PRESETS,
   RULE_SET_FORMAT_OPTIONS,
+  resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
   type QuixoticRuleSetPreset,
 } from '@/core/remote-rules/quixotic-presets'
@@ -148,7 +149,7 @@ export function RemoteRuleSets() {
       name: preset.name,
       url: buildQuixoticRuleSetUrl(preset.id, format),
       format,
-      behavior: 'classical',
+      behavior: resolveQuixoticRuleSetBehavior(preset.id),
       presetSource: 'quixotic',
       presetId: preset.id,
       targetGroupId: findSuggestedGroupId(preset),
