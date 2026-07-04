@@ -6,6 +6,7 @@ const i18nDir = join(process.cwd(), 'src/i18n')
 
 const REQUIRED_EXPORT_KEYS = [
   'title',
+  'description',
   'new_config',
   'edit_config',
   'empty_title',
