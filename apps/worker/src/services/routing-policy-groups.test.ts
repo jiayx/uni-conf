@@ -560,6 +560,7 @@ function outletRef(rows: Array<Record<string, unknown>>, id: string): unknown {
 function createAutoCollectionKeyDb(rows: Array<{ id: string; notes: string | null }>): D1Database {
   return {
     prepare: () => ({
+      all: async () => ({ results: rows }),
       bind: () => ({
         all: async () => ({ results: rows }),
       }),

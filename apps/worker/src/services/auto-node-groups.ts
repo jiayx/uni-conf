@@ -1,5 +1,4 @@
 import {
-  AUTO_NODE_GROUP_PREFIX,
   AUTO_NODE_TAG_GROUPS,
   type AutoNodeGroupMarker,
   countryCodeToFlag,
@@ -193,8 +192,7 @@ export function buildAutoNodeGroupPlans(
 
 async function listAutoCollections(db: D1Database): Promise<Array<{ id: string; marker: AutoNodeGroupMarker }>> {
   const { results } = await db
-    .prepare(`SELECT id, notes FROM collections WHERE notes LIKE ?`)
-    .bind(`${AUTO_NODE_GROUP_PREFIX}%`)
+    .prepare("SELECT id, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")
     .all<{ id: string; notes: string | null }>();
 
   return results

@@ -602,6 +602,10 @@ proxy-groups:
     expect(collectionUpdate).toBeDefined()
     expect(JSON.parse(String(collectionUpdate?.nodeIds))).toEqual(['node-us', expect.any(String)])
     expect(JSON.parse(String(collectionUpdate?.nodeIds))).not.toContain('node-disabled')
+    expect(db.operations).not.toContainEqual(expect.objectContaining({
+      operation: 'prepare',
+      sql: expect.stringContaining('collections WHERE notes LIKE'),
+    }))
   })
 
   it('initializes zero-setup defaults after a subscription refresh failure', async () => {
@@ -849,7 +853,9 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
         raw: async () => [],
       }),
       first: async () => null,
-      all: async () => ({ results: [] }),
+      all: async () => {
+        return { results: [] }
+      },
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
@@ -958,7 +964,9 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
       for (const statement of statements) await statement.run()
       return []
     }),
-    prepare: vi.fn((sql: string) => ({
+    prepare: vi.fn((sql: string) => {
+      operations.push({ operation: 'prepare', sql })
+      return {
       bind: (...args: unknown[]) => ({
         first: async () => {
           if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
@@ -974,7 +982,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
         all: async () => {
           if (sql.includes('SELECT id, name, server, port, protocol')) return { results: nodes }
           if (sql.includes('SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?')) return { results: [{ cnt: nodes.length }] }
-          if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE notes LIKE ?')) return { results: [collection] }
+          if (sql.includes("SELECT id, node_ids, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")) return { results: [collection] }
           if (sql.includes('SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0 AND enabled = 1')) {
             return { results: nodes.filter(node => node.enabled !== 0).map(node => ({ id: node.id, name: node.name })) }
           }
@@ -1025,10 +1033,13 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
         raw: async () => [],
       }),
       first: async () => null,
-      all: async () => ({ results: [] }),
+      all: async () => {
+        if (sql.includes("SELECT id, node_ids, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")) return { results: [collection] }
+        return { results: [] }
+      },
       run: async () => ({ success: true }),
       raw: async () => [],
-    })),
+    }}),
   }
   return db as unknown as D1Database & { operations: Array<Record<string, unknown>> }
 }

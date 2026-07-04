@@ -1,5 +1,4 @@
 import {
-  AUTO_NODE_GROUP_PREFIX,
   buildRoutingPolicyTemplateGroupNames,
   detectCountry,
   DEFAULT_HEALTH_CHECK,
@@ -302,8 +301,7 @@ async function getRoutingOutletPreferences(db: D1Database): Promise<Record<strin
 
 export async function listAutoCollectionKeysById(db: D1Database): Promise<AutoCollectionKeysById> {
   const { results } = await db
-    .prepare('SELECT id, notes FROM collections WHERE notes LIKE ?')
-    .bind(`${AUTO_NODE_GROUP_PREFIX}%`)
+    .prepare("SELECT id, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")
     .all<{ id: string; notes: string | null }>();
   return Object.fromEntries(
     results

@@ -221,7 +221,7 @@ function createMockDb({
 }) {
   const operations: Array<Record<string, unknown>> = [];
   const selectAll = async (sql: string) => {
-    if (sql.includes('FROM collections WHERE notes LIKE')) {
+    if (sql.includes("FROM collections WHERE notes IS NOT NULL AND notes != ''")) {
       return { results: autoCollections };
     }
     if (sql.includes('SELECT country_code, country, tags')) {

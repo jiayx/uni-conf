@@ -16,7 +16,6 @@ import {
   isSubscriptionInfoNodeName,
   parseSourceNodeGroupKey,
   SOURCE_FORMATS,
-  SOURCE_NODE_GROUP_PREFIX,
 } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
@@ -479,11 +478,15 @@ async function syncImportedSourceNodeGroups(
   ts: string
 ): Promise<void> {
   const { results: collections } = await db.prepare(
-    'SELECT id, node_ids, notes FROM collections WHERE notes LIKE ?'
+    "SELECT id, node_ids, notes FROM collections WHERE notes IS NOT NULL AND notes != ''"
   )
-    .bind(`${SOURCE_NODE_GROUP_PREFIX} ${sourceId}:%`)
     .all<{ id: string; node_ids: string | null; notes: string | null }>();
-  if (collections.length === 0) return;
+  const sourceCollections = collections.filter((collection) => {
+    const key = extractSourceNodeGroupMarkerKey(collection.notes);
+    const marker = key ? parseSourceNodeGroupKey(key) : null;
+    return marker?.sourceId === sourceId;
+  });
+  if (sourceCollections.length === 0) return;
 
   const { results: nodeRows } = await db.prepare(
     'SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0 AND enabled = 1'
@@ -494,7 +497,7 @@ async function syncImportedSourceNodeGroups(
   const groupByName = new Map(groups.map((group) => [group.name, group]));
   const statements: D1PreparedStatement[] = [];
 
-  for (const collection of collections) {
+  for (const collection of sourceCollections) {
     const key = extractSourceNodeGroupMarkerKey(collection.notes);
     const marker = key ? parseSourceNodeGroupKey(key) : null;
     if (!marker || marker.sourceId !== sourceId) continue;

@@ -222,7 +222,7 @@ function selectRows(state: ZeroSetupState, sql: string, args: unknown[]): Memory
   if (sql.includes('SELECT * FROM export_configs WHERE id = ?')) {
     return state.exportConfigs.filter((row) => row.id === args[0]);
   }
-  if (sql.includes('SELECT id, notes FROM collections WHERE notes LIKE')) {
+  if (sql.includes("SELECT id, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")) {
     return state.collections
       .filter((row) => String(row.notes ?? '').startsWith('[uni-conf:auto-node-group]'))
       .map(({ id, notes }) => ({ id, notes }));
