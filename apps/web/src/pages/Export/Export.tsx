@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
@@ -58,6 +58,8 @@ export function Export() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [checkingId, setCheckingId] = useState<string | null>(null)
   const [validationById, setValidationById] = useState<Record<string, ExportValidationState>>({})
+  const [inlinePreview, setInlinePreview] = useState<InlinePreviewState | null>(null)
+  const previewRequestRef = useRef(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -149,10 +151,37 @@ export function Export() {
     await handleDownloadFormat(config, config.format)
   }
 
-  const handlePreviewFormat = (format: ExportFormat, configId?: string) => {
+  const openFullPreview = (format: ExportFormat, configId?: string) => {
     const params = new URLSearchParams({ format })
     if (configId) params.set('configId', configId)
     void navigate(`/preview?${params.toString()}`)
+  }
+
+  const handlePreviewFormat = async (key: string, format: ExportFormat, configId?: string) => {
+    if (inlinePreview?.key === key && inlinePreview.status !== 'loading') {
+      setInlinePreview(null)
+      return
+    }
+
+    const requestId = previewRequestRef.current + 1
+    previewRequestRef.current = requestId
+    setInlinePreview({ key, format, configId, status: 'loading' })
+    try {
+      const result = await api.export.previewFormat(format, configId)
+      if (previewRequestRef.current !== requestId) return
+      setInlinePreview({
+        key,
+        format,
+        configId,
+        status: 'ready',
+        content: result.content,
+        contentType: result.contentType,
+        warnings: result.warnings ?? [],
+      })
+    } catch (e) {
+      if (previewRequestRef.current !== requestId) return
+      setInlinePreview({ key, format, configId, status: 'error', error: (e as Error).message })
+    }
   }
 
   const handleValidate = async (config: ExportConfig) => {
@@ -241,7 +270,8 @@ export function Export() {
                         <div className={styles.quickFormatActions}>
                           <Button
                             variant="ghost" size="sm"
-                            onClick={() => handlePreviewFormat(item.value)}
+                            loading={inlinePreview?.key === actionKey && inlinePreview.status === 'loading'}
+                            onClick={() => void handlePreviewFormat(actionKey, item.value)}
                           >{t('common.preview')}</Button>
                           <Button
                             variant="ghost" size="sm"
@@ -261,6 +291,14 @@ export function Export() {
                   })}
                 </div>
               </div>
+              {inlinePreview?.key.startsWith(`${defaultConfig.id}:`) && (
+                <InlinePreviewPanel
+                  preview={inlinePreview}
+                  title={t(`export.formats.${inlinePreview.format}`)}
+                  onClose={() => setInlinePreview(null)}
+                  onOpenFull={() => openFullPreview(inlinePreview.format)}
+                />
+              )}
             </Card>
           )}
           {advancedConfigs.length > 0 && <div className={styles.sectionLabel}>{t('export.advanced_profiles')}</div>}
@@ -291,7 +329,8 @@ export function Export() {
                     >{t('export.validate')}</Button>
                     <Button
                       variant="secondary" size="sm"
-                      onClick={() => handlePreviewFormat(cfg.format, cfg.id)}
+                      loading={inlinePreview?.key === `${cfg.id}:${cfg.format}` && inlinePreview.status === 'loading'}
+                      onClick={() => void handlePreviewFormat(`${cfg.id}:${cfg.format}`, cfg.format, cfg.id)}
                     >{t('common.preview')}</Button>
                     <Button
                       variant="secondary" size="sm"
@@ -314,6 +353,14 @@ export function Export() {
                   </div>
                 </div>
                 {validation && <ExportValidationResult validation={validation} />}
+                {inlinePreview?.key === `${cfg.id}:${cfg.format}` && (
+                  <InlinePreviewPanel
+                    preview={inlinePreview}
+                    title={`${cfg.name} · ${t(`export.formats.${inlinePreview.format}`)}`}
+                    onClose={() => setInlinePreview(null)}
+                    onOpenFull={() => openFullPreview(inlinePreview.format, cfg.id)}
+                  />
+                )}
               </Card>
             )
           })}
@@ -403,6 +450,91 @@ type ExportValidationState =
   | { status: 'checking' }
   | { status: 'ready'; warnings: CompatibilityWarning[]; lineCount: number }
   | { status: 'error'; error: string }
+
+type InlinePreviewState =
+  | { key: string; format: ExportFormat; configId?: string; status: 'loading' }
+  | { key: string; format: ExportFormat; configId?: string; status: 'ready'; content: string; contentType: string; warnings: CompatibilityWarning[] }
+  | { key: string; format: ExportFormat; configId?: string; status: 'error'; error: string }
+
+function InlinePreviewPanel({
+  preview,
+  title,
+  onClose,
+  onOpenFull,
+}: {
+  preview: InlinePreviewState
+  title: string
+  onClose: () => void
+  onOpenFull: () => void
+}) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    if (preview.status !== 'ready') return
+    void navigator.clipboard.writeText(preview.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (preview.status === 'loading') {
+    return (
+      <div className={styles.inlinePreview}>
+        <div className={styles.inlinePreviewHeader}>
+          <strong>{title}</strong>
+          <Button variant="ghost" size="sm" onClick={onClose}>{t('common.close')}</Button>
+        </div>
+        <div className={styles.inlinePreviewEmpty}>{t('preview.generating')}</div>
+      </div>
+    )
+  }
+
+  if (preview.status === 'error') {
+    return (
+      <div className={styles.inlinePreview}>
+        <div className={styles.inlinePreviewHeader}>
+          <strong>{title}</strong>
+          <Button variant="ghost" size="sm" onClick={onClose}>{t('common.close')}</Button>
+        </div>
+        <div className={styles.validationBlocked}>{preview.error}</div>
+      </div>
+    )
+  }
+
+  const summary = summarizeExportWarnings(preview.warnings)
+  const visibleWarnings = preview.warnings.slice(0, 3)
+
+  return (
+    <div className={styles.inlinePreview}>
+      <div className={styles.inlinePreviewHeader}>
+        <div>
+          <strong>{title}</strong>
+          <span>{preview.contentType} · {t('preview.line_count', { count: preview.content.split('\n').length })}</span>
+        </div>
+        <div className={styles.inlinePreviewActions}>
+          <Button variant="ghost" size="sm" onClick={handleCopy}>{copied ? t('common.copied') : t('common.copy')}</Button>
+          <Button variant="secondary" size="sm" onClick={onOpenFull}>{t('preview.title')}</Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>{t('common.close')}</Button>
+        </div>
+      </div>
+      <div className={`${styles.validation} ${summary.canUseConfig ? styles.validationReady : styles.validationBlocked}`}>
+        <strong>{summary.canUseConfig ? t('export.validation_ready') : t('export.validation_blocked')}</strong>
+        <span>{exportWarningSummaryText(summary, t)}</span>
+      </div>
+      {visibleWarnings.length > 0 && (
+        <div className={styles.validationWarnings}>
+          {visibleWarnings.map((warning, index) => (
+            <div key={`${warning.level}-${index}`} className={styles.validationWarning}>{warning.message}</div>
+          ))}
+          {preview.warnings.length > visibleWarnings.length && (
+            <div className={styles.validationMore}>{t('export.validation_more', { count: preview.warnings.length - visibleWarnings.length })}</div>
+          )}
+        </div>
+      )}
+      <pre className={styles.inlinePreviewCode}>{preview.content}</pre>
+    </div>
+  )
+}
 
 function ExportValidationResult({ validation }: { validation: ExportValidationState }) {
   const { t } = useTranslation()
