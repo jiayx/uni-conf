@@ -7,6 +7,10 @@ const i18nDir = join(process.cwd(), 'src/i18n')
 const REQUIRED_EXPORT_KEYS = [
   'title',
   'description',
+  'default_profile_name',
+  'all_formats',
+  'quick_links_label',
+  'advanced_profiles',
   'new_config',
   'edit_config',
   'empty_title',

@@ -316,6 +316,10 @@
   "export": {
     "title": "Config Export",
     "description": "Default export is ready automatically. Create an advanced profile only when you need a separate token or a narrowed scope.",
+    "default_profile_name": "Default Export",
+    "all_formats": "All Formats",
+    "quick_links_label": "Quick Export Links",
+    "advanced_profiles": "Advanced Export Profiles",
     "new_config": "New Advanced Export Profile",
     "edit_config": "Edit Advanced Export Profile",
     "format": "Export Format",

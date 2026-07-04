@@ -316,6 +316,10 @@
   "export": {
     "title": "配置导出",
     "description": "默认导出会自动可用；只有需要独立订阅 Token 或限定导出范围时，才创建高级导出档案。",
+    "default_profile_name": "默认导出",
+    "all_formats": "全部格式",
+    "quick_links_label": "快速导出链接",
+    "advanced_profiles": "高级导出档案",
     "new_config": "新建高级导出档案",
     "edit_config": "编辑高级导出档案",
     "format": "导出格式",

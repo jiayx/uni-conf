@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { api } from '@/lib/api'
 import { saveExportDownload } from '@/core/export/download-file'
-import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
+import { EXPORT_FORMAT_OPTIONS, QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
 import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
@@ -18,6 +18,7 @@ import type { CompatibilityWarning, ExportConfig, ExportFormat, NodeCollection, 
 import styles from './Export.module.css'
 
 const BASE_URL = window.location.origin
+const DEFAULT_EXPORT_CONFIG_ID = 'default-mihomo'
 
 interface ExportForm {
   name: string
@@ -129,16 +130,21 @@ export function Export() {
     await load()
   }
 
-  const handleDownload = async (config: ExportConfig) => {
-    setDownloadingId(config.id)
+  const handleDownloadFormat = async (config: ExportConfig, format: ExportFormat) => {
+    const key = `${config.id}:${format}`
+    setDownloadingId(key)
     setDownloadError(null)
     try {
-      saveExportDownload(await api.export.downloadFormat(config.format, config.id))
+      saveExportDownload(await api.export.downloadFormat(format, config.id))
     } catch (e) {
       setDownloadError((e as Error).message)
     } finally {
       setDownloadingId(null)
     }
+  }
+
+  const handleDownload = async (config: ExportConfig) => {
+    await handleDownloadFormat(config, config.format)
   }
 
   const handleValidate = async (config: ExportConfig) => {
@@ -184,6 +190,9 @@ export function Export() {
     }))
   }
 
+  const defaultConfig = configs.find(cfg => cfg.id === DEFAULT_EXPORT_CONFIG_ID)
+  const advancedConfigs = configs.filter(cfg => cfg.id !== DEFAULT_EXPORT_CONFIG_ID)
+
   return (
     <div className={styles.page}>
       <PageHeader
@@ -198,7 +207,52 @@ export function Export() {
         <EmptyState title={t('export.empty_title')} description={t('export.empty_description')} action={{ label: t('export.new_config'), onClick: () => setShowModal(true) }} />
       ) : (
         <div className={styles.list}>
-          {configs.map(cfg => {
+          {defaultConfig && (
+            <Card className={styles.configCard}>
+              <div className={styles.configHeader}>
+                <div>
+                  <div className={styles.configName}>{t('export.default_profile_name')}</div>
+                  <div className={styles.badges}>
+                    <Badge variant="purple">{t('export.all_formats')}</Badge>
+                    <Badge variant={defaultConfig.enabled ? 'success' : 'default'}>{defaultConfig.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
+                  </div>
+                  <div className={styles.scopeText}>{exportConfigScopeSummary(defaultConfig, collections, groups, rules, remoteSets, t)}</div>
+                </div>
+              </div>
+              <div className={styles.urlRow}>
+                <span className={styles.urlLabel}>{t('export.quick_links_label')}</span>
+                <div className={styles.quickFormatList}>
+                  {QUICK_EXPORT_OPTIONS.map(item => {
+                    const filename = getExportSubscriptionFilename(item.value)
+                    const subUrl = `${BASE_URL}/sub/${defaultConfig.token}/${filename}`
+                    const actionKey = `${defaultConfig.id}:${item.value}`
+                    return (
+                      <div key={item.value} className={styles.quickFormatRow}>
+                        <strong className={styles.quickFormatName}>{t(`export.formats.${item.value}`)}</strong>
+                        <code className={styles.urlCode}>{subUrl}</code>
+                        <div className={styles.quickFormatActions}>
+                          <Button
+                            variant="ghost" size="sm"
+                            onClick={() => copyUrl(subUrl, actionKey)}
+                          >{copied === actionKey ? t('common.copied') : t('common.copy')}</Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            loading={downloadingId === actionKey}
+                            onClick={() => void handleDownloadFormat(defaultConfig, item.value)}
+                          >
+                            {t('common.download')}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </Card>
+          )}
+          {advancedConfigs.length > 0 && <div className={styles.sectionLabel}>{t('export.advanced_profiles')}</div>}
+          {advancedConfigs.map(cfg => {
             const filename = getExportSubscriptionFilename(cfg.format)
             const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
             const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets, t)
@@ -225,7 +279,7 @@ export function Export() {
                     >{t('export.validate')}</Button>
                     <Button
                       variant="secondary" size="sm"
-                      loading={downloadingId === cfg.id}
+                      loading={downloadingId === `${cfg.id}:${cfg.format}`}
                       onClick={() => void handleDownload(cfg)}
                     >{t('common.download')}</Button>
                     <Button variant="danger" size="sm" onClick={() => void handleDelete(cfg.id)}>
