@@ -329,6 +329,38 @@ describe('default remote rule sets', () => {
     });
   });
 
+  it('repairs fake-ip-filter away from the nonexistent generic Quixotic path', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{
+        id: 'preset-fake-ip-filter',
+        preset_source: 'quixotic',
+        preset_id: 'fake-ip-filter',
+        url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/fake-ip-filter.list',
+        format: 'mihomo',
+        behavior: 'classical',
+        target_group_id: 'builtin-direct',
+        enabled: 1,
+        sort_order: 30,
+      }],
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual({
+      operation: 'update',
+      url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list',
+      format: 'mihomo',
+      behavior: 'domain',
+      id: 'preset-fake-ip-filter',
+      targetGroupId: 'builtin-direct',
+      enabled: 1,
+      sortOrder: 30,
+      notes: 'QuixoticHeart/rule-set:fake-ip-filter fake-ip 过滤黑名单',
+    });
+  });
+
   it('repairs stale built-in Telegram rule set metadata', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
