@@ -16,7 +16,7 @@ import type { DashboardStats, RoutingPolicyTemplateId } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 const STEPS = ['dashboard.step1', 'dashboard.step2', 'dashboard.step3']
-const STEP_PATHS = ['/sources', '/preview', '/export']
+const STEP_PATHS = ['/sources', '/export', '/export']
 
 export function Dashboard() {
   const { t } = useTranslation()
