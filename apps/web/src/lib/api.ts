@@ -18,6 +18,7 @@ import type {
 } from '@uni-conf/types'
 import { parseContentDispositionFilename, type ExportDownloadFile } from '@/core/export/download-file'
 import { getExportSubscriptionFilename, MAX_NODE_SEARCH_LENGTH, type ExportSubscriptionFormat } from '@uni-conf/shared'
+import { getStoredApiKey } from './auth'
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
@@ -25,16 +26,29 @@ type ExportConfigCreateInput = Omit<ExportConfig, 'id' | 'token' | 'createdAt' |
   name?: string
 }
 
+export class UnauthorizedError extends Error {
+  constructor() {
+    super('Unauthorized')
+    this.name = 'UnauthorizedError'
+  }
+}
+
 // ============================================================
 // Core Request Helper
 // ============================================================
 
+function authHeaders(): Record<string, string> {
+  const apiKey = getStoredApiKey()
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: body != null ? JSON.stringify(body) : undefined,
   })
+  if (res.status === 401) throw new UnauthorizedError()
   const json = (await res.json()) as { success: boolean; data?: T; error?: string }
   if (!res.ok || !json.success) throw new Error(json.error ?? 'Request failed')
   return json.data as T
@@ -196,8 +210,9 @@ const exportApi = {
   downloadFormat: async (format: ExportFormat, configId?: string): Promise<ExportDownloadFile> => {
     const res = await fetch(
       `${BASE}/export/download/${format}${configId ? `?configId=${configId}` : ''}`,
-      { method: 'GET' }
+      { method: 'GET', headers: authHeaders() }
     )
+    if (res.status === 401) throw new UnauthorizedError()
     if (!res.ok) throw new Error(await readDownloadError(res))
     const fallback = getExportSubscriptionFilename(format as ExportSubscriptionFormat)
     return {
@@ -237,10 +252,21 @@ const dashboard = {
 const settingsApi = {
   get: (): Promise<AppSettings> => get('/settings'),
   update: (data: AppSettingsPatch): Promise<AppSettings> => put('/settings', data),
-  exportData: (): Promise<Blob> =>
-    fetch(`${BASE}/data/export`, { method: 'GET' }).then(r => r.blob()),
+  exportData: async (): Promise<Blob> => {
+    const res = await fetch(`${BASE}/data/export`, { method: 'GET', headers: authHeaders() })
+    if (res.status === 401) throw new UnauthorizedError()
+    return res.blob()
+  },
   importData: (data: unknown): Promise<void> => post('/data/import', data),
   clearData: (): Promise<void> => del('/data'),
+}
+
+// ============================================================
+// Auth API
+// ============================================================
+
+const authApi = {
+  check: (): Promise<{ ok: boolean }> => get('/auth/check'),
 }
 
 // ============================================================
@@ -257,4 +283,5 @@ export const api = {
   export: exportApi,
   dashboard,
   settings: settingsApi,
+  auth: authApi,
 }

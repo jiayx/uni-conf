@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button/Button'
 import { Input } from '@/components/ui/Input/Input'
 import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-node-settings'
 import { api } from '@/lib/api'
+import { clearStoredApiKey } from '@/lib/auth'
 import { useSettingsStore } from '@/store/settings.store'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-conf/shared'
 import type { AppSettingsPatch, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
@@ -152,6 +153,12 @@ export function Settings() {
     } catch (e) {
       setStatus((e as Error).message)
     }
+  }
+
+  const handleForgetAccessKey = () => {
+    if (!confirm(t('settings.access_key_clear_confirm'))) return
+    clearStoredApiKey()
+    window.location.reload()
   }
 
   return (
@@ -331,6 +338,17 @@ export function Settings() {
         />
         {status && <div className={styles.status}>{status}</div>}
         {saving && <div className={styles.status}>{t('settings.saving')}</div>}
+      </Card>
+
+      {/* Access */}
+      <Card className={styles.section}>
+        <h2 className={styles.sectionTitle}>{t('settings.access')}</h2>
+        <div className={styles.hint}>{t('settings.access_key_hint')}</div>
+        <div className={styles.actionGroup}>
+          <Button variant="secondary" onClick={handleForgetAccessKey}>
+            {t('settings.access_key_clear')}
+          </Button>
+        </div>
       </Card>
 
       {/* About */}

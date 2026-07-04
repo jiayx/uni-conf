@@ -448,7 +448,18 @@
     "export_success": "数据导出成功",
     "import_success": "数据导入成功",
     "clear_success": "数据已清除",
-    "saving": "正在保存..."
+    "saving": "正在保存...",
+    "access": "访问权限",
+    "access_key_hint": "如果当前实例已设置访问密钥，你可以清除浏览器中保存的密钥并重新输入。",
+    "access_key_clear": "忘记访问密钥",
+    "access_key_clear_confirm": "忘记已保存的访问密钥并锁定当前浏览器？之后需要重新输入密钥。"
+  },
+  "auth": {
+    "title": "UniConf 已启用访问保护",
+    "description": "请输入访问密钥以继续。",
+    "placeholder": "访问密钥",
+    "unlock": "解锁",
+    "invalid_key": "访问密钥无效"
   },
   "dashboard": {
     "title": "概览",

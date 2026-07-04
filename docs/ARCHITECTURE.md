@@ -73,11 +73,11 @@ Cloudflare Workers
 apps/worker/
      │
      ├── D1 Database (SQLite)
-     │   All persistent data
+     │   All persistent data, including export token lookups
      │
      └── KV Namespace
-         Token → export config mapping
-         Source content cache
+         Bound but not yet used by application code (reserved for
+         future response/reachability caching)
 ```
 
 In production, configure Cloudflare Pages to proxy `/api/*` and `/sub/*` to the Worker using Pages' built-in routing or Worker routing.
@@ -101,11 +101,16 @@ All API endpoints are under `/api/`. Responses follow:
 { success: false, error: string }
 ```
 
+### Authentication
+
+`/api/*` (except `/api/health`) requires a shared bearer token when the `API_KEY` secret is configured: `Authorization: Bearer <API_KEY>`. Leaving `API_KEY` unset keeps the API open, which is only acceptable for local development — production deployments should set it with `wrangler secret put API_KEY`. `GET /api/auth/check` is a lightweight endpoint the frontend uses to verify a stored key; it returns `{ success: true, data: { ok: true } }` when authorized and `401` otherwise. CORS is restricted to `ALLOWED_ORIGIN` when set, and falls back to `*` otherwise (dev-only). The public `/sub/:token/*` endpoint is unaffected — it is protected by its own per-export token instead.
+
 ### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | /api/health | Health check |
+| GET | /api/health | Health check (public, no auth) |
+| GET | /api/auth/check | Verify the bearer token is valid |
 | GET/POST | /api/sources | List/create sources |
 | GET/PUT/DELETE | /api/sources/:id | Get/update/delete source |
 | POST | /api/sources/:id/refresh | Fetch and parse subscription URL |
@@ -309,11 +314,13 @@ VITE_API_URL=/api
 ### Worker (apps/worker/.dev.vars)
 ```
 ENVIRONMENT=development
-API_KEY=your-optional-admin-key
+API_KEY=                # optional; leave empty to keep the API open locally
+ALLOWED_ORIGIN=          # optional; restricts CORS, leave empty to allow all origins
 ```
 
 ### Production
-Configure in Cloudflare Dashboard:
-- Worker env vars: `ENVIRONMENT=production`
+Configure in Cloudflare Dashboard / wrangler:
+- Worker env vars: `ENVIRONMENT=production`, `ALLOWED_ORIGIN=https://your-pages-domain`
+- Worker secret: `wrangler secret put API_KEY` (required to protect `/api/*` in production)
 - D1 binding: `DB` → your D1 database
 - KV binding: `KV` → your KV namespace

@@ -448,7 +448,18 @@
     "export_success": "Data exported successfully",
     "import_success": "Data imported successfully",
     "clear_success": "Data cleared",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "access": "Access",
+    "access_key_hint": "If this instance is protected with an access key, you can clear the one stored in this browser and re-enter it.",
+    "access_key_clear": "Forget Access Key",
+    "access_key_clear_confirm": "Forget the stored access key and lock this browser? You will need to re-enter it."
+  },
+  "auth": {
+    "title": "UniConf is Protected",
+    "description": "Enter the access key to continue.",
+    "placeholder": "Access key",
+    "unlock": "Unlock",
+    "invalid_key": "Invalid access key"
   },
   "dashboard": {
     "title": "Dashboard",

@@ -39,4 +39,36 @@ describe('worker entrypoint', () => {
       data: { status: 'ok', env: 'test' },
     })
   })
+
+  it('keeps /api/health public even when API_KEY is configured', async () => {
+    const response = await worker.fetch(
+      new Request('https://uni-conf.example.com/api/health'),
+      { ENVIRONMENT: 'test', API_KEY: 'secret' } as Env,
+      {} as ExecutionContext
+    )
+
+    expect(response.status).toBe(200)
+  })
+
+  it('rejects protected API routes without a bearer token when API_KEY is configured', async () => {
+    const response = await worker.fetch(
+      new Request('https://uni-conf.example.com/api/dashboard'),
+      { ENVIRONMENT: 'test', API_KEY: 'secret', DB: {} as D1Database } as Env,
+      {} as ExecutionContext
+    )
+
+    expect(response.status).toBe(401)
+  })
+
+  it('allows /api/auth/check with the correct bearer token', async () => {
+    const response = await worker.fetch(
+      new Request('https://uni-conf.example.com/api/auth/check', {
+        headers: { Authorization: 'Bearer secret' },
+      }),
+      { ENVIRONMENT: 'test', API_KEY: 'secret' } as Env,
+      {} as ExecutionContext
+    )
+
+    await expect(response.json()).resolves.toEqual({ success: true, data: { ok: true } })
+  })
 })

@@ -9,15 +9,16 @@ UniConf lets you manage proxy subscriptions, nodes, filtering rules, strategy gr
 
 | Format | Status | Client |
 |--------|--------|--------|
-| Mihomo YAML | ✅ MVP | Mihomo, Clash Verge Rev, FlClash, etc. |
-| Clash YAML | ✅ MVP | ClashX, ClashN, OpenClash, etc. |
-| sing-box JSON | ✅ MVP | SFI, SFA, SFM, etc. |
-| Loon CONF | ✅ MVP | Loon (iOS) |
-| Node Subscription | ✅ MVP | V2rayN, V2rayNG, NekoBox, etc. |
-| Surge CONF | 🔄 V2 | Surge (iOS/macOS) |
-| Quantumult X | 🔄 V2 | Quantumult X (iOS) |
-| Shadowrocket | 🔄 V2 | Shadowrocket (iOS) |
-| Stash YAML | 🔄 V2 | Stash (iOS) |
+| Mihomo YAML | ✅ | Mihomo, Clash Verge Rev, FlClash, etc. |
+| Clash YAML | ✅ | ClashX, ClashN, OpenClash, etc. |
+| sing-box JSON | ✅ | SFI, SFA, SFM, etc. |
+| Loon CONF | ✅ | Loon (iOS) |
+| Surge CONF | ✅ | Surge (iOS/macOS) |
+| Quantumult X | ✅ | Quantumult X (iOS) |
+| Shadowrocket | ✅ | Shadowrocket (iOS) |
+| Stash YAML | ✅ | Stash (iOS) |
+| Egern YAML | ✅ | Egern (iOS/macOS) |
+| Node Subscription | ✅ | V2rayN, V2rayNG, NekoBox, etc. |
 
 ## Tech Stack
 

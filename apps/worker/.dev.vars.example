@@ -5,4 +5,9 @@ ENVIRONMENT=development
 
 # Optional: set an API key to protect the admin API endpoints
 # Leave empty to allow all requests in development
+# In production, set this with `wrangler secret put API_KEY`
 API_KEY=
+
+# Optional: restrict CORS to the deployed frontend origin
+# Leave empty to allow all origins (fine for local development only)
+ALLOWED_ORIGIN=

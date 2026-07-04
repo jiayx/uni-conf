@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { apiAuth } from './middleware/auth'
 import sourcesRouter from './routes/sources'
 import nodesRouter from './routes/nodes'
 import collectionsRouter from './routes/collections'
@@ -16,11 +17,17 @@ import { refreshDueSources } from './services/source-auto-refresh'
 
 const app = new Hono<{ Bindings: Env }>()
 
-// CORS - allow all origins for API (frontend is same domain in prod)
-app.use('/api/*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }))
+// CORS - restrict to ALLOWED_ORIGIN when configured; defaults to '*' for local development
+app.use('/api/*', (c, next) =>
+  cors({ origin: c.env.ALLOWED_ORIGIN || '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] })(c, next)
+)
 
-// Health check
+// Health check - stays public for infra probes
 app.get('/api/health', (c) => c.json({ success: true, data: { status: 'ok', env: c.env.ENVIRONMENT } }))
+
+// Everything else under /api/* requires the shared bearer token when API_KEY is configured
+app.use('/api/*', apiAuth)
+app.get('/api/auth/check', (c) => c.json({ success: true, data: { ok: true } }))
 
 // API routes
 app.route('/api/sources', sourcesRouter)

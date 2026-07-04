@@ -1,6 +1,7 @@
 import { RouterProvider } from 'react-router'
 import { useEffect } from 'react'
 import { router } from '@/app/router'
+import { AuthGate } from '@/app/AuthGate'
 import { useSettingsStore } from '@/store'
 import i18n from '@/i18n'
 
@@ -15,5 +16,9 @@ export default function App() {
     void i18n.changeLanguage(language)
   }, [language])
 
-  return <RouterProvider router={router} />
+  return (
+    <AuthGate>
+      <RouterProvider router={router} />
+    </AuthGate>
+  )
 }
