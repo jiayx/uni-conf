@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { PREVIEW_FORMATS } from '@/core/export/formats'
@@ -10,9 +11,10 @@ import styles from './Preview.module.css'
 
 export function Preview() {
   const { t } = useTranslation()
-  const [format, setFormat] = useState<ExportFormat>('mihomo')
+  const [searchParams] = useSearchParams()
+  const [format, setFormat] = useState<ExportFormat>(() => parsePreviewFormat(searchParams.get('format')))
   const [configs, setConfigs] = useState<ExportConfig[]>([])
-  const [configId, setConfigId] = useState('')
+  const [configId, setConfigId] = useState(() => searchParams.get('configId') ?? '')
   const [content, setContent] = useState('')
   const [contentType, setContentType] = useState('')
   const [warnings, setWarnings] = useState<CompatibilityWarning[]>([])
@@ -143,4 +145,8 @@ export function Preview() {
       )}
     </div>
   )
+}
+
+function parsePreviewFormat(value: string | null): ExportFormat {
+  return PREVIEW_FORMATS.includes(value as ExportFormat) ? value as ExportFormat : 'mihomo'
 }

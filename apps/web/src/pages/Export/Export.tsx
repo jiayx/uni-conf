@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
@@ -42,6 +43,7 @@ const EMPTY_FORM: ExportForm = {
 
 export function Export() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [configs, setConfigs] = useState<ExportConfig[]>([])
   const [collections, setCollections] = useState<NodeCollection[]>([])
   const [groups, setGroups] = useState<ProxyGroup[]>([])
@@ -147,6 +149,12 @@ export function Export() {
     await handleDownloadFormat(config, config.format)
   }
 
+  const handlePreviewFormat = (format: ExportFormat, configId?: string) => {
+    const params = new URLSearchParams({ format })
+    if (configId) params.set('configId', configId)
+    void navigate(`/preview?${params.toString()}`)
+  }
+
   const handleValidate = async (config: ExportConfig) => {
     setCheckingId(config.id)
     setValidationById(current => ({
@@ -233,6 +241,10 @@ export function Export() {
                         <div className={styles.quickFormatActions}>
                           <Button
                             variant="ghost" size="sm"
+                            onClick={() => handlePreviewFormat(item.value)}
+                          >{t('common.preview')}</Button>
+                          <Button
+                            variant="ghost" size="sm"
                             onClick={() => copyUrl(subUrl, actionKey)}
                           >{copied === actionKey ? t('common.copied') : t('common.copy')}</Button>
                           <Button
@@ -277,6 +289,10 @@ export function Export() {
                       loading={checkingId === cfg.id}
                       onClick={() => void handleValidate(cfg)}
                     >{t('export.validate')}</Button>
+                    <Button
+                      variant="secondary" size="sm"
+                      onClick={() => handlePreviewFormat(cfg.format, cfg.id)}
+                    >{t('common.preview')}</Button>
                     <Button
                       variant="secondary" size="sm"
                       loading={downloadingId === `${cfg.id}:${cfg.format}`}
