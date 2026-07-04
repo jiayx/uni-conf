@@ -206,7 +206,9 @@ exportRouter.get('/preview/:format', async (c) => {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
     dnsMode: settings.dnsMode,
   })
-  const remoteRuleSetWarnings = await validateRemoteRuleSetReachability(exportData, format as ExportFormat)
+  const remoteRuleSetWarnings = await validateRemoteRuleSetReachability(exportData, format as ExportFormat, {
+    kv: c.env.KV,
+  })
 
   return c.json({ success: true, data: { ...rendered, format, warnings: [...warnings, ...remoteRuleSetWarnings] } })
 })

@@ -32,18 +32,24 @@ export function resolveExportWarnings(
   ];
 }
 
+const RULE_SET_REACHABILITY_KV_TTL_SECONDS = 3600;
+
 export async function validateRemoteRuleSetReachability(
   data: ExportData,
   format: ExportFormat,
   options: {
     fetcher?: typeof fetch;
     timeoutMs?: number;
+    kv?: KVNamespace;
+    kvTtlSeconds?: number;
   } = {}
 ): Promise<CompatibilityWarning[]> {
   if (isNodeOnlyExportFormat(format)) return [];
 
   const fetcher = options.fetcher ?? fetch;
   const timeoutMs = options.timeoutMs ?? 2500;
+  const kv = options.kv;
+  const kvTtlSeconds = options.kvTtlSeconds ?? RULE_SET_REACHABILITY_KV_TTL_SECONDS;
   const checks = data.remoteSets.flatMap((ruleSet) => {
     const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
     if (!resolved || !isDownloadableHttpUrl(resolved.url) || !isRuleSetFormatCompatible(format, resolved.format)) return [];
@@ -51,7 +57,9 @@ export async function validateRemoteRuleSetReachability(
   });
 
   const results = await Promise.all(checks.map(async ({ ruleSet, url }): Promise<CompatibilityWarning | null> => {
-    const reachable = await canFetchRemoteRuleSet(fetcher, url, timeoutMs);
+    const reachable = await getCachedRuleSetReachability(kv, kvTtlSeconds, url, () =>
+      canFetchRemoteRuleSet(fetcher, url, timeoutMs)
+    );
     return reachable ? null : {
       client: format,
       level: 'unsupported',
@@ -61,6 +69,39 @@ export async function validateRemoteRuleSetReachability(
   }));
 
   return results.filter((item): item is CompatibilityWarning => Boolean(item));
+}
+
+/**
+ * Rule set reachability only depends on an external URL, not on any UniConf data,
+ * so a KV-cached result (unlike a rendered export) can never go stale in a way that
+ * serves a user the wrong proxy config - worst case is a warning lagging by up to
+ * kvTtlSeconds after a remote host recovers.
+ */
+async function getCachedRuleSetReachability(
+  kv: KVNamespace | undefined,
+  kvTtlSeconds: number,
+  url: string,
+  check: () => Promise<boolean>
+): Promise<boolean> {
+  if (!kv) return check();
+
+  const key = `rule-set-reachable:${fnv1aHash(url)}`;
+  const cached = await kv.get(key);
+  if (cached === 'true') return true;
+  if (cached === 'false') return false;
+
+  const reachable = await check();
+  await kv.put(key, reachable ? 'true' : 'false', { expirationTtl: kvTtlSeconds });
+  return reachable;
+}
+
+function fnv1aHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
 }
 
 export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {

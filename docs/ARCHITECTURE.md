@@ -76,8 +76,11 @@ apps/worker/
      │   All persistent data, including export token lookups
      │
      └── KV Namespace
-         Bound but not yet used by application code (reserved for
-         future response/reachability caching)
+         Caches remote rule-set URL reachability checks used by the
+         config preview endpoint (1h TTL). The public /sub/* response
+         itself is intentionally not cached - it sends
+         Cache-Control: no-store so toggling a source/node/rule is
+         reflected on the client's very next refresh.
 ```
 
 In production, configure Cloudflare Pages to proxy `/api/*` and `/sub/*` to the Worker using Pages' built-in routing or Worker routing.

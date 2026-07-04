@@ -495,6 +495,51 @@ describe('export validation', () => {
     }), 'nodes_raw', { fetcher })).resolves.toEqual([]);
   });
 
+  it('caches a reachable rule set result in KV and skips re-fetching on the next call', async () => {
+    let fetchCount = 0;
+    const fetcher = async () => {
+      fetchCount++;
+      return new Response('', { status: 200 });
+    };
+    const kv = createMockKv();
+
+    await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
+    }), 'mihomo', { fetcher, kv });
+    expect(fetchCount).toBe(1);
+
+    const warnings = await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
+    }), 'mihomo', { fetcher, kv });
+
+    expect(fetchCount).toBe(1);
+    expect(warnings).toEqual([]);
+  });
+
+  it('caches an unreachable rule set result in KV and keeps warning without re-fetching', async () => {
+    let fetchCount = 0;
+    const fetcher = async () => {
+      fetchCount++;
+      return new Response('', { status: 404 });
+    };
+    const kv = createMockKv();
+
+    await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
+    }), 'mihomo', { fetcher, kv });
+    expect(fetchCount).toBe(1); // 404 short-circuits before the ranged GET fallback
+
+    const warnings = await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
+    }), 'mihomo', { fetcher, kv });
+
+    expect(fetchCount).toBe(1);
+    expect(warnings).toContainEqual(expect.objectContaining({
+      level: 'unsupported',
+      message: expect.stringContaining('Ads'),
+    }));
+  });
+
   it('warns when the export format cannot include managed DNS settings', () => {
     const warnings = validateExportData(makeExportData(), 'loon', { dnsMode: 'smart' });
 
@@ -686,4 +731,14 @@ function makeRemoteSet(
     updatedAt: createdAt,
     ...patch,
   };
+}
+
+function createMockKv(): KVNamespace {
+  const store = new Map<string, string>();
+  return {
+    get: async (key: string) => store.get(key) ?? null,
+    put: async (key: string, value: string) => {
+      store.set(key, value);
+    },
+  } as unknown as KVNamespace;
 }
