@@ -762,6 +762,96 @@ proxy-groups:
     }))
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
+
+  it('imports a clipboard source from pasted Clash YAML content', async () => {
+    const db = createCreateRefreshMockDb()
+    const rawContent = `
+proxies:
+  - { name: '🇺🇸 US 01', type: trojan, server: us.example.com, port: 443, password: pwd }
+proxy-groups:
+  - { name: 'US Auto', type: url-test, proxies: ['🇺🇸 US 01'] }
+`
+
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Pasted Config', content: rawContent }),
+    }, { DB: db })
+    const payload = await response.json() as {
+      success: boolean;
+      data: {
+        source: { type: string; url?: string; name: string; rawContent?: string };
+        refresh: SourceRefreshResult;
+        refreshError?: string;
+      };
+    }
+
+    expect(response.status).toBe(201)
+    expect(payload.success).toBe(true)
+    expect(payload.data.source).toMatchObject({ type: 'clipboard', name: 'Pasted Config' })
+    expect(payload.data.source.url).toBeUndefined()
+    expect(payload.data.refresh).toMatchObject({
+      success: true,
+      addedCount: 1,
+      nodeCount: 1,
+      format: 'mihomo',
+      sourceGroupCount: 1,
+    })
+    expect(payload.data.refreshError).toBeUndefined()
+    expect(payload.data.source.rawContent).toBe(rawContent.trim())
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'insert-node',
+      name: '🇺🇸 US 01',
+      server: 'us.example.com',
+      countryCode: 'US',
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
+  it('defaults the import name and preserves raw content when no usable nodes are parsed', async () => {
+    const db = createCreateRefreshMockDb()
+
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'not a usable proxy config' }),
+    }, { DB: db })
+    const payload = await response.json() as {
+      success: boolean;
+      data: {
+        source: { name: string; rawContent?: string; lastRefreshError?: string };
+        refresh?: SourceRefreshResult;
+        refreshError?: string;
+      };
+    }
+
+    expect(response.status).toBe(201)
+    expect(payload.success).toBe(true)
+    expect(payload.data.source.name).toBe('Imported Config')
+    expect(payload.data.source.rawContent).toBe('not a usable proxy config')
+    expect(payload.data.refresh).toBeUndefined()
+    expect(payload.data.refreshError).toContain('No usable proxy nodes parsed')
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'record-refresh-error',
+      error: expect.stringContaining('No usable proxy nodes parsed'),
+    }))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
+  it('rejects importing with empty content', async () => {
+    const db = createCreateMockDb()
+
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: '   ' }),
+    }, { DB: db })
+    const payload = await response.json() as { success: boolean; error: string }
+
+    expect(response.status).toBe(400)
+    expect(payload.success).toBe(false)
+    expect(payload.error).toContain('content is required')
+  })
 })
 
 function makeSsrUri(input: {
@@ -1087,7 +1177,7 @@ function createCreateMockDb(): D1Database {
               id: args[0],
               name: inserted.name ?? 'airport.example',
               type: inserted.type ?? 'url',
-              url: inserted.url ?? 'https://airport.example/sub',
+              url: 'url' in inserted ? inserted.url : 'https://airport.example/sub',
               format: inserted.format ?? 'auto',
               enabled: 1,
               node_count: 0,
@@ -1144,7 +1234,7 @@ function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<st
               id: args[0],
               name: inserted.name ?? 'airport.example',
               type: inserted.type ?? 'url',
-              url: inserted.url ?? 'https://airport.example/sub',
+              url: 'url' in inserted ? inserted.url : 'https://airport.example/sub',
               format: inserted.format ?? 'auto',
               enabled: 1,
               node_count: inserted.node_count ?? operations.filter(item => item.operation === 'insert-node').length,
@@ -1207,6 +1297,8 @@ function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<st
             inserted.total_bytes = args[3]
             inserted.expire_time = args[4]
             inserted.updated_at = args[5]
+          } else if (sql.includes('last_refresh_error = ?')) {
+            operations.push({ operation: 'record-refresh-error', error: args[0], id: args[2] })
           }
           return { success: true }
         },

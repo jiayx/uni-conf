@@ -2,6 +2,7 @@ import type {
   ProxySource,
   SourceCreateInput,
   SourceCreateResult,
+  SourceImportInput,
   ProxyNode,
   NodeCollection,
   ProxyGroup,
@@ -68,6 +69,8 @@ const sources = {
   get: (id: string): Promise<ProxySource> => get(`/sources/${id}`),
   create: (data: SourceCreateInput): Promise<SourceCreateResult> =>
     post('/sources', data),
+  import: (data: SourceImportInput): Promise<SourceCreateResult> =>
+    post('/sources/import', data),
   update: (id: string, data: Partial<ProxySource>): Promise<ProxySource> => put(`/sources/${id}`, data),
   remove: (id: string): Promise<void> => del(`/sources/${id}`),
   refresh: (id: string): Promise<SourceRefreshResult> => post(`/sources/${id}/refresh`),

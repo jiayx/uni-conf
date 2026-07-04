@@ -384,6 +384,14 @@ export type SourceCreateInput = Omit<
   refreshAfterCreate?: boolean;
 };
 
+export interface SourceImportInput {
+  name?: string;
+  content: string;
+  format?: SourceFormat;
+  notes?: string;
+  tags?: string[];
+}
+
 export interface SourceCreateResult {
   source: ProxySource;
   refresh?: SourceRefreshResult;

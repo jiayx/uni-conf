@@ -107,7 +107,17 @@
     "save_failed_count": "{{count}} subscription source(s) failed to save: {{message}}",
     "never_updated": "Never updated",
     "url_required": "URL is required",
-    "name_required": "Name is required"
+    "name_required": "Name is required",
+    "import_config": "Import Config",
+    "import_submit": "Import",
+    "import_hint_title": "Import an existing Clash/Mihomo, sing-box, or node config",
+    "import_hint_text": "Paste or upload a config file. UniConf parses nodes (and upstream node groups when present) the same way it does for subscription URLs, and preserves the original content even if parsing is incomplete.",
+    "import_content": "Config Content",
+    "import_content_placeholder": "Paste Clash/Mihomo YAML, sing-box JSON, or a list of ss:// vmess:// ... links",
+    "import_content_required": "Config content is required",
+    "import_from_file": "Upload File Instead",
+    "import_name_placeholder": "Leave empty to use \"Imported Config\"",
+    "import_default_name": "Imported Config"
   },
   "nodes": {
     "title": "Node List",

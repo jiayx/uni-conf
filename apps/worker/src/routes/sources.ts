@@ -128,6 +128,74 @@ async function ensureSourceZeroSetupState(db: D1Database, ts: string): Promise<v
   await ensureZeroSetupDefaults(db, ts);
 }
 
+// ─── Import source from pasted/uploaded config content ─────────────────────────
+// Reuses the same node/group parsing pipeline as URL subscriptions (Clash/Mihomo
+// YAML, sing-box JSON, raw URI lines, Base64) so an existing config can be split
+// into a source + nodes + node groups without requiring a reachable URL.
+
+app.post('/import', async (c) => {
+  const body = await c.req.json<{
+    name?: string;
+    content?: string;
+    format?: string;
+    notes?: string;
+    tags?: string[];
+  }>();
+
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (!content) {
+    return c.json({ success: false, error: 'content is required' }, 400);
+  }
+  const format = body.format ?? 'auto';
+  if (!isValidSourceFormat(format)) {
+    return c.json({ success: false, error: 'invalid source format' }, 400);
+  }
+  const sourceFields = validateSourceMutableFields(body);
+  if (!sourceFields.valid) {
+    return c.json({ success: false, error: sourceFields.error }, 400);
+  }
+
+  const id = newId();
+  const ts = now();
+  const sourceName = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'Imported Config';
+
+  await c.env.DB.prepare(
+    `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(
+      id,
+      sourceName,
+      'clipboard',
+      null,
+      format,
+      1,
+      sourceFields.updateInterval ?? 0,
+      sourceFields.userAgent ?? null,
+      sourceFields.notes ?? null,
+      jsonStringify(sourceFields.tags ?? []),
+      ts,
+      ts
+    )
+    .run();
+
+  let refresh: SourceRefreshResult | undefined;
+  let refreshError: string | undefined;
+  try {
+    refresh = await importSourceFromContent(c.env.DB, id, content, format);
+  } catch (err) {
+    refreshError = err instanceof Error ? err.message : String(err);
+    await recordSourceRefreshError(c.env.DB, id, refreshError);
+  }
+  await ensureSourceZeroSetupState(c.env.DB, ts);
+
+  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
+    .bind(id)
+    .first<Record<string, unknown>>();
+
+  return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError } }, 201);
+});
+
 // ─── Get source ───────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
@@ -300,8 +368,40 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
   }
   await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, now());
 
+  return applyParsedSourceContent(db, id, rawContent, subscriptionInfo, row.format);
+}
+
+/**
+ * Imports a source from pasted/uploaded config content instead of fetching a URL.
+ * Reuses the same parse -> diff -> upsert -> group-sync pipeline as refreshSourceById,
+ * so file/clipboard sources behave identically to URL sources once content is available.
+ */
+export async function importSourceFromContent(
+  db: D1Database,
+  id: string,
+  rawContent: string,
+  sourceFormatInput: unknown
+): Promise<SourceRefreshResult> {
+  const ts = now();
+  // Preserve the raw content even if parsing below fails to find usable nodes.
+  await cacheFetchedSourceContent(db, id, rawContent, {}, ts);
+  return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput);
+}
+
+async function applyParsedSourceContent(
+  db: D1Database,
+  id: string,
+  rawContent: string,
+  subscriptionInfo: {
+    uploadBytes?: number;
+    downloadBytes?: number;
+    totalBytes?: number;
+    expireTime?: number;
+  },
+  sourceFormatInput: unknown
+): Promise<SourceRefreshResult> {
   // Detect format and parse nodes
-  const sourceFormat = isValidSourceFormat(row.format) ? row.format : 'auto';
+  const sourceFormat = isValidSourceFormat(sourceFormatInput) ? sourceFormatInput : 'auto';
   const { nodes: rawParsedNodes, groups: rawParsedGroups, format } = detectAndParse(rawContent, sourceFormat);
   const { nodes: parsedNodes, groups: parsedGroups, excludedCount } = filterUsableParsedContent(
     rawParsedNodes,

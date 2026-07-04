@@ -107,7 +107,17 @@
     "save_failed_count": "{{count}} 个订阅源保存失败：{{message}}",
     "never_updated": "从未更新",
     "url_required": "请输入订阅链接",
-    "name_required": "请输入名称"
+    "name_required": "请输入名称",
+    "import_config": "导入配置",
+    "import_submit": "导入",
+    "import_hint_title": "导入已有的 Clash/Mihomo、sing-box 或节点配置",
+    "import_hint_text": "粘贴或上传配置文件，系统会按与订阅链接相同的方式解析节点（以及配置中自带的节点组）；即使无法完整解析，也会保留原始配置内容。",
+    "import_content": "配置内容",
+    "import_content_placeholder": "粘贴 Clash/Mihomo YAML、sing-box JSON，或 ss:// vmess:// 等节点链接列表",
+    "import_content_required": "请输入配置内容",
+    "import_from_file": "改为上传文件",
+    "import_name_placeholder": "留空则使用“导入配置”",
+    "import_default_name": "导入配置"
   },
   "nodes": {
     "title": "节点列表",

@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { ProxySource, SourceCreateInput, SourceCreateResult, SourceRefreshResult } from '@uni-conf/types'
+import type {
+  ProxySource,
+  SourceCreateInput,
+  SourceCreateResult,
+  SourceImportInput,
+  SourceRefreshResult,
+} from '@uni-conf/types'
 import { api } from '@/lib/api'
 
 interface SourcesState {
@@ -10,9 +16,31 @@ interface SourcesState {
   refreshErrors: Record<string, string>
   fetchSources: () => Promise<void>
   addSource: (data: SourceCreateInput) => Promise<SourceCreateResult>
+  importSource: (data: SourceImportInput) => Promise<SourceCreateResult>
   updateSource: (id: string, data: Partial<ProxySource>) => Promise<void>
   deleteSource: (id: string) => Promise<void>
   refreshSource: (id: string) => Promise<SourceRefreshResult>
+}
+
+function applyCreateResult(
+  s: Pick<SourcesState, 'sources' | 'refreshResults' | 'refreshErrors'>,
+  result: SourceCreateResult
+): Pick<SourcesState, 'sources' | 'refreshResults' | 'refreshErrors'> {
+  const nextErrors = { ...s.refreshErrors }
+  const nextResults = { ...s.refreshResults }
+  if (result.refresh) {
+    nextResults[result.source.id] = result.refresh
+    delete nextErrors[result.source.id]
+  }
+  if (result.refreshError) {
+    nextErrors[result.source.id] = result.refreshError
+    delete nextResults[result.source.id]
+  }
+  return {
+    sources: [...s.sources, result.source],
+    refreshResults: nextResults,
+    refreshErrors: nextErrors,
+  }
 }
 
 export const useSourcesStore = create<SourcesState>((set, get) => ({
@@ -34,23 +62,13 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
 
   addSource: async (data) => {
     const result = await api.sources.create(data)
-    set(s => {
-      const nextErrors = { ...s.refreshErrors }
-      const nextResults = { ...s.refreshResults }
-      if (result.refresh) {
-        nextResults[result.source.id] = result.refresh
-        delete nextErrors[result.source.id]
-      }
-      if (result.refreshError) {
-        nextErrors[result.source.id] = result.refreshError
-        delete nextResults[result.source.id]
-      }
-      return {
-        sources: [...s.sources, result.source],
-        refreshResults: nextResults,
-        refreshErrors: nextErrors,
-      }
-    })
+    set(s => applyCreateResult(s, result))
+    return result
+  },
+
+  importSource: async (data) => {
+    const result = await api.sources.import(data)
+    set(s => applyCreateResult(s, result))
     return result
   },
 

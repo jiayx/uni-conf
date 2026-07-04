@@ -112,6 +112,7 @@ All API endpoints are under `/api/`. Responses follow:
 | GET | /api/health | Health check (public, no auth) |
 | GET | /api/auth/check | Verify the bearer token is valid |
 | GET/POST | /api/sources | List/create sources |
+| POST | /api/sources/import | Import a source from pasted/uploaded config content (Clash/Mihomo YAML, sing-box JSON, raw URI lines) instead of a URL |
 | GET/PUT/DELETE | /api/sources/:id | Get/update/delete source |
 | POST | /api/sources/:id/refresh | Fetch and parse subscription URL |
 | GET/POST | /api/nodes | List/create nodes |

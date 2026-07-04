@@ -13,6 +13,7 @@
 .refreshStatus { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.625rem; background: var(--color-success-subtle); color: var(--color-success); border-radius: var(--radius-md); font-size: 0.75rem; }
 .refreshError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.75rem; line-height: 1.4; }
 .formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
+.fileInput { display: none; }
 .quickHint {
   display: flex;
   flex-direction: column;

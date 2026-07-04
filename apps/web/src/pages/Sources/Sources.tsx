@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { summarizeDashboardSourceCreateResults } from '@/core/sources/dashboard-source-create'
 import { buildCreateSourcePayload, resolveCreateSourceUserAgent, resolveUpdateSourceUserAgent } from '@/core/sources/source-form'
+import { buildImportSourcePayload, isImportContentValid } from '@/core/sources/source-import'
 import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
@@ -51,12 +52,14 @@ export function Sources() {
     refreshErrors,
     fetchSources,
     addSource,
+    importSource,
     updateSource,
     deleteSource,
     refreshSource,
   } = useSourcesStore()
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [editingSource, setEditingSource] = useState<ProxySource | null>(null)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -70,6 +73,10 @@ export function Sources() {
     refreshAfterCreate: true
   })
   const [formError, setFormError] = useState('')
+  const [importForm, setImportForm] = useState({ name: '', content: '', format: 'auto' as SourceFormat })
+  const [importError, setImportError] = useState('')
+  const [importing, setImporting] = useState(false)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { void fetchSources() }, [fetchSources])
 
@@ -104,6 +111,37 @@ export function Sources() {
     }
     setShowAddModal(false)
     setForm({ name: '', url: '', format: 'auto', updateInterval: 0, userAgent: '', customUserAgent: '', notes: '', refreshAfterCreate: true })
+  }
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return
+    const text = await file.text()
+    setImportForm(f => ({ ...f, content: text, name: f.name || file.name.replace(/\.[^.]+$/, '') }))
+    if (importFileInputRef.current) importFileInputRef.current.value = ''
+  }
+
+  const handleImport = async () => {
+    if (!isImportContentValid(importForm.content)) {
+      setImportError(t('sources.import_content_required'))
+      return
+    }
+    setImportError('')
+    setImporting(true)
+    try {
+      const result = await importSource(buildImportSourcePayload({
+        ...importForm,
+        name: importForm.name.trim() || t('sources.import_default_name'),
+      }))
+      if (result.refreshError) {
+        setImportError(`${t('sources.refresh_failed')}: ${result.refreshError}`)
+      }
+      setShowImportModal(false)
+      setImportForm({ name: '', content: '', format: 'auto' })
+    } catch (e) {
+      setImportError((e as Error).message)
+    } finally {
+      setImporting(false)
+    }
   }
 
   const handleRefresh = async (id: string) => {
@@ -169,9 +207,14 @@ export function Sources() {
       <PageHeader
         title={t('sources.title')}
         actions={
-          <Button onClick={() => setShowAddModal(true)} icon={<PlusIcon />}>
-            {t('sources.add_url')}
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setShowImportModal(true)} icon={<ImportIcon />}>
+              {t('sources.import_config')}
+            </Button>
+            <Button onClick={() => setShowAddModal(true)} icon={<PlusIcon />}>
+              {t('sources.add_url')}
+            </Button>
+          </>
         }
       />
 
@@ -432,12 +475,74 @@ export function Sources() {
           placeholder={t('common.notes')}
         />
       </Modal>
+
+      <Modal
+        open={showImportModal}
+        onOpenChange={(open) => {
+          setShowImportModal(open)
+          if (!open) { setImportError(''); setImportForm({ name: '', content: '', format: 'auto' }) }
+        }}
+        title={t('sources.import_config')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowImportModal(false)}>{t('common.cancel')}</Button>
+            <Button loading={importing} onClick={() => void handleImport()}>{t('sources.import_submit')}</Button>
+          </>
+        }
+      >
+        {importError && <div className={styles.formError}>{importError}</div>}
+        <div className={styles.quickHint}>
+          <div className={styles.quickHintTitle}>{t('sources.import_hint_title')}</div>
+          <div className={styles.quickHintText}>{t('sources.import_hint_text')}</div>
+        </div>
+        <label className={styles.textareaField}>
+          <span>{t('sources.import_content')}</span>
+          <textarea
+            className={styles.textarea}
+            value={importForm.content}
+            onChange={e => setImportForm(f => ({ ...f, content: e.target.value }))}
+            placeholder={t('sources.import_content_placeholder')}
+            rows={10}
+          />
+        </label>
+        <Button variant="secondary" size="sm" onClick={() => importFileInputRef.current?.click()}>
+          {t('sources.import_from_file')}
+        </Button>
+        <input
+          ref={importFileInputRef}
+          type="file"
+          accept=".yaml,.yml,.json,.conf,.txt"
+          className={styles.fileInput}
+          onChange={e => void handleImportFile(e.target.files?.[0])}
+        />
+        <Input
+          label={t('sources.name_optional')}
+          value={importForm.name}
+          onChange={e => setImportForm(f => ({ ...f, name: e.target.value }))}
+          placeholder={t('sources.import_name_placeholder')}
+        />
+        <div>
+          <label className={styles.selectLabel}>{t('sources.format')}</label>
+          <select
+            className={styles.select}
+            value={importForm.format}
+            onChange={e => setImportForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
+          >
+            {FORMAT_OPTIONS.map(format => (
+              <option key={format} value={format}>{t(`sources.format_${format}`)}</option>
+            ))}
+          </select>
+        </div>
+      </Modal>
     </div>
   )
 }
 
 function PlusIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+}
+function ImportIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 }
 function EditIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
