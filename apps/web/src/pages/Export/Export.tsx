@@ -58,7 +58,7 @@ export function Export() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [checkingId, setCheckingId] = useState<string | null>(null)
   const [validationById, setValidationById] = useState<Record<string, ExportValidationState>>({})
-  const [inlinePreview, setInlinePreview] = useState<InlinePreviewState | null>(null)
+  const [previewModal, setPreviewModal] = useState<PreviewModalState | null>(null)
   const previewRequestRef = useRef(0)
 
   const load = useCallback(async () => {
@@ -157,20 +157,16 @@ export function Export() {
     void navigate(`/preview?${params.toString()}`)
   }
 
-  const handlePreviewFormat = async (key: string, format: ExportFormat, configId?: string) => {
-    if (inlinePreview?.key === key && inlinePreview.status !== 'loading') {
-      setInlinePreview(null)
-      return
-    }
-
+  const handlePreviewFormat = async (key: string, title: string, format: ExportFormat, configId?: string) => {
     const requestId = previewRequestRef.current + 1
     previewRequestRef.current = requestId
-    setInlinePreview({ key, format, configId, status: 'loading' })
+    setPreviewModal({ key, title, format, configId, status: 'loading' })
     try {
       const result = await api.export.previewFormat(format, configId)
       if (previewRequestRef.current !== requestId) return
-      setInlinePreview({
+      setPreviewModal({
         key,
+        title,
         format,
         configId,
         status: 'ready',
@@ -180,7 +176,7 @@ export function Export() {
       })
     } catch (e) {
       if (previewRequestRef.current !== requestId) return
-      setInlinePreview({ key, format, configId, status: 'error', error: (e as Error).message })
+      setPreviewModal({ key, title, format, configId, status: 'error', error: (e as Error).message })
     }
   }
 
@@ -270,8 +266,8 @@ export function Export() {
                         <div className={styles.quickFormatActions}>
                           <Button
                             variant="ghost" size="sm"
-                            loading={inlinePreview?.key === actionKey && inlinePreview.status === 'loading'}
-                            onClick={() => void handlePreviewFormat(actionKey, item.value)}
+                            loading={previewModal?.key === actionKey && previewModal.status === 'loading'}
+                            onClick={() => void handlePreviewFormat(actionKey, t(`export.formats.${item.value}`), item.value)}
                           >{t('common.preview')}</Button>
                           <Button
                             variant="ghost" size="sm"
@@ -291,14 +287,6 @@ export function Export() {
                   })}
                 </div>
               </div>
-              {inlinePreview?.key.startsWith(`${defaultConfig.id}:`) && (
-                <InlinePreviewPanel
-                  preview={inlinePreview}
-                  title={t(`export.formats.${inlinePreview.format}`)}
-                  onClose={() => setInlinePreview(null)}
-                  onOpenFull={() => openFullPreview(inlinePreview.format)}
-                />
-              )}
             </Card>
           )}
           {advancedConfigs.length > 0 && <div className={styles.sectionLabel}>{t('export.advanced_profiles')}</div>}
@@ -329,8 +317,8 @@ export function Export() {
                     >{t('export.validate')}</Button>
                     <Button
                       variant="secondary" size="sm"
-                      loading={inlinePreview?.key === `${cfg.id}:${cfg.format}` && inlinePreview.status === 'loading'}
-                      onClick={() => void handlePreviewFormat(`${cfg.id}:${cfg.format}`, cfg.format, cfg.id)}
+                      loading={previewModal?.key === `${cfg.id}:${cfg.format}` && previewModal.status === 'loading'}
+                      onClick={() => void handlePreviewFormat(`${cfg.id}:${cfg.format}`, `${cfg.name} · ${t(`export.formats.${cfg.format}`)}`, cfg.format, cfg.id)}
                     >{t('common.preview')}</Button>
                     <Button
                       variant="secondary" size="sm"
@@ -353,14 +341,6 @@ export function Export() {
                   </div>
                 </div>
                 {validation && <ExportValidationResult validation={validation} />}
-                {inlinePreview?.key === `${cfg.id}:${cfg.format}` && (
-                  <InlinePreviewPanel
-                    preview={inlinePreview}
-                    title={`${cfg.name} · ${t(`export.formats.${inlinePreview.format}`)}`}
-                    onClose={() => setInlinePreview(null)}
-                    onOpenFull={() => openFullPreview(inlinePreview.format, cfg.id)}
-                  />
-                )}
               </Card>
             )
           })}
@@ -442,6 +422,21 @@ export function Export() {
           </div>
         </details>
       </Modal>
+      <Modal
+        open={Boolean(previewModal)}
+        onOpenChange={open => {
+          if (!open) setPreviewModal(null)
+        }}
+        title={previewModal?.title ?? t('preview.title')}
+        size="lg"
+      >
+        {previewModal && (
+          <PreviewModalContent
+            preview={previewModal}
+            onOpenFull={() => openFullPreview(previewModal.format, previewModal.configId)}
+          />
+        )}
+      </Modal>
     </div>
   )
 }
@@ -451,20 +446,16 @@ type ExportValidationState =
   | { status: 'ready'; warnings: CompatibilityWarning[]; lineCount: number }
   | { status: 'error'; error: string }
 
-type InlinePreviewState =
-  | { key: string; format: ExportFormat; configId?: string; status: 'loading' }
-  | { key: string; format: ExportFormat; configId?: string; status: 'ready'; content: string; contentType: string; warnings: CompatibilityWarning[] }
-  | { key: string; format: ExportFormat; configId?: string; status: 'error'; error: string }
+type PreviewModalState =
+  | { key: string; title: string; format: ExportFormat; configId?: string; status: 'loading' }
+  | { key: string; title: string; format: ExportFormat; configId?: string; status: 'ready'; content: string; contentType: string; warnings: CompatibilityWarning[] }
+  | { key: string; title: string; format: ExportFormat; configId?: string; status: 'error'; error: string }
 
-function InlinePreviewPanel({
+function PreviewModalContent({
   preview,
-  title,
-  onClose,
   onOpenFull,
 }: {
-  preview: InlinePreviewState
-  title: string
-  onClose: () => void
+  preview: PreviewModalState
   onOpenFull: () => void
 }) {
   const { t } = useTranslation()
@@ -478,43 +469,25 @@ function InlinePreviewPanel({
   }
 
   if (preview.status === 'loading') {
-    return (
-      <div className={styles.inlinePreview}>
-        <div className={styles.inlinePreviewHeader}>
-          <strong>{title}</strong>
-          <Button variant="ghost" size="sm" onClick={onClose}>{t('common.close')}</Button>
-        </div>
-        <div className={styles.inlinePreviewEmpty}>{t('preview.generating')}</div>
-      </div>
-    )
+    return <div className={styles.previewModalEmpty}>{t('preview.generating')}</div>
   }
 
   if (preview.status === 'error') {
-    return (
-      <div className={styles.inlinePreview}>
-        <div className={styles.inlinePreviewHeader}>
-          <strong>{title}</strong>
-          <Button variant="ghost" size="sm" onClick={onClose}>{t('common.close')}</Button>
-        </div>
-        <div className={styles.validationBlocked}>{preview.error}</div>
-      </div>
-    )
+    return <div className={`${styles.validation} ${styles.validationBlocked}`}>{preview.error}</div>
   }
 
   const summary = summarizeExportWarnings(preview.warnings)
   const visibleWarnings = preview.warnings.slice(0, 3)
 
   return (
-    <div className={styles.inlinePreview}>
-      <div className={styles.inlinePreviewHeader}>
+    <>
+      <div className={styles.previewModalHeader}>
         <div>
-          <strong>{title}</strong>
           <span>{preview.contentType} · {t('preview.line_count', { count: preview.content.split('\n').length })}</span>
         </div>
-        <div className={styles.inlinePreviewActions}>
+        <div className={styles.previewModalActions}>
           <Button variant="ghost" size="sm" onClick={handleCopy}>{copied ? t('common.copied') : t('common.copy')}</Button>
           <Button variant="secondary" size="sm" onClick={onOpenFull}>{t('preview.title')}</Button>
-          <Button variant="ghost" size="sm" onClick={onClose}>{t('common.close')}</Button>
         </div>
       </div>
       <div className={`${styles.validation} ${summary.canUseConfig ? styles.validationReady : styles.validationBlocked}`}>
@@ -531,8 +504,8 @@ function InlinePreviewPanel({
           )}
         </div>
       )}
-      <pre className={styles.inlinePreviewCode}>{preview.content}</pre>
-    </div>
+      <pre className={styles.previewModalCode}>{preview.content}</pre>
+    </>
   )
 }
 
