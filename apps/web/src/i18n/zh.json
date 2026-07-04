@@ -329,8 +329,7 @@
     "reset_token": "重置 Token",
     "download": "下载配置",
     "formats": {
-      "mihomo": "Mihomo / Clash Verge Rev / OpenClash",
-      "clash": "Clash / Clash Verge Rev / OpenClash",
+      "mihomo": "Mihomo / Clash / OpenClash",
       "singbox": "sing-box",
       "loon": "Loon",
       "surge": "Surge",

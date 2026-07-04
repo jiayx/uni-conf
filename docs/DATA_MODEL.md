@@ -261,7 +261,7 @@ Remote rule set API writes validate custom rule sets before persistence. Names, 
 |--------|------|-------------|
 | id | TEXT PK | nanoid |
 | name | TEXT | Config name |
-| format | TEXT | `mihomo` \| `clash` \| `singbox` \| `loon` \| ... |
+| format | TEXT | `mihomo` \| `singbox` \| `loon` \| ... |
 | token | TEXT UNIQUE | Random token for subscription URL |
 | enabled | INTEGER | 1/0 |
 | include_collection_ids | TEXT | JSON array (empty=all) |

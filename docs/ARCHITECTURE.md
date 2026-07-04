@@ -131,7 +131,6 @@ All API endpoints are under `/api/`. Responses follow:
 
 ```
 /sub/{token}/mihomo.yaml
-/sub/{token}/clash.yaml
 /sub/{token}/singbox.json
 /sub/{token}/loon.conf
 /sub/{token}/nodes.txt

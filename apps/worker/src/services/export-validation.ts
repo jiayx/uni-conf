@@ -304,7 +304,7 @@ function hasRenderableNode(data: ExportData, format: ExportFormat): boolean {
 }
 
 function isNodeProtocolSupportedByExport(protocol: string, format: ExportFormat): boolean {
-  if (format === 'mihomo' || format === 'clash' || format === 'stash') {
+  if (format === 'mihomo' || format === 'stash') {
     return MIHOMO_EXPORT_NODE_PROTOCOLS.has(protocol);
   }
   if (format === 'singbox') return SINGBOX_EXPORT_NODE_PROTOCOLS.has(protocol);
@@ -499,7 +499,7 @@ function validateDns(format: ExportFormat, dnsMode: DnsMode | undefined): Compat
 }
 
 function supportsManagedDns(format: ExportFormat): boolean {
-  return format === 'mihomo' || format === 'clash' || format === 'singbox' || format === 'stash';
+  return format === 'mihomo' || format === 'singbox' || format === 'stash';
 }
 
 function formatDnsMode(dnsMode: DnsMode): string {

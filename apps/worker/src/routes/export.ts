@@ -58,8 +58,7 @@ exportRouter.post('/configs', async (c) => {
 export function resolveExportConfigName(name: unknown, format: ExportConfig['format'] | undefined): string {
   if (typeof name === 'string' && name.trim()) return name.trim()
   const labels: Partial<Record<ExportConfig['format'], string>> = {
-    mihomo: 'Mihomo',
-    clash: 'Clash / OpenClash',
+    mihomo: 'Mihomo / Clash / OpenClash',
     singbox: 'sing-box',
     loon: 'Loon',
     surge: 'Surge',

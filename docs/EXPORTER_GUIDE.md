@@ -10,7 +10,6 @@ Add the new value to `ExportFormat` in `packages/types/src/index.ts`.
 ```ts
 export type ExportFormat =
   | 'mihomo'
-  | 'clash'
   | 'singbox'
   | 'loon'
   | 'surge'
