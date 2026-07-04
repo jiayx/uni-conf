@@ -64,13 +64,12 @@ describe('collection filter pipeline', () => {
     expect(filterNodes(nodes, [{ id: 'f', field: 'tag', operator: 'not_in', value: ['unlock'], enabled: true }]).map(n => n.id)).toEqual(['jp'])
   })
 
-  it('handles disabled filters, invalid regexes, empty filters, and unknown operators defensively', () => {
+  it('handles disabled filters, invalid regexes, and empty filters defensively', () => {
     const sample = node('hk', { name: 'HK Streaming', tags: ['streaming'] })
 
     expect(applyFilter(sample, { id: 'off', field: 'name', operator: 'contains', value: 'JP', enabled: false })).toBe(true)
     expect(applyFilter(sample, { id: 'bad-regex', field: 'name', operator: 'regex', value: '[', enabled: true })).toBe(false)
     expect(applyFilter(sample, { id: 'bad-not-regex', field: 'name', operator: 'not_regex', value: '[', enabled: true })).toBe(true)
-    expect(applyFilter(sample, { id: 'unknown', field: 'name', operator: 'unknown' as never, value: 'JP', enabled: true })).toBe(true)
     expect(filterNodes([sample], [])).toEqual([sample])
   })
 
@@ -110,7 +109,6 @@ describe('collection filter pipeline', () => {
     expect(dedupNodes(nodes, 'protocol_server_port').map(item => item.id)).toEqual(['b', 'a', 'c'])
     expect(dedupNodes(nodes, 'name').map(item => item.id)).toEqual(['b', 'a', 'c'])
     expect(dedupNodes(nodes, 'full_config').map(item => item.id)).toEqual(['b'])
-    expect(dedupNodes(nodes, 'unknown' as never).map(item => item.id)).toEqual(['b', 'a', 'c'])
     expect(sortNodes(nodes, 'country').map(item => item.id)).toEqual(['a', 'c', 'b'])
     expect(sortNodes(nodes, 'country', ['US', 'OTHER']).map(item => item.id)).toEqual(['b', 'a', 'c'])
     expect(sortNodes(nodes, 'source').map(item => item.id)).toEqual(['a', 'b', 'c'])

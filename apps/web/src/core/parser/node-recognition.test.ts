@@ -86,7 +86,7 @@ describe('frontend parser node recognition', () => {
     expect(detectFormat('https://airport.example.com/sub?token=abc')).toBe('unknown')
   })
 
-  it('detects structured config formats and best-effort client formats', () => {
+  it('detects structured config formats and client config headers', () => {
     expect(detectFormat(JSON.stringify({ outbounds: [] }))).toBe('singbox')
     expect(detectFormat('{"outbounds":')).toBe('unknown')
     expect(detectFormat('proxies:\n  - name: HK\n    type: trojan\n    server: hk.example.com\n    port: 443\n    password: p')).toBe('clash')
@@ -94,6 +94,29 @@ describe('frontend parser node recognition', () => {
     expect(detectFormat('[General]\nloglevel = notify\n[Proxy]\nHK = trojan, hk.example.com, 443, password=p')).toBe('surge')
     expect(detectFormat('[General]\n[Proxy Group]\nAuto = select, HK')).toBe('loon')
     expect(detectFormat('not a subscription')).toBe('unknown')
+  })
+
+  it('distinguishes plain HTTP and TLS-enabled HTTP native proxy configs', () => {
+    const clashNodes = parseClashConfig(`
+proxies:
+  - { name: Plain HTTP, type: http, server: plain.example.com, port: 80 }
+  - { name: TLS HTTP, type: http, server: tls.example.com, port: 443, tls: true }
+`, 'source-1')
+    const singboxNodes = parseSingboxConfig(JSON.stringify({
+      outbounds: [
+        { type: 'http', tag: 'Plain HTTP', server: 'plain.example.com', server_port: 80 },
+        { type: 'http', tag: 'TLS HTTP', server: 'tls.example.com', server_port: 443, tls: { enabled: true } },
+      ],
+    }), 'source-1')
+
+    expect(clashNodes.map(node => [node.name, node.protocol])).toEqual([
+      ['Plain HTTP', 'http'],
+      ['TLS HTTP', 'https'],
+    ])
+    expect(singboxNodes.map(node => [node.name, node.protocol])).toEqual([
+      ['Plain HTTP', 'http'],
+      ['TLS HTTP', 'https'],
+    ])
   })
 
   it('parses Hysteria URI auth as TLS-enabled normalized config', () => {

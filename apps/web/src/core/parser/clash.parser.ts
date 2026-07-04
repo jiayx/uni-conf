@@ -9,7 +9,8 @@ function generateId(): string {
 
 type ClashProxy = Record<string, unknown>
 
-function mapClashProtocol(type: string): ProxyProtocol {
+function mapClashProtocol(type: string, proxy?: ClashProxy): ProxyProtocol {
+  if (type.toLowerCase() === 'http' && hasNativeTls(proxy)) return 'https'
   return MIHOMO_TYPE_TO_PROTOCOL[type.toLowerCase()] ?? (type.toLowerCase() === 'naiveproxy' ? 'naive' : 'unknown')
 }
 
@@ -17,7 +18,7 @@ function clashProxyToNode(proxy: ClashProxy, sourceId: string): ProxyNode | null
   const type = proxy['type'] as string | undefined
   if (!type) return null
 
-  const protocol = mapClashProtocol(type)
+  const protocol = mapClashProtocol(type, proxy)
   if (protocol === 'unknown') return null
 
   const server = proxy['server'] as string | undefined
@@ -74,6 +75,12 @@ function clashProxyToNode(proxy: ClashProxy, sourceId: string): ProxyNode | null
     createdAt: now,
     updatedAt: now,
   }
+}
+
+function hasNativeTls(proxy?: ClashProxy): boolean {
+  if (!proxy) return false
+  const tls = proxy['tls']
+  return tls === true || tls === 1 || tls === '1' || tls === 'true' || tls === 'tls'
 }
 
 export function parseClashConfig(content: string, sourceId: string): ProxyNode[] {

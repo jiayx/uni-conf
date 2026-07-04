@@ -118,7 +118,7 @@ function buildNodeListQuery(params?: NodeListParams): string {
 }
 
 const nodes = {
-  list: (params?: NodeListParams): Promise<ProxyNode[]> => listAllNodes(params),
+  listAll: (params?: Omit<NodeListParams, 'page' | 'pageSize'>): Promise<ProxyNode[]> => listAllNodes(params),
   listPage: (params?: NodeListParams): Promise<PaginatedResponse<ProxyNode>> =>
     get(`/nodes${buildNodeListQuery(params)}`),
   get: (id: string): Promise<ProxyNode> => get(`/nodes/${id}`),
@@ -128,7 +128,7 @@ const nodes = {
   remove: (id: string): Promise<void> => del(`/nodes/${id}`),
 }
 
-async function listAllNodes(params?: NodeListParams): Promise<ProxyNode[]> {
+async function listAllNodes(params?: Omit<NodeListParams, 'page' | 'pageSize'>): Promise<ProxyNode[]> {
   const pageSize = 200
   const firstPage = await nodes.listPage({ ...params, page: 1, pageSize })
   const items = [...firstPage.items]

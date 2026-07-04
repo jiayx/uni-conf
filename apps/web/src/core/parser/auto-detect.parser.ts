@@ -84,14 +84,14 @@ export function parseSubscriptionContent(
     case 'singbox':
       return parseSingboxConfig(content, sourceId)
     case 'base64':
-      // Could be raw lines or actual base64
+      // Raw URI lines and encoded subscriptions share the same downstream parser.
       if (hasProxyLinkUri(content.trim())) {
         return parseProxyLinks(content, sourceId)
       }
       return parseBase64Subscription(content, sourceId)
     case 'surge':
     case 'loon':
-      // For surge/loon we do a best-effort: extract proxy lines
+      // Frontend parsing only supports URI-like lines inside client text configs.
       return parseProxyLinks(content, sourceId)
     case 'unknown':
     default:

@@ -35,7 +35,8 @@ const PROXY_TYPES = new Set([
   'wireguard',
 ])
 
-function mapSingboxProtocol(type: string): ProxyProtocol {
+function mapSingboxProtocol(type: string, outbound?: SingboxOutbound): ProxyProtocol {
+  if (type.toLowerCase() === 'http' && hasNativeTls(outbound)) return 'https'
   return SINGBOX_TYPE_TO_PROTOCOL[type.toLowerCase()] ?? 'unknown'
 }
 
@@ -43,7 +44,7 @@ function singboxOutboundToNode(outbound: SingboxOutbound, sourceId: string): Pro
   const type = outbound['type'] as string | undefined
   if (!type || !PROXY_TYPES.has(type.toLowerCase())) return null
 
-  const protocol = mapSingboxProtocol(type)
+  const protocol = mapSingboxProtocol(type, outbound)
   if (protocol === 'unknown') return null
 
   const server = outbound['server'] as string | undefined
@@ -119,6 +120,11 @@ function singboxOutboundToNode(outbound: SingboxOutbound, sourceId: string): Pro
     createdAt: now,
     updatedAt: now,
   }
+}
+
+function hasNativeTls(outbound?: SingboxOutbound): boolean {
+  const tls = outbound?.['tls']
+  return Boolean(tls && typeof tls === 'object' && !Array.isArray(tls) && (tls as Record<string, unknown>)['enabled'] === true)
 }
 
 export function parseSingboxConfig(content: string, sourceId: string): ProxyNode[] {

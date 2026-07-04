@@ -232,17 +232,20 @@ export const URI_SCHEME_TO_PROTOCOL = Object.fromEntries(
   ),
 ) as Record<string, ProxyProtocol>
 
-export const SINGBOX_TYPE_TO_PROTOCOL = Object.fromEntries(
-  Object.entries(PROXY_PROTOCOL_REGISTRY)
-    .filter(([, meta]) => meta.singboxType)
-    .map(([protocol, meta]) => [meta.singboxType, protocol]),
-) as Record<string, ProxyProtocol>
+export const SINGBOX_TYPE_TO_PROTOCOL = buildNativeTypeToProtocolMap('singboxType')
 
-export const MIHOMO_TYPE_TO_PROTOCOL = Object.fromEntries(
-  Object.entries(PROXY_PROTOCOL_REGISTRY)
-    .filter(([, meta]) => meta.mihomoType)
-    .map(([protocol, meta]) => [meta.mihomoType, protocol]),
-) as Record<string, ProxyProtocol>
+export const MIHOMO_TYPE_TO_PROTOCOL = buildNativeTypeToProtocolMap('mihomoType')
+
+function buildNativeTypeToProtocolMap(key: 'mihomoType' | 'singboxType'): Record<string, ProxyProtocol> {
+  const result: Record<string, ProxyProtocol> = {}
+  for (const [protocol, meta] of Object.entries(PROXY_PROTOCOL_REGISTRY)) {
+    const nativeType = meta[key]
+    if (nativeType && result[nativeType] === undefined) {
+      result[nativeType] = protocol as ProxyProtocol
+    }
+  }
+  return result
+}
 
 const TLS_FIELDS = [
   {

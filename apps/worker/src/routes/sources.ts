@@ -937,7 +937,15 @@ function parseBySourceFormat(
     }
   }
 
-  if (format === 'surge' || format === 'loon' || format === 'shadowrocket' || format === 'quantumultx') {
+  if (format === 'shadowrocket') {
+    return {
+      nodes: parseShadowrocketTextConfigProxies(trimmed),
+      groups: [],
+      format,
+    };
+  }
+
+  if (format === 'surge' || format === 'loon' || format === 'quantumultx') {
     return {
       nodes: parseClientTextConfigProxies(trimmed),
       groups: [],
@@ -1023,7 +1031,7 @@ export function parseClashYaml(content: string): ParsedNodeRaw[] {
 
       if (!nameStr || !serverStr || isNaN(portNum)) continue;
 
-      const protocol = clashTypeToProtocol(typeStr);
+      const protocol = clashTypeToProtocol(typeStr, proxyObj);
       const rawConfig = proxyObj;
 
       nodes.push({
@@ -1078,7 +1086,8 @@ export function parseClashGroups(content: string): SourceNodeGroup[] {
   }
 }
 
-function clashTypeToProtocol(type: string): ProxyProtocol {
+function clashTypeToProtocol(type: string, proxy?: Record<string, unknown>): ProxyProtocol {
+  if (type === 'http' && hasNativeTls(proxy)) return 'https';
   return MIHOMO_TYPE_TO_PROTOCOL[type] ?? (type === 'hy2' ? 'hysteria2' : 'unknown');
 }
 
@@ -1101,7 +1110,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
     const port = (ob.server_port as number | null) ?? 0;
     if (!server || !port) continue;
 
-    const protocol = singboxTypeToProtocol(type);
+    const protocol = singboxTypeToProtocol(type, ob);
     nodes.push({
       name,
       protocol,
@@ -1157,6 +1166,12 @@ function parseClientTextConfigProxies(content: string): ParsedNodeRaw[] {
   return [...iniNodes, ...quantumultXNodes];
 }
 
+function parseShadowrocketTextConfigProxies(content: string): ParsedNodeRaw[] {
+  const sectionNodes = parseClientTextConfigProxies(content);
+  if (sectionNodes.length > 0) return sectionNodes;
+  return parseRawLines(content.split('\n').filter((line) => line.trim().length > 0));
+}
+
 function parseIniClientProxies(content: string): ParsedNodeRaw[] {
   const proxyLines = extractIniSection(content, 'Proxy');
   return proxyLines
@@ -1196,10 +1211,10 @@ function parseIniProxyLine(line: string): ParsedNodeRaw | null {
   const port = parseInt(parts[2]?.trim() ?? '', 10);
   if (!name || !type || !server || !port) return null;
 
-  const protocol = iniTypeToProtocol(type);
+  const rawConfig = parseIniProxyOptions(parts.slice(3));
+  const protocol = iniTypeToProtocol(type, rawConfig);
   if (protocol === 'unknown') return null;
 
-  const rawConfig = parseIniProxyOptions(parts.slice(3));
   if (rawConfig.password === undefined && rawConfig.pass !== undefined) rawConfig.password = rawConfig.pass;
   if (rawConfig.username === undefined && rawConfig.user !== undefined) rawConfig.username = rawConfig.user;
   if (rawConfig.method === undefined && rawConfig['encrypt-method'] !== undefined) rawConfig.method = rawConfig['encrypt-method'];
@@ -1271,7 +1286,21 @@ function coerceIniValue(value: string): unknown {
   return value;
 }
 
-function iniTypeToProtocol(type: string): ProxyProtocol {
+function hasNativeTls(config?: Record<string, unknown>): boolean {
+  if (!config) return false;
+  const tls = config.tls;
+  if (tls === true || tls === 1 || tls === '1' || tls === 'true' || tls === 'tls') return true;
+  const security = config.security;
+  if (security === 'tls' || security === 'reality') return true;
+  const nestedTls = config.tls;
+  if (nestedTls && typeof nestedTls === 'object' && !Array.isArray(nestedTls)) {
+    return (nestedTls as Record<string, unknown>).enabled === true;
+  }
+  return false;
+}
+
+function iniTypeToProtocol(type: string, rawConfig?: Record<string, unknown>): ProxyProtocol {
+  if (type === 'http' && hasNativeTls(rawConfig)) return 'https';
   if (type === 'socks5' || type === 'socks') return 'socks5';
   if (type === 'hy2') return 'hysteria2';
   return MIHOMO_TYPE_TO_PROTOCOL[type] ?? URI_SCHEME_TO_PROTOCOL[type] ?? 'unknown';
@@ -1285,7 +1314,8 @@ function isSingboxBuiltinOutboundName(name: string): boolean {
   return ['direct', 'block'].includes(name.toLowerCase());
 }
 
-function singboxTypeToProtocol(type: string): ProxyProtocol {
+function singboxTypeToProtocol(type: string, outbound?: Record<string, unknown>): ProxyProtocol {
+  if (type === 'http' && hasNativeTls(outbound)) return 'https';
   return SINGBOX_TYPE_TO_PROTOCOL[type] ?? 'unknown';
 }
 

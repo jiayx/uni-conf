@@ -39,7 +39,7 @@ export const useNodesStore = create<NodesState>((set, get) => ({
   fetchNodes: async (params) => {
     set({ loading: true, error: null })
     try {
-      const nodes = await api.nodes.list(params)
+      const nodes = await api.nodes.listAll(params)
       set({ nodes, loading: false })
     } catch (e) {
       set({ error: (e as Error).message, loading: false })

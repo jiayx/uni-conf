@@ -318,6 +318,45 @@ HTTPS Proxy = http, https.example.com, 443, tls=true
     ])
   })
 
+  it('keeps plain HTTP proxies as http and promotes only TLS-enabled HTTP proxies to https', () => {
+    const mihomo = detectAndParse(`
+proxies:
+  - { name: Plain HTTP, type: http, server: plain.example.com, port: 80 }
+  - { name: TLS HTTP, type: http, server: tls.example.com, port: 443, tls: true }
+`, 'mihomo')
+    const surge = detectAndParse(`
+[Proxy]
+Plain HTTP = http, plain.example.com, 80
+TLS HTTP = http, tls.example.com, 443, tls=true
+`, 'surge')
+    const singbox = detectAndParse(JSON.stringify({
+      outbounds: [
+        { type: 'http', tag: 'Plain HTTP', server: 'plain.example.com', server_port: 80 },
+        { type: 'http', tag: 'TLS HTTP', server: 'tls.example.com', server_port: 443, tls: { enabled: true } },
+      ],
+    }), 'singbox')
+
+    for (const result of [mihomo, surge, singbox]) {
+      expect(result.nodes.map(node => [node.name, node.protocol])).toEqual([
+        ['Plain HTTP', 'http'],
+        ['TLS HTTP', 'https'],
+      ])
+    }
+  })
+
+  it('parses Shadowrocket raw URI lines when no client config sections are present', () => {
+    const result = detectAndParse([
+      'trojan://pwd@hk.example.com:443?sni=hk.example.com#HK%20Trojan',
+      'ss://YWVzLTI1Ni1nY206c2VjcmV0@sg.example.com:8388#SG%20SS',
+    ].join('\n'), 'shadowrocket')
+
+    expect(result.format).toBe('shadowrocket')
+    expect(result.nodes.map(node => [node.name, node.protocol, node.server])).toEqual([
+      ['HK Trojan', 'trojan', 'hk.example.com'],
+      ['SG SS', 'ss', 'sg.example.com'],
+    ])
+  })
+
   it('parses Quantumult X server_local URI sections', () => {
     const result = detectAndParse(`
 [general]

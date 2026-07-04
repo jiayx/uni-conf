@@ -40,7 +40,7 @@ describe('api client', () => {
       }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(api.nodes.list({ search: 'airport', country: 'HK' })).resolves.toEqual([
+    await expect(api.nodes.listAll({ search: 'airport', country: 'HK' })).resolves.toEqual([
       { id: 'node-1', name: 'HK 01' },
       { id: 'node-2', name: 'JP 01' },
     ])
