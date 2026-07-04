@@ -20,6 +20,7 @@ import {
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { MAINSTREAM_PROXY_PROTOCOLS, PROTOCOL_FORM_FIELDS } from '@uni-conf/types'
+import { MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared'
 import type { ProtocolFieldDefinition, ProxyNode, ProxyProtocol } from '@uni-conf/types'
 import styles from './Nodes.module.css'
 
@@ -180,7 +181,7 @@ export function Nodes() {
           className={styles.searchInput}
           placeholder={`${t('common.search')}...`}
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => setSearch(e.target.value.slice(0, MAX_NODE_SEARCH_LENGTH))}
         />
         <select className={styles.filterSelect} value={filterProtocol} onChange={e => setFilterProtocol(e.target.value)}>
           <option value="">{t('nodes.protocol')}: ALL</option>

@@ -227,8 +227,16 @@ function selectRows(state: ZeroSetupState, sql: string, args: unknown[]): Memory
       .filter((row) => String(row.notes ?? '').startsWith('[uni-conf:auto-node-group]'))
       .map(({ id, notes }) => ({ id, notes }));
   }
-  if (sql.includes('GROUP BY country_code')) return countryRows(state);
-  if (sql.includes('COUNT(*) AS node_count')) return [{ node_count: countTaggedNodes(state, args) }];
+  if (sql.includes('SELECT country_code, country, tags')) {
+    return state.nodes
+      .filter((row) => row.enabled === 1 && String(row.country_code ?? '').trim())
+      .map(({ country_code, country, tags }) => ({ country_code, country, tags }));
+  }
+  if (sql.includes('SELECT tags FROM')) {
+    return state.nodes
+      .filter((row) => row.enabled === 1)
+      .map(({ tags }) => ({ tags }));
+  }
   if (sql.includes('SELECT MAX(sort_order)')) {
     return [{ max_order: Math.max(-1, ...state.groups.map((row) => Number(row.sort_order ?? -1))) }];
   }
@@ -438,38 +446,6 @@ function nodeRow(id: string, name: string, country: string, countryCode: string,
     tags: JSON.stringify(tags),
     enabled: 1,
   };
-}
-
-function countryRows(state: ZeroSetupState): MemoryRow[] {
-  const rowsByCountry = new Map<string, { country_code: string; country: string; node_count: number }>();
-  for (const row of activeNonHighMultiplierNodes(state)) {
-    const countryCode = String(row.country_code ?? '').trim().toUpperCase();
-    if (!countryCode) continue;
-    const existing = rowsByCountry.get(countryCode) ?? {
-      country_code: countryCode,
-      country: String(row.country ?? countryCode),
-      node_count: 0,
-    };
-    existing.node_count += 1;
-    rowsByCountry.set(countryCode, existing);
-  }
-  return [...rowsByCountry.values()].sort((a, b) => b.node_count - a.node_count || a.country_code.localeCompare(b.country_code));
-}
-
-function countTaggedNodes(state: ZeroSetupState, args: unknown[]): number {
-  const expectedTags = args.slice(1).map((arg) => String(arg).replaceAll('%', '').replaceAll('"', ''));
-  return activeNonHighMultiplierNodes(state).filter((row) => {
-    const tags = parseTags(row.tags);
-    return expectedTags.some((tag) => tags.includes(tag));
-  }).length;
-}
-
-function activeNonHighMultiplierNodes(state: ZeroSetupState): MemoryRow[] {
-  return state.nodes.filter((row) => row.enabled === 1 && !parseTags(row.tags).includes('high-multiplier'));
-}
-
-function parseTags(value: unknown): string[] {
-  return typeof value === 'string' ? JSON.parse(value) as string[] : [];
 }
 
 function groupRow(args: unknown[], isBuiltinInsert: boolean): MemoryRow {

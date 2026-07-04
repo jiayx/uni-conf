@@ -17,7 +17,7 @@ import type {
   PaginatedResponse,
 } from '@uni-conf/types'
 import { parseContentDispositionFilename, type ExportDownloadFile } from '@/core/export/download-file'
-import { getExportSubscriptionFilename, type ExportSubscriptionFormat } from '@uni-conf/shared'
+import { getExportSubscriptionFilename, MAX_NODE_SEARCH_LENGTH, type ExportSubscriptionFormat } from '@uni-conf/shared'
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
@@ -84,6 +84,11 @@ function buildNodeListQuery(params?: NodeListParams): string {
   const normalized: Record<string, string> = {}
   for (const [key, value] of Object.entries(params)) {
     if (value == null || key === 'country') continue
+    if (key === 'search') {
+      const search = String(value).trim().slice(0, MAX_NODE_SEARCH_LENGTH)
+      if (search) normalized[key] = search
+      continue
+    }
     normalized[key] = String(value)
   }
 

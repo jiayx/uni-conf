@@ -133,7 +133,10 @@ describe('auto node groups', () => {
       autoNodeGroupIncludeFlag: false,
     }));
     const db = createMockDb({
-      countries: [{ country_code: 'US', country: 'United States', node_count: 2 }],
+      nodes: [
+        { country_code: 'US', country: 'United States', tags: '[]' },
+        { country_code: 'US', country: 'United States', tags: '[]' },
+      ],
       autoCollections: [
         { id: 'collection-us-select', notes: '[uni-conf:auto-node-group] country:US:select' },
         { id: 'collection-us-fallback', notes: '[uni-conf:auto-node-group] country:US:fallback' },
@@ -166,14 +169,13 @@ describe('auto node groups', () => {
       autoNodeGroupKeys: undefined,
     }));
     const db = createMockDb({
-      countries: [
-        { country_code: 'US', country: 'United States', node_count: 3 },
-        { country_code: 'HK', country: 'Hong Kong', node_count: 2 },
+      nodes: [
+        { country_code: 'US', country: 'United States', tags: '["streaming"]' },
+        { country_code: 'US', country: 'United States', tags: '["residential"]' },
+        { country_code: 'US', country: 'United States', tags: '[]' },
+        { country_code: 'HK', country: 'Hong Kong', tags: '["unlock"]' },
+        { country_code: 'HK', country: 'Hong Kong', tags: '["native-ip"]' },
       ],
-      tagCounts: {
-        streaming: 2,
-        native: 1,
-      },
     });
 
     await syncAutoNodeGroups(db, '2026-01-01T00:00:00.000Z');
@@ -209,40 +211,33 @@ function makeSettings(patch: Partial<AppSettings>): AppSettings {
 }
 
 function createMockDb({
-  countries = [],
+  nodes = [],
   autoCollections = [],
   linkedGroups = {},
-  tagCounts = {},
 }: {
-  countries?: Array<{ country_code: string; country: string | null; node_count: number }>;
+  nodes?: Array<{ country_code: string; country: string | null; tags: string | null }>;
   autoCollections?: Array<{ id: string; notes: string | null }>;
   linkedGroups?: Record<string, string>;
-  tagCounts?: Record<string, number>;
 }) {
   const operations: Array<Record<string, unknown>> = [];
+  const selectAll = async (sql: string) => {
+    if (sql.includes('FROM collections WHERE notes LIKE')) {
+      return { results: autoCollections };
+    }
+    if (sql.includes('SELECT country_code, country, tags')) {
+      return { results: nodes.filter((node) => node.country_code) };
+    }
+    if (sql.includes('SELECT tags FROM')) {
+      return { results: nodes.map(({ tags }) => ({ tags })) };
+    }
+    return { results: [] };
+  };
   const db = {
     operations,
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
-        all: async () => {
-          if (sql.includes('FROM collections WHERE notes LIKE')) {
-            return { results: autoCollections };
-          }
-          if (sql.includes('GROUP BY country_code')) {
-            return { results: countries };
-          }
-          return { results: [] };
-        },
+        all: async () => selectAll(sql),
         first: async () => {
-          if (sql.includes('COUNT(*) AS node_count')) {
-            if (args.some((arg) => String(arg).includes('"streaming"') || String(arg).includes('"unlock"'))) {
-              return { node_count: tagCounts.streaming ?? 0 };
-            }
-            if (args.some((arg) => String(arg).includes('"residential"') || String(arg).includes('"native-ip"'))) {
-              return { node_count: tagCounts.native ?? 0 };
-            }
-            return { node_count: 0 };
-          }
           if (sql.includes('SELECT id FROM groups WHERE is_builtin = 0')) {
             const collectionIds = String(args[0]);
             const id = linkedGroups[collectionIds];
@@ -256,7 +251,7 @@ function createMockDb({
           return { success: true };
         },
       }),
-      all: async () => ({ results: [] }),
+      all: async () => selectAll(sql),
       first: async () => null,
       run: async () => ({ success: true }),
     })),

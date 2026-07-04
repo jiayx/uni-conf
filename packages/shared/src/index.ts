@@ -16,6 +16,7 @@ export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
 export const DEFAULT_NODE_POOL_COLLECTION_ID = 'builtin-default-node-pool';
 export const DEFAULT_NODE_POOL_PREFIX = '[uni-conf:default-node-pool]';
 export const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
+export const MAX_NODE_SEARCH_LENGTH = 200;
 
 export const AUTO_NODE_GROUP_TYPE_ORDER = ['select', 'url-test', 'fallback'] as const satisfies readonly AutoNodeGroupType[];
 

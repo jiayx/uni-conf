@@ -18,6 +18,7 @@ import type { AutoNodeGroupType } from '@uni-conf/types';
 interface CountrySummary {
   countryCode: string;
   country: string;
+  nodeCount?: number;
 }
 
 interface AutoNodeGroupPlan {
@@ -35,8 +36,6 @@ const EXCLUDE_HIGH_MULTIPLIER_FILTER = {
   value: ['high-multiplier'],
   enabled: true,
 } as const;
-const HIGH_MULTIPLIER_TAG_PATTERN = '%"high-multiplier"%';
-
 export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<void> {
   const settings = await getAppSettings(db);
   await ensureDefaultNodePoolCollection(db, ts);
@@ -106,32 +105,50 @@ async function ensureDefaultNodePoolCollection(db: D1Database, ts: string): Prom
 async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]> {
   const { results } = await db
     .prepare(
-      `SELECT country_code, MAX(country) AS country, COUNT(*) AS node_count
+      `SELECT country_code, country, tags
        FROM (${enabledNodeRowsQuery()}) enabled_nodes
-       WHERE tags NOT LIKE ?
-         AND country_code IS NOT NULL
+       WHERE country_code IS NOT NULL
          AND country_code != ''
-       GROUP BY country_code
-       ORDER BY node_count DESC, country_code ASC`
+       ORDER BY country_code ASC`
     )
-    .bind(HIGH_MULTIPLIER_TAG_PATTERN)
-    .all<{ country_code: string; country: string | null; node_count: number }>();
+    .all<{ country_code: string; country: string | null; tags: string | null }>();
 
-  return results.map((row) => ({
-    countryCode: row.country_code.trim().toUpperCase(),
-    country: row.country ?? row.country_code,
-  }));
+  const byCode = new Map<string, CountrySummary>();
+  for (const row of results) {
+    const tags = parseNodeTags(row.tags);
+    if (tags.includes('high-multiplier')) continue;
+
+    const countryCode = row.country_code.trim().toUpperCase();
+    const existing = byCode.get(countryCode);
+    if (existing) {
+      existing.nodeCount = (existing.nodeCount ?? 0) + 1;
+      if (!existing.country && row.country) existing.country = row.country;
+    } else {
+      byCode.set(countryCode, {
+        countryCode,
+        country: row.country ?? row.country_code,
+        nodeCount: 1,
+      });
+    }
+  }
+
+  return [...byCode.values()].sort((a, b) => (b.nodeCount ?? 0) - (a.nodeCount ?? 0) || a.countryCode.localeCompare(b.countryCode));
 }
 
 async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
+  const { results } = await db
+    .prepare(`SELECT tags FROM (${enabledNodeRowsQuery()}) enabled_nodes`)
+    .all<{ tags: string | null }>();
+  const seenTags = new Set<string>();
+  for (const row of results) {
+    const tags = parseNodeTags(row.tags);
+    if (tags.includes('high-multiplier')) continue;
+    for (const tag of tags) seenTags.add(tag);
+  }
+
   const keys: string[] = [];
   for (const group of AUTO_NODE_TAG_GROUPS) {
-    const conditions = group.tags.map(() => 'tags LIKE ?').join(' OR ');
-    const row = await db
-      .prepare(`SELECT COUNT(*) AS node_count FROM (${enabledNodeRowsQuery()}) enabled_nodes WHERE tags NOT LIKE ? AND (${conditions})`)
-      .bind(HIGH_MULTIPLIER_TAG_PATTERN, ...group.tags.map((tag) => `%"${tag}"%`))
-      .first<{ node_count: number }>();
-    if ((row?.node_count ?? 0) > 0) keys.push(group.key);
+    if (group.tags.some((tag) => seenTags.has(tag))) keys.push(group.key);
   }
   return keys;
 }
@@ -323,6 +340,16 @@ function makeTagFilter(tagKey: string, tags: readonly string[]) {
 
 function withDefaultAutoFilters(filters: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   return [...filters, { ...EXCLUDE_HIGH_MULTIPLIER_FILTER }];
+}
+
+function parseNodeTags(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((tag): tag is string => typeof tag === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 function makeAutoGroupName(countryCode: string, type: AutoNodeGroupType, includeFlag: boolean): string {

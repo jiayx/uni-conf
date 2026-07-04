@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
-import nodesApp, { resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
+import nodesApp, { normalizeNodeSearchQuery, resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
+import { MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared';
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(async () => ({
@@ -349,6 +350,27 @@ describe('manual node input', () => {
   });
 });
 
+describe('node listing', () => {
+  it('uses bounded instr search instead of LIKE patterns', async () => {
+    vi.clearAllMocks();
+    const executed: Array<{ sql: string; args: unknown[] }> = [];
+    const db = createNodeListMockDb(executed);
+    const search = 'trojan://password@example.com:443?'.repeat(40);
+
+    const response = await nodesApp.request(`/?search=${encodeURIComponent(search)}`, {}, { DB: db });
+
+    expect(response.status).toBe(200);
+    expect(executed.some((item) => item.sql.includes('LIKE'))).toBe(false);
+    expect(executed.some((item) => item.sql.includes('instr(lower(name), lower(?)) > 0'))).toBe(true);
+    expect(executed[0]?.args[0]).toBe(search.slice(0, MAX_NODE_SEARCH_LENGTH));
+  });
+
+  it('normalizes node search input before it reaches SQLite', () => {
+    expect(normalizeNodeSearchQuery(`  ${'a'.repeat(MAX_NODE_SEARCH_LENGTH + 20)}  `)).toBe('a'.repeat(MAX_NODE_SEARCH_LENGTH));
+    expect(normalizeNodeSearchQuery(undefined)).toBe('');
+  });
+});
+
 function createManualNodeCreateMockDb(): D1Database {
   const inserted: Record<string, unknown> = {};
   const updated: Record<string, unknown> = {};
@@ -414,6 +436,26 @@ function createManualNodeCreateMockDb(): D1Database {
       raw: async () => [],
     })),
     __updated: updated,
+  } as unknown as D1Database;
+}
+
+function createNodeListMockDb(executed: Array<{ sql: string; args: unknown[] }>): D1Database {
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => {
+        executed.push({ sql, args });
+        return {
+          first: async () => ({ total: 0 }),
+          all: async () => ({ results: [] }),
+          run: async () => ({ success: true }),
+          raw: async () => [],
+        };
+      },
+      first: async () => ({ total: 0 }),
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
   } as unknown as D1Database;
 }
 

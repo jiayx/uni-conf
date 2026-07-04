@@ -5,7 +5,7 @@ import type { ProxyProtocol } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 import { parseRawLines } from './sources';
-import { buildNodeRecognitionTags, buildStructuredProxyConfig, detectCountry } from '@uni-conf/shared';
+import { buildNodeRecognitionTags, buildStructuredProxyConfig, detectCountry, MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -38,7 +38,7 @@ app.get('/', async (c) => {
   const protocol = query.protocol;
   const countryCode = query.countryCode;
   const enabled = query.enabled;
-  const search = query.search;
+  const search = normalizeNodeSearchQuery(query.search);
   const page = Math.max(1, parseInt(query.page ?? '1', 10));
   const pageSize = Math.min(200, Math.max(1, parseInt(query.pageSize ?? '50', 10)));
   const offset = (page - 1) * pageSize;
@@ -63,8 +63,8 @@ app.get('/', async (c) => {
     bindings.push(enabled === 'true' || enabled === '1' ? 1 : 0);
   }
   if (search) {
-    conditions.push("name LIKE ?");
-    bindings.push(`%${search}%`);
+    conditions.push('instr(lower(name), lower(?)) > 0');
+    bindings.push(search);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -95,6 +95,10 @@ app.get('/', async (c) => {
     },
   });
 });
+
+export function normalizeNodeSearchQuery(value: string | undefined): string {
+  return (value ?? '').trim().slice(0, MAX_NODE_SEARCH_LENGTH);
+}
 
 // ─── Create manual node ───────────────────────────────────────────────────────
 
