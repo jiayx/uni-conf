@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { EXPORT_SUBSCRIPTION_FORMATS } from '@uni-conf/shared'
+import yaml from 'js-yaml'
+import { EXPORT_FORMAT_FILENAMES, EXPORT_SUBSCRIPTION_FORMATS } from '@uni-conf/shared'
 import type { ExportFormat, ProxyGroup, ProxyNode } from '@uni-conf/types'
 import type { ExportData } from '../export-data'
 import { renderExportData } from './export-renderer'
@@ -22,6 +25,31 @@ describe('renderExportData', () => {
     expect(raw?.content).toContain('ss://')
     expect(raw?.content).toContain('#Smoke%20SS')
     expect(Buffer.from(encoded?.content ?? '', 'base64').toString('utf8')).toBe(raw?.content)
+  })
+
+  it('emits parseable structures for structured full-config formats', () => {
+    const data = makeExportData()
+    const mihomo = yaml.load(renderExportData(data, 'mihomo')?.content ?? '') as { proxies?: unknown[]; rules?: unknown[] }
+    const clash = yaml.load(renderExportData(data, 'clash')?.content ?? '') as { proxies?: unknown[]; rules?: unknown[] }
+    const stash = yaml.load(renderExportData(data, 'stash')?.content ?? '') as { proxies?: unknown[]; rules?: unknown[] }
+    const singbox = JSON.parse(renderExportData(data, 'singbox')?.content ?? '{}') as {
+      outbounds?: unknown[]
+      route?: { rules?: unknown[] }
+    }
+
+    for (const parsed of [mihomo, clash, stash]) {
+      expect(parsed.proxies?.length).toBeGreaterThan(0)
+      expect(parsed.rules?.length).toBeGreaterThan(0)
+    }
+    expect(singbox.outbounds?.length).toBeGreaterThan(0)
+    expect(singbox.route?.rules?.length).toBeGreaterThan(0)
+  })
+
+  it('keeps documented public subscription filenames aligned with the shared registry', () => {
+    const architecture = readFileSync(join(process.cwd(), '../../docs/ARCHITECTURE.md'), 'utf8')
+    for (const filename of Object.values(EXPORT_FORMAT_FILENAMES)) {
+      expect(architecture, `docs/ARCHITECTURE.md should mention ${filename}`).toContain(`/sub/{token}/${filename}`)
+    }
   })
 })
 

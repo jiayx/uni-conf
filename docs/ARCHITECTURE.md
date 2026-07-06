@@ -140,9 +140,16 @@ All API endpoints are under `/api/`. Responses follow:
 
 ```
 /sub/{token}/mihomo.yaml
+/sub/{token}/clash.yaml
 /sub/{token}/singbox.json
 /sub/{token}/loon.conf
+/sub/{token}/surge.conf
+/sub/{token}/shadowrocket.conf
+/sub/{token}/quantumultx.conf
+/sub/{token}/stash.yaml
+/sub/{token}/egern.yaml
 /sub/{token}/nodes.txt
+/sub/{token}/nodes-raw.txt
 ```
 
 ---

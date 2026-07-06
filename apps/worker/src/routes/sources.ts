@@ -10,10 +10,12 @@ import {
 import {
   buildNodeRecognitionTags,
   buildStructuredProxyConfig,
+  decodeBase64UrlUtf8,
   detectCountry,
   extractSourceNodeGroupMarkerKey,
   getProxyLinkUriScheme,
   isSubscriptionInfoNodeName,
+  parseProxyUrlParts,
   parseSourceNodeGroupKey,
   SOURCE_FORMATS,
 } from '@uni-conf/shared';
@@ -1547,13 +1549,8 @@ function parseTrojanUri(uri: string): ParsedNodeRaw | null {
 }
 
 function decodeBase64Url(value: string): string {
-  if (!value) return '';
   try {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
-    const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
+    return decodeBase64UrlUtf8(value);
   } catch {
     return '';
   }
@@ -1630,60 +1627,14 @@ function parseHysteria2Uri(uri: string): ParsedNodeRaw | null {
   };
 }
 
-const DEFAULT_PORTS: Partial<Record<ProxyProtocol, number>> = {
-  anytls: 443,
-  trojan: 443,
-  vless: 443,
-  hysteria: 443,
-  hysteria2: 443,
-  tuic: 443,
-  naive: 443,
-  https: 443,
-  http: 80,
-  socks5: 1080,
-  ssh: 22,
-  shadowtls: 443,
-  wireguard: 51820,
-};
-
 function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
   const scheme = uri.slice(0, uri.indexOf('://'));
   const protocol = schemeToProtocol(scheme);
   if (!protocol) return null;
 
-  const withoutScheme = uri.slice(scheme.length + 3);
-  const hashIdx = withoutScheme.indexOf('#');
-  const name = hashIdx >= 0 ? decodeURIComponent(withoutScheme.slice(hashIdx + 1)) : protocol.toUpperCase();
-  const beforeHash = hashIdx >= 0 ? withoutScheme.slice(0, hashIdx) : withoutScheme;
-  const qIdx = beforeHash.indexOf('?');
-  const hostAndPath = qIdx >= 0 ? beforeHash.slice(0, qIdx) : beforeHash;
-  const slashIdx = hostAndPath.indexOf('/');
-  const hostPart = slashIdx >= 0 ? hostAndPath.slice(0, slashIdx) : hostAndPath;
-  const uriPath = slashIdx >= 0 ? hostAndPath.slice(slashIdx) : '';
-  const query = qIdx >= 0 ? beforeHash.slice(qIdx + 1) : '';
-  const params = new URLSearchParams(query);
-
-  const atIdx = hostPart.lastIndexOf('@');
-  const userinfo = atIdx >= 0 ? hostPart.slice(0, atIdx) : '';
-  const hostPort = atIdx >= 0 ? hostPart.slice(atIdx + 1) : hostPart;
-
-  let server: string;
-  let port = DEFAULT_PORTS[protocol] ?? 0;
-  if (hostPort.startsWith('[')) {
-    const closeBracket = hostPort.indexOf(']');
-    server = hostPort.slice(1, closeBracket);
-    if (hostPort.length > closeBracket + 1) port = parseInt(hostPort.slice(closeBracket + 2), 10);
-  } else {
-    const colonIdx = hostPort.lastIndexOf(':');
-    if (colonIdx >= 0) {
-      server = hostPort.slice(0, colonIdx);
-      port = parseInt(hostPort.slice(colonIdx + 1), 10);
-    } else {
-      server = hostPort;
-    }
-  }
-
-  if (!server || !port) return null;
+  const parts = parseProxyUrlParts(uri, scheme, protocol, protocol.toUpperCase());
+  if (!parts) return null;
+  const { name, params, port, server, uriPath, userinfo } = parts;
 
   let username: string | undefined;
   let password: string | undefined;

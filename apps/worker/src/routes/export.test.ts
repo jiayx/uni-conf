@@ -25,6 +25,7 @@ describe('export route helpers', () => {
 
   it('validates export formats from the shared subscription format list', () => {
     expect(isValidExportFormat('mihomo')).toBe(true)
+    expect(isValidExportFormat('clash')).toBe(true)
     expect(isValidExportFormat('singbox')).toBe(true)
     expect(isValidExportFormat('nodes_raw')).toBe(true)
     expect(isValidExportFormat('sing-box')).toBe(false)

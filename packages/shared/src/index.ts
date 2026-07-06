@@ -115,6 +115,125 @@ export const DEFAULT_HEALTH_CHECK = {
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
 
+export const DEFAULT_PROXY_PORTS: Partial<Record<ProxyProtocol, number>> = {
+  anytls: 443,
+  trojan: 443,
+  vless: 443,
+  hysteria: 443,
+  hysteria2: 443,
+  tuic: 443,
+  naive: 443,
+  https: 443,
+  http: 80,
+  socks5: 1080,
+  ssh: 22,
+  shadowtls: 443,
+  wireguard: 51820,
+};
+
+export function decodeBase64Utf8(value: string): string {
+  const binary = atob(value);
+  try {
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return binary;
+  }
+}
+
+export function decodeBase64UrlUtf8(value: string): string {
+  if (!value) return '';
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+  return decodeBase64Utf8(padded);
+}
+
+export function decodeMaybeBase64Utf8(value: string): string {
+  try {
+    return decodeBase64Utf8(value);
+  } catch {
+    try {
+      return decodeBase64UrlUtf8(value);
+    } catch {
+      return value;
+    }
+  }
+}
+
+export interface ProxyUrlParts {
+  name: string;
+  server: string;
+  port: number;
+  params: URLSearchParams;
+  userinfo: string;
+  uriPath: string;
+}
+
+export function parseProxyUrlParts(
+  uri: string,
+  scheme: string,
+  protocol: ProxyProtocol,
+  defaultName = ''
+): ProxyUrlParts | null {
+  try {
+    const withoutScheme = uri.slice(scheme.length + 3);
+    const hashIdx = withoutScheme.indexOf('#');
+    const name = hashIdx >= 0 ? decodeURIComponent(withoutScheme.slice(hashIdx + 1)) : defaultName;
+    const beforeHash = hashIdx >= 0 ? withoutScheme.slice(0, hashIdx) : withoutScheme;
+    const qIdx = beforeHash.indexOf('?');
+    const hostAndPath = qIdx >= 0 ? beforeHash.slice(0, qIdx) : beforeHash;
+    const slashIdx = hostAndPath.indexOf('/');
+    const hostPart = slashIdx >= 0 ? hostAndPath.slice(0, slashIdx) : hostAndPath;
+    const uriPath = slashIdx >= 0 ? hostAndPath.slice(slashIdx) : '';
+    const query = qIdx >= 0 ? beforeHash.slice(qIdx + 1) : '';
+    const params = new URLSearchParams(query);
+
+    const atIdx = hostPart.lastIndexOf('@');
+    const userinfo = atIdx >= 0 ? hostPart.slice(0, atIdx) : '';
+    const hostPort = atIdx >= 0 ? hostPart.slice(atIdx + 1) : hostPart;
+    const parsedHostPort = parseProxyHostPort(hostPort, protocol);
+    if (!parsedHostPort) return null;
+
+    return {
+      name,
+      server: parsedHostPort.server,
+      port: parsedHostPort.port,
+      params,
+      userinfo,
+      uriPath,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseProxyHostPort(
+  hostPort: string,
+  protocol: ProxyProtocol
+): { server: string; port: number } | null {
+  let server: string;
+  let port = DEFAULT_PROXY_PORTS[protocol] ?? 0;
+
+  if (hostPort.startsWith('[')) {
+    const closeBracket = hostPort.indexOf(']');
+    if (closeBracket <= 0) return null;
+    server = hostPort.slice(1, closeBracket);
+    if (hostPort.length > closeBracket + 1) {
+      port = parseInt(hostPort.slice(closeBracket + 2), 10);
+    }
+  } else {
+    const colonIdx = hostPort.lastIndexOf(':');
+    if (colonIdx >= 0) {
+      server = hostPort.slice(0, colonIdx);
+      port = parseInt(hostPort.slice(colonIdx + 1), 10);
+    } else {
+      server = hostPort;
+    }
+  }
+
+  return server && Number.isFinite(port) && port > 0 ? { server, port } : null;
+}
+
 const WEB_URL_PROXY_SCHEMES = new Set(['http', 'https']);
 
 export const PROXY_LINK_URI_SCHEMES = Object.keys(URI_SCHEME_TO_PROTOCOL)
@@ -310,6 +429,7 @@ export function isRuleTargetGroup(group: { id: string; collectionIds?: readonly 
 
 export type ExportSubscriptionFormat =
   | 'mihomo'
+  | 'clash'
   | 'singbox'
   | 'loon'
   | 'surge'
@@ -358,6 +478,7 @@ type RuleCompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
 
 export const EXPORT_SUBSCRIPTION_FORMATS: ExportSubscriptionFormat[] = [
   'mihomo',
+  'clash',
   'singbox',
   'loon',
   'surge',
@@ -371,6 +492,7 @@ export const EXPORT_SUBSCRIPTION_FORMATS: ExportSubscriptionFormat[] = [
 
 export const EXPORT_FORMAT_FILENAMES: Record<ExportSubscriptionFormat, string> = {
   mihomo: 'mihomo.yaml',
+  clash: 'clash.yaml',
   singbox: 'singbox.json',
   loon: 'loon.conf',
   surge: 'surge.conf',
@@ -395,26 +517,26 @@ export function getExportFormatFromSubscriptionFilename(filename: string): Expor
 }
 
 export const RULE_COMPATIBILITY: Record<RuleCompatibilityType, Partial<Record<ExportSubscriptionFormat, RuleCompatibilityLevel>>> = {
-  'DOMAIN': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-SUFFIX': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-KEYWORD': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-REGEX': { mihomo: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
-  'IP-CIDR': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'IP-CIDR6': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'IP-ASN': { mihomo: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
-  'GEOIP': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'GEOSITE': { mihomo: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
-  'PROCESS-NAME': { mihomo: 'full', singbox: 'full', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
-  'PROCESS-PATH': { mihomo: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
-  'PORT': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'SRC-PORT': { mihomo: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'SRC-IP-CIDR': { mihomo: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'PROTOCOL': { mihomo: 'full', singbox: 'partial', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'NETWORK': { mihomo: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'IN-TYPE': { mihomo: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'unsupported', egern: 'unsupported' },
-  'RULE-SET': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'partial', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'SCRIPT': { mihomo: 'partial', singbox: 'unsupported', loon: 'partial', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
-  'MATCH': { mihomo: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'DOMAIN': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'DOMAIN-SUFFIX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'DOMAIN-KEYWORD': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'DOMAIN-REGEX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
+  'IP-CIDR': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'IP-CIDR6': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'IP-ASN': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
+  'GEOIP': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'GEOSITE': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
+  'PROCESS-NAME': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
+  'PROCESS-PATH': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
+  'PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'SRC-PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'SRC-IP-CIDR': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'PROTOCOL': { mihomo: 'full', clash: 'full', singbox: 'partial', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'NETWORK': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'IN-TYPE': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'unsupported', egern: 'unsupported' },
+  'RULE-SET': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'partial', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'SCRIPT': { mihomo: 'partial', clash: 'partial', singbox: 'unsupported', loon: 'partial', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
+  'MATCH': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
 };
 
 export function getRuleCompatibilityLevel(
@@ -436,6 +558,7 @@ export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
 
 export const COMPATIBLE_RULE_SET_FORMATS: Partial<Record<ExportSubscriptionFormat, RuleSetFormat[]>> = {
   mihomo: ['mihomo', 'clash', 'stash', 'text'],
+  clash: ['mihomo', 'clash', 'stash', 'text'],
   singbox: ['singbox'],
   loon: ['loon', 'surge', 'shadowrocket', 'text'],
   surge: ['surge', 'text'],

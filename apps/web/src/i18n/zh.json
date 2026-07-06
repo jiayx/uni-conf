@@ -340,6 +340,7 @@
     "download": "下载配置",
     "formats": {
       "mihomo": "Mihomo / Clash / OpenClash",
+      "clash": "Clash",
       "singbox": "sing-box",
       "loon": "Loon",
       "surge": "Surge",

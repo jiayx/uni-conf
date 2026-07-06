@@ -40,6 +40,7 @@ export type SourceType = 'url' | 'manual' | 'file' | 'clipboard';
 
 export type ExportFormat =
   | 'mihomo'
+  | 'clash'
   | 'singbox'
   | 'loon'
   | 'surge'

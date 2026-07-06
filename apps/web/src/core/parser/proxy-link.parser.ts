@@ -1,4 +1,11 @@
-import { buildNodeRecognitionTags, buildStructuredProxyConfig, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import {
+  buildNodeRecognitionTags,
+  buildStructuredProxyConfig,
+  decodeMaybeBase64Utf8,
+  detectCountry,
+  isSubscriptionInfoNodeName,
+  parseProxyUrlParts,
+} from '@uni-conf/shared'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
 // ============================================================
@@ -7,22 +14,6 @@ import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
-}
-
-const DEFAULT_PORTS: Partial<Record<ProxyProtocol, number>> = {
-  anytls: 443,
-  trojan: 443,
-  vless: 443,
-  hysteria: 443,
-  hysteria2: 443,
-  tuic: 443,
-  naive: 443,
-  https: 443,
-  http: 80,
-  socks5: 1080,
-  ssh: 22,
-  shadowtls: 443,
-  wireguard: 51820,
 }
 
 // ============================================================
@@ -39,28 +30,7 @@ function makeParsedConfig(
 }
 
 function decodeSafe(s: string): string {
-  try {
-    return decodeBase64Utf8(s)
-  } catch {
-    // Try URL-safe base64
-    try {
-      const normalized = s.replace(/-/g, '+').replace(/_/g, '/')
-      const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
-      return decodeBase64Utf8(padded)
-    } catch {
-      return s
-    }
-  }
-}
-
-function decodeBase64Utf8(s: string): string {
-  const binary = atob(s)
-  try {
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-    return new TextDecoder().decode(bytes)
-  } catch {
-    return binary
-  }
+  return decodeMaybeBase64Utf8(s)
 }
 
 function parseSS(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' | 'updatedAt'> | null {
@@ -220,47 +190,9 @@ function parseURLStyle(
   protocol: ProxyProtocol,
 ): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' | 'updatedAt'> | null {
   try {
-    // Normalize: some URIs use non-standard chars; we need to parse carefully
-    const withoutScheme = uri.slice(scheme.length + 3) // remove "scheme://"
-    const hashIdx = withoutScheme.indexOf('#')
-    const name = hashIdx >= 0 ? decodeURIComponent(withoutScheme.slice(hashIdx + 1)) : ''
-    const beforeHash = hashIdx >= 0 ? withoutScheme.slice(0, hashIdx) : withoutScheme
-
-    const qIdx = beforeHash.indexOf('?')
-    const hostAndPath = qIdx >= 0 ? beforeHash.slice(0, qIdx) : beforeHash
-    const slashIdx = hostAndPath.indexOf('/')
-    const hostPart = slashIdx >= 0 ? hostAndPath.slice(0, slashIdx) : hostAndPath
-    const uriPath = slashIdx >= 0 ? hostAndPath.slice(slashIdx) : ''
-    const queryStr = qIdx >= 0 ? beforeHash.slice(qIdx + 1) : ''
-    const params = new URLSearchParams(queryStr)
-
-    // userinfo@host:port
-    const atIdx = hostPart.lastIndexOf('@')
-    const userinfo = atIdx >= 0 ? hostPart.slice(0, atIdx) : ''
-    const hostPort = atIdx >= 0 ? hostPart.slice(atIdx + 1) : hostPart
-
-    // Extract host and port (handle IPv6)
-    let server: string
-    let port: number
-    if (hostPort.startsWith('[')) {
-      // IPv6
-      const closeBracket = hostPort.indexOf(']')
-      server = hostPort.slice(1, closeBracket)
-      port = hostPort.length > closeBracket + 1
-        ? parseInt(hostPort.slice(closeBracket + 2), 10)
-        : (DEFAULT_PORTS[protocol] ?? 0)
-    } else {
-      const portColon = hostPort.lastIndexOf(':')
-      if (portColon >= 0) {
-        server = hostPort.slice(0, portColon)
-        port = parseInt(hostPort.slice(portColon + 1), 10)
-      } else {
-        server = hostPort
-        port = DEFAULT_PORTS[protocol] ?? 0
-      }
-    }
-
-    if (!server || isNaN(port)) return null
+    const parts = parseProxyUrlParts(uri, scheme, protocol)
+    if (!parts) return null
+    const { name, params, port, server, uriPath, userinfo } = parts
 
     // Parse userinfo
     let password: string | undefined

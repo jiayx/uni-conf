@@ -340,6 +340,7 @@
     "download": "Download",
     "formats": {
       "mihomo": "Mihomo / Clash / OpenClash",
+      "clash": "Clash",
       "singbox": "sing-box",
       "loon": "Loon",
       "surge": "Surge",

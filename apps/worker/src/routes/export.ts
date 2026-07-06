@@ -59,6 +59,7 @@ export function resolveExportConfigName(name: unknown, format: ExportConfig['for
   if (typeof name === 'string' && name.trim()) return name.trim()
   const labels: Partial<Record<ExportConfig['format'], string>> = {
     mihomo: 'Mihomo / Clash / OpenClash',
+    clash: 'Clash',
     singbox: 'sing-box',
     loon: 'Loon',
     surge: 'Surge',

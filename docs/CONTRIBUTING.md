@@ -94,7 +94,8 @@ pnpm --filter worker test # Worker tests only
 
 Worker production env vars (set in Cloudflare Dashboard):
 - `ENVIRONMENT=production`
-- `API_KEY=<your-admin-api-key>` (optional)
+- `API_KEY=<your-admin-api-key>` (required in production; `/api/*` fails closed when it is missing)
+- `ALLOWED_ORIGIN=https://your-pages-domain.example` (recommended)
 
 Frontend env (set in Cloudflare Pages settings):
 - `VITE_API_URL=https://your-worker.workers.dev/api`

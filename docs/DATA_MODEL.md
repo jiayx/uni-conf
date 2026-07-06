@@ -479,7 +479,7 @@ Other - Manual - 01
 
 `GET /api/export/preview/:format` returns `warnings: CompatibilityWarning[]` alongside the generated content.
 
-Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points. The export renderer has a smoke-test matrix over `EXPORT_SUBSCRIPTION_FORMATS`, including Mihomo/Clash, sing-box, Loon, Surge, Shadowrocket, Quantumult X, Stash, Egern, and node-only raw/base64 subscriptions. This keeps Dashboard quick links, authenticated downloads, and public subscription filenames aligned with the shared format registry when a client format is added or removed.
+Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points. The export renderer has a smoke-test matrix over `EXPORT_SUBSCRIPTION_FORMATS`, including Mihomo, explicit Clash-compatible YAML, sing-box, Loon, Surge, Shadowrocket, Quantumult X, Stash, Egern, and node-only raw/base64 subscriptions. This keeps Dashboard quick links, authenticated downloads, and public subscription filenames aligned with the shared format registry when a client format is added or removed.
 
 Dashboard quick-export links use the shared canonical filename registry for URLs and `export.formats.*` i18n labels for display names. The web i18n test checks every quick-export format has labels in both Chinese and English, so adding a new dashboard export target cannot silently show an untranslated or hard-coded client label in the zero-setup flow.
 

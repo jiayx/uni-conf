@@ -17,6 +17,16 @@ describe('apiAuth middleware', () => {
     expect(res.status).toBe(200)
   })
 
+  it('fails closed in production when API_KEY is not configured', async () => {
+    const app = buildApp()
+    const res = await app.request('/api/ping', {}, { ENVIRONMENT: 'production' } as Env)
+    expect(res.status).toBe(500)
+    await expect(res.json()).resolves.toEqual({
+      success: false,
+      error: 'API_KEY is required in production',
+    })
+  })
+
   it('rejects requests without a bearer token when API_KEY is configured', async () => {
     const app = buildApp()
     const res = await app.request('/api/ping', {}, { ENVIRONMENT: 'test', API_KEY: 'secret' } as Env)

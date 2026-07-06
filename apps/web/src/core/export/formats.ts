@@ -2,6 +2,7 @@ import type { ExportFormat } from '@uni-conf/types'
 
 export const EXPORT_FORMAT_OPTIONS: Array<{ value: ExportFormat; label: string }> = [
   { value: 'mihomo', label: 'Mihomo / Clash / OpenClash YAML' },
+  { value: 'clash', label: 'Clash YAML' },
   { value: 'singbox', label: 'sing-box JSON' },
   { value: 'loon', label: 'Loon CONF' },
   { value: 'surge', label: 'Surge CONF' },
@@ -17,6 +18,7 @@ export const PREVIEW_FORMATS: ExportFormat[] = EXPORT_FORMAT_OPTIONS.map(option 
 
 export const QUICK_EXPORT_OPTIONS: Array<{ value: ExportFormat; label: string }> = [
   { value: 'mihomo', label: 'Mihomo / Clash / OpenClash YAML' },
+  { value: 'clash', label: 'Clash YAML' },
   { value: 'singbox', label: 'sing-box JSON' },
   { value: 'loon', label: 'Loon CONF' },
   { value: 'surge', label: 'Surge CONF' },

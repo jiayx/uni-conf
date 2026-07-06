@@ -10,6 +10,7 @@ Add the new value to `ExportFormat` in `packages/types/src/index.ts`.
 ```ts
 export type ExportFormat =
   | 'mihomo'
+  | 'clash'
   | 'singbox'
   | 'loon'
   | 'surge'
@@ -36,7 +37,7 @@ The generator should accept:
 
 Use `apps/worker/src/generators/group-members.ts` for generic group member resolution when possible. For Mihomo-compatible YAML, remember that `DIRECT` and `REJECT` are client built-in policies; do not emit invalid `type: direct` or `type: reject` proxy-groups.
 
-Full-config exporters should keep the zero-setup baseline aligned with the default smart template. Mihomo-compatible configs use `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`; sing-box uses `log.level = warning` with its managed DNS and inbound baseline. Do not reintroduce separate Mihomo `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
+Full-config exporters should keep the zero-setup baseline aligned with the default smart template. Mihomo-compatible configs, including the explicit `clash` export alias, use `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`; sing-box uses `log.level = warning` with its managed DNS and inbound baseline. Do not reintroduce separate Mihomo `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
 
 Every full-config exporter must emit a usable fallback route when the data has no enabled `MATCH` / `FINAL` rule. Disabled fallback rows do not count. Use `漏网之鱼` when present, otherwise `PROXY`, then the first available policy, then the client's direct policy. This applies to YAML, JSON, INI-style clients, Quantumult X, and Egern alike; a generated full config must not end with an empty rule list.
 

@@ -48,4 +48,9 @@ describe('subscription route helpers', () => {
     expect(getExportFormatFromSubscriptionFilename('singbox.json')).toBe('singbox')
     expect(getExportFormatFromSubscriptionFilename('sing-box.json')).toBeNull()
   })
+
+  it('exposes Clash as an explicit Mihomo-compatible subscription filename', () => {
+    expect(getExportSubscriptionFilename('clash')).toBe('clash.yaml')
+    expect(getExportFormatFromSubscriptionFilename('clash.yaml')).toBe('clash')
+  })
 })

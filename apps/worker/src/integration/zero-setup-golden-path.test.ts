@@ -91,6 +91,10 @@ proxies:
     const defaultConfig = configsPayload.data.find((c) => c.format === 'mihomo')
     expect(defaultConfig).toBeTruthy()
 
+    const clashRes = await request(`/sub/${defaultConfig!.token}/clash.yaml`)
+    expect(clashRes.status).toBe(200)
+    expect(await clashRes.text()).toContain('mixed-port: 7890')
+
     const subRes = await request(`/sub/${defaultConfig!.token}/mihomo.yaml`)
     expect(subRes.status).toBe(200)
     const yamlText = await subRes.text()

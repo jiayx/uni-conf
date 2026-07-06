@@ -34,7 +34,7 @@ export function renderExportData(
     collectionNodeNames,
   } = data
 
-  if (format === 'mihomo') {
+  if (format === 'mihomo' || format === 'clash') {
     return {
       content: generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, options),
       contentType: 'text/yaml; charset=utf-8',
