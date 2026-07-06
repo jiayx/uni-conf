@@ -1,9 +1,3 @@
-/*
-  /index.html  200
-  /api/*  https://uni-conf-worker.<your-subdomain>.workers.dev/api/:splat  200
-  /sub/*  https://uni-conf-worker.<your-subdomain>.workers.dev/sub/:splat  200
-  /*  /index.html  200
-*/
-
-# SPA fallback (all non-asset routes -> index.html)
+# SPA fallback for generic static hosts.
+# Worker Static Assets also handles this through `not_found_handling`.
 /*    /index.html   200

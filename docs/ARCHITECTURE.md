@@ -14,7 +14,7 @@ UniConf is a full-stack web application that allows users to manage proxy subscr
 ```
 uni-conf/
 ├── apps/
-│   ├── web/                    # Vite 8 + React 19 SPA (Cloudflare Pages)
+│   ├── web/                    # Vite 8 + React 19 SPA (Worker Static Assets)
 │   └── worker/                 # Hono + D1 API (Cloudflare Workers)
 ├── packages/
 │   └── types/                  # Shared TypeScript type definitions
@@ -47,7 +47,7 @@ uni-conf/
 | KV Store | Cloudflare KV | Token mapping, caching |
 | YAML | js-yaml | Clash/Mihomo YAML generation |
 | Tests | Vitest + React Testing Library | Unit and component tests |
-| Deploy | Cloudflare Pages + Workers | Edge deployment |
+| Deploy | Cloudflare Workers + Static Assets | Edge deployment |
 
 ---
 
@@ -63,14 +63,14 @@ uni-conf/
 User Browser
      │
      ▼
-Cloudflare Pages (SPA)
-apps/web/dist/
-     │
-     │ /api/* → proxied to Worker
-     │ /sub/* → proxied to Worker
-     ▼
 Cloudflare Workers
 apps/worker/
+     │
+     ├── Static Assets
+     │   apps/web/dist/
+     │
+     ├── Worker API
+     │   /api/* and /sub/* run worker code before asset fallback
      │
      ├── D1 Database (SQLite)
      │   All persistent data, including export token lookups
@@ -83,7 +83,7 @@ apps/worker/
          reflected on the client's very next refresh.
 ```
 
-In production, configure Cloudflare Pages to proxy `/api/*` and `/sub/*` to the Worker using Pages' built-in routing or Worker routing.
+In production, the Worker serves the SPA through Workers Static Assets. `apps/worker/wrangler.jsonc` uses `run_worker_first` for `/api/*` and `/sub/*`, so API and public subscription routes run in the Worker before static asset fallback.
 
 In development:
 - Frontend: `pnpm dev` → http://localhost:5173
@@ -322,7 +322,9 @@ pnpm test:coverage           # With coverage
 VITE_API_URL=/api
 ```
 
-### Worker (apps/worker/.dev.vars)
+`VITE_API_URL` can usually be omitted for the default same-origin Worker Static Assets deployment. Set it only when developing against a separate Worker origin.
+
+### Worker (apps/worker/.env)
 ```
 ENVIRONMENT=development
 API_KEY=                # optional; leave empty to keep the API open locally

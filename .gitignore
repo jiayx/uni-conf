@@ -9,10 +9,13 @@ apps/worker/dist/
 
 # Cloudflare
 .wrangler/
-.dev.vars
+.dev.vars*
 
 # Env
 .env
+.env.*
+!.env.example
+!apps/**/.env.example
 .env.local
 .env.*.local
 

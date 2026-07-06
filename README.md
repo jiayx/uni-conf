@@ -26,7 +26,7 @@ UniConf lets you manage proxy subscriptions, nodes, filtering rules, strategy gr
 - **Backend**: Hono 4 + Cloudflare Workers + D1 (SQLite)
 - **Styling**: Vanilla CSS + CSS Modules
 - **Tests**: Vitest + React Testing Library
-- **Deploy**: Cloudflare Pages + Workers
+- **Deploy**: Cloudflare Workers + Static Assets
 
 ## Development
 

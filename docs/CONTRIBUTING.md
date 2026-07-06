@@ -12,9 +12,9 @@
 # 1. Install dependencies
 pnpm install
 
-# 2. Create local dev vars for worker
-cp apps/worker/.dev.vars.example apps/worker/.dev.vars
-# Edit .dev.vars with your settings
+# 2. Create local Worker env vars
+cp apps/worker/.env.example apps/worker/.env
+# Edit apps/worker/.env with your settings
 
 # 3. Initialize local D1 database
 pnpm --filter worker db:migrate:local
@@ -72,7 +72,7 @@ pnpm --filter worker test # Worker tests only
    wrangler kv namespace create KV
    ```
 
-3. Update `apps/worker/wrangler.toml` with real database_id and KV id.
+3. Update `apps/worker/wrangler.jsonc` with real `database_id` and KV `id`.
 
 4. Run migrations on production:
    ```bash
@@ -84,10 +84,10 @@ pnpm --filter worker test # Worker tests only
    pnpm --filter worker deploy
    ```
 
-6. Build and deploy frontend (Cloudflare Pages):
+6. Build frontend assets and deploy the Worker:
    ```bash
    pnpm build
-   # Connect to Cloudflare Pages via dashboard or wrangler pages deploy
+   pnpm --filter worker deploy
    ```
 
 ### Environment Variables
@@ -97,8 +97,9 @@ Worker production env vars (set in Cloudflare Dashboard):
 - `API_KEY=<your-admin-api-key>` (required in production; `/api/*` fails closed when it is missing)
 - `ALLOWED_ORIGIN=https://your-pages-domain.example` (recommended)
 
-Frontend env (set in Cloudflare Pages settings):
-- `VITE_API_URL=https://your-worker.workers.dev/api`
+Frontend env:
+- `VITE_API_URL=/api` is the default same-origin path and can usually be omitted.
+- Set `VITE_API_URL=https://api.example.com/api` only if the SPA is served from a separate origin.
 
 ## Adding Features
 
