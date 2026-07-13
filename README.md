@@ -53,6 +53,7 @@ pnpm build
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Data Model](./docs/DATA_MODEL.md)
 - [Exporter Guide](./docs/EXPORTER_GUIDE.md)
+- [Operations and Release Runbook](./docs/OPERATIONS.md)
 - [Contributing](./docs/CONTRIBUTING.md)
 
 ## License

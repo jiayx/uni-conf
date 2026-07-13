@@ -18,9 +18,11 @@ import {
   parseProxyUrlParts,
   parseSourceNodeGroupKey,
   SOURCE_FORMATS,
+  getRuleCompatibility,
 } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { ProxyProtocol, NormalizedProxyConfig, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig, RuleType, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
+import type { SourceImportPreview } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 
@@ -142,6 +144,7 @@ app.post('/import', async (c) => {
     format?: string;
     notes?: string;
     tags?: string[];
+    importStructured?: boolean;
   }>();
 
   const content = typeof body.content === 'string' ? body.content.trim() : '';
@@ -190,12 +193,32 @@ app.post('/import', async (c) => {
     await recordSourceRefreshError(c.env.DB, id, refreshError);
   }
   await ensureSourceZeroSetupState(c.env.DB, ts);
+  const structuredImport = body.importStructured
+    ? await importStructuredSourceContent(c.env.DB, id, content, format, ts)
+    : undefined;
 
   const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
 
-  return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError } }, 201);
+  return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError, structuredImport } }, 201);
+});
+
+app.post('/import/preview', async (c) => {
+  const body = await c.req.json<{ content?: string; format?: string }>();
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (!content) return c.json({ success: false, error: 'content is required' }, 400);
+  const format = body.format ?? 'auto';
+  if (!isValidSourceFormat(format)) return c.json({ success: false, error: 'invalid source format' }, 400);
+
+  const preview = previewParsedSourceContent(content, format);
+  if (preview.nodeCount === 0) {
+    return c.json({
+      success: false,
+      error: `No usable proxy nodes parsed from source content (detected format: ${preview.detectedFormat}, excluded: ${preview.excludedCount})`,
+    }, 422);
+  }
+  return c.json({ success: true, data: preview });
 });
 
 // ─── Get source ───────────────────────────────────────────────────────────────
@@ -901,6 +924,204 @@ export function detectAndParse(
   return { nodes, groups: [], format: 'raw' };
 }
 
+export function previewParsedSourceContent(rawContent: string, sourceFormat: SourceFormat = 'auto'): SourceImportPreview {
+  const parsed = detectAndParse(rawContent, sourceFormat);
+  const filtered = filterUsableParsedContent(parsed.nodes, parsed.groups);
+  const structured = parseStructuredSourceContent(rawContent, parsed.format);
+  const importedObjects: SourceImportPreview['importedObjects'] = filtered.groups.length > 0
+    ? ['nodes', 'source-groups']
+    : ['nodes'];
+  if (structured.rules.length > 0) importedObjects.push('rules');
+  if (structured.remoteRuleSets.length > 0) importedObjects.push('remote-rule-sets');
+  const preservedOnly: SourceImportPreview['preservedOnly'] = [];
+  if (structured.skippedRules > 0) preservedOnly.push('rules');
+  if (structured.hasDns) preservedOnly.push('dns');
+  if (structured.clientSettingKeys.length > 0) preservedOnly.push('client-settings');
+  return {
+    detectedFormat: parsed.format,
+    nodeCount: filtered.nodes.length,
+    excludedCount: filtered.excludedCount,
+    sourceGroupCount: filtered.groups.length,
+    groups: filtered.groups,
+    nodes: filtered.nodes.slice(0, 100).map((node) => ({
+      name: node.name,
+      protocol: node.protocol,
+      server: node.server,
+      port: node.port,
+      country: node.country,
+      countryCode: node.countryCode,
+      tags: node.tags,
+    })),
+    importedObjects,
+    preservedOnly,
+    structured: {
+      rules: structured.rules.length,
+      remoteRuleSets: structured.remoteRuleSets.length,
+      skippedRules: structured.skippedRules,
+      hasDns: structured.hasDns,
+      clientSettingKeys: structured.clientSettingKeys,
+    },
+  };
+}
+
+interface StructuredRuleImport {
+  type: RuleType;
+  payload: string;
+  target: string;
+  noResolve: boolean;
+}
+
+interface StructuredRuleSetImport {
+  name: string;
+  url: string;
+  behavior: 'domain' | 'ipcidr' | 'classical';
+  updateInterval: number;
+  target: string;
+}
+
+interface ParsedStructuredSource {
+  rules: StructuredRuleImport[];
+  remoteRuleSets: StructuredRuleSetImport[];
+  skippedRules: number;
+  hasDns: boolean;
+  clientSettingKeys: string[];
+}
+
+const STRUCTURED_RULE_TYPES = new Set<RuleType>([
+  'DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX', 'IP-CIDR', 'IP-CIDR6',
+  'IP-ASN', 'GEOIP', 'GEOSITE', 'PROCESS-NAME', 'PROCESS-PATH', 'PORT', 'SRC-PORT',
+  'SRC-IP-CIDR', 'PROTOCOL', 'NETWORK', 'IN-TYPE', 'SCRIPT', 'MATCH',
+]);
+
+const CLIENT_SETTING_KEYS = [
+  'port', 'socks-port', 'mixed-port', 'redir-port', 'tproxy-port', 'mode', 'ipv6',
+  'allow-lan', 'bind-address', 'tun', 'profile', 'hosts',
+] as const;
+
+export function parseStructuredSourceContent(rawContent: string, format: SourceFormat): ParsedStructuredSource {
+  const empty: ParsedStructuredSource = { rules: [], remoteRuleSets: [], skippedRules: 0, hasDns: false, clientSettingKeys: [] };
+  if (format !== 'clash' && format !== 'mihomo') return empty;
+
+  let document: Record<string, unknown>;
+  try {
+    const parsed = parseYAML(rawContent);
+    if (!isPlainRecord(parsed)) return empty;
+    document = parsed;
+  } catch {
+    return empty;
+  }
+
+  const rules: StructuredRuleImport[] = [];
+  const providerTargets = new Map<string, string>();
+  let skippedRules = 0;
+  for (const rawRule of Array.isArray(document.rules) ? document.rules : []) {
+    if (typeof rawRule !== 'string') { skippedRules++; continue; }
+    const parts = rawRule.split(',').map((part) => part.trim()).filter(Boolean);
+    const rawType = parts[0]?.toUpperCase();
+    if (!rawType) { skippedRules++; continue; }
+    if (rawType === 'RULE-SET') {
+      const providerName = parts[1];
+      const target = parts[2];
+      if (providerName && target) providerTargets.set(providerName, target);
+      else skippedRules++;
+      continue;
+    }
+    const normalizedType = rawType === 'DST-PORT' ? 'PORT' : rawType;
+    if (!STRUCTURED_RULE_TYPES.has(normalizedType as RuleType)) { skippedRules++; continue; }
+    const type = normalizedType as RuleType;
+    const targetIndex = parts.at(-1)?.toLowerCase() === 'no-resolve' ? parts.length - 2 : parts.length - 1;
+    const target = parts[targetIndex];
+    const payload = type === 'MATCH' ? '' : parts.slice(1, targetIndex).join(',');
+    if (!target || (type !== 'MATCH' && !payload)) { skippedRules++; continue; }
+    rules.push({ type, payload, target, noResolve: parts.at(-1)?.toLowerCase() === 'no-resolve' });
+  }
+
+  const providers = isPlainRecord(document['rule-providers']) ? document['rule-providers'] : {};
+  const remoteRuleSets: StructuredRuleSetImport[] = [];
+  for (const [name, rawProvider] of Object.entries(providers)) {
+    if (!isPlainRecord(rawProvider) || rawProvider.type !== 'http' || typeof rawProvider.url !== 'string') continue;
+    const target = providerTargets.get(name);
+    if (!target || !normalizeHttpUrl(rawProvider.url)) continue;
+    const behavior = rawProvider.behavior === 'domain' || rawProvider.behavior === 'ipcidr'
+      ? rawProvider.behavior
+      : 'classical';
+    const intervalSeconds = Number(rawProvider.interval);
+    remoteRuleSets.push({
+      name,
+      url: rawProvider.url.trim(),
+      behavior,
+      updateInterval: Number.isFinite(intervalSeconds) && intervalSeconds > 0 ? Math.max(1, Math.round(intervalSeconds / 3600)) : 24,
+      target,
+    });
+  }
+
+  return {
+    rules,
+    remoteRuleSets,
+    skippedRules,
+    hasDns: isPlainRecord(document.dns),
+    clientSettingKeys: CLIENT_SETTING_KEYS.filter((key) => document[key] !== undefined),
+  };
+}
+
+async function importStructuredSourceContent(
+  db: D1Database,
+  sourceId: string,
+  rawContent: string,
+  format: SourceFormat,
+  ts: string
+): Promise<{ rules: number; remoteRuleSets: number; skippedRules: number }> {
+  const detectedFormat = format === 'auto' ? detectAndParse(rawContent, format).format : format;
+  const parsed = parseStructuredSourceContent(rawContent, detectedFormat);
+  const { results: groupRows } = await db.prepare(
+    'SELECT id, name FROM groups WHERE enabled = 1'
+  ).all<{ id: string; name: string }>();
+  const targetIds = new Map(groupRows.flatMap((row) => [
+    [row.name.trim().toLowerCase(), row.id] as const,
+    [row.id.trim().toLowerCase(), row.id] as const,
+  ]));
+  const maxRule = await db.prepare('SELECT MAX(sort_order) AS max_order FROM rules').first<{ max_order: number | null }>();
+  const maxSet = await db.prepare('SELECT MAX(sort_order) AS max_order FROM remote_rule_sets').first<{ max_order: number | null }>();
+  let ruleOrder = (maxRule?.max_order ?? -1) + 1;
+  let setOrder = (maxSet?.max_order ?? -1) + 1;
+  let importedRules = 0;
+  let importedSets = 0;
+  let skippedRules = parsed.skippedRules;
+
+  for (const rule of parsed.rules) {
+    const targetId = targetIds.get(rule.target.trim().toLowerCase());
+    if (!targetId) { skippedRules++; continue; }
+    await db.prepare(
+      `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+    ).bind(
+      newId(), `Imported ${rule.type}`, rule.type, rule.payload, rule.noResolve ? 1 : 0, targetId,
+      ruleOrder++, `[uni-conf:import] source:${sourceId}`, jsonStringify(getRuleCompatibility(rule.type)), ts, ts
+    ).run();
+    importedRules++;
+  }
+
+  for (const set of parsed.remoteRuleSets) {
+    const targetId = targetIds.get(set.target.trim().toLowerCase());
+    if (!targetId) { skippedRules++; continue; }
+    await db.prepare(
+      `INSERT INTO remote_rule_sets
+        (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+       VALUES (?, ?, ?, 'mihomo', ?, NULL, NULL, ?, ?, 1, ?, NULL, ?, ?, ?)`
+    ).bind(
+      newId(), set.name, set.url, set.behavior, targetId, set.updateInterval, setOrder++,
+      `[uni-conf:import] source:${sourceId}`, ts, ts
+    ).run();
+    importedSets++;
+  }
+
+  return { rules: importedRules, remoteRuleSets: importedSets, skippedRules };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function parseBySourceFormat(
   trimmed: string,
   format: Exclude<SourceFormat, 'auto'>
@@ -1047,9 +1268,8 @@ export function parseClashYaml(content: string): ParsedNodeRaw[] {
         parsedConfig: buildParsedConfig(protocol, serverStr, portNum, rawConfig),
       });
     }
-  } catch (err) {
-    console.error('YAML parse error:', err);
-    // Return empty array on parse error
+  } catch {
+    // Invalid imported content is reported through the preview/import result.
   }
 
   return nodes;

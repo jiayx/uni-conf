@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "dev:worker": "pnpm --filter worker dev",
-    "build": "pnpm --filter types build && pnpm --filter web build",
+    "build": "pnpm --filter types build && pnpm --filter web build && pnpm --filter worker build",
     "build:worker": "pnpm --filter worker build",
+    "smoke": "node scripts/smoke-deployment.mjs",
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r test:coverage",
     "lint": "pnpm -r lint",

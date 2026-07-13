@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
-import nodesApp, { normalizeNodeSearchQuery, resolveManualNodeInput, validateManualNodeUpdate } from './nodes';
+import nodesApp, { normalizeNodeSearchQuery, resolveManualNodeInput, toNodeSummary, validateManualNodeUpdate } from './nodes';
 import { MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared';
 
 vi.mock('../services/zero-setup', () => ({
@@ -12,6 +12,18 @@ vi.mock('../services/zero-setup', () => ({
 }));
 
 describe('manual node input', () => {
+  it('redacts credentials from list summaries while retaining routing metadata', () => {
+    const summary = toNodeSummary({
+      id: 'n1', sourceId: 's1', name: 'Node', protocol: 'trojan', server: 'example.com', port: 443,
+      enabled: true, tags: [], rawConfig: { password: 'secret' },
+      parsedConfig: { protocol: 'trojan', server: 'example.com', port: 443, password: 'secret', tls: true, extra: { password: 'secret' } },
+      isManual: true, createdAt: 'now', updatedAt: 'now',
+    });
+
+    expect(summary.rawConfig).toEqual({});
+    expect(summary.parsedConfig).toEqual({ protocol: 'trojan', server: 'example.com', port: 443, tls: true, network: undefined, extra: {} });
+  });
+
   it('resolves a node from a share URI', () => {
     const input = resolveManualNodeInput({
       uri: 'vless://12345678-1234-1234-1234-123456789012@us.example.com:443?security=reality&type=tcp&sni=example.com&pbk=public-key&sid=abcd#🇺🇸 US 2x',

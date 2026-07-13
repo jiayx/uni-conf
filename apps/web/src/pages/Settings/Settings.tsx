@@ -117,6 +117,7 @@ export function Settings() {
   }
 
   const handleExport = async () => {
+    if (!confirm(t('settings.export_sensitive_confirm'))) return
     try {
       const blob = await api.settings.exportData()
       const url = URL.createObjectURL(blob)
@@ -133,10 +134,12 @@ export function Settings() {
 
   const handleImport = async (file: File | undefined) => {
     if (!file) return
-    if (!confirm(t('settings.import_confirm'))) return
     try {
       const text = await file.text()
-      await api.settings.importData(JSON.parse(text) as unknown)
+      const data = JSON.parse(text) as unknown
+      const validation = await api.settings.validateImportData(data)
+      if (!confirm(t('settings.import_confirm', { count: validation.totalRows, version: validation.version }))) return
+      await api.settings.importData(data)
       setStatus(t('settings.import_success'))
     } catch (e) {
       setStatus((e as Error).message)
@@ -318,6 +321,7 @@ export function Settings() {
       {/* Data */}
       <Card className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('settings.data')}</h2>
+        <div className={styles.hint}>{t('settings.data_sensitive_hint')}</div>
         <div className={styles.actionGroup}>
           <Button variant="secondary" onClick={() => void handleExport()}>
             {t('settings.export_data')}

@@ -3,6 +3,8 @@ import { getAppSettings } from './app-settings';
 import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
 import { ensureZeroSetupDefaults } from './zero-setup';
 
+export const AUTO_REFRESH_CONCURRENCY = 4;
+
 export interface AutoRefreshSourceRow {
   id: string;
   last_updated: string | null;
@@ -43,12 +45,16 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
   const refreshedSourceIds: string[] = [];
   const errors: Array<{ sourceId: string; error: string }> = [];
 
-  for (const source of dueSources) {
-    try {
-      await refreshSourceById(db, source.id);
-      refreshedSourceIds.push(source.id);
-    } catch (err) {
-      const error = String(err instanceof Error ? err.message : err);
+  for (let offset = 0; offset < dueSources.length; offset += AUTO_REFRESH_CONCURRENCY) {
+    const batch = dueSources.slice(offset, offset + AUTO_REFRESH_CONCURRENCY);
+    const results = await Promise.allSettled(batch.map((source) => refreshSourceById(db, source.id)));
+    for (const [index, result] of results.entries()) {
+      const source = batch[index]!;
+      if (result.status === 'fulfilled') {
+        refreshedSourceIds.push(source.id);
+        continue;
+      }
+      const error = String(result.reason instanceof Error ? result.reason.message : result.reason);
       await recordSourceRefreshError(db, source.id, error);
       errors.push({ sourceId: source.id, error });
     }

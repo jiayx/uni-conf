@@ -83,7 +83,7 @@ app.get('/', async (c) => {
     .bind(...bindings, pageSize, offset)
     .all<Record<string, unknown>>();
 
-  const nodes = results.map(mapNode);
+  const nodes = results.map((row) => toNodeSummary(mapNode(row)));
 
   return c.json({
     success: true,
@@ -95,6 +95,21 @@ app.get('/', async (c) => {
     },
   });
 });
+
+export function toNodeSummary(node: ReturnType<typeof mapNode>): ReturnType<typeof mapNode> {
+  return {
+    ...node,
+    rawConfig: {},
+    parsedConfig: {
+      protocol: node.protocol,
+      server: node.server,
+      port: node.port,
+      tls: node.parsedConfig.tls,
+      network: node.parsedConfig.network,
+      extra: {},
+    },
+  };
+}
 
 export function normalizeNodeSearchQuery(value: string | undefined): string {
   return (value ?? '').trim().slice(0, MAX_NODE_SEARCH_LENGTH);

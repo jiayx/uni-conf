@@ -33,6 +33,14 @@ describe('source import helpers', () => {
     })
   })
 
+  it('adds structured migration only after the user confirms the preview', () => {
+    expect(buildImportSourcePayload({
+      content: 'proxies: []',
+      format: 'auto',
+      importStructured: true,
+    })).toEqual({ content: 'proxies: []', importStructured: true })
+  })
+
   it('rejects blank or whitespace-only content', () => {
     expect(isImportContentValid('')).toBe(false)
     expect(isImportContentValid('   \n  ')).toBe(false)

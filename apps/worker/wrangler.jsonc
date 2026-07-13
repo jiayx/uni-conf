@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "uni-conf-worker",
   "main": "src/index.ts",
-  "compatibility_date": "2026-07-06",
+  "compatibility_date": "2026-06-23",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "../web/dist",
@@ -32,5 +32,49 @@
   },
   "triggers": {
     "crons": ["*/5 * * * *"]
+  },
+  "env": {
+    "staging": {
+      "name": "uni-conf-worker-staging",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ALLOWED_ORIGIN": "REPLACE_WITH_STAGING_ORIGIN"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "uni-conf-db-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "REPLACE_WITH_STAGING_KV_ID"
+        }
+      ]
+    },
+    "production": {
+      "name": "uni-conf-worker",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ALLOWED_ORIGIN": "REPLACE_WITH_PRODUCTION_ORIGIN"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "uni-conf-db",
+          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "REPLACE_WITH_PRODUCTION_KV_ID"
+        }
+      ]
+    }
   }
 }

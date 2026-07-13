@@ -4,6 +4,7 @@ export interface ImportSourcePayloadOptions {
   name?: string;
   content: string;
   format: SourceFormat;
+  importStructured?: boolean;
 }
 
 export function buildImportSourcePayload(options: ImportSourcePayloadOptions): SourceImportInput {
@@ -11,6 +12,7 @@ export function buildImportSourcePayload(options: ImportSourcePayloadOptions): S
     ...(options.name?.trim() ? { name: options.name.trim() } : {}),
     content: options.content,
     ...(options.format !== 'auto' ? { format: options.format } : {}),
+    ...(options.importStructured ? { importStructured: true } : {}),
   };
 }
 

@@ -43,6 +43,8 @@ pnpm --filter web test # Frontend tests only
 pnpm --filter worker test # Worker tests only
 ```
 
+Coverage is enforced in CI. Worker coverage includes routes, services, and generators (global 80% statements/lines, 90% functions, 65% branches). Web coverage includes application wiring, shared components, core logic, API clients, every page, and all stores. Its current ratchet is 50% statements/lines, 40% functions/branches, with stricter per-directory floors for core, lib, and store code. Raise thresholds with new tests; do not narrow the include globs to make a gate pass.
+
 ## Code Style
 
 - TypeScript strict mode (no `any`, no implicit `any`)
@@ -72,9 +74,9 @@ pnpm --filter worker test # Worker tests only
    wrangler kv namespace create KV
    ```
 
-3. Update `apps/worker/wrangler.jsonc` with real `database_id` and KV `id`.
+3. Update both `staging` and `production` entries in `apps/worker/wrangler.jsonc` with real D1/KV IDs and allowed origins.
 
-4. Run migrations on production:
+4. Follow [OPERATIONS.md](./OPERATIONS.md): deploy to staging, run the smoke test, then approve production and apply migrations before code deployment.
    ```bash
    pnpm --filter worker db:migrate
    ```

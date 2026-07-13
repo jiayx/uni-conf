@@ -391,12 +391,35 @@ export interface SourceImportInput {
   format?: SourceFormat;
   notes?: string;
   tags?: string[];
+  /** Import safely convertible Clash/Mihomo rules and rule providers after preview. */
+  importStructured?: boolean;
+}
+
+export interface SourceStructuredImportSummary {
+  rules: number;
+  remoteRuleSets: number;
+  skippedRules: number;
+  hasDns: boolean;
+  clientSettingKeys: string[];
+}
+
+export interface SourceImportPreview {
+  detectedFormat: SourceFormat;
+  nodeCount: number;
+  excludedCount: number;
+  sourceGroupCount: number;
+  groups: SourceNodeGroup[];
+  nodes: Array<Pick<ProxyNode, 'name' | 'protocol' | 'server' | 'port' | 'country' | 'countryCode' | 'tags'>>;
+  importedObjects: Array<'nodes' | 'source-groups' | 'rules' | 'remote-rule-sets'>;
+  preservedOnly: Array<'rules' | 'remote-rule-sets' | 'dns' | 'client-settings'>;
+  structured: SourceStructuredImportSummary;
 }
 
 export interface SourceCreateResult {
   source: ProxySource;
   refresh?: SourceRefreshResult;
   refreshError?: string;
+  structuredImport?: Pick<SourceStructuredImportSummary, 'rules' | 'remoteRuleSets' | 'skippedRules'>;
 }
 
 export interface ExportResult {

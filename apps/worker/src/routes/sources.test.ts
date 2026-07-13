@@ -13,6 +13,7 @@ import {
   parseClashGroups,
   parseClashYaml,
   parseSingboxGroups,
+  previewParsedSourceContent,
   refreshSourceById,
   resolveSourceNameInput,
   SourceRefreshError,
@@ -56,6 +57,49 @@ proxy-groups:
 `
 
 describe('Clash YAML Parser', () => {
+  it('previews importable objects without exposing credentials', () => {
+    const preview = previewParsedSourceContent(`
+proxies:
+  - { name: 'HK 01', type: trojan, server: hk.example.com, port: 443, password: secret }
+proxy-groups:
+  - { name: Auto, type: url-test, proxies: ['HK 01'] }
+`, 'auto')
+
+    expect(preview).toMatchObject({
+      detectedFormat: 'mihomo', nodeCount: 1, excludedCount: 0, sourceGroupCount: 1,
+      importedObjects: ['nodes', 'source-groups'],
+      preservedOnly: [],
+      structured: { rules: 0, remoteRuleSets: 0, skippedRules: 0, hasDns: false, clientSettingKeys: [] },
+    })
+    expect(preview.nodes[0]).not.toHaveProperty('password')
+    expect(JSON.stringify(preview)).not.toContain('secret')
+  })
+
+  it('previews safely convertible Clash rules and providers without copying DNS settings', () => {
+    const preview = previewParsedSourceContent(`
+mixed-port: 7890
+dns: { enable: true }
+proxies:
+  - { name: HK, type: trojan, server: hk.example.com, port: 443, password: secret }
+rules:
+  - DOMAIN-SUFFIX,example.com,PROXY
+  - RULE-SET,ads,REJECT
+  - AND,((DOMAIN,a.example),(NETWORK,TCP)),PROXY
+rule-providers:
+  ads: { type: http, behavior: domain, url: https://rules.example/ads.yaml, interval: 86400 }
+`, 'mihomo')
+
+    expect(preview.importedObjects).toEqual(['nodes', 'rules', 'remote-rule-sets'])
+    expect(preview.preservedOnly).toEqual(['rules', 'dns', 'client-settings'])
+    expect(preview.structured).toEqual({
+      rules: 1,
+      remoteRuleSets: 1,
+      skippedRules: 1,
+      hasDns: true,
+      clientSettingKeys: ['mixed-port'],
+    })
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.clearAllMocks()
@@ -155,6 +199,17 @@ describe('Clash YAML Parser', () => {
       format: 'mihomo',
       nodes: [],
     })
+  })
+
+  it('parses a 10k-node raw subscription without dropping entries', () => {
+    const content = Array.from({ length: 10_000 }, (_, index) =>
+      `trojan://pwd@node-${index}.example.com:443#Node-${index}`
+    ).join('\n')
+
+    const parsed = detectAndParse(content, 'raw')
+
+    expect(parsed.nodes).toHaveLength(10_000)
+    expect(parsed.nodes[9_999]).toMatchObject({ name: 'Node-9999', protocol: 'trojan' })
   })
 
   it('should parse inline format nodes (flow-style)', () => {

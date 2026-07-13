@@ -4,11 +4,9 @@
 /*.html
   Cache-Control: no-cache, no-store, must-revalidate
 
-/_redirects
-  Cache-Control: no-cache
-
-/
+/*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: http://localhost:* ws://localhost:*; upgrade-insecure-requests

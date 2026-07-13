@@ -1,3 +1,0 @@
-# SPA fallback for generic static hosts.
-# Worker Static Assets also handles this through `not_found_handling`.
-/*    /index.html   200

@@ -62,7 +62,7 @@ export async function validateRemoteRuleSetReachability(
     );
     return reachable ? null : {
       client: format,
-      level: 'unsupported',
+      level: 'partial',
       message: `远程规则集 "${ruleSet.name}" 当前无法下载，请检查规则集地址或稍后重试`,
       messageEn: `Remote rule set "${ruleSet.name}" cannot be downloaded right now. Check the rule set URL or retry later.`,
     } satisfies CompatibilityWarning;

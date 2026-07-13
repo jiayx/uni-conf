@@ -455,7 +455,7 @@ describe('export validation', () => {
     }), 'mihomo', { fetcher });
 
     expect(warnings).toContainEqual(expect.objectContaining({
-      level: 'unsupported',
+      level: 'partial',
       message: expect.stringContaining('Ads'),
       messageEn: expect.stringContaining('cannot be downloaded'),
     }));
@@ -537,7 +537,7 @@ describe('export validation', () => {
 
     expect(fetchCount).toBe(1);
     expect(warnings).toContainEqual(expect.objectContaining({
-      level: 'unsupported',
+      level: 'partial',
       message: expect.stringContaining('Ads'),
     }));
   });

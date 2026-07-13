@@ -1,0 +1,60 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        required: true
+        options: [staging, production]
+        default: staging
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build
+      - name: Verify Cloudflare resource configuration
+        run: |
+          if grep -q "REPLACE_WITH_${TARGET^^}" apps/worker/wrangler.jsonc; then
+            echo "Replace the ${TARGET} D1/KV placeholders before deployment" >&2
+            exit 1
+          fi
+        env:
+          TARGET: ${{ inputs.environment }}
+      - name: Apply D1 migrations
+        working-directory: apps/worker
+        run: pnpm exec wrangler d1 migrations apply DB --env "$TARGET" --remote
+        env:
+          TARGET: ${{ inputs.environment }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy Worker and static assets
+        working-directory: apps/worker
+        run: pnpm exec wrangler deploy --env "$TARGET"
+        env:
+          TARGET: ${{ inputs.environment }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Smoke test deployment
+        run: pnpm smoke
+        env:
+          UNICONF_BASE_URL: ${{ vars.UNICONF_BASE_URL }}
+          UNICONF_API_KEY: ${{ secrets.API_KEY }}

@@ -13,8 +13,9 @@ import { buildImportSourcePayload, isImportContentValid } from '@/core/sources/s
 import { shouldRefreshSourceAfterUpdate } from '@/core/sources/source-refresh'
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { useSourcesStore } from '@/store/sources.store'
+import { api } from '@/lib/api'
 import { SOURCE_FORMATS } from '@uni-conf/shared'
-import type { ProxySource, SourceFormat } from '@uni-conf/types'
+import type { ProxySource, SourceFormat, SourceImportPreview } from '@uni-conf/types'
 import styles from './Sources.module.css'
 
 const FORMAT_OPTIONS: SourceFormat[] = [...SOURCE_FORMATS]
@@ -75,6 +76,7 @@ export function Sources() {
   const [formError, setFormError] = useState('')
   const [importForm, setImportForm] = useState({ name: '', content: '', format: 'auto' as SourceFormat })
   const [importError, setImportError] = useState('')
+  const [importPreview, setImportPreview] = useState<SourceImportPreview | null>(null)
   const [importing, setImporting] = useState(false)
   const importFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -116,6 +118,7 @@ export function Sources() {
   const handleImportFile = async (file: File | undefined) => {
     if (!file) return
     const text = await file.text()
+    setImportPreview(null)
     setImportForm(f => ({ ...f, content: text, name: f.name || file.name.replace(/\.[^.]+$/, '') }))
     if (importFileInputRef.current) importFileInputRef.current.value = ''
   }
@@ -128,15 +131,33 @@ export function Sources() {
     setImportError('')
     setImporting(true)
     try {
+      const payload = buildImportSourcePayload({
+        ...importForm,
+        name: importForm.name.trim() || t('sources.import_default_name'),
+      })
+      setImportPreview(await api.sources.previewImport(payload))
+    } catch (e) {
+      setImportError((e as Error).message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const confirmImport = async () => {
+    setImportError('')
+    setImporting(true)
+    try {
       const result = await importSource(buildImportSourcePayload({
         ...importForm,
         name: importForm.name.trim() || t('sources.import_default_name'),
+        importStructured: true,
       }))
       if (result.refreshError) {
         setImportError(`${t('sources.refresh_failed')}: ${result.refreshError}`)
       }
       setShowImportModal(false)
       setImportForm({ name: '', content: '', format: 'auto' })
+      setImportPreview(null)
     } catch (e) {
       setImportError((e as Error).message)
     } finally {
@@ -480,13 +501,15 @@ export function Sources() {
         open={showImportModal}
         onOpenChange={(open) => {
           setShowImportModal(open)
-          if (!open) { setImportError(''); setImportForm({ name: '', content: '', format: 'auto' }) }
+          if (!open) { setImportError(''); setImportPreview(null); setImportForm({ name: '', content: '', format: 'auto' }) }
         }}
         title={t('sources.import_config')}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowImportModal(false)}>{t('common.cancel')}</Button>
-            <Button loading={importing} onClick={() => void handleImport()}>{t('sources.import_submit')}</Button>
+            <Button loading={importing} onClick={() => void (importPreview ? confirmImport() : handleImport())}>
+              {importPreview ? t('sources.import_confirm') : t('sources.import_preview')}
+            </Button>
           </>
         }
       >
@@ -495,12 +518,35 @@ export function Sources() {
           <div className={styles.quickHintTitle}>{t('sources.import_hint_title')}</div>
           <div className={styles.quickHintText}>{t('sources.import_hint_text')}</div>
         </div>
+        {importPreview && (
+          <div className={styles.quickHint}>
+            <div className={styles.quickHintTitle}>{t('sources.import_preview_title')}</div>
+            <div className={styles.quickHintText}>
+              {t('sources.import_preview_summary', {
+                format: importPreview.detectedFormat,
+                nodes: importPreview.nodeCount,
+                excluded: importPreview.excludedCount,
+                groups: importPreview.sourceGroupCount,
+              })}
+            </div>
+            <div className={styles.quickHintText}>
+              {t('sources.import_preview_structured', {
+                rules: importPreview.structured.rules,
+                sets: importPreview.structured.remoteRuleSets,
+                skipped: importPreview.structured.skippedRules,
+              })}
+            </div>
+            {(importPreview.structured.hasDns || importPreview.structured.clientSettingKeys.length > 0) && (
+              <div className={styles.quickHintText}>{t('sources.import_preview_limit')}</div>
+            )}
+          </div>
+        )}
         <label className={styles.textareaField}>
           <span>{t('sources.import_content')}</span>
           <textarea
             className={styles.textarea}
             value={importForm.content}
-            onChange={e => setImportForm(f => ({ ...f, content: e.target.value }))}
+            onChange={e => { setImportPreview(null); setImportForm(f => ({ ...f, content: e.target.value })) }}
             placeholder={t('sources.import_content_placeholder')}
             rows={10}
           />
@@ -526,7 +572,7 @@ export function Sources() {
           <select
             className={styles.select}
             value={importForm.format}
-            onChange={e => setImportForm(f => ({ ...f, format: e.target.value as SourceFormat }))}
+            onChange={e => { setImportPreview(null); setImportForm(f => ({ ...f, format: e.target.value as SourceFormat })) }}
           >
             {FORMAT_OPTIONS.map(format => (
               <option key={format} value={format}>{t(`sources.format_${format}`)}</option>

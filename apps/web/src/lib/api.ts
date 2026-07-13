@@ -3,6 +3,7 @@ import type {
   SourceCreateInput,
   SourceCreateResult,
   SourceImportInput,
+  SourceImportPreview,
   ProxyNode,
   NodeCollection,
   ProxyGroup,
@@ -71,6 +72,8 @@ const sources = {
     post('/sources', data),
   import: (data: SourceImportInput): Promise<SourceCreateResult> =>
     post('/sources/import', data),
+  previewImport: (data: SourceImportInput): Promise<SourceImportPreview> =>
+    post('/sources/import/preview', data),
   update: (id: string, data: Partial<ProxySource>): Promise<ProxySource> => put(`/sources/${id}`, data),
   remove: (id: string): Promise<void> => del(`/sources/${id}`),
   refresh: (id: string): Promise<SourceRefreshResult> => post(`/sources/${id}/refresh`),
@@ -272,6 +275,12 @@ const settingsApi = {
     if (res.status === 401) throw new UnauthorizedError()
     return res.blob()
   },
+  validateImportData: (data: unknown): Promise<{
+    version: number
+    totalRows: number
+    tables: Record<string, number>
+    containsSensitiveData: boolean
+  }> => post('/data/import/validate', data),
   importData: (data: unknown): Promise<void> => post('/data/import', data),
   clearData: (): Promise<void> => del('/data'),
 }

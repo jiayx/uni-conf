@@ -342,7 +342,7 @@ describe('proxy group references', () => {
       experimental: { cache_file: { store_fakeip: boolean } };
     }
 
-    expect(smart.log).toMatchObject({ level: 'warning', timestamp: true })
+    expect(smart.log).toMatchObject({ level: 'warn', timestamp: true })
     expect(smart.dns.fakeip).toBeUndefined()
     expect(smart.inbounds).toContainEqual(expect.objectContaining({
       type: 'tun',
@@ -848,11 +848,11 @@ describe('proxy group references', () => {
     }
 
     expect(config.outbounds).toContainEqual(expect.objectContaining({ tag: 'direct', type: 'direct' }))
-    expect(config.outbounds).toContainEqual(expect.objectContaining({ tag: 'block', type: 'block' }))
+    expect(config.outbounds.some((outbound) => outbound.type === 'block')).toBe(false)
     expect(config.outbounds.some((outbound) => outbound.tag === 'DIRECT')).toBe(false)
     expect(config.outbounds.some((outbound) => outbound.tag === 'REJECT')).toBe(false)
     expect(config.route.rules).toContainEqual({ domain: ['example.com'], outbound: 'direct' })
-    expect(config.route.rules).toContainEqual({ domain_suffix: ['ads.example'], outbound: 'block' })
+    expect(config.route.rules).toContainEqual({ domain_suffix: ['ads.example'], action: 'reject' })
   })
 
   it('does not emit native outlet groups for text based client configs', () => {

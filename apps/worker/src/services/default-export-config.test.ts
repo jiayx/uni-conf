@@ -1,9 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_EXPORT_CONFIG_ID, ensureDefaultExportConfig } from './default-export-config';
+import { DEFAULT_EXPORT_CONFIG_ID, ensureDefaultExportConfig, generateExportToken } from './default-export-config';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
 describe('default export config', () => {
+  it('uses a 256-bit URL-safe cryptographic token', () => {
+    const tokens = new Set(Array.from({ length: 100 }, () => generateExportToken()));
+
+    expect(tokens.size).toBe(100);
+    for (const token of tokens) expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
   it('creates a default Mihomo export config and stores its token', async () => {
     const state = createState();
     const db = createMockDb(state);

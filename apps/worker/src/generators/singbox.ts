@@ -20,7 +20,7 @@ export function generateSingboxJson(
   const proxyDetour = defaultProxyDetour(groups);
   const config = {
     log: {
-      level: 'warning',
+      level: 'warn',
       timestamp: true,
     },
     dns: buildDns(dnsMode, proxyDetour),
@@ -46,13 +46,16 @@ function buildDns(mode: DnsMode, proxyDetour: string): object {
   const dns: Record<string, unknown> = {
     servers: [
       {
+        type: 'tls',
         tag: 'proxyDns',
-        address: 'tls://8.8.8.8',
+        server: '8.8.8.8',
         detour: proxyDetour,
       },
       {
+        type: 'https',
         tag: 'localDns',
-        address: 'https://223.5.5.5/dns-query',
+        server: '223.5.5.5',
+        path: '/dns-query',
         detour: 'direct',
       },
       {
@@ -148,8 +151,6 @@ function buildOutbounds(
 
   // Built-in outbounds
   outbounds.push({ type: 'direct', tag: 'direct' });
-  outbounds.push({ type: 'block', tag: 'block' });
-  outbounds.push({ type: 'dns', tag: 'dns-out' });
 
   return outbounds;
 }
@@ -448,12 +449,14 @@ function groupToSingbox(
   const outbounds: string[] = [];
 
   for (const b of group.builtins) {
-    outbounds.push(nativeSingboxOutboundFromBuiltin(b));
+    const outbound = nativeSingboxOutboundFromBuiltin(b);
+    if (outbound) outbounds.push(outbound);
   }
 
   for (const gid of group.groupIds) {
     const nestedGroup = allGroups.find((item) => item.id === gid);
-    if (nestedGroup) outbounds.push(resolveSingboxGroupName(nestedGroup));
+    if (nestedGroup?.type === 'direct') outbounds.push('direct');
+    else if (nestedGroup && nestedGroup.type !== 'reject') outbounds.push(resolveSingboxGroupName(nestedGroup));
   }
 
   const collectionNames = group.collectionIds.flatMap((id) => collectionNodeNames[id] ?? []);
@@ -515,7 +518,7 @@ function buildRoute(
   // Built-in DNS hijack
   routeRules.push({
     protocol: 'dns',
-    outbound: 'dns-out',
+    action: 'hijack-dns',
   });
 
   // Convert rules
@@ -526,8 +529,8 @@ function buildRoute(
 
   for (const rule of enabledRules) {
     if (rule.type === 'MATCH') continue;
-    const outbound = resolveGroupName(rule.targetGroupId, groups);
-    const singboxRule = ruleToSingbox(rule, outbound);
+    const target = singboxRouteTarget(rule.targetGroupId, groups);
+    const singboxRule = ruleToSingbox(rule, target);
     if (singboxRule) routeRules.push(singboxRule);
   }
 
@@ -566,18 +569,19 @@ function buildRoute(
     }
     routeRules.push({
       rule_set: [safeName],
-      outbound: resolveGroupName(rs.targetGroupId, groups),
+      ...singboxRouteTarget(rs.targetGroupId, groups),
     });
   }
 
-  const finalOutbound = matchRule
-    ? resolveGroupName(matchRule.targetGroupId, groups)
-    : defaultPolicyName(groups);
+  const finalTarget = matchRule
+    ? singboxRouteTarget(matchRule.targetGroupId, groups)
+    : { outbound: defaultPolicyName(groups) };
+  if ('action' in finalTarget) routeRules.push(finalTarget);
 
   return {
     rules: routeRules,
     rule_set: ruleSets,
-    final: finalOutbound,
+    ...('outbound' in finalTarget ? { final: finalTarget.outbound } : {}),
     auto_detect_interface: true,
     override_android_vpn: true,
   };
@@ -636,12 +640,16 @@ function resolveGroupName(groupId: string, groups: ProxyGroup[]): string {
 
 function resolveSingboxGroupName(group: ProxyGroup): string {
   if (group.type === 'direct') return 'direct';
-  if (group.type === 'reject') return 'block';
   return group.name;
 }
 
-function nativeSingboxOutboundFromBuiltin(name: string): string {
-  return name === 'REJECT' ? 'block' : 'direct';
+function nativeSingboxOutboundFromBuiltin(name: string): string | null {
+  return name === 'REJECT' ? null : 'direct';
+}
+
+function singboxRouteTarget(groupId: string, groups: ProxyGroup[]): { outbound: string } | { action: 'reject' } {
+  const group = groups.find((item) => item.id === groupId);
+  return group?.type === 'reject' ? { action: 'reject' } : { outbound: resolveGroupName(groupId, groups) };
 }
 
 function wireguardLocalAddress(value: unknown): string[] {
@@ -684,32 +692,32 @@ function isNativeOutletGroup(group: ProxyGroup): boolean {
   return group.type === 'direct' || group.type === 'reject';
 }
 
-function ruleToSingbox(rule: ProxyRule, outbound: string): object | null {
+function ruleToSingbox(rule: ProxyRule, target: { outbound: string } | { action: 'reject' }): object | null {
   switch (rule.type) {
     case 'DOMAIN':
-      return { domain: [rule.payload], outbound };
+      return { domain: [rule.payload], ...target };
     case 'DOMAIN-SUFFIX':
-      return { domain_suffix: [rule.payload], outbound };
+      return { domain_suffix: [rule.payload], ...target };
     case 'DOMAIN-KEYWORD':
-      return { domain_keyword: [rule.payload], outbound };
+      return { domain_keyword: [rule.payload], ...target };
     case 'DOMAIN-REGEX':
-      return { domain_regex: [rule.payload], outbound };
+      return { domain_regex: [rule.payload], ...target };
     case 'IP-CIDR':
-      return { ip_cidr: [rule.payload], outbound };
+      return { ip_cidr: [rule.payload], ...target };
     case 'IP-CIDR6':
-      return { ip_cidr: [rule.payload], outbound };
+      return { ip_cidr: [rule.payload], ...target };
     case 'GEOIP':
-      return { geoip: [rule.payload.toLowerCase()], outbound };
+      return { geoip: [rule.payload.toLowerCase()], ...target };
     case 'GEOSITE':
-      return { rule_set: [`geosite-${rule.payload.toLowerCase()}`], outbound };
+      return { rule_set: [`geosite-${rule.payload.toLowerCase()}`], ...target };
     case 'RULE-SET':
-      return { rule_set: [rule.payload.replace(/[^a-zA-Z0-9_-]/g, '_')], outbound };
+      return { rule_set: [rule.payload.replace(/[^a-zA-Z0-9_-]/g, '_')], ...target };
     case 'PORT':
-      return { port: [parseInt(rule.payload, 10)], outbound };
+      return { port: [parseInt(rule.payload, 10)], ...target };
     case 'PROCESS-NAME':
-      return { process_name: [rule.payload], outbound };
+      return { process_name: [rule.payload], ...target };
     case 'MATCH':
-      return { outbound };
+      return target;
     default:
       return null;
   }

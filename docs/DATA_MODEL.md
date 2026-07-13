@@ -487,7 +487,7 @@ The web export list uses the preview endpoint as its one-click validation path. 
 
 The worker separates readiness checks from client compatibility checks. Readiness warnings are always returned because they indicate a config that may be empty or structurally broken. A target client with zero renderable nodes is a readiness warning, not a hideable compatibility warning, because download/subscription would be blocked. The `show_compatibility_warnings` setting only hides client capability warnings such as DNS downgrade, per-node protocol skip details, or rule-format support.
 
-Preview also performs a lightweight download reachability check for enabled remote rule sets that the selected export format can actually reference. The worker tries `HEAD` first and falls back to a ranged `GET` when a host does not support `HEAD`; failures, timeouts, or non-success statuses are returned as `unsupported` warnings. Node-only subscription formats skip this network check because they do not render rule providers.
+Preview also performs a lightweight download reachability check for enabled remote rule sets that the selected export format can actually reference. The worker tries `HEAD` first and falls back to a ranged `GET` when a host does not support `HEAD`; failures, timeouts, or non-success statuses are returned as `partial` warnings because they do not block an otherwise renderable config. Node-only subscription formats skip this network check because they do not render rule providers.
 
 Authenticated download and public subscription responses block cases that cannot produce a usable client config: zero exported nodes, a selected target client for which every exported node protocol is unsupported, or structural readiness errors such as missing nested policy groups, missing rule/remote-rule targets, policy groups pointing at final node names that will not be emitted, or remote rule set URLs that are not downloadable `http(s)` addresses. Node-only subscription exports (`nodes_raw` / `nodes_base64`) use the final subscription URI serializer for this check, so a node with a supported protocol but missing required URI fields is treated as not renderable. Source refresh errors and remote rule-set network reachability failures remain preview warnings rather than hard download blockers when the already-materialized graph is otherwise renderable. Preview still returns generated content plus warnings so users can inspect why the export is empty, structurally broken, or protocol-filtered; download/subscription return HTTP 409 instead of handing clients a blank or dangling config.
 
@@ -506,7 +506,7 @@ The worker validates:
 | Missing remote rule set target group | `unsupported` |
 | Remote rule set incompatible with export format | `partial` |
 | Remote rule set URL is not downloadable over http(s) | `unsupported` |
-| Remote rule set URL cannot be fetched during preview | `unsupported` |
+| Remote rule set URL cannot be fetched during preview | `partial` |
 | DNS mode cannot be fully represented by target export format | `partial` |
 | MATCH not last | `partial` |
 

@@ -19,6 +19,7 @@ import {
 } from '@/core/nodes/manual-node-uri-help'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
+import { api } from '@/lib/api'
 import { MAINSTREAM_PROXY_PROTOCOLS, PROTOCOL_FORM_FIELDS } from '@uni-conf/types'
 import { MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared'
 import type { ProtocolFieldDefinition, ProxyNode, ProxyProtocol } from '@uni-conf/types'
@@ -78,7 +79,18 @@ export function Nodes() {
     setShowModal(true)
   }
 
-  const openEdit = (node: ProxyNode) => {
+  const openEdit = async (summary: ProxyNode) => {
+    setEditingNode(null)
+    setForm(EMPTY_FORM)
+    setFormError('')
+    setShowModal(true)
+    let node: ProxyNode
+    try {
+      node = await api.nodes.get(summary.id)
+    } catch (error) {
+      setFormError((error as Error).message)
+      return
+    }
     setEditingNode(node)
     setForm({
       name: node.name,
@@ -233,7 +245,7 @@ export function Nodes() {
                       <Button variant="ghost" size="sm" onClick={() => void updateNode(node.id, { enabled: !node.enabled })}>
                         {node.enabled ? t('common.disable') : t('common.enable')}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(node)}>
+                      <Button variant="ghost" size="sm" onClick={() => void openEdit(node)}>
                         {t('common.edit')}
                       </Button>
                       {node.isManual && (

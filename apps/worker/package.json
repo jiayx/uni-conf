@@ -5,13 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "wrangler deploy --dry-run --outdir dist",
+    "build": "wrangler deploy --dry-run --env=\"\" --outdir dist",
     "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "db:migrate": "wrangler d1 migrations apply DB",
+    "db:migrate:staging": "wrangler d1 migrations apply DB --env staging --remote",
+    "db:migrate:production": "wrangler d1 migrations apply DB --env production --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:studio": "wrangler d1 studio DB"
   },
@@ -22,11 +26,13 @@
     "js-yaml": "catalog:"
   },
   "devDependencies": {
+    "@black-duty/sing-box-schema": "1.13.0",
     "@cloudflare/vitest-pool-workers": "^0.16.16",
     "@cloudflare/workers-types": "^4.20260617.1",
     "@eslint/js": "catalog:",
     "@types/js-yaml": "catalog:",
     "@types/node": "catalog:",
+    "ajv": "^8.17.1",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "globals": "catalog:",
