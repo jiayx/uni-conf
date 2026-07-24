@@ -33,13 +33,9 @@ export async function ensureDefaultExportConfig(db: D1Database, ts: string): Pro
     .first<Record<string, unknown>>();
 
   if (existing) {
-    await db
-      .prepare('UPDATE export_configs SET enabled = 1, updated_at = ? WHERE id = ?')
-      .bind(ts, DEFAULT_EXPORT_CONFIG_ID)
-      .run();
     const config = mapExportConfig(existing);
     await setDefaultExportToken(db, config.token, ts);
-    return { ...config, enabled: true, updatedAt: ts };
+    return config;
   }
 
   const token = generateExportToken();

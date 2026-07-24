@@ -13,8 +13,8 @@ vi.mock('@/lib/api', () => ({
   api: {
     collections: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), preview: vi.fn() },
     groups: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), reorder: vi.fn() },
-    nodes: { listAll: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
-    rules: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), reorder: vi.fn(), batchCreate: vi.fn() },
+    nodes: { listAll: vi.fn(), create: vi.fn(), update: vi.fn(), setEnabled: vi.fn(), remove: vi.fn() },
+    rules: { list: vi.fn(), create: vi.fn(), update: vi.fn(), setEnabled: vi.fn(), remove: vi.fn(), reorder: vi.fn(), batchCreate: vi.fn() },
     sources: { list: vi.fn(), create: vi.fn(), import: vi.fn(), update: vi.fn(), remove: vi.fn(), refresh: vi.fn() },
   },
 }))
@@ -49,24 +49,31 @@ describe('Zustand API stores', () => {
     expect(await state.previewCollection('c1')).toEqual([node])
     await state.deleteCollection('c1')
     expect(useCollectionsStore.getState().collections).toEqual([])
-    vi.mocked(api.collections.list).mockRejectedValue(new Error('offline'))
+    const failure = new Error('offline')
+    vi.mocked(api.collections.list).mockRejectedValue(failure)
     await state.fetchCollections()
-    expect(useCollectionsStore.getState().error).toBe('offline')
+    expect(useCollectionsStore.getState().error).toBe(failure)
   })
 
-  it('covers ordered group CRUD and optimistic reordering', async () => {
+  it('uses the authoritative group order and preserves the list when reordering fails', async () => {
     const second = { ...group, id: 'g2', name: 'G2', order: 0 }
     vi.mocked(api.groups.list).mockResolvedValue([group, second])
     vi.mocked(api.groups.create).mockResolvedValue(group)
     vi.mocked(api.groups.update).mockResolvedValue({ ...group, name: 'Updated' })
     vi.mocked(api.groups.remove).mockResolvedValue(undefined)
-    vi.mocked(api.groups.reorder).mockResolvedValue([])
+    vi.mocked(api.groups.reorder).mockResolvedValue([
+      { ...group, order: 0 },
+      { ...second, order: 1 },
+    ])
     const state = useGroupsStore.getState()
     await state.fetchGroups()
     expect(useGroupsStore.getState().groups[0]?.id).toBe('g2')
     await state.addGroup(group)
     await state.updateGroup('g1', { name: 'Updated' })
     await state.reorderGroups(['g1', 'g2'])
+    expect(useGroupsStore.getState().groups.map((item) => item.id)).toEqual(['g1', 'g2'])
+    vi.mocked(api.groups.reorder).mockRejectedValueOnce(new Error('stale group order'))
+    await expect(state.reorderGroups(['g2', 'g1'])).rejects.toThrow('stale group order')
     expect(useGroupsStore.getState().groups.map((item) => item.id)).toEqual(['g1', 'g2'])
     await state.deleteGroup('g1')
   })
@@ -75,6 +82,7 @@ describe('Zustand API stores', () => {
     vi.mocked(api.nodes.listAll).mockResolvedValue([node])
     vi.mocked(api.nodes.create).mockResolvedValue(node)
     vi.mocked(api.nodes.update).mockResolvedValue({ ...node, enabled: false })
+    vi.mocked(api.nodes.setEnabled).mockResolvedValue({ ids: ['n1'], enabled: true, updatedCount: 1 })
     vi.mocked(api.nodes.remove).mockResolvedValue(undefined)
     const state = useNodesStore.getState()
     state.setFilters({ search: 'N1', sourceId: 's1', protocol: 'trojan', country: 'US', enabled: true })
@@ -82,8 +90,14 @@ describe('Zustand API stores', () => {
     await waitFor(() => expect(api.nodes.listAll).toHaveBeenCalledWith({ search: 'N1', sourceId: 's1', protocol: 'trojan', country: 'US', enabled: true }))
     await state.addNode(node)
     await state.updateNode('n1', { enabled: false })
+    await state.setNodesEnabled(['n1'], false)
+    expect(useNodesStore.getState().nodes.find(item => item.id === 'n1')?.enabled).toBe(true)
     await state.deleteNode('n1')
     expect(useNodesStore.getState().nodes).toEqual([])
+    const failure = new Error('node list offline')
+    vi.mocked(api.nodes.listAll).mockRejectedValueOnce(failure)
+    await state.fetchNodes()
+    expect(useNodesStore.getState().error).toBe(failure)
   })
 
   it('covers sorted rule CRUD, batch creation, and reordering', async () => {
@@ -91,17 +105,33 @@ describe('Zustand API stores', () => {
     vi.mocked(api.rules.list).mockResolvedValue([rule, second])
     vi.mocked(api.rules.create).mockResolvedValue(rule)
     vi.mocked(api.rules.update).mockResolvedValue({ ...rule, payload: 'updated.example' })
+    vi.mocked(api.rules.setEnabled).mockResolvedValue({ ids: ['r1'], enabled: false, updatedCount: 1 })
     vi.mocked(api.rules.batchCreate).mockResolvedValue([second])
-    vi.mocked(api.rules.reorder).mockResolvedValue([])
+    vi.mocked(api.rules.reorder).mockResolvedValue([
+      { ...rule, order: 0 },
+      { ...second, order: 1 },
+    ])
     vi.mocked(api.rules.remove).mockResolvedValue(undefined)
     const state = useRulesStore.getState()
     await state.fetchRules()
     await state.addRule(rule)
     await state.updateRule('r1', { payload: 'updated.example' })
+    await state.setRulesEnabled(['r1'], false)
+    expect(useRulesStore.getState().rules.find(item => item.id === 'r1')?.enabled).toBe(false)
     await state.batchAddRules([rule])
     await state.reorderRules(['r1', 'r2'])
+    expect(useRulesStore.getState().rules.map(item => item.id)).toEqual(['r1', 'r2'])
     await state.deleteRule('r1')
     expect(api.rules.reorder).toHaveBeenCalledWith(['r1', 'r2'])
+  })
+
+  it('preserves the current rule order when the reorder API fails', async () => {
+    const second = { ...rule, id: 'r2', order: 0 }
+    useRulesStore.setState({ rules: [second, rule] })
+    vi.mocked(api.rules.reorder).mockRejectedValueOnce(new Error('stale order'))
+
+    await expect(useRulesStore.getState().reorderRules(['r1', 'r2'])).rejects.toThrow('stale order')
+    expect(useRulesStore.getState().rules.map(item => item.id)).toEqual(['r2', 'r1'])
   })
 
   it('tracks source create and refresh success/error results', async () => {
@@ -123,6 +153,10 @@ describe('Zustand API stores', () => {
     await expect(state.refreshSource('s1')).rejects.toThrow('offline')
     expect(useSourcesStore.getState().refreshErrors.s1).toBe('offline')
     await state.deleteSource('s1')
+    const loadFailure = new Error('source list offline')
+    vi.mocked(api.sources.list).mockRejectedValueOnce(loadFailure)
+    await state.fetchSources()
+    expect(useSourcesStore.getState().error).toBe(loadFailure)
   })
 })
 

@@ -58,6 +58,20 @@ Node-only exports (`nodes_raw` and `nodes_base64`) intentionally skip policy gro
 
 Every full-config exporter must expand collection-backed policy groups through `collectionNodeNames` and then filter those members against the nodes actually serialized by that exporter. This prevents generated groups from pointing at missing proxies/outbounds and keeps Mihomo, Stash, sing-box, Loon, Surge, Shadowrocket, Quantumult X, and Egern aligned when the same node pool is used by default global outlets or auto node groups.
 
+Client profile syntax and generic subscription URI syntax are separate contracts. In particular, Quantumult X `[server_local]` entries must use its native `protocol=host:port, ..., tag=name` form; do not reuse `nodeToSubscriptionUri` there. Only advertise a protocol in `EXPORT_CLIENT_CAPABILITIES.quantumultx.nodeProtocols` after a native serializer and artifact-contract test exist. Surge external rule sets belong directly in `[Rule]` as `RULE-SET,https://...,Policy`; do not invent a separate named `[Rule Set]` registry. Increment `EXPORT_CAPABILITY_PROFILE_REVISION` whenever an externally visible capability or serializer contract changes.
+
+For the stable sing-box 1.13 profile, use top-level WireGuard `endpoints`, TUN `address`, route `sniff` actions, and `route.default_domain_resolver` for internal outbound/endpoint hostname resolution. DNS routing rules must use explicit `action: route`; do not reintroduce deprecated DNS `outbound` matching or the legacy implicit `server` action. Keep stable 1.13 fields such as legacy fake-IP compatibility until the project deliberately adds a separate stable 1.14 profile.
+
+The bundled 1.13.13 schema no longer exposes a ShadowsocksR outbound, so SSR nodes are omitted from sing-box artifacts with an explicit compatibility warning. They remain available to Mihomo, Loon, Quantumult X, and node-subscription serializers that still implement SSR. WireGuard remains supported by sing-box through top-level `endpoints`; only its removed legacy outbound form is forbidden.
+
+Do not share a lowest-common-denominator proxy-line serializer between Surge and Shadowrocket. Surge HTTPS is a native `https` type rather than `http, ..., tls=true`; HTTP(S) and SOCKS5 credentials are positional, while VMess, Trojan, AnyTLS, and Hysteria 2 use their documented named parameters. Every protocol listed in the Surge capability registry must have a protocol-matrix test that validates the complete rendered artifact.
+
+Loon is another independent profile grammar. Its SS/SSR, VMess/VLESS, Trojan/Hysteria 2, and HTTP(S) identity fields are positional, followed by documented `key=value` transport options. Reject unsupported transports explicitly; never relabel gRPC or another transport as TCP merely to keep the node in the output. A protocol being accepted by Loon's subscription importer is not evidence that an invented line belongs in `[Proxy]`.
+
+Egern YAML is not Clash-style flat YAML. Each proxy, policy group, and rule must be wrapped by exactly one native type key, for example `shadowsocks: { ... }`, `select: { ... }`, or `domain: { ... }`; the fallback rule is `default: { policy: ... }`. Keep Egern protocol and transport capabilities independent from the other YAML exporters, and reject the obsolete flat `{ name, type, ... }` shape in artifact validation.
+
+Target the stable sing-box contract explicitly. Since sing-box 1.12, TUN addresses use one `address` array; since 1.13, WireGuard nodes are top-level `endpoints` with peer objects rather than legacy `outbounds`. Endpoint tags participate in selector, route-rule, and final-route reference validation just like outbound tags. Protocol-matrix tests must pass both UniConf's graph validator and the bundled stable sing-box schema, because permissive third-party schemas may retain removed legacy definitions.
+
 ## Step 4: Add Compatibility Rules
 
 Update `RULE_COMPATIBILITY` in `packages/shared/src/index.ts`.
@@ -91,16 +105,21 @@ If UI compatibility behavior changes, also update the web compatibility tests. S
 
 ## Compatibility Matrix Reference
 
-| Rule Type | Mihomo | sing-box | Loon | Surge | Shadowrocket | QX |
-|-----------|--------|---------|------|-------|-------------|-----|
-| DOMAIN | Full | Full | Full | Full | Full | Full |
-| DOMAIN-SUFFIX | Full | Full | Full | Full | Full | Full |
-| DOMAIN-KEYWORD | Full | Full | Full | Full | Full | Full |
-| IP-CIDR | Full | Full | Full | Full | Full | Full |
-| GEOIP | Full | Full | Full | Full | Full | Full |
-| GEOSITE | Full | Full | Partial | Partial | Unsupported | Unsupported |
-| PROCESS-NAME | Full | Full | Partial | Full | Unsupported | Unsupported |
-| RULE-SET | Full | Full | Full | Full | Full | Full |
-| SCRIPT | Partial | Unsupported | Partial | Unsupported | Unsupported | Unsupported |
+| Rule Type | Mihomo | sing-box | Loon | Surge | Shadowrocket | QX | Egern |
+|-----------|--------|---------|------|-------|-------------|-----|-------|
+| DOMAIN | Full | Full | Full | Full | Full | Full | Full |
+| DOMAIN-SUFFIX | Full | Full | Full | Full | Full | Full | Full |
+| DOMAIN-KEYWORD | Full | Full | Full | Full | Full | Full | Full |
+| IP-CIDR | Full | Full | Full | Full | Full | Full | Full |
+| GEOIP | Full | Full | Full | Full | Full | Full | Full |
+| GEOSITE | Full | Full | Partial | Partial | Unsupported | Unsupported | Unsupported |
+| PROCESS-NAME | Full | Full | Partial | Full | Unsupported | Unsupported | Unsupported |
+| IP-ASN | Full | Unsupported | Full | Full | Partial | Unsupported | Full |
+| PORT | Full | Full | Convert (`DEST-PORT`) | Convert (`DEST-PORT`) | Convert (`DST-PORT`) | Unsupported | Full |
+| SRC-PORT | Full | Full | Full | Full | Unsupported | Unsupported | Unsupported |
+| PROTOCOL | Payload-aware | Payload-aware | TCP/UDP | Payload-aware | Unsupported | Unsupported | Payload-aware |
+| NETWORK | TCP/UDP | TCP/UDP/ICMP | Convert TCP/UDP | Convert TCP/UDP | Unsupported | Unsupported | Convert TCP/UDP |
+| RULE-SET (manual directive) | Full | Full | Unsupported | Full | Partial | Unsupported | Full |
+| SCRIPT | Partial | Unsupported | Partial | Unsupported | Unsupported | Unsupported | Unsupported |
 
-Use `full`, `partial`, and `unsupported` in code. This matrix describes UniConf's current exporter behavior, not every feature a client may theoretically support. For example, `SCRIPT` stays unsupported for INI-style and Quantumult X exports until the generator can also emit the required client-specific script sections.
+Use the shared resolver for exact compatibility; the table summarizes its externally visible behavior. Internally, compatibility can be `full`, `partial`, `convert`, or `unsupported`, and value-dependent rules such as `PROTOCOL` and `NETWORK` may resolve differently per payload. The `RULE-SET` row is only about a manual rule directive: Loon `[Remote Rule]` and Quantumult X `[filter_remote]` resources remain supported through UniConf's dedicated remote-rule-set model. This matrix describes UniConf's current exporter behavior, not every feature a client may theoretically support. For example, `SCRIPT` stays unsupported for INI-style and Quantumult X exports until the generator can also emit the required client-specific script sections.

@@ -18,9 +18,42 @@ CREATE TABLE IF NOT EXISTS sources (
   tags TEXT NOT NULL DEFAULT '[]',
   source_groups TEXT NOT NULL DEFAULT '[]',
   raw_content TEXT,
+  upload_bytes INTEGER,
+  download_bytes INTEGER,
+  total_bytes INTEGER,
+  expire_time INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- Import run audit records intentionally contain summaries only, never raw config or node credentials.
+CREATE TABLE IF NOT EXISTS source_import_runs (
+  id TEXT PRIMARY KEY,
+  source_id TEXT,
+  source_name TEXT NOT NULL,
+  format TEXT NOT NULL,
+  node_import_mode TEXT NOT NULL DEFAULT 'all' CHECK (node_import_mode IN ('all', 'new-only')),
+  status TEXT NOT NULL CHECK (status IN ('running', 'success', 'partial', 'undone')),
+  node_count INTEGER NOT NULL DEFAULT 0,
+  added_count INTEGER NOT NULL DEFAULT 0,
+  updated_count INTEGER NOT NULL DEFAULT 0,
+  skipped_existing_count INTEGER NOT NULL DEFAULT 0,
+  rule_count INTEGER NOT NULL DEFAULT 0,
+  remote_rule_set_count INTEGER NOT NULL DEFAULT 0,
+  skipped_rule_count INTEGER NOT NULL DEFAULT 0,
+  conflict_count INTEGER NOT NULL DEFAULT 0,
+  refresh_error TEXT,
+  structured_error TEXT,
+  structured_changes TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  completed_at TEXT,
+  undone_at TEXT,
+  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_source_import_runs_created_at ON source_import_runs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_source_import_runs_source_id ON source_import_runs(source_id);
+CREATE INDEX IF NOT EXISTS idx_source_import_runs_recovery ON source_import_runs(status, completed_at, created_at);
 
 -- Nodes table: parsed proxy nodes
 CREATE TABLE IF NOT EXISTS nodes (
@@ -116,6 +149,7 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   behavior TEXT NOT NULL DEFAULT 'classical',
   preset_source TEXT,
   preset_id TEXT,
+  source_overrides TEXT NOT NULL DEFAULT '{}',
   target_group_id TEXT NOT NULL,
   update_interval INTEGER NOT NULL DEFAULT 24,
   enabled INTEGER NOT NULL DEFAULT 1,
@@ -129,6 +163,15 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
 
 CREATE INDEX IF NOT EXISTS idx_remote_rule_sets_sort_order ON remote_rule_sets(sort_order);
 
+-- Operational health snapshots are intentionally separate from configuration backups.
+CREATE TABLE IF NOT EXISTS remote_rule_set_source_health (
+  remote_rule_set_id TEXT PRIMARY KEY,
+  checked_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  result TEXT NOT NULL,
+  FOREIGN KEY (remote_rule_set_id) REFERENCES remote_rule_sets(id) ON DELETE CASCADE
+);
+
 -- Export configurations
 CREATE TABLE IF NOT EXISTS export_configs (
   id TEXT PRIMARY KEY,
@@ -140,6 +183,10 @@ CREATE TABLE IF NOT EXISTS export_configs (
   include_group_ids TEXT NOT NULL DEFAULT '[]',
   include_rule_ids TEXT NOT NULL DEFAULT '[]',
   include_remote_set_ids TEXT NOT NULL DEFAULT '[]',
+  rule_set_conversion_policy TEXT CHECK (
+    rule_set_conversion_policy IS NULL
+    OR rule_set_conversion_policy IN ('compatible', 'strict')
+  ),
   extra_config TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -159,6 +206,9 @@ CREATE TABLE IF NOT EXISTS app_settings (
   export_node_naming_mode TEXT NOT NULL DEFAULT 'smart',
   default_export_token TEXT,
   show_compatibility_warnings INTEGER NOT NULL DEFAULT 1,
+  rule_set_conversion_policy TEXT NOT NULL DEFAULT 'compatible' CHECK (
+    rule_set_conversion_policy IN ('compatible', 'strict')
+  ),
   enable_auto_refresh INTEGER NOT NULL DEFAULT 1,
   auto_refresh_interval INTEGER NOT NULL DEFAULT 1440,
   auto_node_groups_enabled INTEGER NOT NULL DEFAULT 1,

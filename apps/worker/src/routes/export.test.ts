@@ -89,4 +89,28 @@ describe('export route helpers', () => {
       error: 'extraConfig must be an object or null',
     })
   })
+
+  it('accepts explicit conversion policies and null inheritance', () => {
+    expect(validateExportConfigSelection({ ruleSetConversionPolicy: 'strict' })).toMatchObject({
+      valid: true,
+      ruleSetConversionPolicy: 'strict',
+    })
+    expect(validateExportConfigSelection({ ruleSetConversionPolicy: 'compatible' })).toMatchObject({
+      valid: true,
+      ruleSetConversionPolicy: 'compatible',
+    })
+    expect(validateExportConfigSelection({ ruleSetConversionPolicy: null })).toMatchObject({
+      valid: true,
+      ruleSetConversionPolicy: null,
+    })
+  })
+
+  it('rejects unknown conversion policies', () => {
+    expect(validateExportConfigSelection({
+      ruleSetConversionPolicy: 'best-effort' as never,
+    })).toEqual({
+      valid: false,
+      error: 'ruleSetConversionPolicy must be compatible, strict, or null',
+    })
+  })
 })

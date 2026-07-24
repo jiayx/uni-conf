@@ -27,6 +27,7 @@ import { enabledNodeRowsQuery } from './services/enabled-node-rows'
 import { getAppSettings } from './services/app-settings'
 import { ensureZeroSetupDefaults } from './services/zero-setup'
 import { applyCollectionTransforms } from './services/collection-transforms'
+import { listSourceHealthSnapshots } from './services/remote-rule-set-health'
 
 export interface ExportData {
   config?: ExportConfig
@@ -115,6 +116,9 @@ export async function buildExportData(
     db,
     "SELECT * FROM sources WHERE enabled = 1 AND type = 'url' ORDER BY created_at ASC"
   )
+  const sourceHealthByRuleSetId = remoteSetRows.length > 0
+    ? await listSourceHealthSnapshots(db)
+    : new Map()
 
   return {
     config,
@@ -127,7 +131,11 @@ export async function buildExportData(
     nodes: exportNodeRows.map(mapNode),
     groups: groupRows.map(mapGroup),
     rules: ruleRows.map(mapRule),
-    remoteSets: remoteSetRows.map(mapRemoteRuleSet),
+    remoteSets: remoteSetRows.map((row) => {
+      const ruleSet = mapRemoteRuleSet(row)
+      const sourceHealth = sourceHealthByRuleSetId.get(ruleSet.id)
+      return sourceHealth ? { ...ruleSet, sourceHealth } : ruleSet
+    }),
     collectionNodeNames: buildCollectionNodeNames(collectionRows, exportNodeRows),
   }
 }

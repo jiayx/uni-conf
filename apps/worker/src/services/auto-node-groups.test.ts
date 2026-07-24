@@ -201,6 +201,7 @@ function makeSettings(patch: Partial<AppSettings>): AppSettings {
     dnsMode: 'smart',
     exportNodeNamingMode: 'smart',
     showCompatibilityWarnings: true,
+    ruleSetConversionPolicy: 'compatible',
     enableAutoRefresh: true,
     autoRefreshInterval: 1440,
     autoNodeGroupsEnabled: true,

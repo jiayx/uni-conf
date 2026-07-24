@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import worker, { redactLogPath } from './index'
 import { refreshDueSources } from './services/source-auto-refresh'
+import { validatePendingRuleSetSources } from './services/remote-rule-set-health'
 import type { Env } from './types'
 
 vi.mock('./services/source-auto-refresh', () => ({
@@ -14,6 +15,11 @@ vi.mock('./services/source-auto-refresh', () => ({
   })),
 }))
 
+vi.mock('./services/remote-rule-set-health', () => ({
+  SCHEDULED_PENDING_HEALTH_BATCH_LIMIT: 2,
+  validatePendingRuleSetSources: vi.fn(async () => ({ results: [], checkedCount: 1, remainingCount: 0 })),
+}))
+
 describe('worker entrypoint', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -25,11 +31,53 @@ describe('worker entrypoint', () => {
     await worker.scheduled?.({} as ScheduledController, env)
 
     expect(refreshDueSources).toHaveBeenCalledWith(env.DB)
+    expect(validatePendingRuleSetSources).toHaveBeenCalledWith(env.DB, 2)
+  })
+
+  it('skips scheduled rule-set health checks when automatic refresh is disabled', async () => {
+    vi.mocked(refreshDueSources).mockResolvedValueOnce({
+      checkedCount: 0, refreshedCount: 0, failedCount: 0, skipped: true,
+      refreshedSourceIds: [], errors: [],
+    })
+    const env = { DB: {} as D1Database } as Env
+
+    await worker.scheduled?.({} as ScheduledController, env)
+
+    expect(validatePendingRuleSetSources).not.toHaveBeenCalled()
+  })
+
+  it('does not fail the scheduled event when rule-set health refresh fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.mocked(validatePendingRuleSetSources).mockRejectedValueOnce(new Error('D1 health snapshot unavailable'))
+    const env = { DB: {} as D1Database } as Env
+
+    await expect(worker.scheduled?.({} as ScheduledController, env)).resolves.toBeUndefined()
+    consoleSpy.mockRestore()
   })
 
   it('redacts subscription tokens from structured request logs', () => {
     expect(redactLogPath('/sub/secret-token/mihomo.yaml')).toBe('/sub/[redacted]/mihomo.yaml')
     expect(redactLogPath('/api/sources')).toBe('/api/sources')
+  })
+
+  it('logs stable public error codes without exposing subscription tokens', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const response = await worker.fetch(
+      new Request('https://uni-conf.example.com/sub/secret-token/unknown.conf'),
+      { ENVIRONMENT: 'development' } as Env,
+      {} as ExecutionContext
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('subscription_format_invalid')
+    const event = JSON.parse(String(consoleSpy.mock.calls.at(-1)?.[0])) as Record<string, unknown>
+    expect(event).toMatchObject({
+      event: 'http_request',
+      path: '/sub/[redacted]/unknown.conf',
+      status: 400,
+      errorCode: 'subscription_format_invalid',
+    })
+    expect(JSON.stringify(event)).not.toContain('secret-token')
   })
 
   it('serves API requests through the fetch handler', async () => {
@@ -56,6 +104,55 @@ describe('worker entrypoint', () => {
     )
 
     expect(response.status).toBe(200)
+  })
+
+  it('reports ready only when bindings and production security configuration are available', async () => {
+    const response = await worker.fetch(
+      new Request('https://uni-conf.example.com/api/ready'),
+      createReadyEnv({
+        ENVIRONMENT: 'production',
+        API_KEY: 'secret',
+        ALLOWED_ORIGIN: 'https://uni-conf.example.com',
+      }),
+      {} as ExecutionContext
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      data: {
+        status: 'ready',
+        env: 'production',
+        checks: {
+          database: true,
+          kv: true,
+          apiKeyConfigured: true,
+          allowedOriginConfigured: true,
+        },
+      },
+    })
+  })
+
+  it('returns 503 readiness details without exposing secret values', async () => {
+    const env = createReadyEnv({ ENVIRONMENT: 'production' })
+    env.DB = {
+      prepare: vi.fn(() => ({ first: vi.fn(async () => { throw new Error('D1 unavailable') }) })),
+    } as unknown as D1Database
+    const response = await worker.fetch(
+      new Request('https://uni-conf.example.com/api/ready'),
+      env,
+      {} as ExecutionContext
+    )
+
+    expect(response.status).toBe(503)
+    const payload = await response.json() as { data: { checks: Record<string, boolean> } }
+    expect(payload.data.checks).toEqual({
+      database: false,
+      kv: true,
+      apiKeyConfigured: false,
+      allowedOriginConfigured: false,
+    })
+    expect(JSON.stringify(payload)).not.toContain('D1 unavailable')
   })
 
   it('rejects protected API routes without a bearer token when API_KEY is configured', async () => {
@@ -111,3 +208,14 @@ describe('worker entrypoint', () => {
     expect(response.status).toBe(413)
   })
 })
+
+function createReadyEnv(overrides: Partial<Env> = {}): Env {
+  return {
+    ENVIRONMENT: 'test',
+    DB: {
+      prepare: vi.fn(() => ({ first: vi.fn(async () => ({ ok: 1 })) })),
+    } as unknown as D1Database,
+    KV: { get: vi.fn(async () => null) } as unknown as KVNamespace,
+    ...overrides,
+  }
+}

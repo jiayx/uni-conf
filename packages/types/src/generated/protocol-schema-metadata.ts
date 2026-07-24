@@ -5,12 +5,12 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
   "sources": {
     "singbox": {
       "package": "@black-duty/sing-box-schema",
-      "version": "1.13.0",
+      "version": "1.13.13",
       "schema": "@black-duty/sing-box-schema/schema.json"
     },
     "mihomo": {
       "package": "meta-json-schema",
-      "version": "1.19.27",
+      "version": "1.19.29",
       "schema": "meta-json-schema/schemas/meta-json-schema.json"
     }
   },
@@ -74,8 +74,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "netns",
         "network_strategy",
         "network_type",
-        "override_address",
-        "override_port",
         "protect_path",
         "reuse_addr",
         "routing_mark",
@@ -260,50 +258,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "type",
         "udp_fragment",
         "udp_over_tcp"
-      ],
-      "required": [
-        "type",
-        "method",
-        "password",
-        "server"
-      ]
-    },
-    "shadowsocksr": {
-      "schemaRef": "#/$defs/ShadowsocksROutboundOptions",
-      "fields": [
-        "bind_address_no_port",
-        "bind_interface",
-        "connect_timeout",
-        "detour",
-        "disable_tcp_keep_alive",
-        "domain_resolver",
-        "domain_strategy",
-        "fallback_delay",
-        "fallback_network_type",
-        "inet4_bind_address",
-        "inet6_bind_address",
-        "method",
-        "netns",
-        "network",
-        "network_strategy",
-        "network_type",
-        "obfs",
-        "obfs_param",
-        "password",
-        "protect_path",
-        "protocol",
-        "protocol_param",
-        "reuse_addr",
-        "routing_mark",
-        "server",
-        "server_port",
-        "tag",
-        "tcp_fast_open",
-        "tcp_keep_alive",
-        "tcp_keep_alive_interval",
-        "tcp_multi_path",
-        "type",
-        "udp_fragment"
       ],
       "required": [
         "type",
@@ -606,56 +560,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "type",
         "uuid",
         "security",
-        "server"
-      ]
-    },
-    "wireguard": {
-      "schemaRef": "#/$defs/LegacyWireGuardOutboundOptions",
-      "fields": [
-        "bind_address_no_port",
-        "bind_interface",
-        "connect_timeout",
-        "detour",
-        "disable_tcp_keep_alive",
-        "domain_resolver",
-        "domain_strategy",
-        "fallback_delay",
-        "fallback_network_type",
-        "gso",
-        "inet4_bind_address",
-        "inet6_bind_address",
-        "interface_name",
-        "local_address",
-        "mtu",
-        "netns",
-        "network",
-        "network_strategy",
-        "network_type",
-        "peer_public_key",
-        "peers",
-        "pre_shared_key",
-        "private_key",
-        "protect_path",
-        "reserved",
-        "reuse_addr",
-        "routing_mark",
-        "server",
-        "server_port",
-        "system_interface",
-        "tag",
-        "tcp_fast_open",
-        "tcp_keep_alive",
-        "tcp_keep_alive_interval",
-        "tcp_multi_path",
-        "type",
-        "udp_fragment",
-        "workers"
-      ],
-      "required": [
-        "type",
-        "local_address",
-        "private_key",
-        "peer_public_key",
         "server"
       ]
     }

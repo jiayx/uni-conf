@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 import { generateEgern, generateQuantumultX, generateShadowrocket, generateSurge } from './client-configs'
 import { generateLoon } from './loon'
 import { generateNodeSubscriptionRaw } from './node-subscription'
@@ -144,6 +144,69 @@ const httpsRow: Record<string, unknown> = {
   }),
 }
 
+const socksRow: Record<string, unknown> = {
+  id: 'node-socks',
+  name: 'SOCKS Proxy',
+  protocol: 'socks5',
+  server: 'socks.example.com',
+  port: 1080,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'socks5',
+    server: 'socks.example.com',
+    port: 1080,
+    password: 'socks-pass',
+    extra: {
+      username: 'socks-user',
+      udp: true,
+    },
+  }),
+}
+
+const vmessWsRow: Record<string, unknown> = {
+  id: 'node-vmess-ws',
+  name: 'VMess WS',
+  protocol: 'vmess',
+  server: 'vmess.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'vmess',
+    server: 'vmess.example.com',
+    port: 443,
+    uuid: '00000000-0000-4000-8000-000000000001',
+    network: 'ws',
+    wsPath: '/socket',
+    wsHeaders: { Host: 'cdn.example.com' },
+    tls: true,
+    sni: 'tls.example.com',
+    skipCertVerify: true,
+    extra: {},
+  }),
+}
+
+const hysteria2Row: Record<string, unknown> = {
+  id: 'node-hysteria2',
+  name: 'Hysteria 2',
+  protocol: 'hysteria2',
+  server: 'hy2.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'hysteria2',
+    server: 'hy2.example.com',
+    port: 443,
+    password: 'hy2-secret',
+    sni: 'hy2.example.com',
+    skipCertVerify: true,
+    extra: {
+      downMbps: 200,
+      obfs: 'salamander',
+      obfsPassword: 'obfs-secret',
+    },
+  }),
+}
+
 const shadowTlsRow: Record<string, unknown> = {
   id: 'node-shadowtls',
   name: 'ShadowTLS Proxy',
@@ -233,11 +296,26 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('sni=gateway.example.com')
   })
 
-  it('exports AnyTLS nodes in Loon preview', () => {
+  it('does not emit undocumented AnyTLS syntax in Loon profiles', () => {
     const content = generateLoon([anytlsRow], [autoGroupRow], [], [], collectionNodeNames)
 
-    expect(content).toContain('HK AnyTLS = anytls, hk.example.com, 443')
-    expect(content).toContain('HK Auto = url-latency-benchmark, HK AnyTLS')
+    expect(content).not.toContain('HK AnyTLS =')
+    expect(content).not.toContain('HK Auto = url-latency-benchmark, HK AnyTLS')
+  })
+
+  it('exports Hysteria 2 with native Loon positional fields', () => {
+    const content = generateLoon(
+      [hysteria2Row],
+      [autoGroupRow],
+      [],
+      [],
+      { 'collection-auto': ['Hysteria 2'] }
+    )
+
+    expect(content).toContain(
+      'Hysteria 2 = Hysteria2,hy2.example.com,443,"hy2-secret",tls-name=hy2.example.com,skip-cert-verify=true'
+    )
+    expect(content).toContain('HK Auto = url-latency-benchmark, Hysteria 2')
   })
 
   it('exports AnyTLS nodes in Surge preview', () => {
@@ -245,6 +323,26 @@ describe('AnyTLS preview generators', () => {
 
     expect(content).toContain('HK AnyTLS = anytls, hk.example.com, 443')
     expect(content).toContain('HK Auto = url-test, HK AnyTLS')
+  })
+
+  it('uses native Surge authentication and HTTPS proxy types', () => {
+    const content = generateSurge([httpsRow, socksRow], [], [], [])
+
+    expect(content).toContain('HTTPS Proxy = https, https.example.com, 443, user, pass')
+    expect(content).not.toMatch(/HTTPS Proxy = http,/)
+    expect(content).not.toContain('tls=true')
+    expect(content).toContain('SOCKS Proxy = socks5, socks.example.com, 1080, socks-user, socks-pass, udp-relay=true')
+  })
+
+  it('exports Surge VMess WebSocket and Hysteria 2 fields natively', () => {
+    const content = generateSurge([vmessWsRow, hysteria2Row], [], [], [])
+
+    expect(content).toContain(
+      'VMess WS = vmess, vmess.example.com, 443, username=00000000-0000-4000-8000-000000000001, ws=true, ws-path=/socket, ws-headers=Host:cdn.example.com, tls=true, sni=tls.example.com, skip-cert-verify=true'
+    )
+    expect(content).toContain(
+      'Hysteria 2 = hysteria2, hy2.example.com, 443, password=hy2-secret, sni=hy2.example.com, skip-cert-verify=true, download-bandwidth=200, salamander-password=obfs-secret'
+    )
   })
 
   it('exports AnyTLS nodes in Shadowrocket preview', () => {
@@ -257,7 +355,10 @@ describe('AnyTLS preview generators', () => {
   it('exports AnyTLS nodes in Quantumult X preview', () => {
     const content = generateQuantumultX([anytlsRow], [autoGroupRow], [], [], collectionNodeNames)
 
-    expect(content).toContain('anytls://secret@hk.example.com:443')
+    expect(content).toContain('anytls=hk.example.com:443, password=secret, over-tls=true')
+    expect(content).toContain('tls-host=hk.example.com')
+    expect(content).toContain('tag=HK AnyTLS')
+    expect(content).not.toContain('anytls://')
     expect(content).toContain('url-latency-benchmark=HK Auto, HK AnyTLS')
   })
 
@@ -265,36 +366,47 @@ describe('AnyTLS preview generators', () => {
     const content = generateEgern([anytlsRow], [autoGroupRow], [], [], collectionNodeNames)
     const config = yaml.load(content) as {
       proxies: Array<Record<string, unknown>>;
-      policy_groups: Array<{ name: string; policies: string[] }>;
+      policy_groups: Array<{ auto_test?: { name: string; policies: string[] } }>;
     }
 
-    expect(config.proxies).toContainEqual(expect.objectContaining({
-      name: 'HK AnyTLS',
-      type: 'anytls',
-      server: 'hk.example.com',
-    }))
-    expect(config.policy_groups.find((group) => group.name === 'HK Auto')?.policies).toEqual(['HK AnyTLS'])
+    expect(config.proxies).toContainEqual({
+      anytls: expect.objectContaining({
+        name: 'HK AnyTLS',
+        server: 'hk.example.com',
+      }),
+    })
+    expect(config.policy_groups.find((group) => group.auto_test?.name === 'HK Auto')?.auto_test?.policies)
+      .toEqual(['HK AnyTLS'])
   })
 
   it('does not add unrelated exported nodes to scoped groups', () => {
     const rows = [anytlsRow, otherRow]
-    const loon = generateLoon(rows, [autoGroupRow], [], [], collectionNodeNames)
+    const loonGroup = { ...autoGroupRow, collection_ids: '["collection-loon"]' }
+    const loon = generateLoon(
+      [httpsRow, socksRow],
+      [loonGroup],
+      [],
+      [],
+      { 'collection-loon': ['HTTPS Proxy'] }
+    )
     const surge = generateSurge(rows, [autoGroupRow], [], [], collectionNodeNames)
     const shadowrocket = generateShadowrocket(rows, [autoGroupRow], [], [], collectionNodeNames)
     const quantumultx = generateQuantumultX(rows, [autoGroupRow], [], [], collectionNodeNames)
     const egern = yaml.load(generateEgern(rows, [autoGroupRow], [], [], collectionNodeNames)) as {
-      policy_groups: Array<{ name: string; policies: string[] }>;
+      policy_groups: Array<{ auto_test?: { name: string; policies: string[] } }>;
     }
 
-    expect(loon).toContain('HK Auto = url-latency-benchmark, HK AnyTLS')
-    expect(loon).not.toContain('HK Auto = url-latency-benchmark, HK AnyTLS, US AnyTLS')
+    expect(loon).toContain('HK Auto = url-latency-benchmark, HTTPS Proxy')
+    expect(loon).not.toContain('HK Auto = url-latency-benchmark, HTTPS Proxy, SOCKS Proxy')
+    expect(loon).not.toContain('SOCKS Proxy =')
     expect(surge).toContain('HK Auto = url-test, HK AnyTLS')
     expect(surge).not.toContain('HK Auto = url-test, HK AnyTLS, US AnyTLS')
     expect(shadowrocket).toContain('HK Auto = url-test, HK AnyTLS')
     expect(shadowrocket).not.toContain('HK Auto = url-test, HK AnyTLS, US AnyTLS')
     expect(quantumultx).toContain('url-latency-benchmark=HK Auto, HK AnyTLS')
     expect(quantumultx).not.toContain('url-latency-benchmark=HK Auto, HK AnyTLS,US AnyTLS')
-    expect(egern.policy_groups.find((group) => group.name === 'HK Auto')?.policies).toEqual(['HK AnyTLS'])
+    expect(egern.policy_groups.find((group) => group.auto_test?.name === 'HK Auto')?.auto_test?.policies)
+      .toEqual(['HK AnyTLS'])
   })
 })
 

@@ -15,25 +15,43 @@ const NAV_ITEMS = [
 ]
 
 interface SidebarProps {
+  isMobile?: boolean
   isOpen?: boolean
   onClose?: () => void
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isMobile = false, isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation()
 
   const handleNavClick = () => {
     // Close sidebar on mobile when a nav item is clicked
-    if (onClose && window.innerWidth <= 768) {
+    if (onClose && isMobile) {
       onClose()
     }
   }
 
   return (
-    <div className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}>
+    <aside
+      id="primary-navigation"
+      className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}
+      role={isMobile ? 'dialog' : undefined}
+      aria-modal={isMobile && isOpen ? true : undefined}
+      aria-hidden={isMobile && !isOpen ? true : undefined}
+      aria-label={t('nav.primary_navigation')}
+    >
       <div className={styles.logo}>
         <div className={styles.logoText}>UniConf</div>
         <div className={styles.slogan}>{t('app.slogan')}</div>
+        {isMobile && (
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={onClose}
+            aria-label={t('nav.close_menu')}
+          >
+            <CloseIcon />
+          </button>
+        )}
       </div>
       <nav className={styles.nav}>
         {NAV_ITEMS.map(({ path, label, icon: Icon, end }) => (
@@ -54,7 +72,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className={styles.footer}>
         <div className={styles.version}>v0.1.0</div>
       </div>
-    </div>
+    </aside>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
   )
 }
 

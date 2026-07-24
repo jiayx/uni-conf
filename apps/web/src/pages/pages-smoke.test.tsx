@@ -17,10 +17,10 @@ const hooks = vi.hoisted(() => {
   return ({
   collections: { collections: [], previews: {}, loading: false, error: null, fetchCollections: fn(), addCollection: fn(), updateCollection: fn(), deleteCollection: fn(), previewCollection: fn() },
   groups: { groups: [], loading: false, error: null, fetchGroups: fn(), addGroup: fn(), updateGroup: fn(), deleteGroup: fn(), reorderGroups: fn() },
-  nodes: { nodes: [], loading: false, error: null, fetchNodes: fn(), addNode: fn(), updateNode: fn(), deleteNode: fn() },
-  rules: { rules: [], loading: false, error: null, fetchRules: fn(), addRule: fn(), updateRule: fn(), deleteRule: fn(), reorderRules: fn(), batchAddRules: fn() },
+  nodes: { nodes: [], loading: false, error: null, fetchNodes: fn(), addNode: fn(), updateNode: fn(), setNodesEnabled: fn(), deleteNode: fn() },
+  rules: { rules: [], loading: false, error: null, fetchRules: fn(), addRule: fn(), updateRule: fn(), setRulesEnabled: fn(), deleteRule: fn(), reorderRules: fn(), batchAddRules: fn() },
   sources: { sources: [], loading: false, error: null, refreshResults: {}, refreshErrors: {}, fetchSources: fn(), addSource: fn(), importSource: fn(), updateSource: fn(), deleteSource: fn(), refreshSource: fn() },
-  settings: { language: 'en', theme: 'system', routingPolicyTemplate: 'common', dnsMode: 'smart', exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true, autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'], autoNodeGroupIncludeFlag: true, applySettings: vi.fn() },
+  settings: { language: 'en', theme: 'system', routingPolicyTemplate: 'common', dnsMode: 'smart', exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible', enableAutoRefresh: true, autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'], autoNodeGroupIncludeFlag: true, applySettings: vi.fn() },
   })
 })
 
@@ -48,7 +48,7 @@ vi.mock('@/lib/api', async () => {
       groups: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn() },
       rules: { list: vi.fn(async () => []) },
       remoteRuleSets: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
-      export: { listConfigs: vi.fn(async () => []), previewFormat: vi.fn(), downloadFormat: vi.fn(), createConfig: vi.fn(), updateConfig: vi.fn(), deleteConfig: vi.fn() },
+      export: { listConfigs: vi.fn(async () => []), previewFormat: vi.fn(), readinessFormat: vi.fn(), downloadFormat: vi.fn(), createConfig: vi.fn(), updateConfig: vi.fn(), deleteConfig: vi.fn() },
     },
   }
 })

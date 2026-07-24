@@ -18,13 +18,15 @@ import {
   parseProxyUrlParts,
   parseSourceNodeGroupKey,
   SOURCE_FORMATS,
-  getRuleCompatibility,
+  getRuleCompatibilityForPayload,
+  MAX_SOURCE_CONTENT_BYTES,
 } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { ProxyProtocol, NormalizedProxyConfig, RuleType, SourceFormat, SourceNodeGroup, SourceRefreshResult, SourceType } from '@uni-conf/types';
-import type { SourceImportPreview } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig, RuleType, SourceFormat, SourceImportConflictResolution, SourceImportRun, SourceNodeGroup, SourceRefreshResult, SourceStructuredImportSummary, SourceType } from '@uni-conf/types';
+import type { SourceImportDiffItem, SourceImportDiffSection, SourceImportPreview } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
+import { isSafeRemoteHttpUrl, safeRemoteFetch } from '../services/safe-remote-fetch';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -77,7 +79,7 @@ app.post('/', async (c) => {
     return c.json({ success: false, error: 'url is required' }, 400);
   }
   if (sourceType === 'url' && !normalizedUrl) {
-    return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
+    return c.json({ success: false, error: 'url must be a public http(s) URL' }, 400);
   }
   const sourceFields = validateSourceMutableFields(body);
   if (!sourceFields.valid) {
@@ -145,9 +147,15 @@ app.post('/import', async (c) => {
     notes?: string;
     tags?: string[];
     importStructured?: boolean;
+    nodeImportMode?: 'all' | 'new-only';
+    structuredConflictResolutions?: unknown;
   }>();
 
-  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  const rawContent = typeof body.content === 'string' ? body.content : '';
+  if (utf8ByteLength(rawContent) > MAX_SOURCE_CONTENT_BYTES) {
+    return c.json({ success: false, error: 'source content exceeds the 4 MiB size limit' }, 413);
+  }
+  const content = rawContent.trim();
   if (!content) {
     return c.json({ success: false, error: 'content is required' }, 400);
   }
@@ -155,16 +163,38 @@ app.post('/import', async (c) => {
   if (!isValidSourceFormat(format)) {
     return c.json({ success: false, error: 'invalid source format' }, 400);
   }
+  if (body.nodeImportMode !== undefined && body.nodeImportMode !== 'all' && body.nodeImportMode !== 'new-only') {
+    return c.json({ success: false, error: 'invalid node import mode' }, 400);
+  }
+  const conflictResolutions = normalizeStructuredConflictResolutions(body.structuredConflictResolutions);
+  if (!conflictResolutions.valid) {
+    return c.json({ success: false, error: conflictResolutions.error }, 400);
+  }
   const sourceFields = validateSourceMutableFields(body);
   if (!sourceFields.valid) {
     return c.json({ success: false, error: sourceFields.error }, 400);
   }
+  if (body.nodeImportMode === 'new-only') {
+    const nodeDiff = await buildNodeImportDiff(c.env.DB, content, format);
+    if (nodeDiff.counts.new === 0) {
+      return c.json({ success: false, error: 'No new nodes remain after applying the import mode' }, 409);
+    }
+  }
+  let structuredOnlyPreview: SourceImportPreview | undefined;
+  const parsedPreview = previewParsedSourceContent(content, format);
+  if (parsedPreview.nodeCount === 0 && body.importStructured) {
+    await ensureSourceZeroSetupState(c.env.DB, now());
+    const reconciled = await reconcileStructuredImportPreview(c.env.DB, content, parsedPreview);
+    if (hasImportableStructuredCandidates(reconciled)) structuredOnlyPreview = reconciled;
+  }
 
   const id = newId();
+  const importRunId = newId();
   const ts = now();
   const sourceName = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'Imported Config';
+  const nodeImportMode = body.nodeImportMode ?? 'all';
 
-  await c.env.DB.prepare(
+  await c.env.DB.batch([c.env.DB.prepare(
     `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?)`
   )
@@ -182,43 +212,318 @@ app.post('/import', async (c) => {
       ts,
       ts
     )
-    .run();
+  , c.env.DB.prepare(
+    `INSERT INTO source_import_runs
+      (id, source_id, source_name, format, node_import_mode, status, created_at)
+     VALUES (?, ?, ?, ?, ?, 'running', ?)`
+  ).bind(importRunId, id, sourceName, format, nodeImportMode, ts)]);
 
   let refresh: SourceRefreshResult | undefined;
   let refreshError: string | undefined;
-  try {
-    refresh = await importSourceFromContent(c.env.DB, id, content, format);
-  } catch (err) {
-    refreshError = err instanceof Error ? err.message : String(err);
-    await recordSourceRefreshError(c.env.DB, id, refreshError);
+  if (structuredOnlyPreview) {
+    refresh = await persistStructuredOnlySourceContent(c.env.DB, id, content, structuredOnlyPreview, ts);
+  } else {
+    try {
+      refresh = await importSourceFromContent(c.env.DB, id, content, format, {
+        nodeImportMode,
+      });
+    } catch (err) {
+      refreshError = err instanceof Error ? err.message : String(err);
+      await recordSourceRefreshError(c.env.DB, id, refreshError);
+    }
   }
   await ensureSourceZeroSetupState(c.env.DB, ts);
-  const structuredImport = body.importStructured
-    ? await importStructuredSourceContent(c.env.DB, id, content, format, ts)
-    : undefined;
+  let structuredImport: StructuredImportSummary | undefined;
+  let structuredUndoChanges: StructuredImportUndoChange[] = [];
+  let structuredImportError: string | undefined;
+  if (body.importStructured) {
+    try {
+      const execution = await importStructuredSourceContent(
+        c.env.DB, id, content, format, ts, conflictResolutions.value
+      );
+      structuredImport = execution.summary;
+      structuredUndoChanges = execution.undoChanges;
+    } catch (err) {
+      structuredImportError = err instanceof Error ? err.message : String(err);
+    }
+  }
+  const completedAt = now();
+  const importRun = await completeSourceImportRun(c.env.DB, {
+    id: importRunId,
+    sourceId: id,
+    sourceName,
+    format,
+    nodeImportMode,
+    refresh,
+    refreshError,
+    structuredImport,
+    structuredUndoChanges,
+    structuredImportError,
+    createdAt: ts,
+    completedAt,
+  });
 
   const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>();
 
-  return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError, structuredImport } }, 201);
+  return c.json({
+    success: true,
+    data: { source: mapSource(row!), refresh, refreshError, structuredImport, structuredImportError, importRun },
+  }, 201);
 });
 
 app.post('/import/preview', async (c) => {
   const body = await c.req.json<{ content?: string; format?: string }>();
-  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  const rawContent = typeof body.content === 'string' ? body.content : '';
+  if (utf8ByteLength(rawContent) > MAX_SOURCE_CONTENT_BYTES) {
+    return c.json({ success: false, error: 'source content exceeds the 4 MiB size limit' }, 413);
+  }
+  const content = rawContent.trim();
   if (!content) return c.json({ success: false, error: 'content is required' }, 400);
   const format = body.format ?? 'auto';
   if (!isValidSourceFormat(format)) return c.json({ success: false, error: 'invalid source format' }, 400);
 
-  const preview = previewParsedSourceContent(content, format);
-  if (preview.nodeCount === 0) {
+  let preview = previewParsedSourceContent(content, format);
+  await ensureSourceZeroSetupState(c.env.DB, now());
+  preview = await reconcileStructuredImportPreview(c.env.DB, content, preview);
+  if (preview.nodeCount === 0 && !hasImportableStructuredCandidates(preview)) {
     return c.json({
       success: false,
       error: `No usable proxy nodes parsed from source content (detected format: ${preview.detectedFormat}, excluded: ${preview.excludedCount})`,
     }, 422);
   }
   return c.json({ success: true, data: preview });
+});
+
+app.get('/imports', async (c) => {
+  await recoverStaleSourceImportRuns(c.env.DB);
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM source_import_runs
+     ORDER BY created_at DESC
+     LIMIT 50`
+  ).all<Record<string, unknown>>();
+  return c.json({ success: true, data: results.map(mapSourceImportRun) });
+});
+
+app.post('/imports/:runId/nodes/preview', async (c) => {
+  await recoverStaleSourceImportRuns(c.env.DB);
+  const runId = c.req.param('runId');
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+    .bind(runId)
+    .first<Record<string, unknown>>();
+  if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
+  if (run.status !== 'partial' || typeof run.refresh_error !== 'string' || !run.source_id) {
+    return c.json({ success: false, error: 'Node import is not retryable' }, 409);
+  }
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
+    .bind(String(run.source_id))
+    .first<{ raw_content: string | null; format: string }>();
+  const content = source?.raw_content?.trim() ?? '';
+  if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
+  if (utf8ByteLength(content) > MAX_SOURCE_CONTENT_BYTES) {
+    return c.json({ success: false, error: 'Stored source content exceeds the 4 MiB size limit' }, 422);
+  }
+  const format = isValidSourceFormat(source.format) ? source.format : 'auto';
+  let preview = previewParsedSourceContent(content, format);
+  if (preview.nodeCount === 0) {
+    return c.json({ success: false, error: 'No usable proxy nodes are available to retry' }, 422);
+  }
+  await ensureSourceZeroSetupState(c.env.DB, now());
+  preview = await reconcileStructuredImportPreview(c.env.DB, content, preview, String(run.source_id));
+  return c.json({ success: true, data: preview });
+});
+
+app.post('/imports/:runId/nodes/retry', async (c) => {
+  await recoverStaleSourceImportRuns(c.env.DB);
+  const runId = c.req.param('runId');
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+    .bind(runId)
+    .first<Record<string, unknown>>();
+  if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
+  if (run.status !== 'partial' || typeof run.refresh_error !== 'string' || !run.source_id) {
+    return c.json({ success: false, error: 'Node import is not retryable' }, 409);
+  }
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
+    .bind(String(run.source_id))
+    .first<{ raw_content: string | null; format: string }>();
+  const content = source?.raw_content?.trim() ?? '';
+  if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
+  if (utf8ByteLength(content) > MAX_SOURCE_CONTENT_BYTES) {
+    return c.json({ success: false, error: 'Stored source content exceeds the 4 MiB size limit' }, 422);
+  }
+  const format = isValidSourceFormat(source.format) ? source.format : 'auto';
+  if (previewParsedSourceContent(content, format).nodeCount === 0) {
+    return c.json({ success: false, error: 'No usable proxy nodes are available to retry' }, 422);
+  }
+  const ts = now();
+  const claim = await c.env.DB.prepare(
+    `UPDATE source_import_runs SET status = 'running', completed_at = ?
+     WHERE id = ? AND status = 'partial' AND refresh_error = ?`
+  ).bind(ts, runId, run.refresh_error).run();
+  if (Number(claim.meta?.changes ?? 0) === 0) {
+    return c.json({ success: false, error: 'Node import retry is already running' }, 409);
+  }
+
+  try {
+    const refresh = await importSourceFromContent(c.env.DB, String(run.source_id), content, format, {
+      nodeImportMode: run.node_import_mode === 'new-only' ? 'new-only' : 'all',
+      allowEmptyNewOnly: true,
+    });
+    const status = typeof run.structured_error === 'string' ? 'partial' : 'success';
+    await c.env.DB.prepare(
+      `UPDATE source_import_runs SET
+        status = ?, node_count = ?, added_count = ?, updated_count = ?, skipped_existing_count = ?,
+        refresh_error = NULL, completed_at = ?
+       WHERE id = ? AND status = 'running'`
+    ).bind(
+      status,
+      refresh.nodeCount,
+      refresh.addedCount,
+      refresh.updatedCount ?? 0,
+      refresh.skippedExistingCount ?? 0,
+      now(),
+      runId
+    ).run();
+    const updated = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+      .bind(runId)
+      .first<Record<string, unknown>>();
+    return c.json({ success: true, data: { importRun: mapSourceImportRun(updated!), refresh } });
+  } catch {
+    await c.env.DB.prepare(
+      `UPDATE source_import_runs SET status = 'partial', refresh_error = ?, completed_at = ?
+       WHERE id = ? AND status = 'running'`
+    ).bind('Node import failed', now(), runId).run();
+    return c.json({ success: false, error: 'Node import retry failed' }, 502);
+  }
+});
+
+app.post('/imports/:runId/structured/preview', async (c) => {
+  await recoverStaleSourceImportRuns(c.env.DB);
+  const runId = c.req.param('runId');
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+    .bind(runId)
+    .first<Record<string, unknown>>();
+  if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
+  if (run.status !== 'partial' || typeof run.structured_error !== 'string' || !run.source_id) {
+    return c.json({ success: false, error: 'Structured import is not retryable' }, 409);
+  }
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
+    .bind(String(run.source_id))
+    .first<{ raw_content: string | null; format: string }>();
+  const content = source?.raw_content?.trim() ?? '';
+  if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
+  if (utf8ByteLength(content) > MAX_SOURCE_CONTENT_BYTES) {
+    return c.json({ success: false, error: 'Stored source content exceeds the 4 MiB size limit' }, 422);
+  }
+  const format = isValidSourceFormat(source.format) ? source.format : 'auto';
+  await ensureSourceZeroSetupState(c.env.DB, now());
+  const preview = await reconcileStructuredImportPreview(
+    c.env.DB,
+    content,
+    previewParsedSourceContent(content, format)
+  );
+  return c.json({ success: true, data: preview });
+});
+
+app.post('/imports/:runId/structured/retry', async (c) => {
+  await recoverStaleSourceImportRuns(c.env.DB);
+  const runId = c.req.param('runId');
+  const body = await c.req.json<{ structuredConflictResolutions?: unknown }>();
+  const conflictResolutions = normalizeStructuredConflictResolutions(body.structuredConflictResolutions);
+  if (!conflictResolutions.valid) {
+    return c.json({ success: false, error: conflictResolutions.error }, 400);
+  }
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+    .bind(runId)
+    .first<Record<string, unknown>>();
+  if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
+  if (run.status !== 'partial' || typeof run.structured_error !== 'string' || !run.source_id) {
+    return c.json({ success: false, error: 'Structured import is not retryable' }, 409);
+  }
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
+    .bind(String(run.source_id))
+    .first<{ raw_content: string | null; format: string }>();
+  const content = source?.raw_content?.trim() ?? '';
+  if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
+  if (utf8ByteLength(content) > MAX_SOURCE_CONTENT_BYTES) {
+    return c.json({ success: false, error: 'Stored source content exceeds the 4 MiB size limit' }, 422);
+  }
+  const format = isValidSourceFormat(source.format) ? source.format : 'auto';
+  const ts = now();
+  const claim = await c.env.DB.prepare(
+    `UPDATE source_import_runs SET status = 'running', completed_at = ?
+     WHERE id = ? AND status = 'partial' AND structured_error = ?`
+  ).bind(ts, runId, run.structured_error).run();
+  if (Number(claim.meta?.changes ?? 0) === 0) {
+    return c.json({ success: false, error: 'Structured import retry is already running' }, 409);
+  }
+
+  try {
+    await ensureSourceZeroSetupState(c.env.DB, ts);
+    const execution = await importStructuredSourceContent(
+      c.env.DB,
+      String(run.source_id),
+      content,
+      format,
+      ts,
+      conflictResolutions.value
+    );
+    const priorChanges = parseStructuredUndoChanges(
+      typeof run.structured_changes === 'string' ? run.structured_changes : null
+    );
+    const changes = [...priorChanges, ...execution.undoChanges];
+    const conflictCount = execution.summary.conflictingRules
+      + execution.summary.conflictingRemoteRuleSets
+      + changes.length;
+    const status = typeof run.refresh_error === 'string' ? 'partial' : 'success';
+    await c.env.DB.prepare(
+      `UPDATE source_import_runs SET
+        status = ?, rule_count = ?, remote_rule_set_count = ?, skipped_rule_count = ?, conflict_count = ?,
+        structured_error = NULL, structured_changes = ?, completed_at = ?
+       WHERE id = ? AND status = 'running'`
+    ).bind(
+      status,
+      execution.summary.rules,
+      execution.summary.remoteRuleSets,
+      execution.summary.skippedRules,
+      conflictCount,
+      jsonStringify(changes),
+      now(),
+      runId
+    ).run();
+    const updated = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+      .bind(runId)
+      .first<Record<string, unknown>>();
+    return c.json({
+      success: true,
+      data: { importRun: mapSourceImportRun(updated!), structuredImport: execution.summary },
+    });
+  } catch {
+    await c.env.DB.prepare(
+      `UPDATE source_import_runs SET status = 'partial', structured_error = ?, completed_at = ?
+       WHERE id = ? AND status = 'running'`
+    ).bind('Structured rule import failed', now(), runId).run();
+    return c.json({ success: false, error: 'Structured rule import retry failed' }, 502);
+  }
+});
+
+app.post('/imports/:runId/undo', async (c) => {
+  await recoverStaleSourceImportRuns(c.env.DB);
+  const runId = c.req.param('runId');
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+    .bind(runId)
+    .first<Record<string, unknown>>();
+  if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
+  if (run.status === 'undone' || !run.source_id) {
+    return c.json({ success: false, error: 'Import run has already been undone' }, 409);
+  }
+  const deleted = await deleteSourceById(c.env.DB, String(run.source_id));
+  if (!deleted) return c.json({ success: false, error: 'Imported source no longer exists' }, 409);
+  const updated = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
+    .bind(runId)
+    .first<Record<string, unknown>>();
+  return c.json({ success: true, data: mapSourceImportRun(updated!) });
 });
 
 // ─── Get source ───────────────────────────────────────────────────────────────
@@ -260,7 +565,7 @@ app.put('/:id', async (c) => {
     return c.json({ success: false, error: 'url is required' }, 400);
   }
   if (nextType === 'url' && !isHttpUrl(nextUrl)) {
-    return c.json({ success: false, error: 'url must be an http(s) URL' }, 400);
+    return c.json({ success: false, error: 'url must be a public http(s) URL' }, 400);
   }
   const sourceFields = validateSourceMutableFields(body);
   if (!sourceFields.valid) {
@@ -316,10 +621,155 @@ export async function deleteSourceById(db: D1Database, id: string, ts = now()): 
 
   if (!existing) return false;
 
-  await db.prepare('DELETE FROM nodes WHERE source_id = ?').bind(id).run();
-  await db.prepare('DELETE FROM sources WHERE id = ?').bind(id).run();
+  const marker = structuredImportMarker(id);
+  const { results: importRunRows } = await db.prepare(
+    `SELECT structured_changes FROM source_import_runs
+     WHERE source_id = ? AND status != 'undone'`
+  ).bind(id).all<{ structured_changes: string | null }>();
+  const restoreStatements: D1PreparedStatement[] = [];
+  for (const change of importRunRows.flatMap((row) => parseStructuredUndoChanges(row.structured_changes))) {
+    if (change.kind === 'rule') {
+      restoreStatements.push(db.prepare(
+        `UPDATE rules SET target_group_id = ?, updated_at = ?
+         WHERE id = ? AND target_group_id = ? AND EXISTS (SELECT 1 FROM groups WHERE id = ?)`
+      ).bind(change.beforeTargetId, ts, change.id, change.appliedTargetId, change.beforeTargetId));
+    } else {
+      restoreStatements.push(db.prepare(
+        `UPDATE remote_rule_sets SET target_group_id = ?, behavior = ?, update_interval = ?, updated_at = ?
+         WHERE id = ? AND target_group_id = ? AND behavior = ? AND update_interval = ?
+           AND preset_source IS NULL AND EXISTS (SELECT 1 FROM groups WHERE id = ?)`
+      ).bind(
+        change.beforeTargetId, change.beforeBehavior, change.beforeUpdateInterval, ts, change.id,
+        change.appliedTargetId, change.appliedBehavior, change.appliedUpdateInterval, change.beforeTargetId
+      ));
+    }
+  }
+  await db.batch([
+    ...restoreStatements,
+    db.prepare('DELETE FROM rules WHERE notes = ?').bind(marker),
+    db.prepare('DELETE FROM remote_rule_sets WHERE notes = ?').bind(marker),
+    db.prepare('DELETE FROM nodes WHERE source_id = ?').bind(id),
+    db.prepare(
+      `UPDATE source_import_runs
+       SET status = 'undone', undone_at = ?, completed_at = COALESCE(completed_at, ?)
+       WHERE source_id = ? AND status != 'undone'`
+    ).bind(ts, ts, id),
+    db.prepare('DELETE FROM sources WHERE id = ?').bind(id),
+  ]);
   await ensureZeroSetupDefaults(db, ts);
   return true;
+}
+
+interface CompleteSourceImportRunInput {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  format: SourceFormat;
+  nodeImportMode: 'all' | 'new-only';
+  refresh?: SourceRefreshResult;
+  refreshError?: string;
+  structuredImport?: StructuredImportSummary;
+  structuredUndoChanges: StructuredImportUndoChange[];
+  structuredImportError?: string;
+  createdAt: string;
+  completedAt: string;
+}
+
+async function completeSourceImportRun(db: D1Database, input: CompleteSourceImportRunInput): Promise<SourceImportRun> {
+  const conflictCount = (input.structuredImport?.conflictingRules ?? 0)
+    + (input.structuredImport?.conflictingRemoteRuleSets ?? 0)
+    + input.structuredUndoChanges.length;
+  const status = input.refreshError || input.structuredImportError ? 'partial' : 'success';
+  const refreshHistoryError = input.refreshError ? 'Node parsing or persistence failed' : null;
+  const structuredHistoryError = input.structuredImportError ? 'Structured rule import failed' : null;
+  await db.prepare(
+    `UPDATE source_import_runs SET
+      status = ?, node_count = ?, added_count = ?, updated_count = ?, skipped_existing_count = ?,
+      rule_count = ?, remote_rule_set_count = ?, skipped_rule_count = ?, conflict_count = ?,
+      refresh_error = ?, structured_error = ?, structured_changes = ?, completed_at = ?
+     WHERE id = ?`
+  ).bind(
+    status,
+    input.refresh?.nodeCount ?? 0,
+    input.refresh?.addedCount ?? 0,
+    input.refresh?.updatedCount ?? 0,
+    input.refresh?.skippedExistingCount ?? 0,
+    input.structuredImport?.rules ?? 0,
+    input.structuredImport?.remoteRuleSets ?? 0,
+    input.structuredImport?.skippedRules ?? 0,
+    conflictCount,
+    refreshHistoryError,
+    structuredHistoryError,
+    jsonStringify(input.structuredUndoChanges),
+    input.completedAt,
+    input.id
+  ).run();
+  return {
+    id: input.id,
+    sourceId: input.sourceId,
+    sourceName: input.sourceName,
+    format: input.format,
+    nodeImportMode: input.nodeImportMode,
+    status,
+    nodeCount: input.refresh?.nodeCount ?? 0,
+    addedCount: input.refresh?.addedCount ?? 0,
+    updatedCount: input.refresh?.updatedCount ?? 0,
+    skippedExistingCount: input.refresh?.skippedExistingCount ?? 0,
+    ruleCount: input.structuredImport?.rules ?? 0,
+    remoteRuleSetCount: input.structuredImport?.remoteRuleSets ?? 0,
+    skippedRuleCount: input.structuredImport?.skippedRules ?? 0,
+    conflictCount,
+    ...(refreshHistoryError ? { refreshError: refreshHistoryError } : {}),
+    ...(structuredHistoryError ? { structuredError: structuredHistoryError } : {}),
+    createdAt: input.createdAt,
+    completedAt: input.completedAt,
+    canUndo: true,
+  };
+}
+
+function mapSourceImportRun(row: Record<string, unknown>): SourceImportRun {
+  const sourceId = typeof row.source_id === 'string' ? row.source_id : undefined;
+  const status = String(row.status) as SourceImportRun['status'];
+  return {
+    id: String(row.id),
+    ...(sourceId ? { sourceId } : {}),
+    sourceName: String(row.source_name),
+    format: String(row.format) as SourceFormat,
+    nodeImportMode: row.node_import_mode === 'new-only' ? 'new-only' : 'all',
+    status,
+    nodeCount: Number(row.node_count ?? 0),
+    addedCount: Number(row.added_count ?? 0),
+    updatedCount: Number(row.updated_count ?? 0),
+    skippedExistingCount: Number(row.skipped_existing_count ?? 0),
+    ruleCount: Number(row.rule_count ?? 0),
+    remoteRuleSetCount: Number(row.remote_rule_set_count ?? 0),
+    skippedRuleCount: Number(row.skipped_rule_count ?? 0),
+    conflictCount: Number(row.conflict_count ?? 0),
+    ...(typeof row.refresh_error === 'string' ? { refreshError: row.refresh_error } : {}),
+    ...(typeof row.structured_error === 'string' ? { structuredError: row.structured_error } : {}),
+    createdAt: String(row.created_at),
+    ...(typeof row.completed_at === 'string' ? { completedAt: row.completed_at } : {}),
+    ...(typeof row.undone_at === 'string' ? { undoneAt: row.undone_at } : {}),
+    canUndo: Boolean(sourceId) && status !== 'undone',
+  };
+}
+
+const STALE_SOURCE_IMPORT_RUN_MS = 10 * 60 * 1000;
+
+export async function recoverStaleSourceImportRuns(db: D1Database, recoveredAt = now()): Promise<void> {
+  const recoveredAtMs = Date.parse(recoveredAt);
+  if (!Number.isFinite(recoveredAtMs)) return;
+  const staleBefore = new Date(recoveredAtMs - STALE_SOURCE_IMPORT_RUN_MS).toISOString();
+  await db.prepare(
+    `UPDATE source_import_runs SET
+      status = 'partial',
+      refresh_error = CASE
+        WHEN structured_error IS NULL THEN COALESCE(refresh_error, 'Import did not complete')
+        ELSE refresh_error
+      END,
+      completed_at = ?
+     WHERE status = 'running' AND COALESCE(completed_at, created_at) < ?`
+  ).bind(recoveredAt, staleBefore).run();
 }
 
 // ─── Refresh source ───────────────────────────────────────────────────────────
@@ -374,21 +824,29 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
   };
 
   try {
-    const response = await fetch(row.url as string, {
+    const response = await safeRemoteFetch(fetch, row.url as string, {
       headers: {
         'User-Agent': (row.user_agent as string | null) ?? defaultUserAgent,
         Accept: '*/*',
       },
-      redirect: 'follow',
-    });
+    }, { timeoutMs: 15_000 });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     subscriptionInfo = parseSubscriptionUserInfo(response.headers.get('subscription-userinfo'));
-    rawContent = await response.text();
+    const declaredLength = Number(response.headers.get('content-length') ?? 0);
+    if (declaredLength > MAX_SOURCE_CONTENT_BYTES) {
+      throw new SourceRefreshError('Source content exceeds the 4 MiB size limit', 422);
+    }
+    const limitedContent = await readLimitedSourceContent(response, MAX_SOURCE_CONTENT_BYTES);
+    if (limitedContent === null) {
+      throw new SourceRefreshError('Source content exceeds the 4 MiB size limit', 422);
+    }
+    rawContent = limitedContent;
   } catch (err) {
+    if (err instanceof SourceRefreshError) throw err;
     throw new SourceRefreshError(`Failed to fetch URL: ${String(err)}`, 502);
   }
   await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, now());
@@ -405,12 +863,40 @@ export async function importSourceFromContent(
   db: D1Database,
   id: string,
   rawContent: string,
-  sourceFormatInput: unknown
+  sourceFormatInput: unknown,
+  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {}
 ): Promise<SourceRefreshResult> {
   const ts = now();
   // Preserve the raw content even if parsing below fails to find usable nodes.
   await cacheFetchedSourceContent(db, id, rawContent, {}, ts);
-  return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput);
+  return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput, options);
+}
+
+async function persistStructuredOnlySourceContent(
+  db: D1Database,
+  id: string,
+  rawContent: string,
+  preview: SourceImportPreview,
+  ts: string
+): Promise<SourceRefreshResult> {
+  await db.prepare(
+    `UPDATE sources SET
+      raw_content = ?, node_count = 0, last_updated = ?, source_groups = '[]',
+      last_refresh_error = NULL, updated_at = ?
+     WHERE id = ?`
+  ).bind(rawContent, ts, ts, id).run();
+  return {
+    sourceId: id,
+    success: true,
+    nodeCount: 0,
+    addedCount: 0,
+    updatedCount: 0,
+    removedCount: 0,
+    excludedCount: preview.excludedCount,
+    skippedExistingCount: 0,
+    sourceGroupCount: 0,
+    format: preview.detectedFormat,
+  };
 }
 
 async function applyParsedSourceContent(
@@ -423,18 +909,37 @@ async function applyParsedSourceContent(
     totalBytes?: number;
     expireTime?: number;
   },
-  sourceFormatInput: unknown
+  sourceFormatInput: unknown,
+  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {}
 ): Promise<SourceRefreshResult> {
   // Detect format and parse nodes
   const sourceFormat = isValidSourceFormat(sourceFormatInput) ? sourceFormatInput : 'auto';
   const { nodes: rawParsedNodes, groups: rawParsedGroups, format } = detectAndParse(rawContent, sourceFormat);
-  const { nodes: parsedNodes, groups: parsedGroups, excludedCount } = filterUsableParsedContent(
+  const filteredContent = filterUsableParsedContent(
     rawParsedNodes,
     rawParsedGroups
   );
-  if (parsedNodes.length === 0) {
+  let parsedNodes = filteredContent.nodes;
+  let parsedGroups = filteredContent.groups;
+  const excludedCount = filteredContent.excludedCount;
+  let skippedExistingCount = 0;
+  if (options.nodeImportMode === 'new-only') {
+    const filtered = await filterNewImportNodes(db, id, parsedNodes);
+    parsedNodes = filtered.nodes;
+    skippedExistingCount = filtered.skippedCount;
+    const importedNames = new Set(parsedNodes.map((node) => node.name));
+    parsedGroups = parsedGroups
+      .map((group) => ({ ...group, memberNames: group.memberNames.filter((name) => importedNames.has(name)) }))
+      .filter((group) => group.memberNames.length > 0);
+  }
+  const canApplyEmptyNewOnly = options.nodeImportMode === 'new-only'
+    && options.allowEmptyNewOnly
+    && filteredContent.nodes.length > 0;
+  if (parsedNodes.length === 0 && !canApplyEmptyNewOnly) {
     throw new SourceRefreshError(
-      `No usable proxy nodes parsed from source content (detected format: ${format}, excluded: ${excludedCount})`,
+      options.nodeImportMode === 'new-only'
+        ? 'No new nodes remain after applying the import mode'
+        : `No usable proxy nodes parsed from source content (detected format: ${format}, excluded: ${excludedCount})`,
       422
     );
   }
@@ -489,11 +994,12 @@ async function applyParsedSourceContent(
   );
 
   const ts = now();
+  const statements: D1PreparedStatement[] = [];
 
   // Insert added nodes
   for (const node of addedNodes) {
     const nodeId = newId();
-    await db.prepare(
+    statements.push(db.prepare(
       `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?, ?, 0, ?, ?)`
     )
@@ -511,13 +1017,12 @@ async function applyParsedSourceContent(
         jsonStringify(node.parsedConfig),
         ts,
         ts
-      )
-      .run();
+      ));
   }
 
   // Update existing nodes when their stable subscription identity still matches.
   for (const item of updatedNodes) {
-    await db.prepare(
+    statements.push(db.prepare(
       `UPDATE nodes SET
         name = ?, protocol = ?, server = ?, port = ?, country = ?, country_code = ?, tags = ?, raw_config = ?, parsed_config = ?, updated_at = ?
        WHERE id = ?`
@@ -534,25 +1039,17 @@ async function applyParsedSourceContent(
         jsonStringify(item.node.parsedConfig),
         ts,
         item.id
-      )
-      .run();
+      ));
   }
 
   // Delete removed nodes
   for (const rem of toRemove) {
-    await db.prepare('DELETE FROM nodes WHERE id = ?').bind(rem.id).run();
+    statements.push(db.prepare('DELETE FROM nodes WHERE id = ?').bind(rem.id));
   }
 
-  // Update source node_count, last_updated, and subscription info
-  const { results: countResult } = await db.prepare(
-    'SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?'
-  )
-    .bind(id)
-    .all<{ cnt: number }>();
+  const nodeCount = existingRows.length - toRemove.length + addedNodes.length;
 
-  const nodeCount = countResult[0]?.cnt ?? parsedNodes.length;
-
-  await db.prepare(
+  statements.push(db.prepare(
     `UPDATE sources SET
       node_count = ?,
       last_updated = ?,
@@ -577,8 +1074,9 @@ async function applyParsedSourceContent(
       rawContent,
       ts,
       id
-    )
-    .run();
+    ));
+
+  await db.batch(statements);
 
   await syncImportedSourceNodeGroups(db, id, parsedGroups, ts);
   await ensureZeroSetupDefaults(db, ts);
@@ -591,6 +1089,7 @@ async function applyParsedSourceContent(
     updatedCount: updatedNodes.length,
     removedCount: toRemove.length,
     excludedCount,
+    skippedExistingCount,
     sourceGroupCount: parsedGroups.length,
     format,
   };
@@ -719,13 +1218,8 @@ export function isHttpUrl(value: unknown): boolean {
 
 function normalizeHttpUrl(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.trim()) return undefined;
-  try {
-    const text = value.trim();
-    const url = new URL(text);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? text : undefined;
-  } catch {
-    return undefined;
-  }
+  const text = value.trim();
+  return isSafeRemoteHttpUrl(text) ? text : undefined;
 }
 
 type SourceMutableFieldsValidation =
@@ -927,10 +1421,11 @@ export function detectAndParse(
 export function previewParsedSourceContent(rawContent: string, sourceFormat: SourceFormat = 'auto'): SourceImportPreview {
   const parsed = detectAndParse(rawContent, sourceFormat);
   const filtered = filterUsableParsedContent(parsed.nodes, parsed.groups);
-  const structured = parseStructuredSourceContent(rawContent, parsed.format);
-  const importedObjects: SourceImportPreview['importedObjects'] = filtered.groups.length > 0
-    ? ['nodes', 'source-groups']
-    : ['nodes'];
+  const detectedFormat = resolveStructuredSourceFormat(rawContent, sourceFormat, parsed.format);
+  const structured = parseStructuredSourceContent(rawContent, detectedFormat);
+  const importedObjects: SourceImportPreview['importedObjects'] = [];
+  if (filtered.nodes.length > 0) importedObjects.push('nodes');
+  if (filtered.groups.length > 0) importedObjects.push('source-groups');
   if (structured.rules.length > 0) importedObjects.push('rules');
   if (structured.remoteRuleSets.length > 0) importedObjects.push('remote-rule-sets');
   const preservedOnly: SourceImportPreview['preservedOnly'] = [];
@@ -938,7 +1433,7 @@ export function previewParsedSourceContent(rawContent: string, sourceFormat: Sou
   if (structured.hasDns) preservedOnly.push('dns');
   if (structured.clientSettingKeys.length > 0) preservedOnly.push('client-settings');
   return {
-    detectedFormat: parsed.format,
+    detectedFormat,
     nodeCount: filtered.nodes.length,
     excludedCount: filtered.excludedCount,
     sourceGroupCount: filtered.groups.length,
@@ -958,8 +1453,35 @@ export function previewParsedSourceContent(rawContent: string, sourceFormat: Sou
       rules: structured.rules.length,
       remoteRuleSets: structured.remoteRuleSets.length,
       skippedRules: structured.skippedRules,
+      duplicateRules: 0,
+      duplicateRemoteRuleSets: 0,
+      conflictingRules: 0,
+      conflictingRemoteRuleSets: 0,
+      unmappedTargets: [],
       hasDns: structured.hasDns,
       clientSettingKeys: structured.clientSettingKeys,
+    },
+    diff: {
+      nodes: makeImportDiffSection(filtered.nodes.map((node, index) => ({
+        key: `node:${index}:${nodeIdentityKey(node)}`,
+        label: node.name,
+        status: 'new',
+        changes: [],
+      }))),
+      rules: makeImportDiffSection(structured.rules.map((rule, index) => ({
+        key: `rule:${index}:${structuredRuleBaseKey(rule.type, rule.payload, rule.noResolve)}`,
+        label: structuredRuleLabel(rule),
+        status: 'new',
+        target: rule.target,
+        changes: [],
+      }))),
+      remoteRuleSets: makeImportDiffSection(structured.remoteRuleSets.map((set, index) => ({
+        key: `remote-rule-set:${index}:${set.url}`,
+        label: set.name,
+        status: 'new',
+        target: set.target,
+        changes: [],
+      }))),
     },
   };
 }
@@ -985,6 +1507,54 @@ interface ParsedStructuredSource {
   skippedRules: number;
   hasDns: boolean;
   clientSettingKeys: string[];
+}
+
+type StructuredImportSummary = Omit<SourceStructuredImportSummary, 'hasDns' | 'clientSettingKeys'>;
+
+type StructuredImportUndoChange =
+  | {
+      kind: 'rule';
+      id: string;
+      beforeTargetId: string;
+      appliedTargetId: string;
+    }
+  | {
+      kind: 'remote-rule-set';
+      id: string;
+      beforeTargetId: string;
+      beforeBehavior: string;
+      beforeUpdateInterval: number;
+      appliedTargetId: string;
+      appliedBehavior: string;
+      appliedUpdateInterval: number;
+    };
+
+function parseStructuredUndoChanges(text: string | null): StructuredImportUndoChange[] {
+  if (!text) return [];
+  try {
+    const value = JSON.parse(text) as unknown;
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is StructuredImportUndoChange => {
+      if (!isPlainRecord(item) || typeof item.id !== 'string') return false;
+      if (item.kind === 'rule') {
+        return typeof item.beforeTargetId === 'string' && typeof item.appliedTargetId === 'string';
+      }
+      return item.kind === 'remote-rule-set'
+        && typeof item.beforeTargetId === 'string'
+        && typeof item.beforeBehavior === 'string'
+        && Number.isInteger(item.beforeUpdateInterval)
+        && typeof item.appliedTargetId === 'string'
+        && typeof item.appliedBehavior === 'string'
+        && Number.isInteger(item.appliedUpdateInterval);
+    });
+  } catch {
+    return [];
+  }
+}
+
+interface StructuredImportExecution {
+  summary: StructuredImportSummary;
+  undoChanges: StructuredImportUndoChange[];
 }
 
 const STRUCTURED_RULE_TYPES = new Set<RuleType>([
@@ -1064,62 +1634,629 @@ export function parseStructuredSourceContent(rawContent: string, format: SourceF
   };
 }
 
-async function importStructuredSourceContent(
+export async function importStructuredSourceContent(
   db: D1Database,
   sourceId: string,
   rawContent: string,
   format: SourceFormat,
-  ts: string
-): Promise<{ rules: number; remoteRuleSets: number; skippedRules: number }> {
-  const detectedFormat = format === 'auto' ? detectAndParse(rawContent, format).format : format;
+  ts: string,
+  conflictResolutions: Record<string, SourceImportConflictResolution> = {}
+): Promise<StructuredImportExecution> {
+  const parsedFormat = detectAndParse(rawContent, format).format;
+  const detectedFormat = resolveStructuredSourceFormat(rawContent, format, parsedFormat);
   const parsed = parseStructuredSourceContent(rawContent, detectedFormat);
-  const { results: groupRows } = await db.prepare(
-    'SELECT id, name FROM groups WHERE enabled = 1'
-  ).all<{ id: string; name: string }>();
-  const targetIds = new Map(groupRows.flatMap((row) => [
-    [row.name.trim().toLowerCase(), row.id] as const,
-    [row.id.trim().toLowerCase(), row.id] as const,
-  ]));
+  const plan = await buildStructuredImportPlan(db, parsed, conflictResolutions);
   const maxRule = await db.prepare('SELECT MAX(sort_order) AS max_order FROM rules').first<{ max_order: number | null }>();
   const maxSet = await db.prepare('SELECT MAX(sort_order) AS max_order FROM remote_rule_sets').first<{ max_order: number | null }>();
   let ruleOrder = (maxRule?.max_order ?? -1) + 1;
   let setOrder = (maxSet?.max_order ?? -1) + 1;
-  let importedRules = 0;
-  let importedSets = 0;
-  let skippedRules = parsed.skippedRules;
+  const marker = structuredImportMarker(sourceId);
+  const statements: D1PreparedStatement[] = [];
+  const undoCandidates: Array<{ statementIndex: number; change: StructuredImportUndoChange }> = [];
 
-  for (const rule of parsed.rules) {
-    const targetId = targetIds.get(rule.target.trim().toLowerCase());
-    if (!targetId) { skippedRules++; continue; }
-    await db.prepare(
+  for (const rule of plan.rules) {
+    statements.push(db.prepare(
       `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
     ).bind(
-      newId(), `Imported ${rule.type}`, rule.type, rule.payload, rule.noResolve ? 1 : 0, targetId,
-      ruleOrder++, `[uni-conf:import] source:${sourceId}`, jsonStringify(getRuleCompatibility(rule.type)), ts, ts
-    ).run();
-    importedRules++;
+      newId(), `Imported ${rule.type}`, rule.type, rule.payload, rule.noResolve ? 1 : 0, rule.targetId,
+      ruleOrder++, marker, jsonStringify(getRuleCompatibilityForPayload(rule.type, rule.payload)), ts, ts
+    ));
   }
 
-  for (const set of parsed.remoteRuleSets) {
-    const targetId = targetIds.get(set.target.trim().toLowerCase());
-    if (!targetId) { skippedRules++; continue; }
-    await db.prepare(
+  for (const set of plan.remoteRuleSets) {
+    statements.push(db.prepare(
       `INSERT INTO remote_rule_sets
         (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
        VALUES (?, ?, ?, 'mihomo', ?, NULL, NULL, ?, ?, 1, ?, NULL, ?, ?, ?)`
     ).bind(
-      newId(), set.name, set.url, set.behavior, targetId, set.updateInterval, setOrder++,
-      `[uni-conf:import] source:${sourceId}`, ts, ts
-    ).run();
-    importedSets++;
+      newId(), set.name, set.url, set.behavior, set.targetId, set.updateInterval, setOrder++,
+      marker, ts, ts
+    ));
   }
 
-  return { rules: importedRules, remoteRuleSets: importedSets, skippedRules };
+  for (const update of plan.ruleUpdates) {
+    undoCandidates.push({
+      statementIndex: statements.length,
+      change: { kind: 'rule', id: update.id, beforeTargetId: update.beforeTargetId, appliedTargetId: update.targetId },
+    });
+    statements.push(db.prepare(
+      'UPDATE rules SET target_group_id = ?, updated_at = ? WHERE id = ? AND target_group_id = ?'
+    ).bind(update.targetId, ts, update.id, update.beforeTargetId));
+  }
+
+  for (const update of plan.remoteRuleSetUpdates) {
+    undoCandidates.push({
+      statementIndex: statements.length,
+      change: {
+        kind: 'remote-rule-set', id: update.id,
+        beforeTargetId: update.beforeTargetId,
+        beforeBehavior: update.beforeBehavior,
+        beforeUpdateInterval: update.beforeUpdateInterval,
+        appliedTargetId: update.targetId,
+        appliedBehavior: update.behavior,
+        appliedUpdateInterval: update.updateInterval,
+      },
+    });
+    statements.push(db.prepare(
+      `UPDATE remote_rule_sets SET target_group_id = ?, behavior = ?, update_interval = ?, updated_at = ?
+       WHERE id = ? AND target_group_id = ? AND behavior = ? AND update_interval = ? AND preset_source IS NULL`
+    ).bind(
+      update.targetId, update.behavior, update.updateInterval, ts, update.id,
+      update.beforeTargetId, update.beforeBehavior, update.beforeUpdateInterval
+    ));
+  }
+
+  const results = statements.length > 0 ? await db.batch(statements) : [];
+  const appliedChanges = undoCandidates.filter(({ statementIndex }) => Number(results[statementIndex]?.meta?.changes ?? 0) > 0);
+  const appliedRuleUpdates = appliedChanges.filter(({ change }) => change.kind === 'rule').length;
+  const appliedRemoteRuleSetUpdates = appliedChanges.length - appliedRuleUpdates;
+  const failedRuleUpdates = plan.ruleUpdates.length - appliedRuleUpdates;
+  const failedRemoteRuleSetUpdates = plan.remoteRuleSetUpdates.length - appliedRemoteRuleSetUpdates;
+
+  return {
+    summary: {
+      rules: plan.rules.length,
+      remoteRuleSets: plan.remoteRuleSets.length,
+      skippedRules: plan.skippedRules,
+      duplicateRules: plan.duplicateRules,
+      duplicateRemoteRuleSets: plan.duplicateRemoteRuleSets,
+      conflictingRules: plan.conflictingRules + failedRuleUpdates,
+      conflictingRemoteRuleSets: plan.conflictingRemoteRuleSets + failedRemoteRuleSetUpdates,
+      unmappedTargets: plan.unmappedTargets,
+    },
+    undoChanges: appliedChanges.map(({ change }) => change),
+  };
+}
+
+function resolveStructuredSourceFormat(
+  rawContent: string,
+  requestedFormat: SourceFormat,
+  detectedFormat: SourceFormat
+): SourceFormat {
+  if (requestedFormat === 'clash' || requestedFormat === 'mihomo') return requestedFormat;
+  if (detectedFormat === 'clash' || detectedFormat === 'mihomo') return detectedFormat;
+  if (requestedFormat !== 'auto') return detectedFormat;
+  try {
+    const document = parseYAML(rawContent);
+    if (isPlainRecord(document) && (Array.isArray(document.rules) || isPlainRecord(document['rule-providers']))) {
+      return 'mihomo';
+    }
+  } catch {
+    // Keep the node parser's detected format for malformed or non-YAML content.
+  }
+  return detectedFormat;
+}
+
+interface StructuredImportPlan {
+  rules: Array<StructuredRuleImport & { targetId: string }>;
+  remoteRuleSets: Array<StructuredRuleSetImport & { targetId: string }>;
+  ruleUpdates: Array<{ id: string; beforeTargetId: string; targetId: string }>;
+  remoteRuleSetUpdates: Array<{
+    id: string;
+    beforeTargetId: string;
+    beforeBehavior: string;
+    beforeUpdateInterval: number;
+    targetId: string;
+    behavior: string;
+    updateInterval: number;
+  }>;
+  skippedRules: number;
+  duplicateRules: number;
+  duplicateRemoteRuleSets: number;
+  conflictingRules: number;
+  conflictingRemoteRuleSets: number;
+  unmappedTargets: string[];
+  ruleDiff: SourceImportDiffItem[];
+  remoteRuleSetDiff: SourceImportDiffItem[];
+}
+
+async function buildStructuredImportPlan(
+  db: D1Database,
+  parsed: ParsedStructuredSource,
+  conflictResolutions: Record<string, SourceImportConflictResolution> = {}
+): Promise<StructuredImportPlan> {
+  if (parsed.rules.length === 0 && parsed.remoteRuleSets.length === 0) {
+    return {
+      rules: [],
+      remoteRuleSets: [],
+      ruleUpdates: [],
+      remoteRuleSetUpdates: [],
+      skippedRules: parsed.skippedRules,
+      duplicateRules: 0,
+      duplicateRemoteRuleSets: 0,
+      conflictingRules: 0,
+      conflictingRemoteRuleSets: 0,
+      unmappedTargets: [],
+      ruleDiff: [],
+      remoteRuleSetDiff: [],
+    };
+  }
+
+  const [groupResult, ruleResult, ruleSetResult] = await Promise.all([
+    db.prepare('SELECT id, name FROM groups WHERE enabled = 1').all<{ id: string; name: string }>(),
+    db.prepare('SELECT id, type, payload, no_resolve, target_group_id FROM rules').all<{
+      id: string;
+      type: string;
+      payload: string;
+      no_resolve: number;
+      target_group_id: string;
+    }>(),
+    db.prepare('SELECT id, name, url, behavior, update_interval, target_group_id, preset_source FROM remote_rule_sets').all<{
+      id: string;
+      name: string;
+      url: string;
+      behavior: string;
+      update_interval: number;
+      target_group_id: string;
+      preset_source: string | null;
+    }>(),
+  ]);
+  const targetIds = new Map(groupResult.results.flatMap((row) => [
+    [row.name.trim().toLowerCase(), row.id] as const,
+    [row.id.trim().toLowerCase(), row.id] as const,
+  ]));
+  const targetNamesById = new Map(groupResult.results.map((row) => [row.id, row.name]));
+  const knownRulesByBase = new Map<string, Array<{ id: string; targetId: string; targetName: string }>>();
+  for (const row of ruleResult.results) {
+    const key = structuredRuleBaseKey(row.type, row.payload, Boolean(row.no_resolve));
+    const values = knownRulesByBase.get(key) ?? [];
+    values.push({ id: row.id, targetId: row.target_group_id, targetName: targetNamesById.get(row.target_group_id) ?? row.target_group_id });
+    knownRulesByBase.set(key, values);
+  }
+  const knownRuleSetsByUrl = new Map<string, Array<{
+    id: string;
+    targetId: string;
+    targetName: string;
+    behavior: string;
+    updateInterval: number;
+    managed: boolean;
+  }>>();
+  for (const row of ruleSetResult.results) {
+    const key = structuredRuleSetBaseKey(row.url);
+    const values = knownRuleSetsByUrl.get(key) ?? [];
+    values.push({
+      id: row.id,
+      targetId: row.target_group_id,
+      targetName: targetNamesById.get(row.target_group_id) ?? row.target_group_id,
+      behavior: row.behavior,
+      updateInterval: Number(row.update_interval),
+      managed: Boolean(row.preset_source),
+    });
+    knownRuleSetsByUrl.set(key, values);
+  }
+  const rules: StructuredImportPlan['rules'] = [];
+  const remoteRuleSets: StructuredImportPlan['remoteRuleSets'] = [];
+  const ruleUpdates: StructuredImportPlan['ruleUpdates'] = [];
+  const remoteRuleSetUpdates: StructuredImportPlan['remoteRuleSetUpdates'] = [];
+  const ruleDiff: SourceImportDiffItem[] = [];
+  const remoteRuleSetDiff: SourceImportDiffItem[] = [];
+  const unmappedTargets = new Set<string>();
+  let skippedRules = parsed.skippedRules;
+  let duplicateRules = 0;
+  let duplicateRemoteRuleSets = 0;
+  let conflictingRules = 0;
+  let conflictingRemoteRuleSets = 0;
+
+  for (const [index, rule] of parsed.rules.entries()) {
+    const diffKey = `rule:${index}:${structuredRuleBaseKey(rule.type, rule.payload, rule.noResolve)}`;
+    const targetId = targetIds.get(normalizeImportTarget(rule.target));
+    if (!targetId) {
+      skippedRules++;
+      unmappedTargets.add(rule.target);
+      ruleDiff.push({ key: diffKey, label: structuredRuleLabel(rule), status: 'unmapped', target: rule.target, changes: [] });
+      continue;
+    }
+    const baseKey = structuredRuleBaseKey(rule.type, rule.payload, rule.noResolve);
+    const existingRules = knownRulesByBase.get(baseKey) ?? [];
+    const exact = existingRules.find((item) => item.targetId === targetId);
+    if (exact) {
+      duplicateRules++;
+      ruleDiff.push({ key: diffKey, label: structuredRuleLabel(rule), status: 'duplicate', target: rule.target, changes: [] });
+      continue;
+    }
+    if (existingRules.length > 0) {
+      const existing = existingRules[0]!;
+      const resolvable = existingRules.length === 1 && Boolean(existing.id);
+      if (resolvable && conflictResolutions[diffKey] === 'use-imported') {
+        ruleUpdates.push({ id: existing.id, beforeTargetId: existing.targetId, targetId });
+      } else {
+        conflictingRules++;
+      }
+      ruleDiff.push({
+        key: diffKey,
+        label: structuredRuleLabel(rule),
+        status: 'conflict',
+        target: rule.target,
+        changes: [{ field: 'target', before: existing.targetName, after: rule.target }],
+        resolvable,
+      });
+      continue;
+    }
+    knownRulesByBase.set(baseKey, [{ id: '', targetId, targetName: targetNamesById.get(targetId) ?? rule.target }]);
+    rules.push({ ...rule, targetId });
+    ruleDiff.push({ key: diffKey, label: structuredRuleLabel(rule), status: 'new', target: rule.target, changes: [] });
+  }
+
+  for (const [index, set] of parsed.remoteRuleSets.entries()) {
+    const diffKey = `remote-rule-set:${index}:${set.url}`;
+    const targetId = targetIds.get(normalizeImportTarget(set.target));
+    if (!targetId) {
+      skippedRules++;
+      unmappedTargets.add(set.target);
+      remoteRuleSetDiff.push({ key: diffKey, label: set.name, status: 'unmapped', target: set.target, changes: [] });
+      continue;
+    }
+    const baseKey = structuredRuleSetBaseKey(set.url);
+    const existingSets = knownRuleSetsByUrl.get(baseKey) ?? [];
+    const exact = existingSets.find((item) =>
+      item.targetId === targetId
+      && item.behavior === set.behavior
+      && item.updateInterval === set.updateInterval
+    );
+    if (exact) {
+      duplicateRemoteRuleSets++;
+      remoteRuleSetDiff.push({ key: diffKey, label: set.name, status: 'duplicate', target: set.target, changes: [] });
+      continue;
+    }
+    if (existingSets.length > 0) {
+      const existing = existingSets[0]!;
+      const resolvable = existingSets.length === 1 && Boolean(existing.id) && !existing.managed;
+      if (resolvable && conflictResolutions[diffKey] === 'use-imported') {
+        remoteRuleSetUpdates.push({
+          id: existing.id,
+          beforeTargetId: existing.targetId,
+          beforeBehavior: existing.behavior,
+          beforeUpdateInterval: existing.updateInterval,
+          targetId,
+          behavior: set.behavior,
+          updateInterval: set.updateInterval,
+        });
+      } else {
+        conflictingRemoteRuleSets++;
+      }
+      const changes = [
+        existing.targetId !== targetId ? { field: 'target', before: existing.targetName, after: set.target } : null,
+        existing.behavior !== set.behavior ? { field: 'behavior', before: existing.behavior, after: set.behavior } : null,
+        existing.updateInterval !== set.updateInterval
+          ? { field: 'updateInterval', before: String(existing.updateInterval), after: String(set.updateInterval) }
+          : null,
+      ].filter((item): item is NonNullable<typeof item> => item !== null);
+      remoteRuleSetDiff.push({ key: diffKey, label: set.name, status: 'conflict', target: set.target, changes, resolvable });
+      continue;
+    }
+    knownRuleSetsByUrl.set(baseKey, [{
+      id: '',
+      targetId,
+      targetName: targetNamesById.get(targetId) ?? set.target,
+      behavior: set.behavior,
+      updateInterval: set.updateInterval,
+      managed: false,
+    }]);
+    remoteRuleSets.push({ ...set, targetId });
+    remoteRuleSetDiff.push({ key: diffKey, label: set.name, status: 'new', target: set.target, changes: [] });
+  }
+
+  return {
+    rules,
+    remoteRuleSets,
+    ruleUpdates,
+    remoteRuleSetUpdates,
+    skippedRules,
+    duplicateRules,
+    duplicateRemoteRuleSets,
+    conflictingRules,
+    conflictingRemoteRuleSets,
+    unmappedTargets: [...unmappedTargets].sort((a, b) => a.localeCompare(b)),
+    ruleDiff,
+    remoteRuleSetDiff,
+  };
+}
+
+async function reconcileStructuredImportPreview(
+  db: D1Database,
+  rawContent: string,
+  preview: SourceImportPreview,
+  excludeNodeSourceId?: string
+): Promise<SourceImportPreview> {
+  const parsed = parseStructuredSourceContent(rawContent, preview.detectedFormat);
+  const [plan, nodeDiff] = await Promise.all([
+    buildStructuredImportPlan(db, parsed),
+    buildNodeImportDiff(db, rawContent, preview.detectedFormat, excludeNodeSourceId),
+  ]);
+  const importedObjects: SourceImportPreview['importedObjects'] = preview.importedObjects
+    .filter((item) => item !== 'rules' && item !== 'remote-rule-sets');
+  if (plan.rules.length > 0) importedObjects.push('rules');
+  if (plan.remoteRuleSets.length > 0) importedObjects.push('remote-rule-sets');
+  const preservedOnly: SourceImportPreview['preservedOnly'] = preview.preservedOnly
+    .filter((item) => item !== 'rules');
+  if ((plan.skippedRules > 0 || plan.conflictingRules > 0) && !preservedOnly.includes('rules')) preservedOnly.unshift('rules');
+  if (plan.conflictingRemoteRuleSets > 0 && !preservedOnly.includes('remote-rule-sets')) preservedOnly.push('remote-rule-sets');
+
+  return {
+    ...preview,
+    importedObjects,
+    preservedOnly,
+    structured: {
+      ...preview.structured,
+      rules: plan.rules.length,
+      remoteRuleSets: plan.remoteRuleSets.length,
+      skippedRules: plan.skippedRules,
+      duplicateRules: plan.duplicateRules,
+      duplicateRemoteRuleSets: plan.duplicateRemoteRuleSets,
+      conflictingRules: plan.conflictingRules,
+      conflictingRemoteRuleSets: plan.conflictingRemoteRuleSets,
+      unmappedTargets: plan.unmappedTargets,
+    },
+    diff: {
+      nodes: nodeDiff,
+      rules: makeImportDiffSection(plan.ruleDiff),
+      remoteRuleSets: makeImportDiffSection(plan.remoteRuleSetDiff),
+    },
+  };
+}
+
+function hasImportableStructuredCandidates(preview: SourceImportPreview): boolean {
+  const sections = [preview.diff.rules, preview.diff.remoteRuleSets];
+  return sections.some((section) => section.counts.new + section.counts.duplicate + section.counts.conflict > 0);
+}
+
+function structuredImportMarker(sourceId: string): string {
+  return `[uni-conf:import] source:${sourceId}`;
+}
+
+function normalizeImportTarget(target: string): string {
+  return target.trim().toLowerCase();
+}
+
+function structuredRuleBaseKey(type: string, payload: string, noResolve: boolean): string {
+  return [type.toUpperCase(), payload.trim(), noResolve ? '1' : '0'].join('\u0000');
+}
+
+function structuredRuleSetBaseKey(url: string): string {
+  return url.trim();
+}
+
+function structuredRuleLabel(rule: Pick<StructuredRuleImport, 'type' | 'payload'>): string {
+  return rule.payload ? `${rule.type},${rule.payload}` : rule.type;
+}
+
+const MAX_IMPORT_DIFF_ITEMS = 100;
+
+function makeImportDiffSection(items: SourceImportDiffItem[]): SourceImportDiffSection {
+  const counts = items.reduce<SourceImportDiffSection['counts']>(
+    (result, item) => ({ ...result, [item.status]: result[item.status] + 1 }),
+    { new: 0, duplicate: 0, conflict: 0, unmapped: 0 }
+  );
+  return {
+    total: items.length,
+    items: items.slice(0, MAX_IMPORT_DIFF_ITEMS),
+    truncated: items.length > MAX_IMPORT_DIFF_ITEMS,
+    counts,
+  };
+}
+
+async function buildNodeImportDiff(
+  db: D1Database,
+  rawContent: string,
+  format: SourceFormat,
+  excludeSourceId?: string
+): Promise<SourceImportDiffSection> {
+  const parsed = detectAndParse(rawContent, format);
+  const nodes = filterUsableParsedContent(parsed.nodes, parsed.groups).nodes;
+  if (nodes.length === 0) return makeImportDiffSection([]);
+
+  const query = excludeSourceId
+    ? 'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE source_id IS NULL OR source_id != ?'
+    : 'SELECT name, server, port, protocol, parsed_config FROM nodes';
+  const statement = db.prepare(query);
+  const { results: existingRows } = excludeSourceId
+    ? await statement.bind(excludeSourceId).all<NodeDiffRow>()
+    : await statement.all<NodeDiffRow>();
+  const indexes = createNodeDiffIndexes(existingRows);
+
+  const seenIncoming = new Map<string, Set<string>>();
+  const items = nodes.map((node, index): SourceImportDiffItem => {
+    const exactKey = nodeDiffExactKey(node);
+    const key = `node:${index}:${exactKey}`;
+    const classification = classifyNodeImport(node, indexes, seenIncoming);
+    return { key, label: node.name, ...classification };
+  });
+
+  return makeImportDiffSection(items);
+}
+
+interface NodeDiffRow {
+  name: string;
+  server: string;
+  port: number;
+  protocol: string;
+  parsed_config?: string | null;
+  parsedConfig?: NormalizedProxyConfig;
+}
+
+interface NodeDiffIndexes {
+  byExact: Map<string, NodeDiffRow[]>;
+  byName: Map<string, NodeDiffRow>;
+  byEndpoint: Map<string, NodeDiffRow>;
+}
+
+function createNodeDiffIndexes(rows: NodeDiffRow[]): NodeDiffIndexes {
+  const indexes: NodeDiffIndexes = {
+    byExact: new Map(),
+    byName: new Map(),
+    byEndpoint: new Map(),
+  };
+  for (const row of rows) {
+    const exactKey = nodeDiffExactKey(row);
+    indexes.byExact.set(exactKey, [...(indexes.byExact.get(exactKey) ?? []), row]);
+    if (!indexes.byName.has(row.name)) indexes.byName.set(row.name, row);
+    const endpoint = nodeDiffEndpointKey(row);
+    if (!indexes.byEndpoint.has(endpoint)) indexes.byEndpoint.set(endpoint, row);
+  }
+  return indexes;
+}
+
+function classifyNodeImport(
+  node: NodeDiffRow,
+  indexes: NodeDiffIndexes,
+  seenIncoming: Map<string, Set<string>>
+): Pick<SourceImportDiffItem, 'status' | 'changes'> {
+  const exactKey = nodeDiffExactKey(node);
+  const fingerprint = nodeDiffConfigFingerprint(node);
+  const incomingFingerprints = seenIncoming.get(exactKey) ?? new Set<string>();
+  const exactRows = indexes.byExact.get(exactKey) ?? [];
+  if (exactRows.some((row) => nodeDiffConfigFingerprint(row) === fingerprint) || incomingFingerprints.has(fingerprint)) {
+    incomingFingerprints.add(fingerprint);
+    seenIncoming.set(exactKey, incomingFingerprints);
+    return { status: 'duplicate', changes: [] };
+  }
+  const hasIncomingIdentityConflict = incomingFingerprints.size > 0;
+  incomingFingerprints.add(fingerprint);
+  seenIncoming.set(exactKey, incomingFingerprints);
+
+  if (exactRows.length > 0 || hasIncomingIdentityConflict) {
+    return {
+      status: 'conflict',
+      changes: [{ field: 'configuration', before: 'stored', after: 'imported' }],
+    };
+  }
+
+  const existing = indexes.byName.get(node.name) ?? indexes.byEndpoint.get(nodeDiffEndpointKey(node));
+  if (!existing) return { status: 'new', changes: [] };
+  const changes = [
+    existing.name !== node.name ? { field: 'name', before: existing.name, after: node.name } : null,
+    existing.server !== node.server ? { field: 'server', before: existing.server, after: node.server } : null,
+    Number(existing.port) !== node.port ? { field: 'port', before: String(existing.port), after: String(node.port) } : null,
+    existing.protocol !== node.protocol ? { field: 'protocol', before: existing.protocol, after: node.protocol } : null,
+  ].filter((item): item is { field: string; before: string; after: string } => item !== null);
+  return { status: 'conflict', changes };
+}
+
+async function filterNewImportNodes(
+  db: D1Database,
+  sourceId: string,
+  nodes: ParsedNodeRaw[]
+): Promise<{ nodes: ParsedNodeRaw[]; skippedCount: number }> {
+  const { results: existingRows } = await db.prepare(
+    'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE source_id IS NULL OR source_id != ?'
+  ).bind(sourceId).all<NodeDiffRow>();
+  const indexes = createNodeDiffIndexes(existingRows);
+  const seenIncoming = new Map<string, Set<string>>();
+  const nextNodes = nodes.filter((node) => classifyNodeImport(node, indexes, seenIncoming).status === 'new');
+  return { nodes: nextNodes, skippedCount: nodes.length - nextNodes.length };
+}
+
+function nodeDiffExactKey(node: { name: string; server: string; port: number; protocol: string }): string {
+  return [node.name, node.server, String(node.port), node.protocol].join('\u0000');
+}
+
+function nodeDiffEndpointKey(node: { server: string; port: number }): string {
+  return `${node.server}\u0000${node.port}`;
+}
+
+function nodeDiffConfigFingerprint(node: NodeDiffRow): string {
+  if (node.parsedConfig) return stableJsonString(node.parsedConfig);
+  if (!node.parsed_config) return '';
+  try {
+    return stableJsonString(JSON.parse(node.parsed_config));
+  } catch {
+    return node.parsed_config;
+  }
+}
+
+function stableJsonString(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJsonString).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .filter((key) => record[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJsonString(record[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+export async function readLimitedSourceContent(response: Response, maxBytes: number): Promise<string | null> {
+  if (!response.body) {
+    const text = await response.text();
+    return utf8ByteLength(text) <= maxBytes ? text : null;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function normalizeStructuredConflictResolutions(value: unknown):
+  | { valid: true; value: Record<string, SourceImportConflictResolution> }
+  | { valid: false; error: string } {
+  if (value === undefined) return { valid: true, value: {} };
+  if (!isPlainRecord(value)) return { valid: false, error: 'structured conflict resolutions must be an object' };
+  const entries = Object.entries(value);
+  if (entries.length > MAX_IMPORT_DIFF_ITEMS) {
+    return { valid: false, error: `structured conflict resolutions cannot exceed ${MAX_IMPORT_DIFF_ITEMS} items` };
+  }
+  const result = Object.create(null) as Record<string, SourceImportConflictResolution>;
+  for (const [key, resolution] of entries) {
+    if (key.length === 0 || key.length > 1000 || (!key.startsWith('rule:') && !key.startsWith('remote-rule-set:'))) {
+      return { valid: false, error: 'invalid structured conflict resolution key' };
+    }
+    if (resolution !== 'keep-existing' && resolution !== 'use-imported') {
+      return { valid: false, error: 'invalid structured conflict resolution value' };
+    }
+    result[key] = resolution;
+  }
+  return { valid: true, value: result };
 }
 
 function parseBySourceFormat(

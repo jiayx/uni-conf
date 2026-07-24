@@ -39,7 +39,7 @@ describe('default export config', () => {
     expect(state.exportConfigs).toHaveLength(1);
   });
 
-  it('enables an existing built-in default config before using it', async () => {
+  it('preserves an explicitly disabled built-in default config', async () => {
     const state = createState({
       exportConfigs: [makeRow({ enabled: 0 })],
     });
@@ -47,8 +47,8 @@ describe('default export config', () => {
 
     const config = await ensureDefaultExportConfig(db, createdAt);
 
-    expect(config.enabled).toBe(true);
-    expect(state.exportConfigs[0]?.enabled).toBe(1);
+    expect(config.enabled).toBe(false);
+    expect(state.exportConfigs[0]?.enabled).toBe(0);
     expect(state.settings.default_export_token).toBe(config.token);
   });
 });

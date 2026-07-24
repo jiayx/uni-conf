@@ -9,6 +9,7 @@ interface RulesState {
   fetchRules: () => Promise<void>
   addRule: (data: Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateRule: (id: string, data: Partial<ProxyRule>) => Promise<void>
+  setRulesEnabled: (ids: string[], enabled: boolean) => Promise<void>
   deleteRule: (id: string) => Promise<void>
   reorderRules: (orderedIds: string[]) => Promise<void>
   batchAddRules: (data: Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<void>
@@ -39,23 +40,22 @@ export const useRulesStore = create<RulesState>((set) => ({
     set(s => ({ rules: s.rules.map(r => (r.id === id ? updated : r)) }))
   },
 
+  setRulesEnabled: async (ids, enabled) => {
+    const result = await api.rules.setEnabled(ids, enabled)
+    const updatedIds = new Set(result.ids)
+    set(s => ({
+      rules: s.rules.map(rule => updatedIds.has(rule.id) ? { ...rule, enabled: result.enabled } : rule),
+    }))
+  },
+
   deleteRule: async (id) => {
     await api.rules.remove(id)
     set(s => ({ rules: s.rules.filter(r => r.id !== id) }))
   },
 
   reorderRules: async (orderedIds) => {
-    set(s => {
-      const map = new Map(s.rules.map(r => [r.id, r]))
-      const reordered = orderedIds
-        .map((id, idx) => {
-          const r = map.get(id)
-          return r ? { ...r, order: idx } : null
-        })
-        .filter(Boolean) as ProxyRule[]
-      return { rules: reordered }
-    })
-    await api.rules.reorder(orderedIds)
+    const rules = await api.rules.reorder(orderedIds)
+    set({ rules: [...rules].sort((a, b) => a.order - b.order) })
   },
 
   batchAddRules: async (data) => {

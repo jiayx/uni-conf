@@ -5,7 +5,14 @@
 
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
-import { DEFAULT_HEALTH_CHECK, getRuleCompatibilityLevel, isRuleSetFormatCompatible } from '@uni-conf/shared'
+import {
+  DEFAULT_HEALTH_CHECK,
+  getRuleCompatibilityLevel,
+  isLoonTransportSupported,
+  isRuleSetFormatCompatible,
+  resolveRuleForExport,
+  supportsRuleNoResolve,
+} from '@uni-conf/shared'
 
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
@@ -21,59 +28,143 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
   const protocol = String(node['protocol'] ?? '')
   const parsed = safeJson(node['parsed_config'])
   const extra = (parsed['extra'] ?? {}) as Record<string, unknown>
+  const password = String(parsed['password'] ?? '')
 
   switch (protocol) {
     case 'ss': {
-      const cipher = String(extra['cipher'] ?? 'aes-256-gcm')
-      const password = String(parsed['password'] ?? '')
-      const tls = parsed['tls'] ? `, over-tls=true` : ''
-      return `${name} = Shadowsocks, ${server}, ${port}, encrypt-method=${cipher}, password=${password}${tls}`
+      const fields = [
+        'Shadowsocks', server, String(port),
+        String(extra['cipher'] ?? extra['method'] ?? 'aes-256-gcm'),
+        quoteLoonValue(password),
+      ]
+      appendLoonObfs(fields, extra)
+      appendBooleanField(fields, 'fast-open', extra['fastOpen'])
+      appendBooleanField(fields, 'udp', extra['udp'])
+      return `${name} = ${fields.join(',')}`
+    }
+    case 'ssr': {
+      const fields = [
+        'ShadowsocksR', server, String(port),
+        String(extra['cipher'] ?? extra['method'] ?? 'aes-256-cfb'),
+        quoteLoonValue(password),
+        `protocol=${String(extra['protocol'] ?? 'origin')}`,
+      ]
+      if (extra['protocolParam']) fields.push(`protocol-param=${String(extra['protocolParam'])}`)
+      fields.push(`obfs=${String(extra['obfs'] ?? 'plain')}`)
+      if (extra['obfsParam']) fields.push(`obfs-param=${String(extra['obfsParam'])}`)
+      appendBooleanField(fields, 'fast-open', extra['fastOpen'])
+      appendBooleanField(fields, 'udp', extra['udp'])
+      return `${name} = ${fields.join(',')}`
     }
     case 'vmess': {
-      const uuid = String(parsed['uuid'] ?? '')
-      const network = String(parsed['network'] ?? 'tcp')
-      const tls = parsed['tls'] ? `, tls=true` : ''
-      const sni = parsed['sni'] ? `, tls-name=${parsed['sni']}` : ''
-      let transport = ''
-      if (network === 'ws') {
-        const wsPath = String(extra['wsPath'] ?? '/')
-        transport = `, transport=ws, path=${wsPath}`
-      }
-      return `${name} = vmess, ${server}, ${port}, username=${uuid}${transport}${tls}${sni}`
+      if (!isLoonTransportSupported(parsed['network'])) return null
+      const fields = [
+        'vmess', server, String(port),
+        normalizeLoonVmessCipher(extra['cipher']),
+        quoteLoonValue(String(parsed['uuid'] ?? '')),
+      ]
+      appendLoonTransport(fields, parsed, extra)
+      fields.push(`alterId=${Number(extra['alterId'] ?? 0)}`)
+      appendLoonTls(fields, parsed)
+      return `${name} = ${fields.join(',')}`
+    }
+    case 'vless': {
+      if (!isLoonTransportSupported(parsed['network'])) return null
+      const fields = [
+        'VLESS', server, String(port),
+        quoteLoonValue(String(parsed['uuid'] ?? '')),
+      ]
+      appendLoonTransport(fields, parsed, extra)
+      appendLoonTls(fields, parsed)
+      return `${name} = ${fields.join(',')}`
     }
     case 'trojan': {
-      const password = String(parsed['password'] ?? '')
-      const sni = parsed['sni'] ? `, tls-name=${parsed['sni']}` : ''
-      const skipVerify = parsed['skipCertVerify'] ? `, skip-cert-verify=true` : ''
-      return `${name} = trojan, ${server}, ${port}, password=${password}${sni}${skipVerify}`
+      if (!isLoonTransportSupported(parsed['network'])) return null
+      const fields = ['trojan', server, String(port), quoteLoonValue(password)]
+      appendLoonTransport(fields, parsed, extra)
+      appendLoonTls(fields, parsed, { includeOverTls: false })
+      appendLoonAlpn(fields, extra)
+      appendBooleanField(fields, 'udp', extra['udp'])
+      return `${name} = ${fields.join(',')}`
     }
-    case 'anytls': {
-      const password = String(parsed['password'] ?? '')
-      const sni = parsed['sni'] ? `, tls-name=${parsed['sni']}` : ''
-      const fingerprint = extra['client-fingerprint'] ?? extra['clientFingerprint'] ?? extra['fingerprint'] ?? extra['fp']
-      const fp = fingerprint ? `, client-fingerprint=${fingerprint}` : ''
-      const udp = extra['udp'] !== undefined ? `, udp-relay=${Boolean(extra['udp'])}` : ''
-      const alpn = Array.isArray(extra['alpn']) ? `, alpn=${extra['alpn'].map(String).join('|')}` : ''
-      const skipVerify = parsed['skipCertVerify'] ? `, skip-cert-verify=true` : ''
-      return `${name} = anytls, ${server}, ${port}, password=${password}${sni}${fp}${udp}${alpn}${skipVerify}`
+    case 'hysteria2': {
+      const fields = ['Hysteria2', server, String(port), quoteLoonValue(password || String(extra['auth'] ?? ''))]
+      appendLoonTls(fields, parsed, { includeOverTls: false })
+      appendBooleanField(fields, 'udp', extra['udp'])
+      appendBooleanField(fields, 'fast-open', extra['fastOpen'])
+      return `${name} = ${fields.join(',')}`
     }
     case 'http':
     case 'https': {
       const username = String(extra['username'] ?? '')
-      const password = String(parsed['password'] ?? '')
-      const overTls = protocol === 'https' ? `, over-tls=true` : ''
-      const creds = username ? `, username=${username}, password=${password}` : ''
-      return `${name} = http, ${server}, ${port}${creds}${overTls}`
-    }
-    case 'socks5': {
-      const username = String(extra['username'] ?? '')
-      const password = String(parsed['password'] ?? '')
-      const creds = username ? `, username=${username}, password=${password}` : ''
-      return `${name} = socks5, ${server}, ${port}${creds}`
+      const fields = [protocol, server, String(port)]
+      if (username || password) fields.push(username, quoteLoonValue(password))
+      if (protocol === 'https') appendLoonTls(fields, parsed, { includeOverTls: false })
+      return `${name} = ${fields.join(',')}`
     }
     default:
       return null
   }
+}
+
+function appendLoonTransport(
+  fields: string[],
+  parsed: Record<string, unknown>,
+  extra: Record<string, unknown>
+): void {
+  const transport = String(parsed['network'] ?? 'tcp')
+  fields.push(`transport=${transport}`)
+  if (transport !== 'ws' && transport !== 'http') return
+  const path = String(parsed['wsPath'] ?? extra['wsPath'] ?? '/')
+  fields.push(`path=${path}`)
+  const headers = (parsed['wsHeaders'] ?? {}) as Record<string, unknown>
+  const host = headers['Host'] ?? headers['host'] ?? parsed['sni']
+  if (host) fields.push(`host=${String(host)}`)
+}
+
+function appendLoonTls(
+  fields: string[],
+  parsed: Record<string, unknown>,
+  options: { includeOverTls?: boolean } = {}
+): void {
+  if (options.includeOverTls !== false) fields.push(`over-tls=${Boolean(parsed['tls'])}`)
+  if (parsed['sni']) fields.push(`tls-name=${String(parsed['sni'])}`)
+  if (parsed['skipCertVerify'] !== undefined) {
+    fields.push(`skip-cert-verify=${Boolean(parsed['skipCertVerify'])}`)
+  }
+}
+
+function appendLoonObfs(fields: string[], extra: Record<string, unknown>): void {
+  const obfs = String(extra['obfs'] ?? '')
+  if (obfs !== 'http' && obfs !== 'tls') return
+  fields.push(`obfs-name=${obfs}`)
+  const host = extra['obfsHost'] ?? extra['obfsParam']
+  if (host) fields.push(`obfs-host=${String(host)}`)
+  if (extra['obfsUri']) fields.push(`obfs-uri=${String(extra['obfsUri'])}`)
+}
+
+function appendLoonAlpn(fields: string[], extra: Record<string, unknown>): void {
+  const values = Array.isArray(extra['alpn']) ? extra['alpn'].map(String).filter(Boolean) : []
+  if (values.length === 1) fields.push(`alpn=${values[0]}`)
+}
+
+function appendBooleanField(
+  fields: string[],
+  key: string,
+  value: unknown
+): void {
+  if (value !== undefined) fields.push(`${key}=${Boolean(value)}`)
+}
+
+function normalizeLoonVmessCipher(value: unknown): string {
+  const cipher = String(value ?? '')
+  return ['aes-128-gcm', 'chacha20-poly1305'].includes(cipher)
+    ? cipher
+    : 'aes-128-gcm'
+}
+
+function quoteLoonValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
 function groupToLoon(
@@ -107,24 +198,15 @@ function ruleToLoon(rule: Record<string, unknown>, allGroups: Record<string, unk
   const targetGroupId = String(rule['target_group_id'] ?? '')
   const targetGroup = allGroups.find(g => String(g['id']) === targetGroupId)
   const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
-  const noResolve = rule['no_resolve'] ? ', no-resolve' : ''
+  const noResolve = rule['no_resolve']
+    && supportsRuleNoResolve(type as RuleCompatibilityType, 'loon')
+    ? ', no-resolve'
+    : ''
 
-  // Map rule types to Loon format
-  const typeMap: Record<string, string> = {
-    'DOMAIN': 'DOMAIN',
-    'DOMAIN-SUFFIX': 'DOMAIN-SUFFIX',
-    'DOMAIN-KEYWORD': 'DOMAIN-KEYWORD',
-    'IP-CIDR': 'IP-CIDR',
-    'IP-CIDR6': 'IP-CIDR6',
-    'GEOIP': 'GEOIP',
-    'GEOSITE': 'GEOSITE',
-    'MATCH': 'FINAL',
-  }
-
-  const loonType = typeMap[type] ?? type
   if (type === 'MATCH') return `FINAL, ${target}`
-  if (getRuleCompatibilityLevel(type as RuleCompatibilityType, 'loon') === 'unsupported') return null
-  return `${loonType}, ${payload}, ${target}${noResolve}`
+  const resolution = resolveRuleForExport(type as RuleCompatibilityType, payload, 'loon')
+  if (resolution.level === 'unsupported') return null
+  return `${resolution.type}, ${resolution.payload}, ${target}${noResolve}`
 }
 
 export function generateLoon(
@@ -132,7 +214,8 @@ export function generateLoon(
   groups: Record<string, unknown>[],
   rules: Record<string, unknown>[],
   remoteSets: Record<string, unknown>[],
-  collectionNodeNames: Record<string, string[]> = {}
+  collectionNodeNames: Record<string, string[]> = {},
+  options: { ruleSetConversionBaseUrl?: string } = {}
 ): string {
   const lines: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
@@ -190,7 +273,7 @@ export function generateLoon(
   lines.push('[Remote Rule]')
   for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
-    const resolved = resolveRemoteRuleSetRowForExport(rs, 'loon')
+    const resolved = resolveRemoteRuleSetRowForExport(rs, 'loon', options.ruleSetConversionBaseUrl)
     if (!resolved || !isRuleSetFormatCompatible('loon', resolved.format)) continue
     const name = String(rs['name'] ?? '')
     const targetGroupId = String(rs['target_group_id'] ?? '')

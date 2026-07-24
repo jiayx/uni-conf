@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName, makeSourceNodeGroupMarker, SOURCE_FORMATS } from '@uni-conf/shared'
+import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName, makeSourceNodeGroupMarker, MAX_SOURCE_CONTENT_BYTES, SOURCE_FORMATS } from '@uni-conf/shared'
 import type { SourceRefreshResult } from '@uni-conf/types'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
@@ -14,6 +14,7 @@ import {
   parseClashYaml,
   parseSingboxGroups,
   previewParsedSourceContent,
+  readLimitedSourceContent,
   refreshSourceById,
   resolveSourceNameInput,
   SourceRefreshError,
@@ -69,7 +70,12 @@ proxy-groups:
       detectedFormat: 'mihomo', nodeCount: 1, excludedCount: 0, sourceGroupCount: 1,
       importedObjects: ['nodes', 'source-groups'],
       preservedOnly: [],
-      structured: { rules: 0, remoteRuleSets: 0, skippedRules: 0, hasDns: false, clientSettingKeys: [] },
+      structured: {
+        rules: 0, remoteRuleSets: 0, skippedRules: 0,
+        duplicateRules: 0, duplicateRemoteRuleSets: 0, unmappedTargets: [],
+        conflictingRules: 0, conflictingRemoteRuleSets: 0,
+        hasDns: false, clientSettingKeys: [],
+      },
     })
     expect(preview.nodes[0]).not.toHaveProperty('password')
     expect(JSON.stringify(preview)).not.toContain('secret')
@@ -95,9 +101,47 @@ rule-providers:
       rules: 1,
       remoteRuleSets: 1,
       skippedRules: 1,
+      duplicateRules: 0,
+      duplicateRemoteRuleSets: 0,
+      conflictingRules: 0,
+      conflictingRemoteRuleSets: 0,
+      unmappedTargets: [],
       hasDns: true,
       clientSettingKeys: ['mixed-port'],
     })
+  })
+
+  it('auto-detects a Clash/Mihomo rules-only document without requiring a proxies section', () => {
+    const preview = previewParsedSourceContent(`
+rules:
+  - DOMAIN-SUFFIX,example.com,PROXY
+  - RULE-SET,ads,REJECT
+rule-providers:
+  ads: { type: http, behavior: domain, url: https://rules.example.com/ads.yaml, interval: 86400 }
+`, 'auto')
+
+    expect(preview).toMatchObject({
+      detectedFormat: 'mihomo',
+      nodeCount: 0,
+      importedObjects: ['rules', 'remote-rule-sets'],
+      structured: { rules: 1, remoteRuleSets: 1 },
+      diff: { nodes: { total: 0 } },
+    })
+  })
+
+  it('caps detailed node diffs while preserving authoritative status counts', () => {
+    const proxies = Array.from({ length: 101 }, (_, index) =>
+      `  - { name: Node ${index}, type: trojan, server: node-${index}.example.com, port: 443, password: secret }`
+    ).join('\n')
+    const preview = previewParsedSourceContent(`proxies:\n${proxies}`, 'mihomo')
+
+    expect(preview.diff.nodes).toMatchObject({
+      total: 101,
+      truncated: true,
+      counts: { new: 101, duplicate: 0, conflict: 0, unmapped: 0 },
+    })
+    expect(preview.diff.nodes.items).toHaveLength(100)
+    expect(JSON.stringify(preview.diff)).not.toContain('secret')
   })
 
   afterEach(() => {
@@ -131,6 +175,10 @@ rule-providers:
     expect(isHttpUrl('https://example.com/sub')).toBe(true)
     expect(isHttpUrl('  https://example.com/sub  ')).toBe(true)
     expect(isHttpUrl('http://example.com/sub')).toBe(true)
+    expect(isHttpUrl('http://127.0.0.1/sub')).toBe(false)
+    expect(isHttpUrl('http://169.254.169.254/latest/meta-data')).toBe(false)
+    expect(isHttpUrl('http://[::1]/sub')).toBe(false)
+    expect(isHttpUrl('https://user:pass@example.com/sub')).toBe(false)
     expect(isHttpUrl('file:///tmp/sub.yaml')).toBe(false)
     expect(isHttpUrl('not a url')).toBe(false)
   })
@@ -482,6 +530,8 @@ proxy-groups:
     expect(isSubscriptionInfoNodeName('官方地址：https://example.com')).toBe(true)
     expect(isSubscriptionInfoNodeName('Package Reset Time: tomorrow')).toBe(true)
     expect(isSubscriptionInfoNodeName('Remaining Traffic 50 GB')).toBe(true)
+    expect(isSubscriptionInfoNodeName('客服邮箱christchen517@gmail.com')).toBe(true)
+    expect(isSubscriptionInfoNodeName('支持AI:新美台港')).toBe(true)
     expect(isSubscriptionInfoNodeName('🇭🇰 HK IEPL 2x')).toBe(false)
     expect(isSubscriptionInfoNodeName('US｜Los Angeles｜x1')).toBe(false)
     expect(isSubscriptionInfoNodeName('新加坡-流媒体')).toBe(false)
@@ -641,13 +691,40 @@ proxies:
     })
   })
 
+  it('rejects a declared oversized subscription before reading or caching its body', async () => {
+    const db = createRefreshMockDb()
+    const text = vi.fn(async () => 'must not be read')
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: (name: string) => name === 'content-length' ? String(MAX_SOURCE_CONTENT_BYTES + 1) : null },
+      text,
+    })))
+
+    await expect(refreshSourceById(db, 'source-1')).rejects.toMatchObject({
+      message: 'Source content exceeds the 4 MiB size limit',
+      status: 422,
+    })
+    expect(text).not.toHaveBeenCalled()
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'cache-raw-content' }))
+  })
+
+  it('stops streaming a response as soon as its byte limit is exceeded', async () => {
+    const response = new Response(new Uint8Array([1, 2, 3, 4, 5]))
+    await expect(readLimitedSourceContent(response, 4)).resolves.toBeNull()
+  })
+
   it('explicitly deletes source nodes before deleting the source', async () => {
     const db = createDeleteMockDb(true)
 
     await expect(deleteSourceById(db, 'source-1', '2026-01-01T00:00:00.000Z')).resolves.toBe(true)
 
     expect(db.operations).toEqual([
+      { operation: 'delete-imported-rules', marker: '[uni-conf:import] source:source-1' },
+      { operation: 'delete-imported-rule-sets', marker: '[uni-conf:import] source:source-1' },
       { operation: 'delete-nodes', sourceId: 'source-1' },
+      { operation: 'undo-import-runs', sourceId: 'source-1' },
       { operation: 'delete-source', sourceId: 'source-1' },
     ])
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z')
@@ -961,6 +1038,115 @@ proxy-groups:
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
+  it('writes imported rules and remote rule sets in one database batch', async () => {
+    const db = createCreateRefreshMockDb()
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content: structuredImportConfig(),
+        importStructured: true,
+      }),
+    }, { DB: db })
+    const payload = await response.json() as {
+      data: { structuredImport?: { rules: number; remoteRuleSets: number }; structuredImportError?: string }
+    }
+
+    expect(response.status).toBe(201)
+    expect(payload.data.structuredImport).toMatchObject({ rules: 1, remoteRuleSets: 1 })
+    expect(payload.data.structuredImportError).toBeUndefined()
+    expect(db.batch).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(db.batch).mock.calls[1]![0]).toHaveLength(2)
+    expect(vi.mocked(db.batch).mock.calls[2]![0]).toHaveLength(2)
+  })
+
+  it('keeps the node import result and reports an atomic structured batch failure', async () => {
+    const db = createCreateRefreshMockDb({ structuredBatchError: new Error('simulated D1 batch failure') })
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content: structuredImportConfig(),
+        importStructured: true,
+      }),
+    }, { DB: db })
+    const payload = await response.json() as {
+      success: boolean
+      data: {
+        refresh?: SourceRefreshResult
+        structuredImport?: unknown
+        structuredImportError?: string
+        importRun?: { status: string; structuredError?: string; canUndo: boolean }
+      }
+    }
+
+    expect(response.status).toBe(201)
+    expect(payload.success).toBe(true)
+    expect(payload.data.refresh).toMatchObject({ success: true, nodeCount: 1 })
+    expect(payload.data.structuredImport).toBeUndefined()
+    expect(payload.data.structuredImportError).toBe('simulated D1 batch failure')
+    expect(payload.data.importRun).toEqual(expect.objectContaining({
+      status: 'partial',
+      structuredError: 'Structured rule import failed',
+      canUndo: true,
+    }))
+    expect(JSON.stringify(payload.data.importRun)).not.toContain('simulated D1 batch failure')
+    expect(db.operations).toContainEqual(expect.objectContaining({ operation: 'insert-node' }))
+  })
+
+  it('keeps node and source-summary writes atomic when the node batch fails', async () => {
+    const db = createCreateRefreshMockDb({ nodeBatchError: new Error('simulated node batch failure') })
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content: "proxies:\n  - { name: Node, type: trojan, server: node.example.com, port: 443, password: pwd }",
+      }),
+    }, { DB: db })
+    const payload = await response.json() as {
+      data: { refresh?: SourceRefreshResult; refreshError?: string; importRun?: { status: string; refreshError?: string } }
+    }
+
+    expect(response.status).toBe(201)
+    expect(payload.data.refresh).toBeUndefined()
+    expect(payload.data.refreshError).toBe('simulated node batch failure')
+    expect(payload.data.importRun).toMatchObject({ status: 'partial', refreshError: 'Node parsing or persistence failed' })
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'insert-node' }))
+    expect(vi.mocked(db.batch).mock.calls[1]![0]).toHaveLength(2)
+  })
+
+  it('rejects an unknown clipboard node import mode before writing a source', async () => {
+    const db = createCreateRefreshMockDb()
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content: "proxies:\n  - { name: Node, type: trojan, server: node.example.com, port: 443, password: pwd }",
+        nodeImportMode: 'overwrite',
+      }),
+    }, { DB: db })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ success: false, error: 'invalid node import mode' })
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'insert-source' }))
+  })
+
+  it('rejects invalid structured conflict decisions before writing a source', async () => {
+    const db = createCreateRefreshMockDb()
+    const response = await sourcesApp.request('/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content: 'proxies: []',
+        structuredConflictResolutions: { 'rule:0:DOMAIN|example.com|0': 'overwrite' },
+      }),
+    }, { DB: db })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ success: false, error: 'invalid structured conflict resolution value' })
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'insert-source' }))
+  })
+
   it('defaults the import name and preserves raw content when no usable nodes are parsed', async () => {
     const db = createCreateRefreshMockDb()
 
@@ -1005,6 +1191,25 @@ proxy-groups:
     expect(payload.success).toBe(false)
     expect(payload.error).toContain('content is required')
   })
+
+  it('rejects oversized multibyte content in preview and import before database writes', async () => {
+    const db = createCreateRefreshMockDb()
+    const content = '你'.repeat(Math.floor(MAX_SOURCE_CONTENT_BYTES / 3) + 1)
+
+    for (const path of ['/import/preview', '/import']) {
+      const response = await sourcesApp.request(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content }),
+      }, { DB: db })
+      expect(response.status).toBe(413)
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'source content exceeds the 4 MiB size limit',
+      })
+    }
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'insert-source' }))
+  })
 })
 
 function makeSsrUri(input: {
@@ -1042,6 +1247,10 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
   const operations: Array<Record<string, unknown>> = []
   return {
     operations,
+    batch: vi.fn(async (statements: D1PreparedStatement[]) => {
+      for (const statement of statements) await statement.run()
+      return []
+    }),
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
@@ -1121,6 +1330,10 @@ function createRefreshUpdateMockDb(): D1Database & { operations: Array<Record<st
   }]
   return {
     operations,
+    batch: vi.fn(async (statements: D1PreparedStatement[]) => {
+      for (const statement of statements) await statement.run()
+      return []
+    }),
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
@@ -1291,6 +1504,10 @@ function createDeleteMockDb(hasSource: boolean): D1Database & { operations: Arra
   const operations: Array<Record<string, unknown>> = []
   return {
     operations,
+    batch: vi.fn(async (statements: D1PreparedStatement[]) => {
+      for (const statement of statements) await statement.run()
+      return []
+    }),
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
@@ -1304,8 +1521,17 @@ function createDeleteMockDb(hasSource: boolean): D1Database & { operations: Arra
           if (sql.includes('DELETE FROM nodes WHERE source_id = ?')) {
             operations.push({ operation: 'delete-nodes', sourceId: args[0] })
           }
+          if (sql.includes('DELETE FROM rules WHERE notes = ?')) {
+            operations.push({ operation: 'delete-imported-rules', marker: args[0] })
+          }
+          if (sql.includes('DELETE FROM remote_rule_sets WHERE notes = ?')) {
+            operations.push({ operation: 'delete-imported-rule-sets', marker: args[0] })
+          }
           if (sql.includes('DELETE FROM sources WHERE id = ?')) {
             operations.push({ operation: 'delete-source', sourceId: args[0] })
+          }
+          if (sql.includes('UPDATE source_import_runs')) {
+            operations.push({ operation: 'undo-import-runs', sourceId: args[2] })
           }
           return { success: true }
         },
@@ -1374,11 +1600,33 @@ function createCreateMockDb(): D1Database {
   } as unknown as D1Database
 }
 
-function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<string, unknown>> } {
+function structuredImportConfig(): string {
+  return `
+proxies:
+  - { name: Node, type: trojan, server: node.example.com, port: 443, password: pwd }
+rules:
+  - DOMAIN-SUFFIX,example.com,PROXY
+  - RULE-SET,ads,REJECT
+rule-providers:
+  ads: { type: http, behavior: domain, url: https://rules.example.com/ads.yaml, interval: 86400 }
+`
+}
+
+function createCreateRefreshMockDb(
+  options: { nodeBatchError?: Error; structuredBatchError?: Error } = {}
+): D1Database & { operations: Array<Record<string, unknown>> } {
   const operations: Array<Record<string, unknown>> = []
   const inserted: Record<string, unknown> = {}
+  let batchCallCount = 0
   return {
     operations,
+    batch: vi.fn(async (statements: D1PreparedStatement[]) => {
+      batchCallCount++
+      if (options.nodeBatchError && batchCallCount === 2) throw options.nodeBatchError
+      if (options.structuredBatchError && batchCallCount === 3) throw options.structuredBatchError
+      for (const statement of statements) await statement.run()
+      return []
+    }),
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
@@ -1409,7 +1657,12 @@ function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<st
           }
           return null
         },
-        all: async () => ({ results: [] }),
+        all: async () => {
+          if (sql.includes('SELECT id, name FROM groups WHERE enabled = 1')) {
+            return { results: [{ id: 'builtin-proxy', name: 'PROXY' }, { id: 'builtin-reject', name: 'REJECT' }] }
+          }
+          return { results: [] }
+        },
         run: async () => {
           if (sql.includes('INSERT INTO sources')) {
             inserted.id = args[0]
@@ -1457,8 +1710,13 @@ function createCreateRefreshMockDb(): D1Database & { operations: Array<Record<st
         },
         raw: async () => [],
       }),
-      first: async () => null,
-      all: async () => ({ results: [] }),
+      first: async () => sql.includes('SELECT MAX(sort_order)') ? { max_order: null } : null,
+      all: async () => {
+        if (sql.includes('SELECT id, name FROM groups WHERE enabled = 1')) {
+          return { results: [{ id: 'builtin-proxy', name: 'PROXY' }, { id: 'builtin-reject', name: 'REJECT' }] }
+        }
+        return { results: [] }
+      },
       run: async () => ({ success: true }),
       raw: async () => [],
     })),

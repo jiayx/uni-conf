@@ -5,7 +5,13 @@ import type { ProxyProtocol } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 import { parseRawLines } from './sources';
-import { buildNodeRecognitionTags, buildStructuredProxyConfig, detectCountry, MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared';
+import {
+  buildNodeRecognitionTags,
+  buildStructuredProxyConfig,
+  detectCountry,
+  MAX_NODE_BATCH_SELECTION,
+  MAX_NODE_SEARCH_LENGTH,
+} from '@uni-conf/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -27,6 +33,8 @@ type ManualNodeCreateBody = {
 
 type ResolvedManualNodeInput = Required<Pick<ManualNodeCreateBody, 'name' | 'protocol' | 'server' | 'port'>> &
   Pick<ManualNodeCreateBody, 'sourceId' | 'country' | 'countryCode' | 'enabled' | 'tags' | 'notes' | 'rawConfig' | 'parsedConfig'>;
+
+const NODE_BATCH_SQL_CHUNK_SIZE = 90;
 
 // ─── List nodes with filtering/pagination ─────────────────────────────────────
 
@@ -198,6 +206,85 @@ app.post('/', async (c) => {
 
 async function ensureManualNodeZeroSetupState(db: D1Database, ts: string): Promise<void> {
   await ensureZeroSetupDefaults(db, ts);
+}
+
+// ─── Batch enable / disable nodes ─────────────────────────────────────────────
+
+app.put('/batch-enabled', async (c) => {
+  const validation = validateNodeBatchEnabledInput(await c.req.json<unknown>());
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
+  }
+
+  const existingIds = new Set<string>();
+  for (const ids of chunkValues(validation.ids, NODE_BATCH_SQL_CHUNK_SIZE)) {
+    const placeholders = ids.map(() => '?').join(', ');
+    const { results } = await c.env.DB.prepare(
+      `SELECT id FROM nodes WHERE id IN (${placeholders})`
+    )
+      .bind(...ids)
+      .all<{ id: string }>();
+    for (const row of results) existingIds.add(row.id);
+  }
+  const missingIds = validation.ids.filter(id => !existingIds.has(id));
+  if (missingIds.length > 0) {
+    return c.json({
+      success: false,
+      error: `nodes not found: ${missingIds.slice(0, 10).join(', ')}`,
+    }, 404);
+  }
+
+  const ts = now();
+  const statements = chunkValues(validation.ids, NODE_BATCH_SQL_CHUNK_SIZE).map(ids => {
+    const placeholders = ids.map(() => '?').join(', ');
+    return c.env.DB.prepare(
+      `UPDATE nodes SET enabled = ?, updated_at = ? WHERE id IN (${placeholders})`
+    ).bind(validation.enabled ? 1 : 0, ts, ...ids);
+  });
+  await c.env.DB.batch(statements);
+  await ensureZeroSetupDefaults(c.env.DB, ts);
+
+  return c.json({
+    success: true,
+    data: {
+      ids: validation.ids,
+      enabled: validation.enabled,
+      updatedCount: validation.ids.length,
+    },
+  });
+});
+
+type NodeBatchEnabledValidation =
+  | { valid: true; ids: string[]; enabled: boolean }
+  | { valid: false; error: string };
+
+export function validateNodeBatchEnabledInput(value: unknown): NodeBatchEnabledValidation {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { valid: false, error: 'body must be an object' };
+  }
+  const body = value as Record<string, unknown>;
+  if (typeof body.enabled !== 'boolean') {
+    return { valid: false, error: 'enabled must be a boolean' };
+  }
+  if (!Array.isArray(body.ids) || body.ids.length === 0 || body.ids.length > MAX_NODE_BATCH_SELECTION) {
+    return { valid: false, error: `ids must contain between 1 and ${MAX_NODE_BATCH_SELECTION} node ids` };
+  }
+  const ids: string[] = [];
+  for (const value of body.ids) {
+    if (typeof value !== 'string' || !value.trim()) {
+      return { valid: false, error: 'every node id must be a non-empty string' };
+    }
+    ids.push(value.trim());
+  }
+  return { valid: true, ids: [...new Set(ids)], enabled: body.enabled };
+}
+
+function chunkValues<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
 }
 
 // ─── Get node ─────────────────────────────────────────────────────────────────

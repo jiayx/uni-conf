@@ -150,6 +150,7 @@ export function mapRemoteRuleSet(row: Record<string, unknown>): RemoteRuleSet {
     behavior: row.behavior as RemoteRuleSet['behavior'],
     presetSource: (row.preset_source as RemoteRuleSet['presetSource'] | null) ?? undefined,
     presetId: (row.preset_id as string | null) ?? undefined,
+    sourceOverrides: jsonParse<RemoteRuleSet['sourceOverrides']>(row.source_overrides as string | null) ?? {},
     targetGroupId: row.target_group_id as string,
     updateInterval: row.update_interval as number,
     enabled: Boolean(row.enabled),
@@ -174,6 +175,10 @@ export function mapExportConfig(row: Record<string, unknown>): ExportConfig {
     includeRuleIds: jsonParse<string[]>(row.include_rule_ids as string | null) ?? [],
     includeRemoteSetIds:
       jsonParse<string[]>(row.include_remote_set_ids as string | null) ?? [],
+    ruleSetConversionPolicy:
+      row.rule_set_conversion_policy === 'compatible' || row.rule_set_conversion_policy === 'strict'
+        ? row.rule_set_conversion_policy
+        : null,
     extraConfig:
       jsonParse<Record<string, unknown>>(row.extra_config as string | null) ?? undefined,
     createdAt: row.created_at as string,

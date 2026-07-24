@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import {
   isVisibleBusinessRoutingGroup,
   isCustomBusinessRoutingGroup,
@@ -14,6 +16,8 @@ import {
 import { api } from '@/lib/api'
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
+import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
+import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import {
   DEFAULT_HEALTH_CHECK,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
@@ -56,23 +60,34 @@ function createEmptyForm(order: number): GroupForm {
 
 export function Groups() {
   const { t } = useTranslation()
-  const { groups, loading, fetchGroups, addGroup, updateGroup, deleteGroup, reorderGroups } = useGroupsStore()
+  const confirmAction = useConfirmDialog()
+  const { groups, loading, error: loadError, fetchGroups, addGroup, updateGroup, deleteGroup, reorderGroups } = useGroupsStore()
   const applySettings = useSettingsStore(state => state.applySettings)
   const [showModal, setShowModal] = useState(false)
   const [editingGroup, setEditingGroup] = useState<ProxyGroup | null>(null)
   const [form, setForm] = useState<GroupForm>(() => createEmptyForm(0))
-  const [formError, setFormError] = useState('')
+  const [initialForm, setInitialForm] = useState<GroupForm>(() => createEmptyForm(0))
+  const [formError, setFormError] = useState<unknown | null>(null)
+  const [actionError, setActionError] = useState<unknown | null>(null)
+  const [formSaving, setFormSaving] = useState(false)
+  const [rowAction, setRowAction] = useState<{ id: string; type: 'toggle' | 'delete' } | null>(null)
+  const [reordering, setReordering] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
   const [outletPreferences, setOutletPreferences] = useState<Record<string, string>>({})
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingPreferenceId, setSavingPreferenceId] = useState<string | null>(null)
+  const [expandedPreferenceIds, setExpandedPreferenceIds] = useState<Set<string>>(() => new Set())
+  const formDirty = showModal && !formValuesEqual(form, initialForm)
+  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
 
   useEffect(() => {
     void fetchGroups()
-    void api.settings.get().then(settings => {
-      setActiveTemplate(settings.routingPolicyTemplate)
-      setOutletPreferences(settings.routingOutletPreferences ?? {})
-    })
+    void api.settings.get()
+      .then(settings => {
+        setActiveTemplate(settings.routingPolicyTemplate)
+        setOutletPreferences(settings.routingOutletPreferences ?? {})
+      })
+      .catch(setActionError)
   }, [fetchGroups])
 
   const visibleGroups = useMemo(
@@ -121,15 +136,16 @@ export function Groups() {
     [activeTemplate]
   )
   const openCreate = () => {
+    const nextForm = createEmptyForm(visibleGroups.length)
     setEditingGroup(null)
-    setForm(createEmptyForm(visibleGroups.length))
-    setFormError('')
+    setForm(nextForm)
+    setInitialForm(nextForm)
+    setFormError(null)
     setShowModal(true)
   }
 
   const openEdit = (group: ProxyGroup) => {
-    setEditingGroup(group)
-    setForm({
+    const nextForm: GroupForm = {
       name: group.name,
       type: group.type,
       collectionIds: group.collectionIds,
@@ -142,9 +158,21 @@ export function Groups() {
       enabled: group.enabled,
       order: group.order,
       isBuiltin: group.isBuiltin,
-    })
-    setFormError('')
+    }
+    setEditingGroup(group)
+    setForm(nextForm)
+    setInitialForm(nextForm)
+    setFormError(null)
     setShowModal(true)
+  }
+
+  useRequestedEdit(groups, openEdit)
+
+  const closeFormModal = async () => {
+    if (!(await confirmDiscardForm())) return
+    setShowModal(false)
+    setEditingGroup(null)
+    setFormError(null)
   }
 
   const handleSave = async () => {
@@ -160,24 +188,49 @@ export function Groups() {
     }
 
     if (!payload.name) {
-      setFormError('name is required')
+      setFormError(t('groups.name_required'))
       return
     }
 
-    if (editingGroup) {
-      await updateGroup(editingGroup.id, payload)
-    } else {
-      await addGroup(payload)
+    setFormSaving(true)
+    setFormError(null)
+    try {
+      if (editingGroup) {
+        await updateGroup(editingGroup.id, payload)
+      } else {
+        await addGroup(payload)
+      }
+      setShowModal(false)
+      setEditingGroup(null)
+      setForm(createEmptyForm(visibleGroups.length))
+    } catch (error) {
+      setFormError(error)
+    } finally {
+      setFormSaving(false)
     }
+  }
 
-    setShowModal(false)
-    setEditingGroup(null)
-    setForm(createEmptyForm(visibleGroups.length))
+  const handleDelete = async (group: ProxyGroup) => {
+    if (!(await confirmAction({
+      description: t('groups.delete_confirm'),
+      confirmLabel: t('common.delete'),
+      danger: true,
+    }))) return
+    setRowAction({ id: group.id, type: 'delete' })
+    setActionError(null)
+    try {
+      await deleteGroup(group.id)
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setRowAction(null)
+    }
   }
 
   const handleTemplateChange = async (templateId: RoutingPolicyTemplateId) => {
     const template = ROUTING_POLICY_TEMPLATES.find(item => item.id === templateId)
     setSavingTemplate(true)
+    setActionError(null)
     try {
       const updated = await api.settings.update({
         routingPolicyTemplate: templateId,
@@ -187,6 +240,8 @@ export function Groups() {
       setActiveTemplate(updated.routingPolicyTemplate)
       setOutletPreferences(updated.routingOutletPreferences ?? {})
       await fetchGroups()
+    } catch (error) {
+      setActionError(error)
     } finally {
       setSavingTemplate(false)
     }
@@ -200,17 +255,20 @@ export function Groups() {
       delete nextPreferences[group.id]
     }
     setSavingPreferenceId(group.id)
+    setActionError(null)
     try {
       const updated = await api.settings.update({ routingOutletPreferences: nextPreferences })
       applySettings(updated)
       setOutletPreferences(updated.routingOutletPreferences ?? {})
       await fetchGroups()
+    } catch (error) {
+      setActionError(error)
     } finally {
       setSavingPreferenceId(null)
     }
   }
 
-  const moveCustomGroup = (groupId: string, direction: -1 | 1) => {
+  const moveCustomGroup = async (groupId: string, direction: -1 | 1) => {
     const index = customRoutingGroups.findIndex(group => group.id === groupId)
     const target = index + direction
     if (target < 0 || target >= customRoutingGroups.length) return
@@ -226,7 +284,27 @@ export function Groups() {
     const customIds = new Set(customRoutingGroups.map(group => group.id))
     const customQueue = [...orderedCustom]
     const ordered = groups.map(group => customIds.has(group.id) ? customQueue.shift()! : group)
-    void reorderGroups(ordered.map(group => group.id))
+    setReordering(true)
+    setActionError(null)
+    try {
+      await reorderGroups(ordered.map(group => group.id))
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setReordering(false)
+    }
+  }
+
+  const handleToggleEnabled = async (group: ProxyGroup) => {
+    setRowAction({ id: group.id, type: 'toggle' })
+    setActionError(null)
+    try {
+      await updateGroup(group.id, { enabled: !group.enabled })
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setRowAction(null)
+    }
   }
 
   const typeLabel = (type: string) => ({
@@ -245,6 +323,8 @@ export function Groups() {
         description={t('groups.description')}
         actions={<Button onClick={openCreate} icon={<PlusIcon />}>{t('groups.new')}</Button>}
       />
+      {loadError != null && <ErrorNotice error={loadError} />}
+      {actionError != null && <ErrorNotice error={actionError} />}
       <section className={styles.templatePanel}>
         <div className={styles.templateHeader}>
           <div>
@@ -259,6 +339,7 @@ export function Groups() {
               key={template.id}
               type="button"
               className={`${styles.templateItem} ${template.active ? styles.templateItemActive : ''}`}
+              aria-pressed={template.active}
               onClick={() => void handleTemplateChange(template.id)}
               disabled={savingTemplate}
             >
@@ -269,8 +350,6 @@ export function Groups() {
                 </Badge>
               </div>
               <div className={styles.templateDesc}>{template.description}</div>
-              <div className={styles.templateFoundation}>{t('groups.rule_foundation')}: {RULE_TARGET_FOUNDATION_GROUP_NAMES.join(' / ')}</div>
-              <div className={styles.templateFoundation}>{t('groups.node_outlets')}: {GLOBAL_NODE_OUTLET_GROUP_NAMES.join(' / ')}</div>
               <div className={styles.templateMembers}>
                 {t('groups.business_groups')}: {template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : t('common.none')}
               </div>
@@ -303,50 +382,55 @@ export function Groups() {
         </div>
       </section>
       {foundationSections.length > 0 && (
-        <section className={styles.foundationPanel}>
-          <div className={styles.foundationHeader}>
+        <details className={styles.foundationPanel}>
+          <summary className={styles.foundationHeader}>
             <div>
               <div className={styles.foundationTitle}>{t('groups.foundation_title')}</div>
               <div className={styles.foundationMeta}>{t('groups.foundation_meta')}</div>
             </div>
-          </div>
-          {foundationSections.map(section => (
-            <div key={section.title} className={styles.foundationSection}>
-              <div className={styles.foundationSectionHeader}>
-                <div className={styles.foundationSectionTitle}>{section.title}</div>
-                <div className={styles.foundationSectionDesc}>{section.description}</div>
-              </div>
-              <div className={styles.foundationGrid}>
-                {section.groups.map(group => (
-                  <div key={group.id} className={styles.foundationItem}>
-                    <div className={styles.foundationItemTop}>
-                      <span className={styles.foundationName}>{group.name}</span>
-                      <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
+            <span className={styles.foundationExpandHint}>{t('groups.foundation_expand_hint')}</span>
+          </summary>
+          <div className={styles.foundationBody}>
+            {foundationSections.map(section => (
+              <div key={section.title} className={styles.foundationSection}>
+                <div className={styles.foundationSectionHeader}>
+                  <div className={styles.foundationSectionTitle}>{section.title}</div>
+                  <div className={styles.foundationSectionDesc}>{section.description}</div>
+                </div>
+                <div className={styles.foundationGrid}>
+                  {section.groups.map(group => (
+                    <div key={group.id} className={styles.foundationItem}>
+                      <div className={styles.foundationItemTop}>
+                        <span className={styles.foundationName}>{group.name}</span>
+                        <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
+                      </div>
+                      <div className={styles.foundationSummary}>{describeFoundationGroup(group, t)}</div>
                     </div>
-                    <div className={styles.foundationSummary}>{describeFoundationGroup(group, t)}</div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </section>
+            ))}
+          </div>
+        </details>
       )}
       {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
         <div className={styles.list}>
           {visibleGroups.map(group => {
             const customIndex = customRoutingGroups.findIndex(item => item.id === group.id)
+            const preferenceExpanded = expandedPreferenceIds.has(group.id)
+            const preferredOutlet = outletPreferences[group.id]
             return (
               <Card key={group.id} className={styles.groupCard}>
                 {!group.isBuiltin && (
                   <div className={styles.orderControls}>
-                    <Button variant="ghost" size="sm" disabled={customIndex <= 0} onClick={() => moveCustomGroup(group.id, -1)} title={t('common.move_up')}>
+                    <Button variant="ghost" size="sm" disabled={reordering || customIndex <= 0} onClick={() => void moveCustomGroup(group.id, -1)} title={t('common.move_up')}>
                       <ArrowUpIcon />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={customIndex < 0 || customIndex === customRoutingGroups.length - 1}
-                      onClick={() => moveCustomGroup(group.id, 1)}
+                      disabled={reordering || customIndex < 0 || customIndex === customRoutingGroups.length - 1}
+                      onClick={() => void moveCustomGroup(group.id, 1)}
                       title={t('common.move_down')}
                     >
                       <ArrowDownIcon />
@@ -367,31 +451,61 @@ export function Groups() {
                   </div>
                   <div className={styles.summary}>{describeRoutingGroupMembers(group, t)}</div>
                   {group.groupIds.length > 0 && (
-                    <label className={styles.preferenceRow}>
-                      <span>{t('groups.default_outlet')}</span>
-                      <select
-                        className={styles.preferenceSelect}
-                        value={outletPreferences[group.id] ?? ''}
-                        onChange={event => void handleOutletPreference(group, event.target.value)}
-                        disabled={savingPreferenceId === group.id}
+                    <div className={styles.preferenceDisclosure}>
+                      <button
+                        type="button"
+                        className={styles.preferenceToggle}
+                        aria-expanded={preferenceExpanded}
+                        aria-controls={`group-preference-${group.id}`}
+                        onClick={() => setExpandedPreferenceIds(current => toggleSet(current, group.id))}
                       >
-                        <option value="">{t('groups.system_recommended', { outlet: getGroupName(groups, group.groupIds[0]) })}</option>
-                        {group.groupIds.map(id => (
-                          <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
-                        ))}
-                      </select>
-                    </label>
+                        <span>{t('groups.default_outlet')}</span>
+                        <strong>{preferredOutlet
+                          ? getOutletNameByRef(groups, preferredOutlet)
+                          : t('groups.system_recommended_short', { outlet: getGroupName(groups, group.groupIds[0]) })}</strong>
+                      </button>
+                      {preferenceExpanded && (
+                        <label id={`group-preference-${group.id}`} className={styles.preferenceRow}>
+                          <span>{t('groups.default_outlet_for', { name: group.name })}</span>
+                          <select
+                            className={styles.preferenceSelect}
+                            value={preferredOutlet ?? ''}
+                            onChange={event => void handleOutletPreference(group, event.target.value)}
+                            disabled={savingPreferenceId === group.id}
+                          >
+                            <option value="">{t('groups.system_recommended', { outlet: getGroupName(groups, group.groupIds[0]) })}</option>
+                            {group.groupIds.map(id => (
+                              <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </div>
                   )}
                 </div>
                 {!group.isBuiltin && (
                   <div className={styles.cardActions}>
-                    <Button variant="ghost" size="sm" onClick={() => void updateGroup(group.id, { enabled: !group.enabled })}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={rowAction?.id === group.id && rowAction.type === 'toggle'}
+                      disabled={rowAction?.id === group.id}
+                      onClick={() => void handleToggleEnabled(group)}
+                    >
                       {group.enabled ? t('common.disable') : t('common.enable')}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(group)}>
+                    <Button variant="ghost" size="sm" disabled={rowAction?.id === group.id} onClick={() => openEdit(group)}>
                       {t('common.edit')}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { if (confirm(t('groups.delete_confirm'))) void deleteGroup(group.id) }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={rowAction?.id === group.id && rowAction.type === 'delete'}
+                      disabled={rowAction?.id === group.id}
+                      aria-label={t('groups.delete_group', { name: group.name })}
+                      title={t('groups.delete_group', { name: group.name })}
+                      onClick={() => void handleDelete(group)}
+                    >
                       <TrashIcon />
                     </Button>
                   </div>
@@ -405,22 +519,25 @@ export function Groups() {
 
       <Modal
         open={showModal}
-        onOpenChange={setShowModal}
+        onOpenChange={open => {
+          if (!open) void closeFormModal()
+        }}
         title={editingGroup ? t('common.edit') : t('groups.new')}
         size="lg"
+        closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
-            <Button onClick={() => void handleSave()}>{t('common.save')}</Button>
+            <Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+            <Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button>
           </>
         }
       >
-        {formError && <div className={styles.formError}>{formError}</div>}
+        {formError != null && <ErrorNotice error={formError} className={styles.formError} />}
         <div className={styles.formGrid}>
           <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} placeholder="My Proxy Group" />
           <div>
-            <label className={styles.selectLabel}>{t('common.type')}</label>
-            <select className={styles.select} value={form.type} onChange={e => setFormValue('type', e.target.value as GroupType, setForm)}>
+            <label className={styles.selectLabel} htmlFor="policy-group-type">{t('common.type')}</label>
+            <select id="policy-group-type" className={styles.select} value={form.type} onChange={e => setFormValue('type', e.target.value as GroupType, setForm)}>
               {USER_GROUP_TYPES.map(type => <option key={type} value={type}>{typeLabel(type)}</option>)}
             </select>
           </div>
@@ -500,4 +617,15 @@ function getGroupName(groups: ProxyGroup[], id: string | undefined): string {
 
 function getOutletRef(groups: ProxyGroup[], id: string): string {
   return groups.find(group => group.id === id)?.outletRef ?? `group:${id}`
+}
+
+function getOutletNameByRef(groups: ProxyGroup[], outletRef: string): string {
+  return groups.find(group => group.outletRef === outletRef || `group:${group.id}` === outletRef)?.name ?? outletRef
+}
+
+function toggleSet<T>(source: Set<T>, value: T): Set<T> {
+  const next = new Set(source)
+  if (next.has(value)) next.delete(value)
+  else next.add(value)
+  return next
 }

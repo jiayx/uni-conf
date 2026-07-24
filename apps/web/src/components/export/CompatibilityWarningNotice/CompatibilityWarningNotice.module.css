@@ -1,0 +1,14 @@
+.notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.notice span { min-width: 0; }
+.notice a { flex-shrink: 0; color: var(--color-accent); font-weight: 500; text-decoration: none; }
+.notice a:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .notice { flex-direction: column; }
+}

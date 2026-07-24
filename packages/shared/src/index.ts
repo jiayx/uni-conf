@@ -1,5 +1,5 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { AutoNodeGroupType, NormalizedProxyConfig, ProxyProtocol, RuleSetBehavior, SourceFormat } from '@uni-conf/types';
+import type { AutoNodeGroupType, NormalizedProxyConfig, ProxyProtocol, RuleSetBehavior, RuleType, SourceFormat } from '@uni-conf/types';
 
 export interface CountryInfo {
   country: string;
@@ -17,6 +17,10 @@ export const DEFAULT_NODE_POOL_COLLECTION_ID = 'builtin-default-node-pool';
 export const DEFAULT_NODE_POOL_PREFIX = '[uni-conf:default-node-pool]';
 export const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
 export const MAX_NODE_SEARCH_LENGTH = 200;
+export const MAX_NODE_BATCH_SELECTION = 500;
+export const MAX_RULE_BATCH_SELECTION = 500;
+export const MAX_SOURCE_CONTENT_BYTES = 4 * 1024 * 1024;
+export const MAX_BACKUP_FILE_BYTES = 25 * 1024 * 1024;
 
 export const AUTO_NODE_GROUP_TYPE_ORDER = ['select', 'url-test', 'fallback'] as const satisfies readonly AutoNodeGroupType[];
 
@@ -452,7 +456,7 @@ export type RuleSetFormat =
   | 'stash'
   | 'text';
 
-type RuleCompatibilityType =
+export type RuleCompatibilityType =
   | 'DOMAIN'
   | 'DOMAIN-SUFFIX'
   | 'DOMAIN-KEYWORD'
@@ -474,7 +478,7 @@ type RuleCompatibilityType =
   | 'SCRIPT'
   | 'MATCH';
 
-type RuleCompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
+export type RuleCompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
 
 export const EXPORT_SUBSCRIPTION_FORMATS: ExportSubscriptionFormat[] = [
   'mihomo',
@@ -520,21 +524,21 @@ export const RULE_COMPATIBILITY: Record<RuleCompatibilityType, Partial<Record<Ex
   'DOMAIN': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
   'DOMAIN-SUFFIX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
   'DOMAIN-KEYWORD': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-REGEX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
+  'DOMAIN-REGEX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
   'IP-CIDR': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
   'IP-CIDR6': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'IP-ASN': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
+  'IP-ASN': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'full', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
   'GEOIP': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'GEOSITE': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
-  'PROCESS-NAME': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'partial' },
-  'PROCESS-PATH': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
-  'PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'SRC-PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'GEOSITE': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'PROCESS-NAME': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'PROCESS-PATH': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
+  'PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
+  'SRC-PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
   'SRC-IP-CIDR': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'PROTOCOL': { mihomo: 'full', clash: 'full', singbox: 'partial', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'NETWORK': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
+  'PROTOCOL': { mihomo: 'partial', clash: 'partial', singbox: 'partial', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'full' },
+  'NETWORK': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
   'IN-TYPE': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'unsupported', egern: 'unsupported' },
-  'RULE-SET': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'partial', quantumultx: 'full', stash: 'full', egern: 'full' },
+  'RULE-SET': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
   'SCRIPT': { mihomo: 'partial', clash: 'partial', singbox: 'unsupported', loon: 'partial', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
   'MATCH': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
 };
@@ -556,20 +560,576 @@ export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
   }));
 }
 
-export const COMPATIBLE_RULE_SET_FORMATS: Partial<Record<ExportSubscriptionFormat, RuleSetFormat[]>> = {
-  mihomo: ['mihomo', 'clash', 'stash', 'text'],
-  clash: ['mihomo', 'clash', 'stash', 'text'],
-  singbox: ['singbox'],
-  loon: ['loon', 'surge', 'shadowrocket', 'text'],
-  surge: ['surge', 'text'],
-  shadowrocket: ['shadowrocket', 'surge', 'text'],
-  quantumultx: ['quantumultx', 'text'],
-  stash: ['stash', 'mihomo', 'clash', 'text'],
-  egern: ['egern', 'text'],
-};
+export type RuleExportCompatibilityReason =
+  | 'protocol-to-network'
+  | 'network-to-protocol'
+  | 'target-rule-spelling'
+  | 'unsupported-rule-value';
+
+export interface RuleExportResolution {
+  level: RuleCompatibilityLevel;
+  type: string;
+  payload: string;
+  reason?: RuleExportCompatibilityReason;
+}
+
+const SINGBOX_SNIFF_PROTOCOLS = new Set([
+  'http', 'tls', 'quic', 'stun', 'dns', 'bittorrent', 'dtls', 'ssh', 'rdp', 'ntp',
+]);
+const SURGE_PROTOCOLS = new Set([
+  'http', 'https', 'tcp', 'udp', 'doh', 'doh3', 'doq', 'quic', 'stun',
+]);
+const EGERN_PROTOCOLS = new Set([
+  'tcp', 'udp', 'http', 'https', 'quic', 'stun',
+]);
+const LOON_PROTOCOLS = new Set(['tcp', 'udp']);
+
+/**
+ * Resolves value-dependent compatibility and an exact target rule spelling.
+ * Type-only matrices cannot express cases such as Surge PROTOCOL versus
+ * Mihomo NETWORK, or sing-box network values versus sniffed protocols.
+ */
+export function resolveRuleForExport(
+  type: RuleType,
+  payload: string,
+  format: ExportSubscriptionFormat
+): RuleExportResolution {
+  const normalizedPayload = payload.trim().toLowerCase();
+  if (type === 'PORT' && (format === 'mihomo' || format === 'clash' || format === 'stash')) {
+    return {
+      level: 'convert',
+      type: 'DST-PORT',
+      payload,
+      reason: 'target-rule-spelling',
+    };
+  }
+  if (type === 'PORT' && format === 'surge') {
+    return {
+      level: 'convert',
+      type: 'DEST-PORT',
+      payload,
+      reason: 'target-rule-spelling',
+    };
+  }
+  if (type === 'PORT' && format === 'loon') {
+    return {
+      level: 'convert',
+      type: 'DEST-PORT',
+      payload,
+      reason: 'target-rule-spelling',
+    };
+  }
+  if (type === 'PORT' && format === 'shadowrocket') {
+    return {
+      level: 'convert',
+      type: 'DST-PORT',
+      payload,
+      reason: 'target-rule-spelling',
+    };
+  }
+  if (type === 'IP-ASN' && format === 'loon') {
+    return {
+      level: 'convert',
+      type: 'IPASN',
+      payload,
+      reason: 'target-rule-spelling',
+    };
+  }
+  if (format === 'quantumultx') {
+    const typeMap: Partial<Record<RuleType, string>> = {
+      DOMAIN: 'HOST',
+      'DOMAIN-SUFFIX': 'HOST-SUFFIX',
+      'DOMAIN-KEYWORD': 'HOST-KEYWORD',
+      'IP-CIDR6': 'IP6-CIDR',
+      MATCH: 'FINAL',
+    };
+    const targetType = typeMap[type];
+    if (targetType) {
+      return {
+        level: 'convert',
+        type: targetType,
+        payload,
+        reason: 'target-rule-spelling',
+      };
+    }
+  }
+  if (type === 'SRC-IP-CIDR' && format === 'surge') {
+    return {
+      level: 'convert',
+      type: 'SRC-IP',
+      payload,
+      reason: 'target-rule-spelling',
+    };
+  }
+  if (type === 'NETWORK') {
+    if (format === 'singbox') {
+      return ['tcp', 'udp', 'icmp'].includes(normalizedPayload)
+        ? { level: 'full', type, payload: normalizedPayload }
+        : unsupportedRuleValue(type, payload);
+    }
+    if (format === 'mihomo' || format === 'clash' || format === 'stash') {
+      return ['tcp', 'udp'].includes(normalizedPayload)
+        ? { level: 'full', type, payload: normalizedPayload }
+        : unsupportedRuleValue(type, payload);
+    }
+    if (format === 'surge' && ['tcp', 'udp'].includes(normalizedPayload)) {
+      return {
+        level: 'convert',
+        type: 'PROTOCOL',
+        payload: normalizedPayload.toUpperCase(),
+        reason: 'network-to-protocol',
+      };
+    }
+    if (format === 'loon' && LOON_PROTOCOLS.has(normalizedPayload)) {
+      return {
+        level: 'convert',
+        type: 'PROTOCOL',
+        payload: normalizedPayload.toUpperCase(),
+        reason: 'network-to-protocol',
+      };
+    }
+    if (format === 'egern' && ['tcp', 'udp'].includes(normalizedPayload)) {
+      return {
+        level: 'convert',
+        type: 'PROTOCOL',
+        payload: normalizedPayload,
+        reason: 'network-to-protocol',
+      };
+    }
+    return unsupportedRuleValue(type, payload);
+  }
+
+  if (type === 'PROTOCOL') {
+    if (
+      (format === 'mihomo' || format === 'clash' || format === 'stash')
+      && ['tcp', 'udp'].includes(normalizedPayload)
+    ) {
+      return {
+        level: 'convert',
+        type: 'NETWORK',
+        payload: normalizedPayload,
+        reason: 'protocol-to-network',
+      };
+    }
+    if (format === 'singbox') {
+      if (['tcp', 'udp'].includes(normalizedPayload)) {
+        return {
+          level: 'convert',
+          type: 'NETWORK',
+          payload: normalizedPayload,
+          reason: 'protocol-to-network',
+        };
+      }
+      return SINGBOX_SNIFF_PROTOCOLS.has(normalizedPayload)
+        ? { level: 'full', type, payload: normalizedPayload }
+        : unsupportedRuleValue(type, payload);
+    }
+    if (format === 'surge') {
+      return SURGE_PROTOCOLS.has(normalizedPayload)
+        ? { level: 'full', type, payload: normalizedPayload.toUpperCase() }
+        : unsupportedRuleValue(type, payload);
+    }
+    if (format === 'loon') {
+      return LOON_PROTOCOLS.has(normalizedPayload)
+        ? { level: 'full', type, payload: normalizedPayload.toUpperCase() }
+        : unsupportedRuleValue(type, payload);
+    }
+    if (format === 'egern') {
+      return EGERN_PROTOCOLS.has(normalizedPayload)
+        ? { level: 'full', type, payload: normalizedPayload }
+        : unsupportedRuleValue(type, payload);
+    }
+    return unsupportedRuleValue(type, payload);
+  }
+
+  return {
+    level: getRuleCompatibilityLevel(type, format),
+    type,
+    payload,
+  };
+}
+
+export function getRuleCompatibilityForPayload(
+  type: RuleType,
+  payload: string
+): Array<{
+  client: ExportSubscriptionFormat;
+  level: RuleCompatibilityLevel;
+}> {
+  return EXPORT_SUBSCRIPTION_FORMATS.map((format) => ({
+    client: format,
+    level: resolveRuleForExport(type, payload, format).level,
+  }));
+}
+
+function unsupportedRuleValue(type: RuleType, payload: string): RuleExportResolution {
+  return {
+    level: 'unsupported',
+    type,
+    payload,
+    reason: 'unsupported-rule-value',
+  };
+}
+
+export function supportsRuleNoResolve(
+  type: RuleType,
+  format: ExportSubscriptionFormat
+): boolean {
+  if (format === 'nodes_base64' || format === 'nodes_raw' || format === 'singbox' || format === 'quantumultx') {
+    return false;
+  }
+  return ['IP-CIDR', 'IP-CIDR6', 'IP-ASN', 'GEOIP'].includes(type);
+}
+
+export type RulePayloadValidationCode =
+  | 'required'
+  | 'invalid-domain-regex'
+  | 'invalid-ipv4-cidr'
+  | 'invalid-ipv6-cidr'
+  | 'invalid-ip-cidr'
+  | 'invalid-port'
+  | 'invalid-asn'
+  | 'invalid-network'
+  | 'invalid-token';
+
+export type RulePayloadValidationResult =
+  | { valid: true; payload: string }
+  | { valid: false; code: RulePayloadValidationCode; message: string };
+
+export type RulePortPayload =
+  | { kind: 'single'; port: number }
+  | { kind: 'range'; range: string };
+
+/**
+ * Validates the semantics that UniConf's manual-rule exporters rely on and
+ * returns the canonical payload stored in D1. Keep this runtime-neutral so the
+ * browser preview and Worker write paths cannot drift.
+ */
+export function validateAndNormalizeRulePayload(
+  type: RuleType,
+  value: unknown
+): RulePayloadValidationResult {
+  if (type === 'MATCH') return { valid: true, payload: '' };
+  const payload = typeof value === 'string' ? value.trim() : '';
+  if (!payload) {
+    return { valid: false, code: 'required', message: 'payload is required unless type is MATCH' };
+  }
+
+  if (type === 'DOMAIN-REGEX') {
+    try {
+      new RegExp(payload);
+    } catch {
+      return { valid: false, code: 'invalid-domain-regex', message: 'payload must be a valid domain regular expression' };
+    }
+  }
+
+  if (type === 'IP-CIDR' && !isIpv4Cidr(payload)) {
+    return { valid: false, code: 'invalid-ipv4-cidr', message: 'payload must be a valid IPv4 CIDR' };
+  }
+  if (type === 'IP-CIDR6' && !isIpv6Cidr(payload)) {
+    return { valid: false, code: 'invalid-ipv6-cidr', message: 'payload must be a valid IPv6 CIDR' };
+  }
+  if (type === 'SRC-IP-CIDR' && !isIpv4Cidr(payload) && !isIpv6Cidr(payload)) {
+    return { valid: false, code: 'invalid-ip-cidr', message: 'payload must be a valid IPv4 or IPv6 CIDR' };
+  }
+
+  if (type === 'PORT' || type === 'SRC-PORT') {
+    const parsed = parseRulePortPayload(payload);
+    if (!parsed) {
+      return {
+        valid: false,
+        code: 'invalid-port',
+        message: 'payload must be a port from 1 to 65535 or an ascending range such as 8000-9000',
+      };
+    }
+    return {
+      valid: true,
+      payload: parsed.kind === 'single' ? String(parsed.port) : parsed.range.replace(':', '-'),
+    };
+  }
+
+  if (type === 'IP-ASN') {
+    const match = /^(?:AS)?(\d+)$/i.exec(payload);
+    const asn = match ? Number(match[1]) : Number.NaN;
+    if (!Number.isSafeInteger(asn) || asn < 1 || asn > 4_294_967_295) {
+      return { valid: false, code: 'invalid-asn', message: 'payload must be an ASN from 1 to 4294967295' };
+    }
+    return { valid: true, payload: String(asn) };
+  }
+
+  if (type === 'NETWORK') {
+    const network = payload.toLowerCase();
+    if (!['tcp', 'udp', 'icmp'].includes(network)) {
+      return { valid: false, code: 'invalid-network', message: 'payload must be tcp, udp, or icmp' };
+    }
+    return { valid: true, payload: network };
+  }
+
+  if ((type === 'PROTOCOL' || type === 'IN-TYPE') && !/^[a-z0-9][a-z0-9_-]*$/i.test(payload)) {
+    return {
+      valid: false,
+      code: 'invalid-token',
+      message: 'payload must contain only letters, numbers, underscores, or hyphens',
+    };
+  }
+
+  return {
+    valid: true,
+    payload: type === 'PROTOCOL' || type === 'IN-TYPE' ? payload.toLowerCase() : payload,
+  };
+}
+
+export function parseRulePortPayload(value: string): RulePortPayload | null {
+  const payload = value.trim();
+  const single = /^\d+$/.exec(payload);
+  if (single) {
+    const port = Number(payload);
+    return isValidPort(port) ? { kind: 'single', port } : null;
+  }
+  const range = /^(\d+)\s*[-:]\s*(\d+)$/.exec(payload);
+  if (!range) return null;
+  const start = Number(range[1]);
+  const end = Number(range[2]);
+  return isValidPort(start) && isValidPort(end) && start <= end
+    ? { kind: 'range', range: `${start}:${end}` }
+    : null;
+}
+
+function isValidPort(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= 65535;
+}
+
+function isIpv4Cidr(value: string): boolean {
+  const match = /^([^/]+)\/(\d+)$/.exec(value);
+  if (!match) return false;
+  const prefix = Number(match[2]);
+  const octets = match[1]!.split('.');
+  return Number.isInteger(prefix)
+    && prefix >= 0
+    && prefix <= 32
+    && octets.length === 4
+    && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
+}
+
+function isIpv6Cidr(value: string): boolean {
+  const match = /^([^/]+)\/(\d+)$/.exec(value);
+  if (!match) return false;
+  const prefix = Number(match[2]);
+  return Number.isInteger(prefix)
+    && prefix >= 0
+    && prefix <= 128
+    && isIpv6Address(match[1]!);
+}
+
+function isIpv6Address(value: string): boolean {
+  if (!value || value.includes('%') || (value.match(/::/g)?.length ?? 0) > 1) return false;
+  const hasCompression = value.includes('::');
+  const rawParts = value.split(':');
+  const parts = rawParts.filter(Boolean);
+  let units = 0;
+  for (const [index, part] of parts.entries()) {
+    if (/^[0-9a-f]{1,4}$/i.test(part)) {
+      units++;
+      continue;
+    }
+    if (index === parts.length - 1 && isIpv4Address(part)) {
+      units += 2;
+      continue;
+    }
+    return false;
+  }
+  return hasCompression ? units < 8 : units === 8;
+}
+
+function isIpv4Address(value: string): boolean {
+  const octets = value.split('.');
+  return octets.length === 4
+    && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
+}
+
+export type ManagedDnsMode = 'compatible' | 'smart' | 'fake-ip';
+
+export interface ExportClientCapabilities {
+  outputKind: 'full-config' | 'node-subscription';
+  nodeProtocols: readonly ProxyProtocol[];
+  ruleSetFormats: readonly RuleSetFormat[];
+  managedDnsModes: readonly ManagedDnsMode[];
+}
+
+export const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
+export const EXPORT_CAPABILITY_PROFILE_REVISION = 17;
+
+const MIHOMO_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
+  'tuic', 'anytls', 'socks5', 'http', 'https',
+] as const satisfies readonly ProxyProtocol[];
+
+const SINGBOX_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
+  'tuic', 'anytls', 'shadowtls', 'ssh', 'socks5', 'http', 'https', 'wireguard',
+] as const satisfies readonly ProxyProtocol[];
+
+const TEXT_CLIENT_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'vmess', 'trojan', 'anytls', 'socks5', 'http', 'https',
+] as const satisfies readonly ProxyProtocol[];
+
+const SURGE_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'vmess', 'trojan', 'hysteria2', 'anytls', 'socks5', 'http', 'https',
+] as const satisfies readonly ProxyProtocol[];
+
+const LOON_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria2', 'http', 'https',
+] as const satisfies readonly ProxyProtocol[];
+
+const QUANTUMULT_X_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'anytls', 'socks5', 'http', 'https',
+] as const satisfies readonly ProxyProtocol[];
+
+const EGERN_EXPORT_NODE_PROTOCOLS = [
+  'ss', 'vmess', 'vless', 'trojan', 'hysteria2', 'tuic', 'anytls',
+  'socks5', 'http', 'https', 'ssh', 'wireguard',
+] as const satisfies readonly ProxyProtocol[];
+
+const NODE_SUBSCRIPTION_PROTOCOLS = [
+  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
+  'tuic', 'anytls', 'shadowtls', 'ssh', 'socks5', 'http', 'https', 'wireguard',
+] as const satisfies readonly ProxyProtocol[];
+
+/**
+ * Describes what UniConf's current exporters can actually render. This is an
+ * implementation capability registry, not a claim about every version of the
+ * downstream client. Validation and UI compatibility checks should consume
+ * this registry instead of maintaining exporter-specific copies.
+ */
+export const EXPORT_CLIENT_CAPABILITIES = {
+  mihomo: {
+    outputKind: 'full-config',
+    nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
+    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+  },
+  clash: {
+    outputKind: 'full-config',
+    nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
+    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+  },
+  singbox: {
+    outputKind: 'full-config',
+    nodeProtocols: SINGBOX_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['singbox'],
+    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+  },
+  loon: {
+    outputKind: 'full-config',
+    nodeProtocols: LOON_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['loon', 'surge', 'shadowrocket', 'text'],
+    managedDnsModes: ['compatible'],
+  },
+  surge: {
+    outputKind: 'full-config',
+    nodeProtocols: SURGE_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['surge', 'text'],
+    managedDnsModes: ['compatible'],
+  },
+  shadowrocket: {
+    outputKind: 'full-config',
+    nodeProtocols: TEXT_CLIENT_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['shadowrocket', 'surge', 'text'],
+    managedDnsModes: ['compatible'],
+  },
+  quantumultx: {
+    outputKind: 'full-config',
+    nodeProtocols: QUANTUMULT_X_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['quantumultx', 'text'],
+    managedDnsModes: ['compatible'],
+  },
+  stash: {
+    outputKind: 'full-config',
+    nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
+    ruleSetFormats: ['stash', 'mihomo', 'clash', 'text'],
+    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+  },
+  egern: {
+    outputKind: 'full-config',
+    nodeProtocols: EGERN_EXPORT_NODE_PROTOCOLS,
+    // Egern can consume its native YAML sets and Surge-style source lists.
+    ruleSetFormats: ['egern', 'surge', 'text'],
+    managedDnsModes: ['compatible'],
+  },
+  nodes_base64: {
+    outputKind: 'node-subscription',
+    nodeProtocols: NODE_SUBSCRIPTION_PROTOCOLS,
+    ruleSetFormats: [],
+    managedDnsModes: [],
+  },
+  nodes_raw: {
+    outputKind: 'node-subscription',
+    nodeProtocols: NODE_SUBSCRIPTION_PROTOCOLS,
+    ruleSetFormats: [],
+    managedDnsModes: [],
+  },
+} as const satisfies Record<ExportSubscriptionFormat, ExportClientCapabilities>;
+
+export const COMPATIBLE_RULE_SET_FORMATS = Object.fromEntries(
+  EXPORT_SUBSCRIPTION_FORMATS.map((format) => [
+    format,
+    [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats],
+  ])
+) as Record<ExportSubscriptionFormat, RuleSetFormat[]>;
+
+export function getExportClientCapabilities(
+  format: ExportSubscriptionFormat
+): ExportClientCapabilities {
+  return EXPORT_CLIENT_CAPABILITIES[format];
+}
+
+export function getExportCapabilityProfile(format: ExportSubscriptionFormat): {
+  id: typeof EXPORT_CAPABILITY_PROFILE_ID;
+  revision: number;
+  format: ExportSubscriptionFormat;
+} {
+  return {
+    id: EXPORT_CAPABILITY_PROFILE_ID,
+    revision: EXPORT_CAPABILITY_PROFILE_REVISION,
+    format,
+  };
+}
+
+export function serializeExportCapabilityProfile(format: ExportSubscriptionFormat): string {
+  const profile = getExportCapabilityProfile(format);
+  return `${profile.id}/${profile.format}@${profile.revision}`;
+}
+
+export function isNodeProtocolSupportedByExport(
+  protocol: string,
+  format: ExportSubscriptionFormat
+): protocol is ProxyProtocol {
+  return (EXPORT_CLIENT_CAPABILITIES[format].nodeProtocols as readonly string[]).includes(protocol);
+}
+
+export function isLoonTransportSupported(network: unknown): boolean {
+  return ['tcp', 'ws', 'http'].includes(String(network ?? 'tcp'));
+}
+
+export function isEgernTransportSupported(protocol: string, network: unknown): boolean {
+  const transport = String(network ?? 'tcp');
+  if (protocol === 'vmess' || protocol === 'vless') {
+    return ['tcp', 'ws', 'http', 'h2', 'grpc'].includes(transport);
+  }
+  if (protocol === 'trojan') return ['tcp', 'ws'].includes(transport);
+  return true;
+}
+
+export function supportsManagedDnsMode(
+  format: ExportSubscriptionFormat,
+  mode: ManagedDnsMode
+): boolean {
+  return (EXPORT_CLIENT_CAPABILITIES[format].managedDnsModes as readonly ManagedDnsMode[]).includes(mode);
+}
 
 export function getCompatibleRuleSetFormats(format: ExportSubscriptionFormat): RuleSetFormat[] {
-  return COMPATIBLE_RULE_SET_FORMATS[format] ?? [];
+  return [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats];
 }
 
 export function isRuleSetFormatCompatible(
@@ -579,28 +1139,59 @@ export function isRuleSetFormatCompatible(
   return getCompatibleRuleSetFormats(exportFormat).includes(ruleSetFormat as RuleSetFormat);
 }
 
+export function getRuleSetConversionTargetFormat(
+  sourceFormat: string,
+  exportFormat: ExportSubscriptionFormat
+): 'mihomo' | 'singbox' | 'surge' | 'loon' | 'shadowrocket' | 'quantumultx' | 'egern' | null {
+  const textSourceFormats = ['mihomo', 'clash', 'stash', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'text', 'egern'];
+  if (exportFormat === 'singbox' && textSourceFormats.includes(sourceFormat)) {
+    return 'singbox';
+  }
+  if (['mihomo', 'clash', 'stash'].includes(exportFormat) && ['singbox', 'egern'].includes(sourceFormat)) {
+    return 'mihomo';
+  }
+  if (['surge', 'loon', 'shadowrocket', 'quantumultx'].includes(exportFormat)
+    && !isRuleSetFormatCompatible(exportFormat, sourceFormat)
+    && [...textSourceFormats, 'singbox'].includes(sourceFormat)) {
+    return exportFormat as 'surge' | 'loon' | 'shadowrocket' | 'quantumultx';
+  }
+  if (exportFormat === 'egern'
+    && !isRuleSetFormatCompatible(exportFormat, sourceFormat)
+    && [...textSourceFormats, 'singbox'].includes(sourceFormat)) {
+    return 'egern';
+  }
+  return null;
+}
+
 export interface RemoteRuleSetLike {
   url: string;
   format: string;
   presetSource?: string | null;
   presetId?: string | null;
+  sourceOverrides?: Partial<Record<Exclude<ExportSubscriptionFormat, 'nodes_base64' | 'nodes_raw'>, string>> | null;
 }
 
 export function isRemoteRuleSetCompatible(
   exportFormat: ExportSubscriptionFormat,
-  ruleSet: Pick<RemoteRuleSetLike, 'format' | 'presetSource' | 'presetId'>
+  ruleSet: Pick<RemoteRuleSetLike, 'format' | 'presetSource' | 'presetId' | 'sourceOverrides'>
 ): boolean {
+  if (resolveRemoteRuleSetSourceOverride(ruleSet, exportFormat)) return true;
   if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
     if (!supportsQuixoticRuleSetExport(exportFormat)) return false;
-    return isRuleSetFormatCompatible(exportFormat, resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat).format);
+    const resolvedFormat = resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat).format;
+    return isRuleSetFormatCompatible(exportFormat, resolvedFormat)
+      || getRuleSetConversionTargetFormat(resolvedFormat, exportFormat) !== null;
   }
-  return isRuleSetFormatCompatible(exportFormat, ruleSet.format);
+  return isRuleSetFormatCompatible(exportFormat, ruleSet.format)
+    || getRuleSetConversionTargetFormat(ruleSet.format, exportFormat) !== null;
 }
 
 export function resolveRemoteRuleSetForExport(
   ruleSet: RemoteRuleSetLike,
   exportFormat: ExportSubscriptionFormat
 ): { url: string; format: RuleSetFormat } | null {
+  const override = resolveRemoteRuleSetSourceOverride(ruleSet, exportFormat);
+  if (override) return override;
   if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
     if (!supportsQuixoticRuleSetExport(exportFormat)) return null;
     const resolved = resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat);
@@ -610,6 +1201,17 @@ export function resolveRemoteRuleSetForExport(
   return { url: ruleSet.url, format: ruleSet.format as RuleSetFormat };
 }
 
+function resolveRemoteRuleSetSourceOverride(
+  ruleSet: Pick<RemoteRuleSetLike, 'sourceOverrides'>,
+  exportFormat: ExportSubscriptionFormat
+): { url: string; format: RuleSetFormat } | null {
+  if (exportFormat === 'nodes_base64' || exportFormat === 'nodes_raw') return null;
+  const url = ruleSet.sourceOverrides?.[exportFormat];
+  return typeof url === 'string' && url
+    ? { url, format: exportFormat as RuleSetFormat }
+    : null;
+}
+
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
   /官网|官方网站|官方地址|用户中心|客户中心|订阅|更新订阅|订阅地址/,
   /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|总.*流量|流量.*总量|流量[:：]/,
@@ -617,6 +1219,8 @@ export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
   /\b(expire|expired|expires|expiry|traffic|remaining|used|total|reset|subscription|sub|package|plan|quota)\b/i,
   /\b(user\s*center|account\s*center|official\s*site|renew)\b/i,
   /倍率.*(说明|规则|提示)|倍数.*(说明|规则|提示)|高倍率.*(说明|规则|提示)/,
+  /客服|联系方式|联系邮箱|客服邮箱|(?:^|\b)e-?mail(?:$|\b)/i,
+  /^支持\s*(?:AI|流媒体|地区|解锁)\s*[:：]/i,
 ];
 
 export function isSubscriptionInfoNodeName(name: string): boolean {
@@ -835,12 +1439,53 @@ export function supportsQuixoticRuleSetExport(format: string): boolean {
   return format in QUIXOTIC_FORMAT_PATHS;
 }
 
+export function inferQuixoticRuleSetSourceFromUrl(rawUrl: string): { id: string; format: string } | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:') return null;
+
+  const hostname = url.hostname.toLowerCase();
+  const pathname = decodeUrlPathname(url.pathname);
+  let repositoryPath: string | null = null;
+  if (hostname === 'github.com') {
+    const prefix = '/QuixoticHeart/rule-set/raw/refs/heads/ruleset/';
+    if (pathname.toLowerCase().startsWith(prefix.toLowerCase())) repositoryPath = pathname.slice(prefix.length);
+  } else if (hostname === 'raw.githubusercontent.com') {
+    const prefix = '/QuixoticHeart/rule-set/ruleset/';
+    if (pathname.toLowerCase().startsWith(prefix.toLowerCase())) repositoryPath = pathname.slice(prefix.length);
+  }
+  if (!repositoryPath) return null;
+
+  for (const target of Object.values(QUIXOTIC_FORMAT_PATHS)) {
+    const prefix = `${target.path}/`;
+    if (!repositoryPath.startsWith(prefix)) continue;
+    const filename = repositoryPath.slice(prefix.length);
+    const suffix = `.${target.extension}`;
+    if (!filename.endsWith(suffix)) continue;
+    const id = filename.slice(0, -suffix.length);
+    if (/^[a-z0-9][a-z0-9-]*$/.test(id)) return { id, format: target.ruleSetFormat };
+  }
+  return null;
+}
+
 export function buildQuixoticRuleSetUrl(id: string, format: string): string {
   const custom = QUIXOTIC_CUSTOM_PRESETS[id];
   if (custom) return `${QUIXOTIC_MASTER_RAW_BASE}/${custom.path}`;
 
   const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
   return `${QUIXOTIC_RAW_BASE}/${target.path}/${id}.${target.extension}`;
+}
+
+function decodeUrlPathname(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
+  }
 }
 
 export function resolveQuixoticRuleSetForExport(id: string, format: string): { url: string; format: string } {

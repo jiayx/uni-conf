@@ -1,5 +1,5 @@
 import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types';
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types';
 import { now } from '../db/helpers';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
@@ -14,6 +14,7 @@ const EXPORT_NODE_NAMING_MODES = new Set<ExportNodeNamingMode>([
   'source_region_sequence',
   'smart',
 ]);
+const RULE_SET_CONVERSION_POLICIES = new Set<RuleSetConversionPolicy>(['compatible', 'strict']);
 const DEFAULT_AUTO_NODE_GROUP_TYPES: AutoNodeGroupType[] = ['url-test'];
 
 export async function getAppSettings(db: D1Database): Promise<AppSettings> {
@@ -38,6 +39,7 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
     defaultExportToken: normalizeOptionalString(row.default_export_token),
     showCompatibilityWarnings: normalizeBooleanDefault(row.show_compatibility_warnings, true),
+    ruleSetConversionPolicy: normalizeRuleSetConversionPolicy(row.rule_set_conversion_policy),
     enableAutoRefresh: normalizeBooleanDefault(row.enable_auto_refresh, true),
     autoRefreshInterval: normalizePositiveInteger(row.auto_refresh_interval, 1440),
     autoNodeGroupsEnabled: normalizeBooleanDefault(row.auto_node_groups_enabled, true),
@@ -69,6 +71,12 @@ export function normalizeExportNodeNamingMode(value: unknown): ExportNodeNamingM
   return typeof value === 'string' && EXPORT_NODE_NAMING_MODES.has(value as ExportNodeNamingMode)
     ? value as ExportNodeNamingMode
     : 'smart';
+}
+
+export function normalizeRuleSetConversionPolicy(value: unknown): RuleSetConversionPolicy {
+  return typeof value === 'string' && RULE_SET_CONVERSION_POLICIES.has(value as RuleSetConversionPolicy)
+    ? value as RuleSetConversionPolicy
+    : 'compatible';
 }
 
 export function normalizeBooleanDefault(value: unknown, defaultValue: boolean): boolean {

@@ -4,12 +4,14 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { Input } from '@/components/ui/Input/Input'
+import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-node-settings'
 import { api } from '@/lib/api'
 import { clearStoredApiKey } from '@/lib/auth'
 import { useSettingsStore } from '@/store/settings.store'
-import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS } from '@uni-conf/shared'
-import type { AppSettingsPatch, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, ThemePreference } from '@uni-conf/types'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS, MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
+import type { AppSettingsPatch, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; nameKey: string; descriptionKey: string }> = [
@@ -26,43 +28,48 @@ const AUTO_NODE_GROUP_TYPE_PRESETS: Array<{ id: AutoNodeGroupType; nameKey: stri
 
 export function Settings() {
   const { t, i18n } = useTranslation()
+  const confirmAction = useConfirmDialog()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const settingsReadyRef = useRef(false)
+  const settingsMutationRef = useRef(false)
+  const dataActionRef = useRef<'export' | 'import' | 'clear' | null>(null)
+  const [settingsLoading, setSettingsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
+  const [dataAction, setDataAction] = useState<'export' | 'import' | 'clear' | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<unknown | null>(null)
+  const [autoRefreshIntervalDraft, setAutoRefreshIntervalDraft] = useState(DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES)
   const {
     language,
     theme,
     dnsMode,
     exportNodeNamingMode,
     showCompatibilityWarnings,
+    ruleSetConversionPolicy,
     enableAutoRefresh,
     autoRefreshInterval,
     autoNodeGroupsEnabled,
     autoNodeGroupTypes,
     autoNodeGroupIncludeFlag,
-    setLanguage,
-    setTheme,
-    setDnsMode,
-    setExportNodeNamingMode,
-    setShowCompatibilityWarnings,
-    setEnableAutoRefresh,
-    setAutoRefreshInterval,
-    setAutoNodeGroupsEnabled,
-    setAutoNodeGroupTypes,
-    setAutoNodeGroupIncludeFlag,
     applySettings,
   } = useSettingsStore()
 
-  const persistSettings = useCallback(async (patch: AppSettingsPatch) => {
+  const persistSettings = useCallback(async (patch: AppSettingsPatch, onFailure?: () => void) => {
+    if (!settingsReadyRef.current || settingsMutationRef.current || dataActionRef.current != null) return
+    settingsMutationRef.current = true
     setSaving(true)
+    setActionError(null)
+    setSuccessMessage(null)
     try {
       const updated = await api.settings.update(patch)
       applySettings(updated)
-      if (patch.language) void i18n.changeLanguage(updated.language)
-      setStatus(null)
-    } catch (e) {
-      setStatus((e as Error).message)
+      setAutoRefreshIntervalDraft(updated.autoRefreshInterval)
+      if (patch.language) await i18n.changeLanguage(updated.language)
+    } catch (error) {
+      onFailure?.()
+      setActionError(error)
     } finally {
+      settingsMutationRef.current = false
       setSaving(false)
     }
   }, [applySettings, i18n])
@@ -72,52 +79,67 @@ export function Settings() {
       void api.settings.get()
         .then(settings => {
           applySettings(settings)
+          setAutoRefreshIntervalDraft(settings.autoRefreshInterval)
           void i18n.changeLanguage(settings.language)
         })
-        .catch(e => setStatus((e as Error).message))
+        .catch(error => setActionError(error))
+        .finally(() => {
+          settingsReadyRef.current = true
+          setSettingsLoading(false)
+        })
     })
   }, [applySettings, i18n])
 
   const handleLanguage = (lang: Language) => {
-    setLanguage(lang)
-    void i18n.changeLanguage(lang)
     void persistSettings({ language: lang })
   }
 
   const handleTheme = (nextTheme: ThemePreference) => {
-    setTheme(nextTheme)
     void persistSettings({ theme: nextTheme })
   }
 
   const handleDnsMode = (nextDnsMode: DnsMode) => {
-    setDnsMode(nextDnsMode)
     void persistSettings({ dnsMode: nextDnsMode })
   }
 
   const handleExportNodeNamingMode = (nextMode: ExportNodeNamingMode) => {
-    setExportNodeNamingMode(nextMode)
     void persistSettings({ exportNodeNamingMode: nextMode })
   }
 
   const handleAutoNodeGroupsEnabled = (enabled: boolean) => {
-    setAutoNodeGroupsEnabled(enabled)
     void persistSettings({ autoNodeGroupsEnabled: enabled })
   }
 
   const handleAutoNodeGroupType = (type: AutoNodeGroupType) => {
     const patch = buildAutoNodeGroupTypeSettingsPatch(autoNodeGroupTypes, type)
-    setAutoNodeGroupTypes(patch.autoNodeGroupTypes)
-    setAutoNodeGroupsEnabled(patch.autoNodeGroupsEnabled)
     void persistSettings(patch)
   }
 
   const handleAutoNodeGroupIncludeFlag = (includeFlag: boolean) => {
-    setAutoNodeGroupIncludeFlag(includeFlag)
     void persistSettings({ autoNodeGroupIncludeFlag: includeFlag })
   }
 
+  const synchronizeSettings = useCallback(async () => {
+    try {
+      const updated = await api.settings.get()
+      applySettings(updated)
+      setAutoRefreshIntervalDraft(updated.autoRefreshInterval)
+      await i18n.changeLanguage(updated.language)
+    } catch (error) {
+      setActionError(error)
+    }
+  }, [applySettings, i18n])
+
   const handleExport = async () => {
-    if (!confirm(t('settings.export_sensitive_confirm'))) return
+    if (!settingsReadyRef.current || dataActionRef.current != null || settingsMutationRef.current) return
+    dataActionRef.current = 'export'
+    if (!(await confirmAction({ description: t('settings.export_sensitive_confirm') }))) {
+      dataActionRef.current = null
+      return
+    }
+    setDataAction('export')
+    setActionError(null)
+    setSuccessMessage(null)
     try {
       const blob = await api.settings.exportData()
       const url = URL.createObjectURL(blob)
@@ -126,47 +148,92 @@ export function Settings() {
       link.download = `uni-conf-backup-${new Date().toISOString().slice(0, 10)}.json`
       link.click()
       URL.revokeObjectURL(url)
-      setStatus(t('settings.export_success'))
-    } catch (e) {
-      setStatus((e as Error).message)
+      setSuccessMessage(t('settings.export_success'))
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      dataActionRef.current = null
+      setDataAction(null)
     }
   }
 
   const handleImport = async (file: File | undefined) => {
-    if (!file) return
+    if (!file || !settingsReadyRef.current || dataActionRef.current != null || settingsMutationRef.current) return
+    dataActionRef.current = 'import'
+    setDataAction('import')
+    setActionError(null)
+    setSuccessMessage(null)
     try {
+      if (file.size > MAX_BACKUP_FILE_BYTES) {
+        setActionError(t('settings.import_too_large', { size: MAX_BACKUP_FILE_BYTES / 1024 / 1024 }))
+        return
+      }
       const text = await file.text()
+      if (new TextEncoder().encode(text).byteLength > MAX_BACKUP_FILE_BYTES) {
+        setActionError(t('settings.import_too_large', { size: MAX_BACKUP_FILE_BYTES / 1024 / 1024 }))
+        return
+      }
       const data = JSON.parse(text) as unknown
       const validation = await api.settings.validateImportData(data)
-      if (!confirm(t('settings.import_confirm', { count: validation.totalRows, version: validation.version }))) return
+      if (!(await confirmAction({
+        description: t('settings.import_confirm', { count: validation.totalRows, version: validation.version }),
+        danger: true,
+      }))) return
       await api.settings.importData(data)
-      setStatus(t('settings.import_success'))
-    } catch (e) {
-      setStatus((e as Error).message)
+      setSuccessMessage(t('settings.import_success'))
+      await synchronizeSettings()
+    } catch (error) {
+      setActionError(error)
     } finally {
+      dataActionRef.current = null
+      setDataAction(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
   const handleClear = async () => {
-    if (!confirm(t('settings.clear_confirm'))) return
+    if (!settingsReadyRef.current || dataActionRef.current != null || settingsMutationRef.current) return
+    dataActionRef.current = 'clear'
+    if (!(await confirmAction({
+      description: t('settings.clear_confirm'),
+      confirmLabel: t('common.delete'),
+      danger: true,
+    }))) {
+      dataActionRef.current = null
+      return
+    }
+    setDataAction('clear')
+    setActionError(null)
+    setSuccessMessage(null)
     try {
       await api.settings.clearData()
-      setStatus(t('settings.clear_success'))
-    } catch (e) {
-      setStatus((e as Error).message)
+      setSuccessMessage(t('settings.clear_success'))
+      await synchronizeSettings()
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      dataActionRef.current = null
+      setDataAction(null)
     }
   }
 
-  const handleForgetAccessKey = () => {
-    if (!confirm(t('settings.access_key_clear_confirm'))) return
+  const handleForgetAccessKey = async () => {
+    if (!(await confirmAction({
+      description: t('settings.access_key_clear_confirm'),
+      danger: true,
+    }))) return
     clearStoredApiKey()
     window.location.reload()
   }
 
+  const interactionLocked = settingsLoading || saving || dataAction != null
+
   return (
     <div className={styles.page}>
       <PageHeader title={t('settings.title')} />
+      {actionError != null && <ErrorNotice error={actionError} />}
+      {settingsLoading && <div className={styles.status} role="status">{t('common.loading')}</div>}
+      {saving && <div className={styles.status} role="status">{t('settings.saving')}</div>}
 
       {/* Language */}
       <Card className={styles.section}>
@@ -175,7 +242,10 @@ export function Settings() {
           {(['zh', 'en'] as Language[]).map(lang => (
             <button
               key={lang}
+              type="button"
               className={`${styles.optionBtn} ${language === lang ? styles.active : ''}`}
+              aria-pressed={language === lang}
+              disabled={interactionLocked}
               onClick={() => handleLanguage(lang)}
             >
               {lang === 'zh' ? '中文' : 'English'}
@@ -191,7 +261,10 @@ export function Settings() {
           {(['system', 'light', 'dark'] as ThemePreference[]).map(th => (
             <button
               key={th}
+              type="button"
               className={`${styles.optionBtn} ${theme === th ? styles.active : ''}`}
+              aria-pressed={theme === th}
+              disabled={interactionLocked}
               onClick={() => handleTheme(th)}
             >
               <span className={styles.themeIcon}>
@@ -204,7 +277,7 @@ export function Settings() {
       </Card>
 
       {/* DNS */}
-      <Card className={styles.section}>
+      <Card id="dns" className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('settings.dns_mode')}</h2>
         <div className={styles.optionGroup}>
           {DNS_MODE_PRESETS.map(preset => (
@@ -212,7 +285,8 @@ export function Settings() {
               key={preset.id}
               className={`${styles.optionBtn} ${dnsMode === preset.id ? styles.active : ''}`}
               onClick={() => handleDnsMode(preset.id)}
-              disabled={saving}
+              disabled={interactionLocked}
+              aria-pressed={dnsMode === preset.id}
               title={t(dnsDescriptionKey(preset.id))}
             >
               {t(dnsNameKey(preset.id))}
@@ -229,7 +303,8 @@ export function Settings() {
               key={preset.id}
               className={`${styles.optionBtn} ${exportNodeNamingMode === preset.id ? styles.active : ''}`}
               onClick={() => handleExportNodeNamingMode(preset.id)}
-              disabled={saving}
+              disabled={interactionLocked}
+              aria-pressed={exportNodeNamingMode === preset.id}
               title={t(preset.descriptionKey)}
             >
               {t(preset.nameKey)}
@@ -245,7 +320,7 @@ export function Settings() {
             type="checkbox"
             checked={autoNodeGroupsEnabled}
             onChange={e => handleAutoNodeGroupsEnabled(e.target.checked)}
-            disabled={saving}
+            disabled={interactionLocked}
           />
           <span>{t('settings.auto_node_groups_enabled')}</span>
         </label>
@@ -255,7 +330,8 @@ export function Settings() {
               key={preset.id}
               className={`${styles.optionBtn} ${autoNodeGroupTypes.includes(preset.id) ? styles.active : ''}`}
               onClick={() => handleAutoNodeGroupType(preset.id)}
-              disabled={saving || !autoNodeGroupsEnabled}
+              disabled={interactionLocked || !autoNodeGroupsEnabled}
+              aria-pressed={autoNodeGroupTypes.includes(preset.id)}
               title={t(preset.descriptionKey)}
             >
               {t(preset.nameKey)}
@@ -267,7 +343,7 @@ export function Settings() {
             type="checkbox"
             checked={autoNodeGroupIncludeFlag}
             onChange={e => handleAutoNodeGroupIncludeFlag(e.target.checked)}
-            disabled={saving || !autoNodeGroupsEnabled}
+            disabled={interactionLocked || !autoNodeGroupsEnabled}
           />
           <span>{t('settings.auto_node_include_flag')}</span>
         </label>
@@ -277,15 +353,34 @@ export function Settings() {
       {/* Features */}
       <Card className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('settings.features')}</h2>
+        <div id="rule-set-conversion" className={styles.settingBlock}>
+          <div className={styles.settingLabel}>{t('settings.rule_set_conversion_policy')}</div>
+          <div className={styles.optionGroup}>
+            {(['compatible', 'strict'] as RuleSetConversionPolicy[]).map(policy => (
+              <button
+                key={policy}
+                type="button"
+                className={`${styles.optionBtn} ${ruleSetConversionPolicy === policy ? styles.active : ''}`}
+                aria-pressed={ruleSetConversionPolicy === policy}
+                disabled={interactionLocked}
+                onClick={() => {
+                  void persistSettings({ ruleSetConversionPolicy: policy })
+                }}
+              >
+                {t(`settings.rule_set_conversion_${policy}`)}
+              </button>
+            ))}
+          </div>
+          <div className={styles.hint}>{t(`settings.rule_set_conversion_${ruleSetConversionPolicy}_hint`)}</div>
+        </div>
         <label className={styles.toggleRow}>
           <input
             type="checkbox"
             checked={showCompatibilityWarnings}
             onChange={e => {
-              const checked = e.target.checked
-              setShowCompatibilityWarnings(checked)
-              void persistSettings({ showCompatibilityWarnings: checked })
+              void persistSettings({ showCompatibilityWarnings: e.target.checked })
             }}
+            disabled={interactionLocked}
           />
           <span>{t('settings.show_compat_warnings')}</span>
         </label>
@@ -294,27 +389,30 @@ export function Settings() {
             type="checkbox"
             checked={enableAutoRefresh}
             onChange={e => {
-              const checked = e.target.checked
-              setEnableAutoRefresh(checked)
-              void persistSettings({ enableAutoRefresh: checked })
+              void persistSettings({ enableAutoRefresh: e.target.checked })
             }}
+            disabled={interactionLocked}
           />
           <span>{t('settings.auto_refresh')}</span>
         </label>
+        <div className={styles.hint}>{t('settings.auto_refresh_hint')}</div>
         <Input
           label={t('settings.auto_refresh_interval')}
           type="number"
           min="5"
-          value={autoRefreshInterval}
+          value={autoRefreshIntervalDraft}
           onChange={e => {
             const value = Math.max(5, Number(e.target.value) || DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES)
-            setAutoRefreshInterval(value)
+            setAutoRefreshIntervalDraft(value)
           }}
           onBlur={e => {
             const value = Math.max(5, Number(e.target.value) || DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES)
-            void persistSettings({ autoRefreshInterval: value })
+            void persistSettings(
+              { autoRefreshInterval: value },
+              () => setAutoRefreshIntervalDraft(autoRefreshInterval),
+            )
           }}
-          disabled={!enableAutoRefresh}
+          disabled={interactionLocked || !enableAutoRefresh}
         />
       </Card>
 
@@ -323,13 +421,28 @@ export function Settings() {
         <h2 className={styles.sectionTitle}>{t('settings.data')}</h2>
         <div className={styles.hint}>{t('settings.data_sensitive_hint')}</div>
         <div className={styles.actionGroup}>
-          <Button variant="secondary" onClick={() => void handleExport()}>
+          <Button
+            variant="secondary"
+            loading={dataAction === 'export'}
+            disabled={settingsLoading || saving || (dataAction != null && dataAction !== 'export')}
+            onClick={() => void handleExport()}
+          >
             {t('settings.export_data')}
           </Button>
-          <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+          <Button
+            variant="secondary"
+            loading={dataAction === 'import'}
+            disabled={interactionLocked}
+            onClick={() => fileInputRef.current?.click()}
+          >
             {t('settings.import_data')}
           </Button>
-          <Button variant="danger" onClick={() => void handleClear()}>
+          <Button
+            variant="danger"
+            loading={dataAction === 'clear'}
+            disabled={settingsLoading || saving || (dataAction != null && dataAction !== 'clear')}
+            onClick={() => void handleClear()}
+          >
             {t('settings.clear_data')}
           </Button>
         </div>
@@ -338,10 +451,10 @@ export function Settings() {
           className={styles.fileInput}
           type="file"
           accept="application/json,.json"
+          disabled={interactionLocked}
           onChange={e => void handleImport(e.target.files?.[0])}
         />
-        {status && <div className={styles.status}>{status}</div>}
-        {saving && <div className={styles.status}>{t('settings.saving')}</div>}
+        {successMessage && <div className={styles.success} role="status">{successMessage}</div>}
       </Card>
 
       {/* Access */}
@@ -349,7 +462,7 @@ export function Settings() {
         <h2 className={styles.sectionTitle}>{t('settings.access')}</h2>
         <div className={styles.hint}>{t('settings.access_key_hint')}</div>
         <div className={styles.actionGroup}>
-          <Button variant="secondary" onClick={handleForgetAccessKey}>
+          <Button variant="secondary" disabled={interactionLocked} onClick={() => void handleForgetAccessKey()}>
             {t('settings.access_key_clear')}
           </Button>
         </div>

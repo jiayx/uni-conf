@@ -6,7 +6,7 @@ interface CollectionsState {
   collections: NodeCollection[]
   previews: Record<string, ProxyNode[]>
   loading: boolean
-  error: string | null
+  error: unknown | null
   fetchCollections: () => Promise<void>
   addCollection: (data: Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateCollection: (id: string, data: Partial<NodeCollection>) => Promise<void>
@@ -26,7 +26,7 @@ export const useCollectionsStore = create<CollectionsState>((set) => ({
       const collections = await api.collections.list()
       set({ collections, loading: false })
     } catch (e) {
-      set({ error: (e as Error).message, loading: false })
+      set({ error: e, loading: false })
     }
   },
 

@@ -18,6 +18,16 @@ const REQUIRED_RULE_KEYS = [
   'delete_confirm',
   'payload_required',
   'no_valid_rules',
+  'batch_issue_unsupported_type',
+  'batch_issue_missing_payload',
+  'batch_issue_unknown_target',
+  'batch_issue_unsupported_option',
+  'batch_issue_more',
+  'batch_issue_fix_all',
+  'batch_limit',
+  'batch_save_failed',
+  'save_failed',
+  'delete_rule',
 ]
 
 describe('manual rule i18n keys', () => {

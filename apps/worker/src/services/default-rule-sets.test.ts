@@ -327,6 +327,30 @@ describe('default remote rule sets', () => {
       sortOrder: 40,
       notes: 'QuixoticHeart/rule-set:ai AI 规则集合，包含 OpenAI、Gemini、Copilot、Claude 等',
     });
+    expect(inserted).toContainEqual({ operation: 'invalidate-health', id: 'preset-ai' });
+  });
+
+  it('keeps source health when only managed routing metadata changes', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{
+        id: 'preset-ai',
+        preset_source: 'quixotic',
+        preset_id: 'ai',
+        url: buildQuixoticRuleSetUrl('ai', 'mihomo'),
+        format: 'mihomo',
+        behavior: 'classical',
+        target_group_id: 'builtin-proxy',
+        enabled: 1,
+        sort_order: 900,
+      }],
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual(expect.objectContaining({ operation: 'update', id: 'preset-ai' }));
+    expect(inserted).not.toContainEqual({ operation: 'invalidate-health', id: 'preset-ai' });
   });
 
   it('repairs fake-ip-filter away from the nonexistent generic Quixotic path', async () => {
@@ -442,7 +466,9 @@ function createMockDb({
       for (const statement of statements) {
         const args = statement.__args ?? [];
         const sql = statement.__sql ?? '';
-        if (sql.includes('SET enabled = 0')) {
+        if (sql.includes('DELETE FROM remote_rule_set_source_health')) {
+          inserted.push({ operation: 'invalidate-health', id: args[0] });
+        } else if (sql.includes('SET enabled = 0')) {
           inserted.push({
             operation: 'disable',
             notes: args[0],

@@ -4,9 +4,7 @@ import type {
   HTTPOutboundOptions,
   Hysteria2OutboundOptions,
   HysteriaOutboundOptions,
-  LegacyWireGuardOutboundOptions,
   ShadowsocksOutboundOptions,
-  ShadowsocksROutboundOptions,
   ShadowTLSOutboundOptions,
   SocksOutboundOptions,
   SSHOutboundOptions,
@@ -28,7 +26,7 @@ export const PROXY_PROTOCOL_REGISTRY = {
   ssr: {
     label: 'ShadowsocksR',
     uriSchemes: ['ssr'],
-    singboxType: 'shadowsocksr',
+    singboxType: undefined,
     mihomoType: 'ssr',
     mainstream: true,
   },
@@ -172,9 +170,7 @@ export type SingboxNativeOutbound =
   | HTTPOutboundOptions
   | HysteriaOutboundOptions
   | Hysteria2OutboundOptions
-  | LegacyWireGuardOutboundOptions
   | ShadowsocksOutboundOptions
-  | ShadowsocksROutboundOptions
   | ShadowTLSOutboundOptions
   | SocksOutboundOptions
   | SSHOutboundOptions

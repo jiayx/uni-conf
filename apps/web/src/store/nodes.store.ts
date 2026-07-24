@@ -14,11 +14,12 @@ interface NodesFilters {
 interface NodesState {
   nodes: ProxyNode[]
   loading: boolean
-  error: string | null
+  error: unknown | null
   filters: NodesFilters
   fetchNodes: (params?: NodeListParams) => Promise<void>
   addNode: (data: NodeCreateInput) => Promise<void>
   updateNode: (id: string, data: Partial<ProxyNode>) => Promise<void>
+  setNodesEnabled: (ids: string[], enabled: boolean) => Promise<void>
   deleteNode: (id: string) => Promise<void>
   setFilters: (filters: Partial<NodesFilters>) => void
   applyFilters: () => void
@@ -42,7 +43,7 @@ export const useNodesStore = create<NodesState>((set, get) => ({
       const nodes = await api.nodes.listAll(params)
       set({ nodes, loading: false })
     } catch (e) {
-      set({ error: (e as Error).message, loading: false })
+      set({ error: e, loading: false })
     }
   },
 
@@ -54,6 +55,14 @@ export const useNodesStore = create<NodesState>((set, get) => ({
   updateNode: async (id, data) => {
     const updated = await api.nodes.update(id, data)
     set(s => ({ nodes: s.nodes.map(n => (n.id === id ? updated : n)) }))
+  },
+
+  setNodesEnabled: async (ids, enabled) => {
+    const result = await api.nodes.setEnabled(ids, enabled)
+    const updatedIds = new Set(result.ids)
+    set(s => ({
+      nodes: s.nodes.map(node => updatedIds.has(node.id) ? { ...node, enabled: result.enabled } : node),
+    }))
   },
 
   deleteNode: async (id) => {
@@ -73,6 +82,6 @@ export const useNodesStore = create<NodesState>((set, get) => ({
     if (filters.protocol) params.protocol = filters.protocol
     if (filters.country) params.country = filters.country
     if (filters.enabled != null) params.enabled = filters.enabled
-    get().fetchNodes(params)
+    void get().fetchNodes(params)
   },
 }))

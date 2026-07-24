@@ -31,6 +31,23 @@ All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
 | created_at | TEXT | ISO timestamp |
 | updated_at | TEXT | ISO timestamp |
 
+### `source_import_runs` — Non-sensitive Import Audit History
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT PK | Import run ID |
+| source_id | TEXT? FK→sources | Active imported source; set to `NULL` after undo/delete |
+| source_name | TEXT | Source-name snapshot |
+| format / node_import_mode | TEXT | Parser and node import mode |
+| status | TEXT | `running` \| `success` \| `partial` \| `undone` |
+| node_count / added_count / updated_count / skipped_existing_count | INTEGER | Node-phase summary |
+| rule_count / remote_rule_set_count / skipped_rule_count / conflict_count | INTEGER | Structured-phase summary |
+| structured_changes | TEXT JSON | Non-sensitive before/applied routing fields for conditional conflict undo |
+| refresh_error / structured_error | TEXT? | Generic phase category only |
+| created_at / completed_at / undone_at | TEXT? | Lifecycle timestamps |
+
+This table deliberately excludes source content, node names/addresses, raw or parsed node configuration, and detailed errors that could quote imported credentials. `structured_changes` contains identifiers, target group identifiers, rule-set behavior, and update intervals only. Deleting or undoing an imported source retains the audit row, sets its source reference to `NULL`, and marks it `undone`. The source deletion batch also removes source-owned nodes and structured objects carrying that source's import marker, and conditionally restores explicitly overwritten routing fields when no later edit has changed them.
+
 ### `nodes` — Proxy Nodes
 
 | Column | Type | Description |
@@ -63,7 +80,7 @@ Manual node creation accepts either structured fields (`name`, `protocol`, `serv
 
 Manual node writes validate the runtime shape before persistence. Protocols must come from the mainstream protocol registry, ports must be integers from 1 to 65535, names and servers are trimmed non-empty strings, tags are string arrays, and `raw_config` / `parsed_config` must be JSON objects. The web structured manual-node form is generated from the protocol registry and uses a shared core helper to persist every registry field into `parsed_config.extra`, while promoting common export fields such as `password`, `uuid`, `tls`, `sni`, `skipCertVerify`, `network`, and `wsPath` to the normalized top level. Required protocol fields from the registry are enforced in the web form and again by the worker API, so direct API calls cannot create or update structured manual nodes that are missing credentials such as AnyTLS password, TUIC UUID/password, or WireGuard keys. URI-created nodes may override parsed fields, but those overrides pass the same validation so manual entry cannot introduce `unknown`, `direct`, or `reject` pseudo-protocol nodes into export pools. Updates always synchronize row-level `protocol`, `server`, and `port` back into `parsed_config` before validation and persistence, because exporters use `parsed_config` as the authoritative normalized node shape. When a manual node is renamed, the worker re-runs country and recognition-tag detection unless the request explicitly provides `country`, `countryCode`, or `tags`, so automatic country/tag node groups follow the new node name after the zero-setup sync. Web-side Clash, sing-box, URI, and base64 parsers use the same shared country, recognition-tag, and subscription-info-node filters as the worker parser, keeping local import previews aligned with persisted node fields.
 
-When subscription parsing caches native client config in `raw_config.mihomo` or `raw_config.singbox`, the matching full-config exporter prefers that native object and only overwrites the current display name / tag, server, and port. If `raw_config` itself is already a Mihomo proxy object or sing-box outbound object, the same rule applies. This preserves client-specific fields that are not yet represented in the normalized model while keeping user-visible renames and node edits effective.
+When subscription parsing caches native client config in `raw_config.mihomo` or `raw_config.singbox`, the matching full-config exporter prefers that native object and only overwrites the current display name / tag, server, and port. If `raw_config` itself is already a Mihomo proxy object or sing-box outbound object, the same rule applies. WireGuard is the exception: sing-box 1.13 removed the legacy WireGuard outbound, so the exporter always rebuilds it from normalized fields as a top-level endpoint. This preserves client-specific fields that are not yet represented in the normalized model while keeping user-visible renames and node edits effective without reintroducing removed syntax.
 
 ### `collections` — Node Group Filter Config
 
@@ -151,7 +168,7 @@ Built-in groups have distinct product roles:
 
 `PROXY` has no hard-coded builtin members; sync fills its outlet candidates from the current enabled foundation, global-node, and node-backed outlet groups. The four global node outlets reference the managed `builtin-default-node-pool` collection named `默认可用节点`, whose notes are `[uni-conf:default-node-pool]` and whose default filter is `tag not_in ["high-multiplier"]`. This keeps global outlets usable in zero setup without making high-multiplier nodes default candidates; users who want high-multiplier nodes can create a manual node group. Fresh database migrations also normalize these managed rows statically, and runtime zero-setup sync re-applies the same model before user-facing reads and exports. `DIRECT` and `REJECT` are system foundation outlets, not user-created policy group types. User-created groups may use `select`, `url-test`, `fallback`, or `load-balance`; the API rejects custom `direct` / `reject` groups so rules and generated exporters keep one canonical representation for direct and reject traffic. Exporters do not emit `DIRECT` / `REJECT` as ordinary policy groups. Mihomo-compatible and text-based clients reference the native `DIRECT` / `REJECT` policies directly whenever rules or nested groups target a `direct` / `reject` row; sing-box maps the same rows to `direct` / `block` outbounds.
 
-The fresh install schema mirrors the same managed zero-setup graph: it creates `builtin-default-node-pool`, binds `全部节点` / `节点选择` / `自动选择` / `故障切换` to that collection, and includes the current built-in business targets such as `Google`. Later normalization migrations remain idempotent repair steps for already-created databases, not the only source of the current default graph.
+The canonical clean-install schema creates the same managed zero-setup graph: it creates `builtin-default-node-pool`, binds `全部节点` / `节点选择` / `自动选择` / `故障切换` to that collection, and includes the current built-in business targets such as `Google`. Runtime zero-setup synchronization repairs managed rows when the application runs; no historical SQL normalization migrations are retained.
 
 Shared group-category helpers are the source of truth for product surfaces: `builtin-proxy`, `builtin-direct`, and `builtin-reject` are rule-target foundation groups; `builtin-all-nodes`, `builtin-node-select`, `builtin-auto-select`, and `builtin-fallback-select` are global node outlets; neither category is shown as an editable business routing group. This keeps the empty scenario template understandable: it removes extra business groups only, while `PROXY / DIRECT / REJECT` and the global node outlets stay visible in the fixed foundation area.
 
@@ -224,6 +241,7 @@ Manual rules are an advanced override path. Writes validate `type` against the s
 | behavior | TEXT | `domain` \| `ipcidr` \| `classical` |
 | preset_source | TEXT? | Built-in preset provider: `quixotic` or `uni-conf` |
 | preset_id | TEXT? | Provider-specific preset id |
+| source_overrides | TEXT | JSON object mapping a full-config target client to its native rule-set URL |
 | target_group_id | TEXT FK→groups | |
 | update_interval | INTEGER | Hours |
 | enabled | INTEGER | 1/0 |
@@ -237,11 +255,26 @@ Built-in remote rule sets use deterministic `sort_order` buckets so exported con
 
 Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`; the UniConf Telegram domain list uses `domain`.
 
+Custom rows may store sparse `source_overrides` for `mihomo`, `clash`, `singbox`, `surge`, `loon`, `shadowrocket`, `quantumultx`, `stash`, or `egern`. Each value is a validated public http(s) URL whose format is native to that target. Resolution order is target-specific override, managed preset source, default `url + format`, then semantics-preserving conversion when the resolved source is not directly compatible. Clash, Stash, and Mihomo overrides remain separate even though their generated full configurations can share the Mihomo-compatible YAML serializer. When one of those targets needs a token-scoped converted YAML rule provider, the provider URL retains the requested target context so its later fetch cannot silently select another target's override. An empty object preserves the original single-source behavior. Node-only subscription formats are never accepted as override keys. Backup validation checks both the JSON shape and the same SSRF-safe URL policy used by normal writes; older backups may omit the column and receive the database default during restore.
+
+Known-repository source discovery is editor-only assistance and does not add provenance columns. Until the user saves, the form tracks which sparse entries were auto-filled so a default-URL change can remove unchanged derived values without deleting manual overrides. Persisted rows contain only the final reviewed URL mapping and resolve exactly like manually entered mappings.
+
+### `remote_rule_set_source_health` — Operational Source Health Snapshots
+
+| Column | Type | Description |
+|--------|------|-------------|
+| remote_rule_set_id | TEXT PK/FK→remote_rule_sets | Checked rule set; cascades on delete |
+| checked_at | TEXT | Whole-source check time |
+| expires_at | TEXT | Freshness boundary derived from the rule set refresh interval |
+| result | TEXT | JSON aggregate plus default/override diagnostics |
+
+This operational table is deliberately excluded from configuration backups. A source-affecting edit (`url`, `format`, `behavior`, `source_overrides`, or `update_interval`) deletes the snapshot; enable/disable and display-only edits preserve it. Expired rows remain available for diagnosis but are returned with `stale: true`, so the UI can retain evidence without presenting it as current health.
+
 Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but editing and deletion are reserved for custom remote rule sets so a refresh cannot silently recreate or overwrite a row the UI appeared to let the user own. Default restoration also normalizes managed preset metadata: Quixotic rows are kept at the canonical Mihomo/classical source URL used as the database baseline, while export rendering still resolves the final URL dynamically for the requested client format. Managed presets follow the active routing template: service-specific rows are stored for their canonical business target but enabled only when that target business group is enabled, while foundation rows for `PROXY`, `DIRECT`, and `REJECT` stay available in every template. Template-driven disables use an internal note marker so later template changes can restore those rows without overriding a user's explicit disabled switch.
 
 The routing-policy UI groups remote rule sets by the target used after a match, not by source URL. It shows `PROXY / DIRECT / REJECT` as fixed foundations, marks managed presets as system-maintained, and labels user-created rows as supplemental rule sets. `apps/web/src/core/remote-rules/remote-rule-sets-i18n.test.ts` guards those localized zero-setup labels so the page keeps presenting rule-set work as an optional override instead of required configuration.
 
-Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, positive update interval, and integer sort order are checked and trimmed. Create requests default omitted targets to `PROXY`; explicit targets must be enabled rule-target groups. Enabling an existing rule set also validates its current target group, so a template-disabled managed rule set cannot be manually switched on while its business target is still disabled. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`. Resource-library selections in the UI fill a normal custom rule set URL and remain deletable.
+Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, optional target-native source overrides, positive update interval, and integer sort order are checked and trimmed. Create requests default omitted targets to `PROXY`; explicit targets must be enabled rule-target groups. Enabling an existing rule set also validates its current target group, so a template-disabled managed rule set cannot be manually switched on while its business target is still disabled. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`. Resource-library selections in the UI fill a normal custom rule set URL and remain deletable.
 
 | Order | Rule set intent |
 |-------|-----------------|
@@ -268,6 +301,7 @@ Remote rule set API writes validate custom rule sets before persistence. Names, 
 | include_group_ids | TEXT | JSON array (empty=all) |
 | include_rule_ids | TEXT | JSON array (empty=all) |
 | include_remote_set_ids | TEXT | JSON array (empty=all) |
+| rule_set_conversion_policy | TEXT? | `compatible` \| `strict`; `NULL` inherits the global app setting |
 | extra_config | TEXT? | Optional JSON object of format-specific overrides; `NULL` means no overrides |
 | created_at | TEXT | |
 | updated_at | TEXT | |
@@ -278,6 +312,7 @@ Export config create/update validation rejects malformed advanced overrides:
 
 - `extra_config` may only be a JSON object or `NULL`.
 - Scalar values and arrays are rejected before the config is stored.
+- `rule_set_conversion_policy` may only be `compatible`, `strict`, or `NULL`.
 
 | Field | Value |
 |-------|-------|
@@ -288,11 +323,13 @@ Export config create/update validation rejects malformed advanced overrides:
 
 `app_settings.default_export_token` points to this default config token unless the user explicitly changes it. If the token of the currently referenced export config is reset, the settings row is updated in the same request so the default subscription link keeps pointing at that config instead of falling back to another export config on the next zero-setup sync.
 
-Authenticated preview and download endpoints reuse the selected export config for scope only. The rendered client format comes from the route parameter (`/api/export/preview/:format` or `/api/export/download/:format`), so zero-setup quick downloads can produce sing-box, Loon, or other supported formats from the same default Mihomo-scoped config without creating separate configs first. Public subscription URLs use the token plus canonical filename to identify both the config and the requested format.
+Authenticated preview and download endpoints reuse the selected export config for scope and its optional rule-set conversion policy. The rendered client format comes from the route parameter (`/api/export/preview/:format` or `/api/export/download/:format`), so zero-setup quick downloads can produce sing-box, Loon, or other supported formats from the same default Mihomo-scoped config without creating separate configs first. Public subscription URLs use the token plus canonical filename to identify both the config and the requested format. A profile policy applies to every target filename served by that token: `NULL` follows `app_settings.rule_set_conversion_policy`, `compatible` permits safe partial conversions with diagnostics, and `strict` blocks delivery on any semantic loss.
 
 Export config writes validate the advanced include filters before persistence. `include_collection_ids`, `include_group_ids`, `include_rule_ids`, and `include_remote_set_ids` must be arrays of non-empty string IDs; values are trimmed and de-duplicated. Empty arrays keep the zero-setup behavior by exporting all enabled data of that kind. Create and update writes use the same display-name normalization: a blank name is replaced with the default name derived from the selected target format, while a non-blank name is trimmed before storage.
 
 The export UI must preserve that default-complete mental model: normal export never requires the user to create an export config first, and the default export must not ask the user to choose a single output format. The page should present the system-maintained default export as already available and list all quick-export URLs generated from the same default token. Each quick-export row opens a preview modal for that concrete client format while still using the default export scope; the full `/preview?format={format}` page remains available from the modal for deep inspection. The stored `format` on the default row is only a legacy primary-format value for APIs that require a config row; the requested client format comes from the download route or public subscription filename. Extra `export_configs` are advanced export profiles for separate subscription tokens or narrowed node/rule scopes, and those profiles may keep a primary format for their main link, download, validation, preview, and compatible-rule-set filtering. The modal leads with localized copy for that advanced-profile purpose, hides include filters under advanced scope controls, and uses localized scope/validation summaries generated from the same effective export graph as the worker. Config preview is not a separate primary navigation destination; `/preview` remains available as a deep inspection tool for generated content, while the sidebar and onboarding steps send users to export. `apps/web/src/core/export/export-i18n.test.ts` guards the translation keys for those zero-setup export labels.
+
+The export page reads the global conversion policy together with the profile list so an inherited profile displays its current effective behavior instead of an ambiguous “global” label. Duplicating an advanced profile opens a prefilled create flow with copied scope and policy fields; it never copies the row or token, and the normal create API generates a new random subscription token when the user saves.
 
 When `include_group_ids` selects only a subset of policy groups, export data expands the final group set through derived `group_ids` before collecting nodes. Node output is then scoped to the collections referenced by the expanded group set. The global node outlets reference the managed default usable node pool, so preview/download/public subscription include all nodes that match that pool rather than every raw subscription node. This keeps every proxy group member that can point at nodes aligned with matching `proxies` / `outbounds` entries in the rendered config while preserving the default high-multiplier exclusion.
 
@@ -319,6 +356,7 @@ Dashboard stats, export config reads/writes, export preview/download, public sub
 | export_node_naming_mode | TEXT | `original` \| `region_sequence` \| `source_region_sequence` \| `smart` |
 | default_export_token | TEXT? | Token of the default export config |
 | show_compatibility_warnings | INTEGER | 1/0 |
+| rule_set_conversion_policy | TEXT | `compatible` keeps safe partial results with warnings; `strict` blocks when any rule would be skipped |
 | enable_auto_refresh | INTEGER | 1/0, default `1` |
 | auto_refresh_interval | INTEGER | Minutes, default `1440` |
 | auto_node_groups_enabled | INTEGER | 1/0, default `1` |
@@ -327,9 +365,9 @@ Dashboard stats, export config reads/writes, export preview/download, public sub
 | auto_node_group_include_flag | INTEGER | 1/0, default `1` |
 | updated_at | TEXT | |
 
-Settings reads normalize nullable or invalid values back to product defaults: Chinese UI language, system theme, common routing policy template, compatibility warnings on, auto refresh on, 24-hour refresh interval, smart DNS, smart node naming, auto node groups on, `url-test` auto group type, flag-based country auto group names, no routing outlet overrides, and no default export token unless the stored token is a non-empty string. An explicit empty `auto_node_group_types` array is preserved as the user's choice to disable generated auto node group types; only missing, malformed, or all-invalid values fall back to `["url-test"]`. Settings writes use the shared `AppSettingsPatch` type, which separates normalized response values from write-only clear operations. They reject invalid enum values for language, theme, routing policy template, DNS mode, export node naming mode, automatic node group type, non-positive or non-integer auto refresh intervals, malformed routing outlet preference maps, and malformed default export tokens so normal UI/API updates cannot persist an unreachable zero-setup state. A submitted `default_export_token` must be a non-empty string after trimming, or `NULL` to clear it. A submitted `routing_outlet_preferences` value must be an object with stable refs, `{}` or `NULL` to clear all preferences. A submitted `auto_node_group_keys` value must be an array of canonical keys, `[]` to generate no country/tag auto groups, or `NULL` to return to the zero-setup default of including every recognized candidate. Routing outlet preference values must use `group:{groupId}` or `auto:{autoNodeGroupMarkerKey}`; raw database IDs such as `us-auto` are rejected.
+Settings reads normalize nullable or invalid values back to product defaults: Chinese UI language, system theme, common routing policy template, compatibility warnings on, compatible rule-set conversion, auto refresh on, 24-hour refresh interval, smart DNS, smart node naming, auto node groups on, `url-test` auto group type, flag-based country auto group names, no routing outlet overrides, and no default export token unless the stored token is a non-empty string. An explicit empty `auto_node_group_types` array is preserved as the user's choice to disable generated auto node group types; only missing, malformed, or all-invalid values fall back to `["url-test"]`. Settings writes use the shared `AppSettingsPatch` type, which separates normalized response values from write-only clear operations. They reject invalid enum values for language, theme, routing policy template, DNS mode, export node naming mode, rule-set conversion policy, automatic node group type, non-positive or non-integer auto refresh intervals, malformed routing outlet preference maps, and malformed default export tokens so normal UI/API updates cannot persist an unreachable zero-setup state. A submitted `default_export_token` must be a non-empty string after trimming, or `NULL` to clear it. A submitted `routing_outlet_preferences` value must be an object with stable refs, `{}` or `NULL` to clear all preferences. A submitted `auto_node_group_keys` value must be an array of canonical keys, `[]` to generate no country/tag auto groups, or `NULL` to return to the zero-setup default of including every recognized candidate. Routing outlet preference values must use `group:{groupId}` or `auto:{autoNodeGroupMarkerKey}`; raw database IDs such as `us-auto` are rejected.
 
-The settings UI presents DNS mode, export node naming, and automatic node groups as localized intent options, not required setup steps. DNS defaults to smart anti-pollution, automatic node groups default to country/tag `url-test` outlets with flag names, and the exact generated country/tag/subscription groups remain controlled from the node group auto-generation panel. `apps/web/src/core/settings/settings-i18n.test.ts` guards the translation keys for these zero-setup settings labels.
+The settings UI presents DNS mode, export node naming, rule-set conversion policy, and automatic node groups as localized intent options, not required setup steps. DNS defaults to smart anti-pollution, rule-set conversion defaults to safe partial delivery with warnings, automatic node groups default to country/tag `url-test` outlets with flag names, and the exact generated country/tag/subscription groups remain controlled from the node group auto-generation panel. `apps/web/src/core/settings/settings-i18n.test.ts` guards the translation keys for these zero-setup settings labels.
 
 Auto refresh is enabled by default and driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes, and the worker entrypoint has a scheduled-handler test that verifies it delegates to `refreshDueSources`. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
 
@@ -339,6 +377,8 @@ Auto refresh is enabled by default and driven by the Worker scheduled handler. W
 - Sources with `last_updated = NULL` or an invalid timestamp are treated as due.
 
 ---
+
+The rule-set conversion policy defaults to `compatible`; malformed or missing stored values normalize to that default. `strict` is an explicit opt-in and is preserved by backup/restore and reset to `compatible` by the clear-data workflow.
 
 ## JSON Field Schemas
 
@@ -408,7 +448,7 @@ If refresh fails, the created source remains stored and `refreshError` contains 
 
 Public subscription responses aggregate cached `subscription-userinfo` from enabled URL sources. `upload`, `download`, and `total` are summed; `expire` uses the earliest cached expiry. If no source has cached userinfo, UniConf returns a stable default header so clients that display subscription traffic still have a valid value.
 
-Data backup export runs zero-setup default restoration before reading tables. A fresh or recently cleared database therefore exports the same managed default export config, policy groups, node pools, and remote rule set rows that normal UI/API reads would materialize, instead of serializing an uninitialized skeleton. Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, and export configs, then immediately restores the default export config, automatic node group settings, built-in routing policy groups, and managed remote rule sets. Data import runs the same default restoration after replacing tables, so partial or older backups still return to a usable zero-setup baseline. This keeps backup, reset, and import states ready for the zero-setup flow: paste a subscription URL and export a usable config.
+Data backup export runs zero-setup default restoration before reading tables. Backup version 3 includes non-sensitive import history and remains able to validate and restore version 1 and 2 payloads. Before the destructive D1 batch begins, validation checks the schema's required and non-null columns, checked enums, table/column allowlists, row and token uniqueness, direct foreign keys, and the JSON-encoded graph edges used by collections, groups, and export scopes. A backup cannot therefore pass preview with a row D1 would reject for a missing required value, or while still referring to a missing source, node, collection, group, rule, remote rule set, export token, or import source. A fresh or recently cleared database exports the same managed default export config, policy groups, node pools, and remote rule set rows that normal UI/API reads would materialize, instead of serializing an uninitialized skeleton. Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, import history, and export configs, then immediately restores the default export config, automatic node group settings, built-in routing policy groups, and managed remote rule sets. Data import runs the same default restoration after replacing tables, so structurally complete older backups return to a usable zero-setup baseline. This keeps backup, reset, and import states ready for the zero-setup flow: paste a subscription URL and export a usable config.
 
 Default cleanup excludes subscription info nodes such as official site, user center, subscription renewal, remaining/used/total traffic, package/plan/quota, expiry, reset, and multiplier hint entries. It also skips parsed nodes whose protocol maps outside the mainstream protocol registry, and nodes whose parsed/native config is missing protocol-required fields such as Trojan password, VMess UUID, AnyTLS password, TUIC UUID/password, or WireGuard keys. The same worker protocol validator is used by subscription refresh and manual node writes so default export pools are not polluted by nodes that can be parsed syntactically but cannot produce a usable client config.
 
@@ -479,11 +519,17 @@ Other - Manual - 01
 
 `GET /api/export/preview/:format` returns `warnings: CompatibilityWarning[]` alongside the generated content.
 
+Each warning may include a structured `remediation` target (`sources`, `nodes`, `groups`, `rules`, `remote-rule-sets`, or a named `settings` section). Entity targets may carry a stable ID. The worker assigns this metadata at the point where it detects the problem; the web UI never infers a repair destination from localized warning text. Preview and readiness surfaces render a contextual action only when that metadata exists. Entity actions use an encoded `?edit=` query that the destination page consumes after its data loads and then opens the exact editor; settings actions use stable section anchors. Diagnostics without a provable target retain only the full-preview path.
+
+The same response includes `readiness: { ready, blockingWarnings }`, calculated with the exact graph, conversion-policy, and final-artifact checks used by authenticated downloads. UI surfaces must use this field for enable/disable decisions rather than treating every `unsupported` diagnostic as blocking: for example, a source's latest refresh may have failed while its previously materialized nodes remain safely downloadable. `warnings` describe everything worth reviewing; `readiness.blockingWarnings` is the authoritative subset that prevents delivery. Preview and readiness responses also include `capabilityProfile: { id, format, revision }`. This revision identifies the UniConf exporter capability contract, not a target-client application version; successful file and public-subscription responses expose the same value in `X-UniConf-Capability-Profile`.
+
+`GET /api/export/readiness/:format` executes that same shared inspection path and returns only `format`, `warnings`, `artifactValidation`, and `readiness`. It deliberately omits `content` and `contentType`; compact status surfaces such as Dashboard quick export must use it so a large generated configuration is not transferred merely to render a readiness badge. The full Preview and Export pages continue using `/preview/:format` when they need configuration content.
+
 Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points. The export renderer has a smoke-test matrix over `EXPORT_SUBSCRIPTION_FORMATS`, including Mihomo, explicit Clash-compatible YAML, sing-box, Loon, Surge, Shadowrocket, Quantumult X, Stash, Egern, and node-only raw/base64 subscriptions. This keeps Dashboard quick links, authenticated downloads, and public subscription filenames aligned with the shared format registry when a client format is added or removed.
 
 Dashboard quick-export links use the shared canonical filename registry for URLs and `export.formats.*` i18n labels for display names. The web i18n test checks every quick-export format has labels in both Chinese and English, so adding a new dashboard export target cannot silently show an untranslated or hard-coded client label in the zero-setup flow.
 
-The web export list uses the preview endpoint as its one-click validation path. It does not maintain a separate local validator: card-level validation summarizes the returned warnings by `unsupported`, `partial`, and `convert`, shows whether the config is usable, and links the user toward the full preview page for complete content and warning details.
+The web export list uses the preview endpoint as its one-click validation path. It does not maintain a separate local validator: card-level validation uses the returned `readiness.ready` and exact `readiness.blockingWarnings` subset for usable/blocked state and blocker counts, while separately summarizing all `partial` and `convert` diagnostics. It links the user toward the full preview page for complete content and warning details. Default-profile quick rows run the lightweight readiness endpoint on demand before copying a public URL or downloading; successful results are cached per format until the profile is reloaded, while a failed check remains retryable. Opening the inline full preview also seeds the same per-format cache, avoiding a redundant readiness request. Large generated content is rendered through bounded line and character excerpts until the user explicitly expands it; line counting uses a single scan rather than allocating a split array, and copy operations continue to use the untouched full response.
 
 The worker separates readiness checks from client compatibility checks. Readiness warnings are always returned because they indicate a config that may be empty or structurally broken. A target client with zero renderable nodes is a readiness warning, not a hideable compatibility warning, because download/subscription would be blocked. The `show_compatibility_warnings` setting only hides client capability warnings such as DNS downgrade, per-node protocol skip details, or rule-format support.
 
@@ -516,7 +562,7 @@ If no enabled `MATCH` rule exists, exporters append the fallback policy automati
 
 ## Migrations
 
-Located in `apps/worker/migrations/`. File naming: `NNNN_description.sql`.
+The complete current schema is `apps/worker/migrations/0001_initial_schema.sql`. Historical incremental migrations are intentionally not retained; schema changes require rebuilding D1 from the current baseline and restoring a current-version backup.
 
 Apply locally:
 ```bash

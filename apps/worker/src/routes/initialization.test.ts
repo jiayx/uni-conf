@@ -204,7 +204,7 @@ describe('zero-setup route initialization', () => {
 
     expect(response.status).toBe(200)
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
-    expect(getAppSettings).toHaveBeenCalledTimes(2)
+    expect(getAppSettings).toHaveBeenCalledOnce()
   })
 
   it('persists the scenario template and its recommended DNS mode together', async () => {
@@ -219,8 +219,8 @@ describe('zero-setup route initialization', () => {
     expect(response.status).toBe(200)
     expect(db.operations).toContainEqual(expect.objectContaining({
       operation: 'update-settings',
-      routingPolicyTemplate: 'router',
-      dnsMode: 'compatible',
+      sql: expect.stringContaining('routing_policy_template = ?'),
+      args: expect.arrayContaining(['router', 'compatible']),
     }))
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
   })
@@ -237,10 +237,52 @@ describe('zero-setup route initialization', () => {
     expect(response.status).toBe(200)
     expect(db.operations).toContainEqual(expect.objectContaining({
       operation: 'update-settings',
-      routingPolicyTemplate: 'router',
-      dnsMode: 'compatible',
+      sql: expect.stringContaining('dns_mode = CASE WHEN routing_policy_template <> ? THEN ? ELSE dns_mode END'),
+      args: expect.arrayContaining(['router', 'compatible']),
     }))
     expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+  })
+
+  it('does not rewrite unrelated settings when applying a partial route patch', async () => {
+    const db = createStatsDb()
+
+    const response = await settingsApp.request('/', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ language: 'en' }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(db.operations).toContainEqual(expect.objectContaining({
+      operation: 'update-settings',
+      sql: expect.stringContaining('language = ?'),
+      args: expect.arrayContaining(['en']),
+    }))
+    const operation = db.operations.find(item => item.operation === 'update-settings')
+    expect(operation?.sql).not.toContain('theme = ?')
+    expect(operation?.sql).not.toContain('dns_mode = ?')
+  })
+
+  it('rejects empty, non-object, and unknown settings patches before database writes', async () => {
+    const cases: Array<{ body: unknown; error: string }> = [
+      { body: null, error: 'settings patch must be a JSON object' },
+      { body: [], error: 'settings patch must be a JSON object' },
+      { body: {}, error: 'settings patch must include at least one field' },
+      { body: { langauge: 'en' }, error: 'unknown settings field: langauge' },
+    ]
+
+    for (const testCase of cases) {
+      const db = createStatsDb()
+      const response = await settingsApp.request('/', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(testCase.body),
+      }, { DB: db })
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({ success: false, error: testCase.error })
+      expect(db.operations).toEqual([])
+    }
   })
 })
 
@@ -265,18 +307,16 @@ function createStatsDb(): D1Database & { operations: Array<Record<string, unknow
 
   return {
     operations,
-    prepare: vi.fn(() => ({
+    prepare: vi.fn((sql: string) => ({
       bind: vi.fn((...args: unknown[]) => ({
         first: async () => exportRow,
         all: async () => ({ results: [] }),
         run: async () => {
-          if (args.length > 0) {
+          if (sql.startsWith('UPDATE app_settings SET')) {
             operations.push({
               operation: 'update-settings',
-              language: args[0],
-              theme: args[1],
-              routingPolicyTemplate: args[2],
-              dnsMode: args[4],
+              sql,
+              args,
             })
           }
           return { success: true }

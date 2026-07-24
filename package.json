@@ -2,6 +2,7 @@
   "name": "uni-conf",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.17.0",
   "description": "Manage once, export everywhere. A unified proxy configuration management tool.",
   "scripts": {
     "dev": "pnpm --filter web dev",
@@ -10,16 +11,19 @@
     "build:worker": "pnpm --filter worker build",
     "smoke": "node scripts/smoke-deployment.mjs",
     "test": "pnpm -r test",
+    "test:golden": "pnpm --filter @uni-conf/worker test:golden",
     "test:coverage": "pnpm -r test:coverage",
-    "lint": "pnpm -r lint",
+    "lint": "oxlint apps packages scripts --type-aware --deny-warnings",
     "typecheck": "pnpm -r typecheck",
     "format": "pnpm -r format"
   },
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=10.0.0"
+    "node": "^20.19.0 || >=22.12.0",
+    "pnpm": ">=11.17.0"
   },
   "devDependencies": {
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"
   }

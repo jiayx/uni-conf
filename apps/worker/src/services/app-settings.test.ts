@@ -9,6 +9,7 @@ import {
   normalizeOptionalStringList,
   normalizePositiveInteger,
   normalizeRoutingPolicyTemplate,
+  normalizeRuleSetConversionPolicy,
   normalizeTheme,
 } from './app-settings'
 
@@ -33,6 +34,8 @@ describe('app settings normalization', () => {
     expect(normalizeRoutingPolicyTemplate('unknown')).toBe('common')
     expect(normalizeRoutingPolicyTemplate('router')).toBe('router')
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')
+    expect(normalizeRuleSetConversionPolicy('strict')).toBe('strict')
+    expect(normalizeRuleSetConversionPolicy('unknown')).toBe('compatible')
   })
 
   it('normalizes auto node group settings', () => {

@@ -1,11 +1,10 @@
-import type { CompatibilityWarning } from '@uni-conf/types'
+import type { CompatibilityWarning, ExportDownloadReadiness } from '@uni-conf/types'
 
 export interface ExportWarningSummary {
   unsupported: number
   partial: number
   convert: number
   total: number
-  canUseConfig: boolean
 }
 
 export function summarizeExportWarnings(warnings: CompatibilityWarning[]): ExportWarningSummary {
@@ -18,23 +17,24 @@ export function summarizeExportWarnings(warnings: CompatibilityWarning[]): Expor
     partial,
     convert,
     total: warnings.length,
-    canUseConfig: unsupported === 0,
   }
 }
 
 export function exportWarningSummaryText(
   summary: ExportWarningSummary,
-  t: (key: string, options?: Record<string, unknown>) => string
+  t: (key: string, options?: Record<string, unknown>) => string,
+  readiness: ExportDownloadReadiness,
 ): string {
   if (summary.total === 0) return t('export.validation_ready')
-  if (summary.unsupported > 0) {
+  if (!readiness.ready) {
     return t('export.validation_blocked_summary', {
-      unsupported: summary.unsupported,
+      unsupported: readiness.blockingWarnings.length,
       partial: summary.partial,
       convert: summary.convert,
     })
   }
   return t('export.validation_warning_summary', {
+    unsupported: summary.unsupported,
     partial: summary.partial,
     convert: summary.convert,
   })

@@ -262,6 +262,9 @@ export type RuleSetFormat =
 
 export type RuleSetBehavior = 'domain' | 'ipcidr' | 'classical';
 
+export type RemoteRuleSetSourceOverrideTarget = Exclude<ExportFormat, 'nodes_base64' | 'nodes_raw'>;
+export type RemoteRuleSetSourceOverrides = Partial<Record<RemoteRuleSetSourceOverrideTarget, string>>;
+
 export interface RemoteRuleSet {
   id: string;
   name: string;
@@ -270,6 +273,8 @@ export interface RemoteRuleSet {
   behavior: RuleSetBehavior;
   presetSource?: 'quixotic' | 'uni-conf';
   presetId?: string;
+  sourceOverrides: RemoteRuleSetSourceOverrides;
+  sourceHealth?: RemoteRuleSetSourceHealthSnapshot;
   targetGroupId: string;
   updateInterval: number; // hours
   enabled: boolean;
@@ -278,6 +283,121 @@ export interface RemoteRuleSet {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type RemoteRuleSetValidationStatus = 'valid' | 'warning' | 'invalid';
+export type RemoteRuleSetInspectionMode = 'text' | 'structured' | 'binary-header';
+
+export interface RemoteRuleSetValidationIssue {
+  code: string;
+  severity: 'warning' | 'error';
+  message: string;
+  messageEn: string;
+  line?: number;
+}
+
+export interface RemoteRuleSetValidationResult {
+  status: RemoteRuleSetValidationStatus;
+  checkedAt: string;
+  url: string;
+  format: RuleSetFormat;
+  behavior: RuleSetBehavior;
+  inspectionMode: RemoteRuleSetInspectionMode;
+  httpStatus?: number;
+  contentType?: string;
+  byteLength: number;
+  ruleCount?: number;
+  invalidRuleCount: number;
+  issues: RemoteRuleSetValidationIssue[];
+}
+
+export interface RemoteRuleSetSourceValidationInput {
+  url: string;
+  targetFormat: RemoteRuleSetSourceOverrideTarget;
+  behavior: RuleSetBehavior;
+}
+
+export interface RemoteRuleSetSourceValidationItem {
+  targetFormat: RemoteRuleSetSourceOverrideTarget;
+  result: RemoteRuleSetValidationResult;
+}
+
+export interface RemoteRuleSetSourceValidationBatchResult {
+  results: RemoteRuleSetSourceValidationItem[];
+}
+
+export interface RemoteRuleSetSourceHealthSummary {
+  total: number;
+  valid: number;
+  warning: number;
+  invalid: number;
+}
+
+export interface RemoteRuleSetSourceHealthResult {
+  status: RemoteRuleSetValidationStatus;
+  checkedAt: string;
+  defaultSource: RemoteRuleSetValidationResult;
+  sourceOverrides: RemoteRuleSetSourceValidationItem[];
+  summary: RemoteRuleSetSourceHealthSummary;
+}
+
+export interface RemoteRuleSetSourceHealthSnapshot extends RemoteRuleSetSourceHealthResult {
+  expiresAt: string;
+  stale: boolean;
+}
+
+export interface RemoteRuleSetPendingHealthItem {
+  ruleSetId: string;
+  health: RemoteRuleSetSourceHealthSnapshot;
+}
+
+export interface RemoteRuleSetPendingHealthBatchResult {
+  results: RemoteRuleSetPendingHealthItem[];
+  checkedCount: number;
+  remainingCount: number;
+}
+
+export type RemoteRuleSetConversionMode = 'direct' | 'converted' | 'unsupported';
+
+export type RemoteRuleSetConversionIssueReason =
+  | 'invalid-rule'
+  | 'compound-condition'
+  | 'unsupported-directive'
+  | 'unsupported-option';
+
+export type RemoteRuleSetConversionIssueResolution =
+  | 'repair-source-rule'
+  | 'use-native-source'
+  | 'remove-unsupported-option';
+
+export interface RemoteRuleSetConversionIssue {
+  type: string;
+  count: number;
+  reason: RemoteRuleSetConversionIssueReason;
+  resolution: RemoteRuleSetConversionIssueResolution;
+  examples: string[];
+}
+
+export interface RemoteRuleSetConversionMapping {
+  source: string;
+  target: string;
+}
+
+export interface RemoteRuleSetConversionPreview {
+  checkedAt?: string;
+  targetFormat: ExportFormat;
+  sourceFormat: RuleSetFormat;
+  outputFormat?: RuleSetFormat;
+  mode: RemoteRuleSetConversionMode;
+  convertedRuleCount: number;
+  skippedRuleCount: number;
+  skippedRuleTypes: Record<string, number>;
+  issues: RemoteRuleSetConversionIssue[];
+  convertedExamples: RemoteRuleSetConversionMapping[];
+  convertedExamplesTruncated: boolean;
+  contentType?: string;
+  preview?: string;
+  truncated: boolean;
 }
 
 // ============================================================
@@ -294,6 +414,8 @@ export interface ExportConfig {
   includeGroupIds: string[];
   includeRuleIds: string[];
   includeRemoteSetIds: string[];
+  // Null/undefined inherits the global app setting.
+  ruleSetConversionPolicy?: RuleSetConversionPolicy | null;
   // Format-specific overrides
   extraConfig?: Record<string, unknown> | null;
   createdAt: string;
@@ -316,6 +438,7 @@ export type RoutingPolicyTemplateId =
   | 'extended';
 export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
 export type ExportNodeNamingMode = 'original' | 'region_sequence' | 'source_region_sequence' | 'smart';
+export type RuleSetConversionPolicy = 'compatible' | 'strict';
 export type AutoNodeGroupType = 'select' | 'url-test' | 'fallback';
 
 export interface AppSettings {
@@ -328,6 +451,7 @@ export interface AppSettings {
   defaultExportToken?: string;
   // Feature flags
   showCompatibilityWarnings: boolean;
+  ruleSetConversionPolicy: RuleSetConversionPolicy;
   enableAutoRefresh: boolean;
   autoRefreshInterval: number; // minutes
   autoNodeGroupsEnabled: boolean;
@@ -368,6 +492,7 @@ export interface SourceRefreshResult {
   updatedCount?: number;
   removedCount: number;
   excludedCount?: number;
+  skippedExistingCount?: number;
   sourceGroupCount?: number;
   format?: string;
   error?: string;
@@ -393,14 +518,54 @@ export interface SourceImportInput {
   tags?: string[];
   /** Import safely convertible Clash/Mihomo rules and rule providers after preview. */
   importStructured?: boolean;
+  /** Import every parsed node, or only nodes that do not duplicate/conflict with the current global node inventory. */
+  nodeImportMode?: 'all' | 'new-only';
+  structuredConflictResolutions?: Record<string, SourceImportConflictResolution>;
 }
+
+export type SourceImportConflictResolution = 'keep-existing' | 'use-imported';
 
 export interface SourceStructuredImportSummary {
   rules: number;
   remoteRuleSets: number;
   skippedRules: number;
+  duplicateRules: number;
+  duplicateRemoteRuleSets: number;
+  conflictingRules: number;
+  conflictingRemoteRuleSets: number;
+  unmappedTargets: string[];
   hasDns: boolean;
   clientSettingKeys: string[];
+}
+
+export type SourceImportDiffStatus = 'new' | 'duplicate' | 'conflict' | 'unmapped';
+
+export interface SourceImportFieldChange {
+  field: string;
+  before?: string;
+  after?: string;
+}
+
+export interface SourceImportDiffItem {
+  key: string;
+  label: string;
+  status: SourceImportDiffStatus;
+  target?: string;
+  changes: SourceImportFieldChange[];
+  resolvable?: boolean;
+}
+
+export interface SourceImportDiffSection {
+  total: number;
+  items: SourceImportDiffItem[];
+  truncated: boolean;
+  counts: Record<SourceImportDiffStatus, number>;
+}
+
+export interface SourceImportDiff {
+  nodes: SourceImportDiffSection;
+  rules: SourceImportDiffSection;
+  remoteRuleSets: SourceImportDiffSection;
 }
 
 export interface SourceImportPreview {
@@ -413,23 +578,96 @@ export interface SourceImportPreview {
   importedObjects: Array<'nodes' | 'source-groups' | 'rules' | 'remote-rule-sets'>;
   preservedOnly: Array<'rules' | 'remote-rule-sets' | 'dns' | 'client-settings'>;
   structured: SourceStructuredImportSummary;
+  diff: SourceImportDiff;
 }
 
 export interface SourceCreateResult {
   source: ProxySource;
   refresh?: SourceRefreshResult;
   refreshError?: string;
-  structuredImport?: Pick<SourceStructuredImportSummary, 'rules' | 'remoteRuleSets' | 'skippedRules'>;
+  structuredImport?: Omit<SourceStructuredImportSummary, 'hasDns' | 'clientSettingKeys'>;
+  structuredImportError?: string;
+  importRun?: SourceImportRun;
+}
+
+export type SourceImportRunStatus = 'running' | 'success' | 'partial' | 'undone';
+
+export interface SourceImportRun {
+  id: string;
+  sourceId?: string;
+  sourceName: string;
+  format: SourceFormat;
+  nodeImportMode: 'all' | 'new-only';
+  status: SourceImportRunStatus;
+  nodeCount: number;
+  addedCount: number;
+  updatedCount: number;
+  skippedExistingCount: number;
+  ruleCount: number;
+  remoteRuleSetCount: number;
+  skippedRuleCount: number;
+  conflictCount: number;
+  refreshError?: string;
+  structuredError?: string;
+  createdAt: string;
+  completedAt?: string;
+  undoneAt?: string;
+  canUndo: boolean;
+}
+
+export interface SourceStructuredRetryResult {
+  importRun: SourceImportRun;
+  structuredImport: Omit<SourceStructuredImportSummary, 'hasDns' | 'clientSettingKeys'>;
+}
+
+export interface SourceNodeRetryResult {
+  importRun: SourceImportRun;
+  refresh: SourceRefreshResult;
 }
 
 export interface ExportResult {
   format: ExportFormat;
+  capabilityProfile: ExportCapabilityProfile;
   content: string;
   contentType: string;
   warnings: CompatibilityWarning[];
+  artifactValidation: ExportArtifactValidationResult;
+  readiness: ExportDownloadReadiness;
+}
+
+export type ExportReadinessResult = Pick<
+  ExportResult,
+  'format' | 'capabilityProfile' | 'warnings' | 'artifactValidation' | 'readiness'
+>;
+
+export interface ExportCapabilityProfile {
+  id: 'uni-conf-exporter';
+  revision: number;
+  format: ExportFormat;
+}
+
+export interface ExportDownloadReadiness {
+  ready: boolean;
+  blockingWarnings: CompatibilityWarning[];
+}
+
+export interface ExportArtifactValidationIssue {
+  code: string;
+  path?: string;
+  message: string;
+  messageEn: string;
+}
+
+export interface ExportArtifactValidationResult {
+  format: ExportFormat;
+  kind: 'yaml' | 'json' | 'ini' | 'subscription';
+  valid: boolean;
+  issues: ExportArtifactValidationIssue[];
 }
 
 export interface CompatibilityWarning {
+  /** Stable diagnostic identifier for filtering, analytics, and support. */
+  code?: string;
   ruleId?: string;
   groupId?: string;
   nodeId?: string;
@@ -437,6 +675,56 @@ export interface CompatibilityWarning {
   level: CompatibilityLevel;
   message: string;
   messageEn: string;
+  remediation?: CompatibilityWarningRemediation;
+  transformation?: CompatibilityTransformation;
+}
+
+export interface CompatibilityTransformation {
+  resource: 'rule' | 'remote-rule-set';
+  action: 'convert' | 'skip' | 'degrade' | 'omit-option' | 'reorder' | 'block';
+  source: string;
+  target?: string;
+  convertedCount?: number;
+  skippedCount?: number;
+  reason?: string;
+}
+
+export type CompatibilityWarningRemediation =
+  | { target: 'sources'; id?: string }
+  | { target: 'nodes'; id?: string }
+  | { target: 'collections'; id?: string }
+  | { target: 'groups'; id?: string }
+  | { target: 'rules'; id?: string }
+  | {
+      target: 'remote-rule-sets';
+      id?: string;
+      /** Open the native-source editor for this exact export target. */
+      sourceOverrideTarget?: RemoteRuleSetSourceOverrideTarget;
+    }
+  | { target: 'export'; id?: string }
+  | { target: 'settings'; section: 'dns' | 'rule-set-conversion' };
+
+export type ResourceDependencyType =
+  | 'policy-group'
+  | 'rule'
+  | 'remote-rule-set'
+  | 'export-profile'
+  | 'routing-outlet-preference';
+
+export interface ResourceDependency {
+  type: ResourceDependencyType;
+  id?: string;
+  name?: string;
+}
+
+export interface ResourceDependencyDetail extends ResourceDependency {
+  remediation?: CompatibilityWarningRemediation;
+}
+
+export interface ApiErrorDetails {
+  dependency?: ResourceDependency;
+  remediation?: CompatibilityWarningRemediation;
+  dependencies?: ResourceDependencyDetail[];
 }
 
 // ============================================================
@@ -445,6 +733,7 @@ export interface CompatibilityWarning {
 
 export interface DashboardStats {
   sourceCount: number;
+  sourceRefreshFailureCount?: number;
   nodeCount: number;
   enabledNodeCount: number;
   collectionCount: number;
@@ -453,5 +742,15 @@ export interface DashboardStats {
   exportConfigCount: number;
   defaultExportToken?: string;
   defaultExportFormat?: ExportFormat;
+  defaultExportEnabled?: boolean;
   lastRefreshedAt?: string;
+  ruleSetHealth?: {
+    total: number;
+    valid: number;
+    warning: number;
+    invalid: number;
+    stale: number;
+    pending: number;
+    lastCheckedAt?: string;
+  };
 }

@@ -1,11 +1,17 @@
 import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
-import { DEFAULT_HEALTH_CHECK, isRuleSetFormatCompatible } from '@uni-conf/shared';
+import {
+  DEFAULT_HEALTH_CHECK,
+  isRuleSetFormatCompatible,
+  parseRulePortPayload,
+  resolveRuleForExport,
+} from '@uni-conf/shared';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── sing-box JSON generator ──────────────────────────────────────────────────
 
 interface SingboxGeneratorOptions {
   dnsMode?: DnsMode;
+  ruleSetConversionBaseUrl?: string;
 }
 
 export function generateSingboxJson(
@@ -18,6 +24,8 @@ export function generateSingboxJson(
 ): string {
   const dnsMode = options.dnsMode ?? 'smart';
   const proxyDetour = defaultProxyDetour(groups);
+  const serializedNodes = serializeSingboxNodes(nodes);
+  const endpoints = serializedNodes.flatMap(item => item.endpoint ? [item.endpoint] : []);
   const config = {
     log: {
       level: 'warn',
@@ -25,8 +33,9 @@ export function generateSingboxJson(
     },
     dns: buildDns(dnsMode, proxyDetour),
     inbounds: buildInbounds(),
-    outbounds: buildOutbounds(nodes, groups, collectionNodeNames),
-    route: buildRoute(rules, groups, remoteSets, proxyDetour),
+    ...(endpoints.length > 0 ? { endpoints } : {}),
+    outbounds: buildOutbounds(serializedNodes, groups, collectionNodeNames),
+    route: buildRoute(rules, groups, remoteSets, proxyDetour, options.ruleSetConversionBaseUrl),
     experimental: {
       cache_file: {
         enabled: true,
@@ -58,22 +67,16 @@ function buildDns(mode: DnsMode, proxyDetour: string): object {
         path: '/dns-query',
         detour: 'direct',
       },
-      {
-        tag: 'blockDns',
-        address: 'rcode://success',
-      },
     ],
     rules: [
       {
-        outbound: 'any',
-        server: 'localDns',
-      },
-      {
         rule_set: 'geosite-cn',
+        action: 'route',
         server: 'localDns',
       },
       {
         rule_set: 'geosite-geolocation-!cn',
+        action: 'route',
         server: 'proxyDns',
       },
     ],
@@ -100,20 +103,19 @@ function buildInbounds(): object[] {
     {
       type: 'tun',
       tag: 'tun-in',
-      inet4_address: '172.19.0.1/30',
-      inet6_address: 'fdfe:dcba:9876::1/126',
+      address: [
+        '172.19.0.1/30',
+        'fdfe:dcba:9876::1/126',
+      ],
       mtu: 9000,
       auto_route: true,
       strict_route: true,
-      sniff: true,
-      sniff_override_destination: true,
     },
     {
       type: 'mixed',
       tag: 'mixed-in',
       listen: '::',
       listen_port: 2080,
-      sniff: true,
       set_system_proxy: false,
     },
   ];
@@ -121,15 +123,28 @@ function buildInbounds(): object[] {
 
 // ─── Outbounds ────────────────────────────────────────────────────────────────
 
+interface SerializedSingboxNode {
+  node: ProxyNode;
+  outbound?: object;
+  endpoint?: object;
+}
+
+function serializeSingboxNodes(nodes: ProxyNode[]): SerializedSingboxNode[] {
+  return nodes.flatMap<SerializedSingboxNode>((node) => {
+    if (node.protocol === 'wireguard') {
+      return [{ node, endpoint: nodeToWireGuardEndpoint(node) }];
+    }
+    const outbound = nodeToSingbox(node);
+    return outbound ? [{ node, outbound }] : [];
+  });
+}
+
 function buildOutbounds(
-  nodes: ProxyNode[],
+  serializedNodes: SerializedSingboxNode[],
   groups: ProxyGroup[],
   collectionNodeNames: Record<string, string[]>
 ): object[] {
   const outbounds: object[] = [];
-  const serializedNodes = nodes
-    .map((node) => ({ node, outbound: nodeToSingbox(node) }))
-    .filter((item): item is { node: ProxyNode; outbound: object } => item.outbound !== null);
   const serializableNodes = serializedNodes.map((item) => item.node);
   const serializableNodeNames = new Set(serializableNodes.map((node) => node.name));
   const serializableCollectionNodeNames = filterCollectionNodeNames(
@@ -139,7 +154,7 @@ function buildOutbounds(
 
   // Convert proxy nodes
   for (const { outbound } of serializedNodes) {
-    outbounds.push(outbound);
+    if (outbound) outbounds.push(outbound);
   }
 
   // Convert groups (selectors/url-tests)
@@ -158,6 +173,7 @@ function buildOutbounds(
 // ─── Node serialization ───────────────────────────────────────────────────────
 
 function nodeToSingbox(node: ProxyNode): object | null {
+  if (node.protocol === 'ssr' || node.protocol === 'wireguard') return null;
   const nativeOutbound = nativeSingboxOutbound(node);
   if (nativeOutbound) return nativeOutbound;
 
@@ -173,20 +189,6 @@ function nodeToSingbox(node: ProxyNode): object | null {
         server_port: node.port,
         method: (cfg.extra?.cipher as string) ?? (cfg.extra?.method as string) ?? 'aes-256-gcm',
         password: cfg.password ?? '',
-      };
-    }
-    case 'ssr': {
-      return {
-        type: 'shadowsocksr',
-        tag,
-        server: node.server,
-        server_port: node.port,
-        method: (cfg.extra?.cipher as string) ?? (cfg.extra?.method as string) ?? 'aes-256-cfb',
-        password: cfg.password ?? '',
-        protocol: (cfg.extra?.protocol as string) ?? 'origin',
-        protocol_param: (cfg.extra?.protocolParam as string) ?? '',
-        obfs: (cfg.extra?.obfs as string) ?? 'plain',
-        obfs_param: (cfg.extra?.obfsParam as string) ?? '',
       };
     }
     case 'vmess': {
@@ -396,22 +398,33 @@ function nodeToSingbox(node: ProxyNode): object | null {
       }
       return ob;
     }
-    case 'wireguard': {
-      return {
-        type: 'wireguard',
-        tag,
-        server: node.server,
-        server_port: node.port,
-        private_key: (cfg.extra?.privateKey as string) ?? '',
-        peer_public_key: (cfg.extra?.publicKey as string) ?? '',
-        pre_shared_key: (cfg.extra?.presharedKey as string) ?? '',
-        reserved: (cfg.extra?.reserved as number[]) ?? [0, 0, 0],
-        local_address: wireguardLocalAddress(cfg.extra?.ip ?? cfg.extra?.address),
-      };
-    }
     default:
       return null;
   }
+}
+
+function nodeToWireGuardEndpoint(node: ProxyNode): object {
+  const cfg = node.parsedConfig;
+  const extra = cfg.extra ?? {};
+  const peer: Record<string, unknown> = {
+    address: node.server,
+    port: node.port,
+    public_key: String(extra.publicKey ?? ''),
+    allowed_ips: configStringArray(extra.allowedIPs ?? extra.allowedIps ?? extra.allowed_ips)
+      .concat()
+      .filter(Boolean),
+  };
+  if ((peer.allowed_ips as string[]).length === 0) peer.allowed_ips = ['0.0.0.0/0', '::/0'];
+  if (extra.presharedKey) peer.pre_shared_key = String(extra.presharedKey);
+  if (extra.reserved) peer.reserved = extra.reserved;
+
+  return {
+    type: 'wireguard',
+    tag: node.name,
+    address: wireguardLocalAddress(extra.ip ?? extra.address),
+    private_key: String(extra.privateKey ?? ''),
+    peers: [peer],
+  };
 }
 
 function nativeSingboxOutbound(node: ProxyNode): Record<string, unknown> | null {
@@ -511,9 +524,14 @@ function buildRoute(
   rules: ProxyRule[],
   groups: ProxyGroup[],
   remoteSets: RemoteRuleSet[],
-  proxyDetour: string
+  proxyDetour: string,
+  ruleSetConversionBaseUrl?: string
 ): object {
   const routeRules: object[] = [];
+
+  routeRules.push({
+    action: 'sniff',
+  });
 
   // Built-in DNS hijack
   routeRules.push({
@@ -546,11 +564,16 @@ function buildRoute(
     ruleSets.push(buildSingboxGeositeRuleSet(tag, proxyDetour));
     ruleSetTags.add(tag);
   }
+  for (const tag of collectGeoipRuleSetTags(enabledRules)) {
+    if (ruleSetTags.has(tag)) continue;
+    ruleSets.push(buildSingboxGeoipRuleSet(tag, proxyDetour));
+    ruleSetTags.add(tag);
+  }
 
   const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
-    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'singbox') }))
-    .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
+    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'singbox', ruleSetConversionBaseUrl) }))
+    .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format']; converted?: boolean } } =>
       Boolean(item.resolved) && isRuleSetFormatCompatible('singbox', item.resolved!.format)
     );
 
@@ -560,7 +583,7 @@ function buildRoute(
       ruleSets.push({
         tag: safeName,
         type: 'remote',
-        format: resolved.format === 'singbox' ? 'binary' : 'source',
+        format: resolved.format === 'singbox' && !resolved.converted ? 'binary' : 'source',
         url: resolved.url,
         download_detour: proxyDetour,
         update_interval: `${rs.updateInterval}h`,
@@ -584,6 +607,7 @@ function buildRoute(
     ...('outbound' in finalTarget ? { final: finalTarget.outbound } : {}),
     auto_detect_interface: true,
     override_android_vpn: true,
+    default_domain_resolver: 'localDns',
   };
 }
 
@@ -610,12 +634,30 @@ function collectGeositeRuleSetTags(rules: ProxyRule[]): string[] {
     .filter((tag) => tag !== 'geosite-');
 }
 
+function collectGeoipRuleSetTags(rules: ProxyRule[]): string[] {
+  return rules
+    .filter((rule) => rule.enabled && rule.type === 'GEOIP')
+    .map((rule) => `geoip-${rule.payload.trim().toLowerCase()}`)
+    .filter((tag) => tag !== 'geoip-');
+}
+
 function buildSingboxGeositeRuleSet(tag: string, proxyDetour: string): object {
   return {
     tag,
     type: 'remote',
     format: 'binary',
     url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/${tag}.srs`,
+    download_detour: proxyDetour,
+    update_interval: '1d',
+  };
+}
+
+function buildSingboxGeoipRuleSet(tag: string, proxyDetour: string): object {
+  return {
+    tag,
+    type: 'remote',
+    format: 'binary',
+    url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/${tag}.srs`,
     download_detour: proxyDetour,
     update_interval: '1d',
   };
@@ -653,12 +695,8 @@ function singboxRouteTarget(groupId: string, groups: ProxyGroup[]): { outbound: 
 }
 
 function wireguardLocalAddress(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    const addresses = value.map(String).map((item) => item.trim()).filter(Boolean);
-    return addresses.length > 0 ? addresses : ['10.0.0.2/32'];
-  }
-  if (typeof value === 'string' && value.trim()) return [value.trim()];
-  return ['10.0.0.2/32'];
+  const addresses = configStringArray(value);
+  return addresses.length > 0 ? addresses : ['10.0.0.2/32'];
 }
 
 function configStringArray(value: unknown): string[] {
@@ -693,32 +731,57 @@ function isNativeOutletGroup(group: ProxyGroup): boolean {
 }
 
 function ruleToSingbox(rule: ProxyRule, target: { outbound: string } | { action: 'reject' }): object | null {
-  switch (rule.type) {
+  const resolution = resolveRuleForExport(rule.type, rule.payload, 'singbox');
+  if (resolution.level === 'unsupported') return null;
+  const payload = resolution.payload;
+  switch (resolution.type) {
     case 'DOMAIN':
-      return { domain: [rule.payload], ...target };
+      return { domain: [payload], ...target };
     case 'DOMAIN-SUFFIX':
-      return { domain_suffix: [rule.payload], ...target };
+      return { domain_suffix: [payload], ...target };
     case 'DOMAIN-KEYWORD':
-      return { domain_keyword: [rule.payload], ...target };
+      return { domain_keyword: [payload], ...target };
     case 'DOMAIN-REGEX':
-      return { domain_regex: [rule.payload], ...target };
+      return { domain_regex: [payload], ...target };
     case 'IP-CIDR':
-      return { ip_cidr: [rule.payload], ...target };
+      return { ip_cidr: [payload], ...target };
     case 'IP-CIDR6':
-      return { ip_cidr: [rule.payload], ...target };
+      return { ip_cidr: [payload], ...target };
     case 'GEOIP':
-      return { geoip: [rule.payload.toLowerCase()], ...target };
+      return { rule_set: [`geoip-${payload.trim().toLowerCase()}`], ...target };
     case 'GEOSITE':
-      return { rule_set: [`geosite-${rule.payload.toLowerCase()}`], ...target };
+      return { rule_set: [`geosite-${payload.trim().toLowerCase()}`], ...target };
     case 'RULE-SET':
-      return { rule_set: [rule.payload.replace(/[^a-zA-Z0-9_-]/g, '_')], ...target };
+      return { rule_set: [payload.replace(/[^a-zA-Z0-9_-]/g, '_')], ...target };
     case 'PORT':
-      return { port: [parseInt(rule.payload, 10)], ...target };
+      return singboxPortMatch('port', payload, target);
+    case 'SRC-PORT':
+      return singboxPortMatch('source_port', payload, target);
+    case 'SRC-IP-CIDR':
+      return { source_ip_cidr: [payload], ...target };
     case 'PROCESS-NAME':
-      return { process_name: [rule.payload], ...target };
+      return { process_name: [payload], ...target };
+    case 'PROCESS-PATH':
+      return { process_path: [payload], ...target };
+    case 'PROTOCOL':
+      return { protocol: [payload], ...target };
+    case 'NETWORK':
+      return { network: [payload], ...target };
     case 'MATCH':
       return target;
     default:
       return null;
   }
+}
+
+function singboxPortMatch(
+  field: 'port' | 'source_port',
+  payload: string,
+  target: { outbound: string } | { action: 'reject' }
+): object | null {
+  const parsed = parseRulePortPayload(payload);
+  if (!parsed) return null;
+  return parsed.kind === 'single'
+    ? { [field]: [parsed.port], ...target }
+    : { [`${field}_range`]: [parsed.range], ...target };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
-import { describeCompatibleRuleSetFormats, isRemoteRuleSetCompatible, isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from './compatibility'
+import { buildQuixoticRuleSetUrl, inferQuixoticRuleSetSourceFromUrl, inferQuixoticTargetGroup, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
+import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible, isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from './compatibility'
 import type { RemoteRuleSet } from '@uni-conf/types'
 
 describe('remote rule set compatibility', () => {
@@ -23,11 +23,52 @@ describe('remote rule set compatibility', () => {
     expect(resolveQuixoticRuleSetBehavior('fake-ip-filter')).toBe('domain')
   })
 
+  it('recognizes only strict target-specific Quixotic rule-set URLs', () => {
+    expect(inferQuixoticRuleSetSourceFromUrl(
+      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list?download=1'
+    )).toEqual({ id: 'games', format: 'mihomo' })
+    expect(inferQuixoticRuleSetSourceFromUrl(
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/singbox/version5/games.srs'
+    )).toEqual({ id: 'games', format: 'singbox' })
+    expect(inferQuixoticRuleSetSourceFromUrl(
+      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/egern/games.yaml'
+    )).toEqual({ id: 'games', format: 'egern' })
+    expect(inferQuixoticRuleSetSourceFromUrl('https://evil.example/QuixoticHeart/rule-set/meta/games.list')).toBeNull()
+    expect(inferQuixoticRuleSetSourceFromUrl(
+      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list'
+    )).toBeNull()
+    expect(inferQuixoticRuleSetSourceFromUrl('http://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list')).toBeNull()
+  })
+
   it('keeps remote rule set formats scoped to compatible exporters', () => {
     expect(isRuleSetFormatCompatible('mihomo', 'stash')).toBe(true)
     expect(isRuleSetFormatCompatible('singbox', 'mihomo')).toBe(false)
     expect(isRuleSetFormatCompatible('loon', 'surge')).toBe(true)
     expect(isRuleSetFormatCompatible('nodes_raw', 'text')).toBe(false)
+  })
+
+  it('marks exact cross-client rewrites as converted instead of directly compatible', () => {
+    const singboxSet = { format: 'singbox', url: 'https://rules.example/source.json', sourceOverrides: {} } as RemoteRuleSet
+    const quantumultXSet = { format: 'quantumultx', url: 'https://rules.example/qx.list', sourceOverrides: {} } as RemoteRuleSet
+
+    expect(getRemoteRuleSetCompatibilityMode('quantumultx', singboxSet)).toBe('converted')
+    expect(getRemoteRuleSetCompatibilityMode('singbox', quantumultXSet)).toBe('converted')
+    expect(getRemoteRuleSetCompatibilityMode('egern', singboxSet)).toBe('converted')
+  })
+
+  it('prefers a custom target-native source over automatic conversion', () => {
+    const set = {
+      format: 'clash',
+      url: 'https://rules.example/default.list',
+      sourceOverrides: { egern: 'https://rules.example/native-egern.yaml' },
+    } as RemoteRuleSet
+
+    expect(getRemoteRuleSetCompatibilityMode('egern', set)).toBe('direct')
+    expect(resolveRemoteRuleSetForExport(set, 'egern')).toEqual({
+      url: 'https://rules.example/native-egern.yaml',
+      format: 'egern',
+    })
+    expect(getRemoteRuleSetCompatibilityMode('singbox', set)).toBe('converted')
   })
 
   it('treats Quixotic presets as dynamically compatible with supported exporters', () => {
@@ -58,7 +99,8 @@ describe('remote rule set compatibility', () => {
       format: 'text',
     })
     expect(isRemoteRuleSetCompatible('mihomo', fakeIpFilterSet)).toBe(true)
-    expect(isRemoteRuleSetCompatible('singbox', fakeIpFilterSet)).toBe(false)
+    expect(isRemoteRuleSetCompatible('singbox', fakeIpFilterSet)).toBe(true)
+    expect(getRemoteRuleSetCompatibilityMode('singbox', fakeIpFilterSet)).toBe('converted')
   })
 
   it('infers target groups from preset category and known direct/reject exceptions', () => {

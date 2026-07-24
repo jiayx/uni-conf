@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as yaml from 'js-yaml'
 import type { ExportData } from '../export-data'
+import type { AppSettings, ExportFormat } from '@uni-conf/types'
 import { exportRouter } from './export'
 import { subscriptionRouter } from './subscription'
-import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
+import { buildExportData, getEnabledExportConfigByToken, getExportConfigById } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { ensureDefaultExportConfig } from '../services/default-export-config'
+import { validateRenderedExport } from '../services/export-artifact-validation'
+import { getAppSettings } from '../services/app-settings'
 
 vi.mock('../export-data', () => ({
   buildExportData: vi.fn(),
@@ -17,6 +21,16 @@ vi.mock('../generators/export-renderer', () => ({
     content: 'proxies: []',
     contentType: 'text/yaml; charset=utf-8',
   })),
+}))
+
+vi.mock('../services/export-artifact-validation', () => ({
+  validateRenderedExport: vi.fn((format: ExportFormat) => ({
+    format,
+    kind: format === 'singbox' ? 'json' : 'yaml',
+    valid: true,
+    issues: [],
+  })),
+  exportArtifactWarnings: vi.fn(() => []),
 }))
 
 vi.mock('../services/app-settings', () => ({
@@ -46,6 +60,15 @@ vi.mock('../services/default-export-config', () => ({
 describe('export download readiness', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
+    vi.mocked(getAppSettings).mockResolvedValue({
+      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible',
+    } as AppSettings)
+    vi.mocked(ensureDefaultExportConfig).mockResolvedValue({
+      id: 'default-config', name: 'Default', format: 'mihomo', token: 'token', enabled: true,
+      includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    })
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [] }))
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       id: 'config-1',
@@ -66,12 +89,31 @@ describe('export download readiness', () => {
     const response = await exportRouter.request('/download/mihomo', {}, { DB: createMockDb() })
 
     expect(response.status).toBe(409)
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('export_not_ready')
     await expect(response.json()).resolves.toMatchObject({
       success: false,
+      code: 'export_not_ready',
       error: expect.stringContaining('没有可导出的节点'),
     })
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
     expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('blocks default authenticated preview and download while the public profile is paused', async () => {
+    vi.mocked(ensureDefaultExportConfig).mockResolvedValue({
+      id: 'default-config', name: 'Default', format: 'mihomo', token: 'token', enabled: false,
+      includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    const preview = await exportRouter.request('/preview/mihomo', {}, { DB: createMockDb() })
+    const download = await exportRouter.request('/download/mihomo', {}, { DB: createMockDb() })
+
+    expect(preview.status).toBe(403)
+    expect(download.status).toBe(403)
+    await expect(preview.json()).resolves.toMatchObject({ error: 'Export config is disabled' })
+    await expect(download.json()).resolves.toMatchObject({ error: 'Export config is disabled' })
+    expect(buildExportData).not.toHaveBeenCalled()
   })
 
   it('blocks authenticated downloads when all nodes are unsupported by the target exporter', async () => {
@@ -157,6 +199,152 @@ describe('export download readiness', () => {
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
+  it('blocks authenticated downloads when a selected rule set cannot be converted safely', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('payload:\n  - SCRIPT,legacy-only\n')))
+
+    const response = await exportRouter.request('/download/singbox', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(409)
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'conversion_incomplete',
+      error: expect.stringContaining('无法安全转换'),
+    })
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('includes exact skipped-rule counts in authenticated preview warnings', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy\n'
+    )))
+
+    const response = await exportRouter.request('/preview/singbox', {}, { DB: createMockDb() })
+    const body = await response.json() as { data: { warnings: Array<{ message: string }> } }
+
+    expect(response.status).toBe(200)
+    expect(body.data.warnings).toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('已转换 1 条规则，另有 1 条'),
+    }))
+  })
+
+  it('blocks partial authenticated and public conversions in strict completeness mode', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue({
+      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+    } as AppSettings)
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy\n'
+    )))
+
+    const download = await exportRouter.request('/download/singbox', {}, { DB: createMockDb() })
+    expect(download.status).toBe(409)
+    expect(download.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
+    await expect(download.json()).resolves.toMatchObject({ code: 'conversion_incomplete', error: expect.stringContaining('严格完整模式') })
+
+    const subscription = await subscriptionRouter.request('/sub/token/singbox.json', {}, { DB: createMockDb() })
+    expect(subscription.status).toBe(409)
+    expect(subscription.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
+    await expect(subscription.text()).resolves.toContain('严格完整模式')
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('returns every strict conversion blocker in authenticated readiness', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue({
+      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+    } as AppSettings)
+    const exportData = makeConvertibleExportData()
+    const baseRuleSet = exportData.remoteSets[0]!
+    exportData.remoteSets = [
+      { ...baseRuleSet, id: 'partial', name: 'Partial', url: 'https://rules.example.com/partial.yaml' },
+      { ...baseRuleSet, id: 'invalid', name: 'Invalid', url: 'https://rules.example.com/invalid.yaml' },
+      { ...baseRuleSet, id: 'complete', name: 'Complete', url: 'https://rules.example.com/complete.yaml' },
+    ]
+    vi.mocked(buildExportData).mockResolvedValue(exportData)
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/partial.')) {
+        return new Response('payload:\n  - DOMAIN-SUFFIX,partial.example\n  - SCRIPT,legacy\n')
+      }
+      if (url.includes('/invalid.')) {
+        return new Response('payload:\n  - SCRIPT,legacy\n')
+      }
+      return new Response('payload:\n  - DOMAIN-SUFFIX,complete.example\n')
+    }))
+
+    const response = await exportRouter.request('/readiness/singbox', {}, { DB: createMockDb() })
+    const body = await response.json() as {
+      data: {
+        readiness: { ready: boolean; blockingWarnings: Array<{ remediation?: { target: string; id?: string } }> }
+        warnings: Array<{ code?: string }>
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.data.readiness.ready).toBe(false)
+    expect(body.data.readiness.blockingWarnings.map(warning => warning.remediation?.id)).toEqual([
+      'partial',
+      'invalid',
+    ])
+    expect(body.data.warnings.map(warning => warning.code)).toEqual(expect.arrayContaining([
+      'remote-rule-set-conversion-partial',
+      'remote-rule-set-conversion-failed',
+      'remote-rule-set-converted',
+    ]))
+  })
+
+  it('lets an export profile override the global conversion policy in both directions', async () => {
+    const strictProfile = {
+      id: 'strict-profile',
+      name: 'Strict',
+      format: 'singbox' as const,
+      token: 'token',
+      enabled: true,
+      includeCollectionIds: [],
+      includeGroupIds: [],
+      includeRuleIds: [],
+      includeRemoteSetIds: [],
+      ruleSetConversionPolicy: 'strict' as const,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    vi.mocked(getExportConfigById).mockResolvedValue(strictProfile)
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy\n'
+    )))
+
+    const strictDownload = await exportRouter.request(
+      '/download/singbox?configId=strict-profile',
+      {},
+      { DB: createMockDb() },
+    )
+    expect(strictDownload.status).toBe(409)
+    expect(strictDownload.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
+
+    vi.mocked(getAppSettings).mockResolvedValue({
+      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+    } as AppSettings)
+    vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
+      ...strictProfile,
+      id: 'compatible-profile',
+      ruleSetConversionPolicy: 'compatible',
+    })
+    vi.mocked(renderExportData).mockReturnValue({
+      content: '{"outbounds":[]}',
+      contentType: 'application/json; charset=utf-8',
+    })
+
+    const compatibleSubscription = await subscriptionRouter.request(
+      '/sub/token/singbox.json',
+      {},
+      { DB: createMockDb() },
+    )
+    expect(compatibleSubscription.status).toBe(200)
+    expect(compatibleSubscription.headers.get('X-UniConf-Error-Code')).toBeNull()
+  })
+
   it('renders quick downloads with the requested format while reusing the default export scope', async () => {
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
       nodes: [
@@ -183,6 +371,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
     expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox')
     expect(renderExportData).toHaveBeenCalledWith(
@@ -190,6 +379,64 @@ describe('export download readiness', () => {
       'singbox',
       expect.objectContaining({ dnsMode: 'smart' })
     )
+  })
+
+  it('returns runtime artifact validation with authenticated previews', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [renderableNode()] }))
+    vi.mocked(validateRenderedExport).mockReturnValue({
+      format: 'mihomo',
+      kind: 'yaml',
+      valid: true,
+      issues: [],
+    })
+
+    const response = await exportRouter.request('/preview/mihomo', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        format: 'mihomo',
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: 'mihomo' },
+        artifactValidation: { format: 'mihomo', kind: 'yaml', valid: true, issues: [] },
+        readiness: { ready: true, blockingWarnings: [] },
+      },
+    })
+  })
+
+  it('keeps authoritative download readiness separate from non-blocking warning severity', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [renderableNode()],
+      sources: [{
+        id: 'source-1', name: 'Cached Source', type: 'url', format: 'mihomo', enabled: true,
+        nodeCount: 1, updateInterval: 24, tags: [], groups: [],
+        lastRefreshError: 'HTTP 401', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }))
+
+    const response = await exportRouter.request('/readiness/mihomo', {}, { DB: createMockDb() })
+    const body = await response.json() as {
+      data: { content?: string; readiness: { ready: boolean; blockingWarnings: unknown[] }; warnings: Array<{ level: string; message: string }> }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.data.warnings).toContainEqual(expect.objectContaining({
+      level: 'unsupported', message: expect.stringContaining('最近刷新失败'),
+    }))
+    expect(body.data.readiness).toEqual({ ready: true, blockingWarnings: [] })
+    expect(body.data.content).toBeUndefined()
+  })
+
+  it('reports the same graph blocker in preview readiness that download enforces', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [] }))
+
+    const response = await exportRouter.request('/readiness/mihomo', {}, { DB: createMockDb() })
+    const body = await response.json() as { data: { content?: string; readiness: { ready: boolean; blockingWarnings: Array<{ message: string }> } } }
+
+    expect(response.status).toBe(200)
+    expect(body.data.readiness.ready).toBe(false)
+    expect(body.data.readiness.blockingWarnings[0]?.message).toContain('没有可导出的节点')
+    expect(body.data.content).toBeUndefined()
   })
 
   it('renders raw node quick downloads with the canonical node subscription filename', async () => {
@@ -258,6 +505,230 @@ describe('export download readiness', () => {
     await expect(response.text()).resolves.toContain('没有可导出的节点')
     expect(response.headers.get('Subscription-Userinfo')).toBe('upload=0; download=0; total=10737418240; expire=4099680000')
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('returns a non-cacheable not-found response for paused or rotated public links', async () => {
+    vi.mocked(getEnabledExportConfigByToken).mockResolvedValueOnce(null)
+
+    const response = await subscriptionRouter.request('/sub/disabled-token/mihomo.yaml', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Cache-Control')).toBe('no-cache, no-store, must-revalidate')
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('subscription_unavailable')
+    await expect(response.text()).resolves.toContain('not found or disabled')
+    expect(buildExportData).not.toHaveBeenCalled()
+  })
+
+  it('serves token-scoped, semantics-preserving converted rule sets', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      remoteSets: [{
+        id: 'rules-1', name: 'Clash Rules', url: 'https://rules.example.com/list.yaml',
+        format: 'clash', behavior: 'classical', targetGroupId: 'group-1', updateInterval: 12,
+        sourceOverrides: {},
+        enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy-script\n',
+      { status: 200, headers: { 'content-type': 'text/yaml' } }
+    )))
+
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-1/singbox.json',
+      {},
+      { DB: createMockDb() }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('no-cache, no-store, must-revalidate')
+    expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
+    expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
+    expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('SCRIPT=1')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
+    await expect(response.json()).resolves.toEqual({
+      version: 3,
+      rules: [{ domain_suffix: ['example.com'] }],
+    })
+  })
+
+  it('enforces strict completeness again at the token-scoped converted rule-set endpoint', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue({
+      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+    } as AppSettings)
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy-script\n',
+    )))
+
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-1/singbox.json',
+      {},
+      { DB: createMockDb() },
+    )
+
+    expect(response.status).toBe(409)
+    expect(response.headers.get('Cache-Control')).toBe('no-cache, no-store, must-revalidate')
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
+    expect(response.headers.get('X-UniConf-Converted-Rules')).toBeNull()
+    await expect(response.text()).resolves.toContain('Strict completeness mode rejected 1 unconverted rule')
+  })
+
+  it('lets a compatible profile override global strict mode at the converted rule-set endpoint', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue({
+      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+    } as AppSettings)
+    vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
+      id: 'compatible-profile',
+      name: 'Compatible',
+      format: 'singbox',
+      token: 'token',
+      enabled: true,
+      includeCollectionIds: [],
+      includeGroupIds: [],
+      includeRuleIds: [],
+      includeRemoteSetIds: [],
+      ruleSetConversionPolicy: 'compatible',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy-script\n',
+    )))
+
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-1/singbox.json',
+      {},
+      { DB: createMockDb() },
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
+    expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
+    expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
+  })
+
+  it('serves a token-scoped Quantumult X list converted from sing-box source rules', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      remoteSets: [{
+        id: 'rules-qx', name: 'sing-box Rules', url: 'https://rules.example.com/list.json',
+        format: 'singbox', behavior: 'classical', targetGroupId: 'group-1', updateInterval: 12,
+        sourceOverrides: {},
+        enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      version: 3,
+      rules: [{ domain_suffix: ['example.com'] }, { process_name: ['unsupported'] }],
+    }))))
+
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-qx/quantumultx.list',
+      {},
+      { DB: createMockDb() }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('text/plain')
+    expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
+    expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
+    expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('PROCESS-NAME=1')
+    await expect(response.text()).resolves.toBe('HOST-SUFFIX,example.com\n')
+  })
+
+  it('serves token-scoped native Egern YAML converted from sing-box source rules', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      remoteSets: [{
+        id: 'rules-egern', name: 'sing-box Rules', url: 'https://rules.example.com/list.json',
+        format: 'singbox', behavior: 'classical', targetGroupId: 'group-1', updateInterval: 12,
+        sourceOverrides: {},
+        enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      version: 3,
+      rules: [{ domain_suffix: ['example.com'] }, { source_port: [8080] }],
+    }))))
+
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-egern/egern.yaml',
+      {},
+      { DB: createMockDb() }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('text/yaml')
+    expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
+    expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('SRC-PORT=1')
+    expect(yaml.load(await response.text())).toEqual({ domain_suffix_set: ['example.com'] })
+  })
+
+  it('uses the requested Clash context instead of a Mihomo override at the conversion endpoint', async () => {
+    const sourceUrl = 'https://rules.example.com/source.json'
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      remoteSets: [{
+        id: 'rules-clash', name: 'Client-specific Rules', url: sourceUrl,
+        format: 'singbox', behavior: 'classical', targetGroupId: 'group-1', updateInterval: 12,
+        sourceOverrides: { mihomo: 'https://rules.example.com/native-mihomo.yaml' },
+        enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }))
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      version: 3,
+      rules: [{ domain_suffix: ['example.com'] }],
+    })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-clash/mihomo.yaml?for=clash',
+      {},
+      { DB: createMockDb() }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@17')
+    expect(fetchMock).toHaveBeenCalledWith(
+      sourceUrl,
+      expect.objectContaining({ redirect: 'manual' }),
+    )
+    expect(await response.text()).toContain('DOMAIN-SUFFIX,example.com')
+    expect(buildExportData).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'clash')
+  })
+
+  it('rejects an invalid target-client context at the conversion endpoint', async () => {
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/rules-1/mihomo.yaml?for=nodes_raw',
+      {},
+      { DB: createMockDb() }
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('conversion_export_format_invalid')
+    expect(buildExportData).not.toHaveBeenCalled()
+  })
+
+  it('does not expose rule sets outside the token profile scope', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData())
+    const response = await subscriptionRouter.request(
+      '/sub/token/rules/not-in-profile/singbox.json',
+      {},
+      { DB: createMockDb() }
+    )
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Cache-Control')).toBe('no-cache, no-store, must-revalidate')
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('rule_set_out_of_scope')
+  })
+
+  it('blocks the main public subscription before emitting a broken conversion URL', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('payload:\n  - SCRIPT,legacy-only\n')))
+
+    const response = await subscriptionRouter.request('/sub/token/singbox.json', {}, { DB: createMockDb() })
+
+    expect(response.status).toBe(409)
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
+    await expect(response.text()).resolves.toContain('无法安全转换')
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
@@ -358,6 +829,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
@@ -422,7 +894,55 @@ describe('export download readiness', () => {
       expect.objectContaining({ dnsMode: 'smart' })
     )
   })
+
+  it('blocks admin downloads and public subscriptions when rendered structure is invalid', async () => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [renderableNode()] }))
+    vi.mocked(validateRenderedExport).mockReturnValue({
+      format: 'mihomo',
+      kind: 'yaml',
+      valid: false,
+      issues: [{
+        code: 'missing_section',
+        path: 'rules',
+        message: '缺少 rules 数组',
+        messageEn: 'Missing the rules array.',
+      }],
+    })
+
+    const adminResponse = await exportRouter.request('/download/mihomo', {}, { DB: createMockDb() })
+    const publicResponse = await subscriptionRouter.request('/sub/token/mihomo.yaml', {}, { DB: createMockDb() })
+
+    expect(adminResponse.status).toBe(500)
+    expect(adminResponse.headers.get('X-UniConf-Error-Code')).toBe('artifact_invalid')
+    await expect(adminResponse.json()).resolves.toMatchObject({
+      success: false,
+      code: 'artifact_invalid',
+      error: 'Generated export failed structural validation',
+      artifactValidation: { valid: false },
+    })
+    expect(publicResponse.status).toBe(500)
+    expect(publicResponse.headers.get('X-UniConf-Error-Code')).toBe('artifact_invalid')
+    await expect(publicResponse.text()).resolves.toContain('failed structural validation')
+  })
 })
+
+function renderableNode(): ExportData['nodes'][number] {
+  return {
+    id: 'node-ss',
+    sourceId: 'source-1',
+    name: 'SS 01',
+    protocol: 'ss',
+    server: 'ss.example.com',
+    port: 8388,
+    enabled: true,
+    tags: [],
+    rawConfig: {},
+    parsedConfig: { protocol: 'ss', server: 'ss.example.com', port: 8388, password: 'password', extra: { cipher: 'aes-256-gcm' } },
+    isManual: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+}
 
 function makeExportData(patch: Partial<ExportData> = {}): ExportData {
   return {
@@ -439,6 +959,23 @@ function makeExportData(patch: Partial<ExportData> = {}): ExportData {
     collectionNodeNames: {},
     ...patch,
   }
+}
+
+function makeConvertibleExportData(): ExportData {
+  return makeExportData({
+    nodes: [renderableNode()],
+    groups: [{
+      id: 'group-1', name: 'PROXY', type: 'select', collectionIds: [], groupIds: [], builtins: ['DIRECT'],
+      enabled: true, order: 1, isBuiltin: false,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    }],
+    remoteSets: [{
+      id: 'rules-1', name: 'Clash Rules', url: 'https://rules.example.com/list.yaml',
+      format: 'clash', behavior: 'classical', targetGroupId: 'group-1', updateInterval: 12,
+      sourceOverrides: {},
+      enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    }],
+  })
 }
 
 function createMockDb(): D1Database {

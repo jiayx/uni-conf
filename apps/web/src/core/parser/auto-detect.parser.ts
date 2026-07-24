@@ -1,6 +1,6 @@
 import type { ProxyNode } from '@uni-conf/types'
 import { hasProxyLinkUri } from '@uni-conf/shared'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 import { parseBase64Subscription } from './base64.parser'
 import { parseClashConfig } from './clash.parser'
 import { parseSingboxConfig } from './singbox.parser'

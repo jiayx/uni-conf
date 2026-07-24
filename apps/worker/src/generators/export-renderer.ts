@@ -20,7 +20,7 @@ export interface RenderedExport {
 export function renderExportData(
   data: ExportData,
   format: ExportFormat,
-  options: { dnsMode?: DnsMode } = {}
+  options: { dnsMode?: DnsMode; ruleSetConversionBaseUrl?: string } = {}
 ): RenderedExport | null {
   const {
     nodes,
@@ -36,7 +36,10 @@ export function renderExportData(
 
   if (format === 'mihomo' || format === 'clash') {
     return {
-      content: generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, options),
+      content: generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, {
+        ...options,
+        ruleSetExportFormat: format,
+      }),
       contentType: 'text/yaml; charset=utf-8',
     }
   }
@@ -48,25 +51,25 @@ export function renderExportData(
   }
   if (format === 'loon') {
     return {
-      content: generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames),
+      content: generateLoon(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames, options),
       contentType: 'text/plain; charset=utf-8',
     }
   }
   if (format === 'surge') {
     return {
-      content: generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames),
+      content: generateSurge(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames, options),
       contentType: 'text/plain; charset=utf-8',
     }
   }
   if (format === 'shadowrocket') {
     return {
-      content: generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames),
+      content: generateShadowrocket(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames, options),
       contentType: 'text/plain; charset=utf-8',
     }
   }
   if (format === 'quantumultx') {
     return {
-      content: generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames),
+      content: generateQuantumultX(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames, options),
       contentType: 'text/plain; charset=utf-8',
     }
   }
@@ -78,7 +81,7 @@ export function renderExportData(
   }
   if (format === 'egern') {
     return {
-      content: generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames),
+      content: generateEgern(nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames, options),
       contentType: 'text/yaml; charset=utf-8',
     }
   }

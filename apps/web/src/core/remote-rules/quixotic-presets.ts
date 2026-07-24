@@ -2,6 +2,7 @@ import type { RuleSetFormat } from '@uni-conf/types'
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
+  inferQuixoticRuleSetSourceFromUrl,
   QUIXOTIC_RULE_SET_PRESETS,
   resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
@@ -12,6 +13,7 @@ import {
 export {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
+  inferQuixoticRuleSetSourceFromUrl,
   QUIXOTIC_RULE_SET_PRESETS,
   resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,

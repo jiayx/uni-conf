@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
-import nodesApp, { normalizeNodeSearchQuery, resolveManualNodeInput, toNodeSummary, validateManualNodeUpdate } from './nodes';
+import nodesApp, {
+  normalizeNodeSearchQuery,
+  resolveManualNodeInput,
+  toNodeSummary,
+  validateManualNodeUpdate,
+  validateNodeBatchEnabledInput,
+} from './nodes';
 import { MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared';
 
 vi.mock('../services/zero-setup', () => ({
@@ -360,6 +366,58 @@ describe('manual node input', () => {
     expect(response.status).toBe(200);
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
   });
+
+  it('validates and deduplicates batch enable input', () => {
+    expect(validateNodeBatchEnabledInput({ ids: [' node-1 ', 'node-1', 'node-2'], enabled: false }))
+      .toEqual({ valid: true, ids: ['node-1', 'node-2'], enabled: false });
+    expect(validateNodeBatchEnabledInput({ ids: [], enabled: true })).toEqual({
+      valid: false,
+      error: 'ids must contain between 1 and 500 node ids',
+    });
+    expect(validateNodeBatchEnabledInput({ ids: ['node-1'], enabled: 'yes' })).toEqual({
+      valid: false,
+      error: 'enabled must be a boolean',
+    });
+  });
+
+  it('updates selected nodes in one D1 batch and resynchronizes zero-setup defaults', async () => {
+    vi.clearAllMocks();
+    const db = createNodeBatchMockDb(['node-1', 'node-2']);
+
+    const response = await nodesApp.request('/batch-enabled', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: ['node-1', 'node-2'], enabled: false }),
+    }, { DB: db });
+    const payload = await response.json() as {
+      success: boolean;
+      data: { ids: string[]; enabled: boolean; updatedCount: number };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toEqual({
+      ids: ['node-1', 'node-2'],
+      enabled: false,
+      updatedCount: 2,
+    });
+    expect((db as unknown as { __batch: ReturnType<typeof vi.fn> }).__batch).toHaveBeenCalledOnce();
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+  });
+
+  it('rejects a batch when any selected node no longer exists', async () => {
+    vi.clearAllMocks();
+    const db = createNodeBatchMockDb(['node-1']);
+
+    const response = await nodesApp.request('/batch-enabled', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: ['node-1', 'missing-node'], enabled: true }),
+    }, { DB: db });
+
+    expect(response.status).toBe(404);
+    expect((db as unknown as { __batch: ReturnType<typeof vi.fn> }).__batch).not.toHaveBeenCalled();
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled();
+  });
 });
 
 describe('node listing', () => {
@@ -512,4 +570,31 @@ function createManualNodeDeleteMockDb(): D1Database {
       raw: async () => [],
     })),
   } as unknown as D1Database;
+}
+
+function createNodeBatchMockDb(existingIds: string[]): D1Database {
+  const batch = vi.fn(async () => []);
+  const db = {
+    prepare: vi.fn((sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => null,
+        all: async () => ({
+          results: sql.includes('SELECT id FROM nodes')
+            ? existingIds.filter(id => args.includes(id)).map(id => ({ id }))
+            : [],
+        }),
+        run: async () => ({ success: true }),
+        raw: async () => [],
+        __sql: sql,
+        __args: args,
+      }),
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => ({ success: true }),
+      raw: async () => [],
+    })),
+    batch,
+    __batch: batch,
+  };
+  return db as unknown as D1Database;
 }

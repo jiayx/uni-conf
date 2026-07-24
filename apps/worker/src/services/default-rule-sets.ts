@@ -40,6 +40,7 @@ const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
 export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): Promise<void> {
   const groups = await listGroupsByName(db);
   const existingPresets = await listExistingPresetRows(db);
+  const healthInvalidationIds = new Set<string>();
   const quixoticStatements = QUIXOTIC_RULE_SET_PRESETS
     .map((preset) => {
       const existing = existingPresets.get(presetKey('quixotic', preset.id));
@@ -60,6 +61,9 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
           && existing.sort_order === sortOrder
           && existing.notes === state.notes
         ) return null;
+        if (existing.url !== url || existing.format !== QUIXOTIC_DEFAULT_FORMAT || existing.behavior !== behavior) {
+          healthInvalidationIds.add(existing.id);
+        }
         return db
           .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = ?, sort_order = ?, notes = ?, updated_at = ? WHERE id = ?')
           .bind(url, QUIXOTIC_DEFAULT_FORMAT, behavior, targetGroup.id, state.enabled, sortOrder, state.notes, ts, existing.id);
@@ -102,6 +106,9 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
           && existing.behavior === preset.behavior
           && existing.notes === state.notes
         ) return null;
+        if (existing.url !== preset.url || existing.format !== preset.format || existing.behavior !== preset.behavior) {
+          healthInvalidationIds.add(existing.id);
+        }
         return db
           .prepare('UPDATE remote_rule_sets SET url = ?, format = ?, behavior = ?, target_group_id = ?, enabled = ?, sort_order = ?, notes = ?, updated_at = ? WHERE id = ?')
           .bind(preset.url, preset.format, preset.behavior, targetGroup.id, state.enabled, preset.sortOrder, state.notes, ts, existing.id);
@@ -130,7 +137,10 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
     })
     .filter((statement): statement is D1PreparedStatement => Boolean(statement));
 
-  const statements = [...quixoticStatements, ...uniConfStatements];
+  const healthInvalidations = Array.from(healthInvalidationIds, (id) => db
+    .prepare('DELETE FROM remote_rule_set_source_health WHERE remote_rule_set_id = ?')
+    .bind(id));
+  const statements = [...quixoticStatements, ...uniConfStatements, ...healthInvalidations];
 
   if (statements.length > 0) await db.batch(statements);
 }

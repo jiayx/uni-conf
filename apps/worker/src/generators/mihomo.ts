@@ -1,11 +1,18 @@
-import { DEFAULT_HEALTH_CHECK, isRuleSetFormatCompatible } from '@uni-conf/shared';
-import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import {
+  DEFAULT_HEALTH_CHECK,
+  isRuleSetFormatCompatible,
+  resolveRuleForExport,
+  supportsRuleNoResolve,
+} from '@uni-conf/shared';
+import type { DnsMode, ExportFormat, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
 
 interface MihomoGeneratorOptions {
   dnsMode?: DnsMode;
+  ruleSetConversionBaseUrl?: string;
+  ruleSetExportFormat?: Extract<ExportFormat, 'mihomo' | 'clash' | 'stash'>;
 }
 
 export function generateMihomoYaml(
@@ -69,11 +76,15 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Rule providers ────────────────────────────────────────────────────────────
+  const ruleSetExportFormat = options.ruleSetExportFormat ?? 'mihomo';
   const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
-    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'mihomo') }))
+    .map((rs) => ({
+      source: rs,
+      resolved: resolveRemoteRuleSetForExport(rs, ruleSetExportFormat, options.ruleSetConversionBaseUrl),
+    }))
     .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format'] } } =>
-      Boolean(item.resolved) && isRuleSetFormatCompatible('mihomo', item.resolved!.format)
+      Boolean(item.resolved) && isRuleSetFormatCompatible(ruleSetExportFormat, item.resolved!.format)
     );
   if (enabledRemoteSets.length === 0) {
     lines.push('rule-providers: {}');
@@ -100,7 +111,8 @@ export function generateMihomoYaml(
   lines.push('rules:');
   for (const rule of enabledRules) {
     if (rule.type === 'MATCH') continue;
-    lines.push(`  - ${ruleToMihomo(rule, groups)}`);
+    const line = ruleToMihomo(rule, groups);
+    if (line) lines.push(`  - ${line}`);
   }
 
   for (const { source: rs } of enabledRemoteSets) {
@@ -111,7 +123,7 @@ export function generateMihomoYaml(
   }
 
   if (matchRule) {
-    lines.push(`  - ${ruleToMihomo(matchRule, groups)}`);
+    lines.push(`  - ${ruleToMihomo(matchRule, groups)!}`);
   } else {
     const defaultTarget = defaultPolicyName(groups);
     if (defaultTarget) {
@@ -416,7 +428,7 @@ function isMihomoProxyGroup(group: ProxyGroup): boolean {
 
 // ─── Rule serialization ───────────────────────────────────────────────────────
 
-function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string {
+function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string | null {
   const group = groups.find((g) => g.id === rule.targetGroupId);
   const groupName = group ? resolveMihomoPolicyName(group) : rule.targetGroupId;
 
@@ -424,8 +436,12 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string {
     return `MATCH,${groupName}`;
   }
 
-  const noResolve = rule.noResolve ? ',no-resolve' : '';
-  return `${rule.type},${rule.payload},${groupName}${noResolve}`;
+  const resolution = resolveRuleForExport(rule.type, rule.payload, 'mihomo');
+  if (resolution.level === 'unsupported') return null;
+  const noResolve = rule.noResolve && supportsRuleNoResolve(rule.type, 'mihomo')
+    ? ',no-resolve'
+    : '';
+  return `${resolution.type},${resolution.payload},${groupName}${noResolve}`;
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string | undefined {

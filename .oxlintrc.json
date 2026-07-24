@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "eslint",
+    "typescript",
+    "react",
+    "oxc"
+  ],
+  "categories": {
+    "correctness": "deny"
+  },
+  "rules": {
+    "typescript/await-thenable": "deny",
+    "typescript/no-floating-promises": [
+      "deny",
+      {
+        "ignoreVoid": true
+      }
+    ],
+    "typescript/no-misused-promises": "deny",
+    "typescript/no-base-to-string": "allow",
+    "typescript/no-redundant-type-constituents": "allow",
+    "typescript/require-array-sort-compare": "allow",
+    "typescript/restrict-template-expressions": "allow",
+    "typescript/unbound-method": "allow"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "worker": true,
+    "vitest": true
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/coverage/**",
+    "**/node_modules/**"
+  ],
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "deny"
+  }
+}

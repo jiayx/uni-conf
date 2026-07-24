@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import groupsApp, { validateGroupWrite } from './groups'
+import groupsApp, { validateGroupReorderInput, validateGroupWrite } from './groups'
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(async () => ({
@@ -85,6 +85,21 @@ describe('groups route helpers', () => {
     })
   })
 
+  it('validates reorder ids and rejects duplicates', () => {
+    expect(validateGroupReorderInput({ ids: [' custom-downloads ', 'builtin-ai'] })).toEqual({
+      valid: true,
+      ids: ['custom-downloads', 'builtin-ai'],
+    })
+    expect(validateGroupReorderInput({ ids: ['custom-downloads', 'custom-downloads'] })).toEqual({
+      valid: false,
+      error: 'group ids must not contain duplicates',
+    })
+    expect(validateGroupReorderInput({ ids: ['custom-downloads', ''] })).toEqual({
+      valid: false,
+      error: 'every group id must be a non-empty string',
+    })
+  })
+
   it('initializes zero-setup defaults after creating a group', async () => {
     const db = createGroupRouteMockDb()
 
@@ -109,6 +124,65 @@ describe('groups route helpers', () => {
 
     expect(response.status).toBe(200)
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
+  it('rejects missing nested groups before creating a custom group', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Broken', type: 'select', groupIds: ['missing-group'] }),
+    }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('references a missing group: missing-group'),
+    })
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing node-group collections before creating a policy group', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Broken Collection',
+        type: 'select',
+        collectionIds: ['missing-collection'],
+      }),
+    }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'group references a missing node group: missing-collection',
+    })
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
+  })
+
+  it('rejects an update that would create an indirect group cycle', async () => {
+    const db = createGroupRouteMockDb()
+    const groups = readMockGroups(db)
+    groups.set('custom-parent', { ...groupRow('custom-parent', 'Parent'), group_ids: '["custom-child"]' })
+    groups.set('custom-child', groupRow('custom-child', 'Child'))
+
+    const response = await groupsApp.request('/custom-child', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupIds: ['custom-parent'] }),
+    }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'group reference cycle detected: custom-parent -> custom-child -> custom-parent',
+    })
+    expect(groups.get('custom-child')?.group_ids).toBe('[]')
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
   })
 
   it('rejects direct edits to built-in groups', async () => {
@@ -142,6 +216,20 @@ describe('groups route helpers', () => {
     expect(readMockGroupOrder(db, 'builtin-ai')).toBe(1)
   })
 
+  it('rejects incomplete or stale reorder requests without changing any order', async () => {
+    const db = createGroupRouteMockDb()
+
+    const response = await groupsApp.request('/reorder', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: ['custom-downloads', 'missing-group'] }),
+    }, { DB: db })
+
+    expect(response.status).toBe(409)
+    expect(readMockGroupOrder(db, 'custom-downloads')).toBe(10)
+    expect((db.batch as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled()
+  })
+
   it('initializes zero-setup defaults after deleting a group', async () => {
     const db = createGroupRouteMockDb()
 
@@ -150,6 +238,78 @@ describe('groups route helpers', () => {
     expect(response.status).toBe(200)
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
+
+  it('rejects deleting a group that is still nested in another policy group', async () => {
+    const db = createGroupRouteMockDb()
+    const groups = readMockGroups(db)
+    groups.set('custom-parent', {
+      ...groupRow('custom-parent', 'Parent'),
+      collection_ids: '["collection-test"]',
+      group_ids: '["custom-downloads"]',
+    })
+
+    const response = await groupsApp.request('/custom-downloads', { method: 'DELETE' }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'group is referenced by policy group: Parent',
+      code: 'resource_in_use',
+      details: {
+        dependency: { type: 'policy-group', id: 'custom-parent', name: 'Parent' },
+        remediation: { target: 'groups', id: 'custom-parent' },
+        dependencies: [{
+          type: 'policy-group',
+          id: 'custom-parent',
+          name: 'Parent',
+          remediation: { target: 'groups', id: 'custom-parent' },
+        }],
+      },
+    })
+    expect(groups.has('custom-downloads')).toBe(true)
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
+  })
+
+  it('returns the exact export profile remediation when it scopes the group', async () => {
+    const db = createGroupRouteMockDb()
+    readMockExportConfigs(db).set('export-mobile', {
+      id: 'export-mobile',
+      name: 'Mobile',
+      include_group_ids: '["custom-downloads"]',
+    })
+    readMockExportConfigs(db).set('export-tablet', {
+      id: 'export-tablet',
+      name: 'Tablet',
+      include_group_ids: '["custom-downloads"]',
+    })
+
+    const response = await groupsApp.request('/custom-downloads', { method: 'DELETE' }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'group is included by export profile: Mobile',
+      code: 'resource_in_use',
+      details: {
+        dependency: { type: 'export-profile', id: 'export-mobile', name: 'Mobile' },
+        remediation: { target: 'export', id: 'export-mobile' },
+        dependencies: [
+          {
+            type: 'export-profile',
+            id: 'export-mobile',
+            name: 'Mobile',
+            remediation: { target: 'export', id: 'export-mobile' },
+          },
+          {
+            type: 'export-profile',
+            id: 'export-tablet',
+            name: 'Tablet',
+            remediation: { target: 'export', id: 'export-tablet' },
+          },
+        ],
+      },
+    })
+  })
 })
 
 function createGroupRouteMockDb(): D1Database {
@@ -157,6 +317,7 @@ function createGroupRouteMockDb(): D1Database {
     ['custom-downloads', groupRow('custom-downloads', 'Downloads')],
     ['builtin-ai', groupRow('builtin-ai', 'AI', 1, 1)],
   ])
+  const exportConfigs = new Map<string, Record<string, unknown>>()
 
   const mockDb = {
     prepare: vi.fn((sql: string) => ({
@@ -185,7 +346,12 @@ function createGroupRouteMockDb(): D1Database {
           if (sql.includes('UPDATE groups SET')) {
             const id = String(args[11])
             const existing = groups.get(id) ?? groupRow(id, 'Downloads')
-            groups.set(id, { ...existing, enabled: args[9], updated_at: args[10] })
+            groups.set(id, {
+              ...existing,
+              group_ids: args[3],
+              enabled: args[9],
+              updated_at: args[10],
+            })
           }
           if (sql.includes('DELETE FROM groups WHERE id = ?')) {
             groups.delete(String(args[0]))
@@ -198,7 +364,42 @@ function createGroupRouteMockDb(): D1Database {
         if (sql.includes('SELECT MAX(sort_order)')) return { max_order: 10 }
         return null
       },
-      all: async () => ({ results: [] }),
+      all: async () => {
+        if (sql.includes('SELECT id FROM collections')) {
+          return { results: [] }
+        }
+        if (sql.includes('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups')) {
+          return {
+            results: [...groups.values()].map(row => ({
+              id: row.id,
+              name: row.name,
+              type: row.type,
+              collection_ids: row.collection_ids,
+              group_ids: row.group_ids,
+              enabled: row.enabled,
+              is_builtin: row.is_builtin,
+            })),
+          }
+        }
+        if (sql.includes('SELECT id, group_ids FROM groups')) {
+          return {
+            results: [...groups.values()].map(row => ({
+              id: row.id,
+              group_ids: row.group_ids,
+            })),
+          }
+        }
+        if (sql.includes('SELECT id, name, include_group_ids FROM export_configs')) {
+          return { results: [...exportConfigs.values()] }
+        }
+        if (sql.includes('SELECT id FROM groups')) {
+          return { results: [...groups.keys()].map(id => ({ id })) }
+        }
+        if (sql.includes('SELECT * FROM groups')) {
+          return { results: [...groups.values()].sort((a, b) => Number(a.sort_order) - Number(b.sort_order)) }
+        }
+        return { results: [] }
+      },
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
@@ -207,14 +408,23 @@ function createGroupRouteMockDb(): D1Database {
       return []
     }),
     __groups: groups,
+    __exportConfigs: exportConfigs,
   }
 
   return mockDb as unknown as D1Database
 }
 
 function readMockGroupOrder(db: D1Database, id: string): unknown {
-  const groups = (db as unknown as { __groups: Map<string, Record<string, unknown>> }).__groups
+  const groups = readMockGroups(db)
   return groups.get(id)?.sort_order
+}
+
+function readMockGroups(db: D1Database): Map<string, Record<string, unknown>> {
+  return (db as unknown as { __groups: Map<string, Record<string, unknown>> }).__groups
+}
+
+function readMockExportConfigs(db: D1Database): Map<string, Record<string, unknown>> {
+  return (db as unknown as { __exportConfigs: Map<string, Record<string, unknown>> }).__exportConfigs
 }
 
 function groupRow(id: string, name: string, sortOrder = 10, isBuiltin = 0): Record<string, unknown> {

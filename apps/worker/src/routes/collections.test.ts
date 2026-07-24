@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import collectionsApp, { isManagedAutoNodeCollectionNotes, validateCollectionWrite } from './collections'
+import collectionsApp, {
+  isManagedAutoNodeCollectionNotes,
+  validateCollectionWithGroupInput,
+  validateCollectionWrite,
+} from './collections'
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(async () => ({
@@ -79,6 +83,24 @@ describe('collections route helpers', () => {
         enabled: true,
       }],
     }))
+  })
+
+  it('validates the atomic node-group envelope', () => {
+    expect(validateCollectionWithGroupInput({
+      collection: { name: 'US Pool' },
+      groupType: 'url-test',
+    })).toEqual({
+      valid: true,
+      collection: { name: 'US Pool' },
+      groupType: 'url-test',
+    })
+    expect(validateCollectionWithGroupInput({
+      collection: { name: 'US Pool' },
+      groupType: 'load-balance',
+    })).toEqual({
+      valid: false,
+      error: 'groupType must be select, url-test, or fallback',
+    })
   })
 
   it('rejects malformed collection payloads', () => {
@@ -163,6 +185,51 @@ describe('collections route helpers', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 
+  it('creates a collection and its dedicated group in one database batch', async () => {
+    const db = createCollectionRouteMockDb()
+
+    const response = await collectionsApp.request('/with-group', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        collection: { name: 'JP Auto', enabled: true },
+        groupType: 'url-test',
+      }),
+    }, { DB: db })
+
+    expect(response.status).toBe(201)
+    expect(readCollectionDb(db).batch).toHaveBeenCalledOnce()
+    expect(readCollectionDb(db).batch.mock.calls[0]?.[0]).toHaveLength(2)
+    const body = await response.json() as {
+      data: { collection: { id: string; name: string }; group: { collectionIds: string[]; type: string } };
+    }
+    expect(body.data.collection.name).toBe('JP Auto')
+    expect(body.data.group.collectionIds).toEqual([body.data.collection.id])
+    expect(body.data.group.type).toBe('url-test')
+  })
+
+  it('updates the collection and dedicated group in one database batch', async () => {
+    const db = createCollectionRouteMockDb()
+
+    const response = await collectionsApp.request('/collection-1/with-group', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        collection: { name: 'US Fallback', enabled: false },
+        groupType: 'fallback',
+      }),
+    }, { DB: db })
+
+    expect(response.status).toBe(200)
+    expect(readCollectionDb(db).batch).toHaveBeenCalledOnce()
+    expect(readCollectionDb(db).batch.mock.calls[0]?.[0]).toHaveLength(2)
+    const body = await response.json() as {
+      data: { collection: { name: string; enabled: boolean }; group: { name: string; type: string; enabled: boolean } };
+    }
+    expect(body.data.collection).toMatchObject({ name: 'US Fallback', enabled: false })
+    expect(body.data.group).toMatchObject({ name: 'US Fallback', type: 'fallback', enabled: false })
+  })
+
   it('initializes zero-setup defaults after updating a collection', async () => {
     const db = createCollectionRouteMockDb()
 
@@ -182,7 +249,39 @@ describe('collections route helpers', () => {
     const response = await collectionsApp.request('/collection-1', { method: 'DELETE' }, { DB: db })
 
     expect(response.status).toBe(200)
+    expect(readCollectionDb(db).groups.size).toBe(0)
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+  })
+
+  it('rejects deleting a collection referenced by a multi-collection policy group', async () => {
+    const db = createCollectionRouteMockDb()
+    const state = readCollectionDb(db)
+    state.groups.set('combined-group', {
+      ...groupRow('combined-group', 'Combined', 'collection-1'),
+      collection_ids: '["collection-1","collection-2"]',
+    })
+
+    const response = await collectionsApp.request('/collection-1', { method: 'DELETE' }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'node group is referenced by policy group: Combined',
+      code: 'resource_in_use',
+      details: {
+        dependency: { type: 'policy-group', id: 'combined-group', name: 'Combined' },
+        remediation: { target: 'groups', id: 'combined-group' },
+        dependencies: [{
+          type: 'policy-group',
+          id: 'combined-group',
+          name: 'Combined',
+          remediation: { target: 'groups', id: 'combined-group' },
+        }],
+      },
+    })
+    expect(state.collections.has('collection-1')).toBe(true)
+    expect(state.batch).not.toHaveBeenCalled()
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
   })
 })
 
@@ -190,8 +289,15 @@ function createCollectionRouteMockDb(): D1Database {
   const stored = new Map<string, Record<string, unknown>>([
     ['collection-1', collectionRow('collection-1', 'US Pool')],
   ])
+  const groups = new Map<string, Record<string, unknown>>([
+    ['group-1', groupRow('group-1', 'US Pool', 'collection-1')],
+  ])
 
-  return {
+  const batch = vi.fn(async (statements: Array<{ run: () => Promise<unknown> }>) => {
+    for (const statement of statements) await statement.run()
+    return []
+  })
+  const db = {
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
@@ -202,17 +308,50 @@ function createCollectionRouteMockDb(): D1Database {
             const row = stored.get(String(args[0]))
             return row ? { id: row.id, notes: row.notes } : null
           }
+          if (sql.includes('SELECT * FROM groups WHERE is_builtin = 0 AND collection_ids = ?')) {
+            return [...groups.values()].find(row => row.collection_ids === args[0]) ?? null
+          }
+          if (sql.includes('SELECT * FROM groups WHERE id = ?')) {
+            return groups.get(String(args[0])) ?? null
+          }
           return null
         },
         all: async () => ({ results: sql.includes('SELECT * FROM collections') ? [...stored.values()] : [] }),
         run: async () => {
           if (sql.includes('INSERT INTO collections')) {
-            stored.set(String(args[0]), collectionRow(String(args[0]), String(args[1])))
+            stored.set(String(args[0]), collectionRow(String(args[0]), String(args[1]), {
+              enabled: Number(args[9]),
+              notes: args[10],
+            }))
           }
           if (sql.includes('UPDATE collections SET')) {
             const id = String(args[11])
             const existing = stored.get(id) ?? collectionRow(id, 'US Pool')
-            stored.set(id, { ...existing, enabled: args[9], updated_at: args[10] })
+            stored.set(id, { ...existing, name: args[0], enabled: args[8], notes: args[9], updated_at: args[10] })
+          }
+          if (sql.includes('INSERT INTO groups')) {
+            groups.set(String(args[0]), groupRow(String(args[0]), String(args[1]), JSON.parse(String(args[3]))[0], {
+              type: String(args[2]),
+              enabled: Number(args[10]),
+              sort_order: Number(args[11]),
+            }))
+          }
+          if (sql.includes('UPDATE groups SET name')) {
+            const id = String(args[5])
+            const existing = groups.get(id) ?? groupRow(id, String(args[0]), JSON.parse(String(args[2]))[0])
+            groups.set(id, {
+              ...existing,
+              name: args[0],
+              type: args[1],
+              collection_ids: args[2],
+              enabled: args[3],
+              updated_at: args[4],
+            })
+          }
+          if (sql.includes('DELETE FROM groups')) {
+            for (const [id, row] of groups) {
+              if (row.collection_ids === args[0]) groups.delete(id)
+            }
           }
           if (sql.includes('DELETE FROM collections WHERE id = ?')) {
             stored.delete(String(args[0]))
@@ -221,15 +360,56 @@ function createCollectionRouteMockDb(): D1Database {
         },
         raw: async () => [],
       }),
-      first: async () => null,
-      all: async () => ({ results: sql.includes('SELECT * FROM collections') ? [...stored.values()] : [] }),
+      first: async () => sql.includes('SELECT MAX(sort_order)')
+        ? { max_order: Math.max(-1, ...[...groups.values()].map(row => Number(row.sort_order))) }
+        : null,
+      all: async () => {
+        if (sql.includes('SELECT id, name, is_builtin, collection_ids FROM groups')) {
+          return {
+            results: [...groups.values()].map(row => ({
+              id: row.id,
+              name: row.name,
+              is_builtin: row.is_builtin,
+              collection_ids: row.collection_ids,
+            })),
+          }
+        }
+        if (sql.includes('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups')) {
+          return { results: [...groups.values()] }
+        }
+        if (sql.includes('SELECT id, name, include_collection_ids FROM export_configs')) {
+          return { results: [] }
+        }
+        return { results: sql.includes('SELECT * FROM collections') ? [...stored.values()] : [] }
+      },
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
-  } as unknown as D1Database
+    batch,
+    __collections: stored,
+    __groups: groups,
+  }
+  return db as unknown as D1Database
 }
 
-function collectionRow(id: string, name: string): Record<string, unknown> {
+function readCollectionDb(db: D1Database): {
+  batch: ReturnType<typeof vi.fn>;
+  collections: Map<string, Record<string, unknown>>;
+  groups: Map<string, Record<string, unknown>>;
+} {
+  const state = db as unknown as {
+    batch: ReturnType<typeof vi.fn>;
+    __collections: Map<string, Record<string, unknown>>;
+    __groups: Map<string, Record<string, unknown>>;
+  }
+  return { batch: state.batch, collections: state.__collections, groups: state.__groups }
+}
+
+function collectionRow(
+  id: string,
+  name: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     id,
     name,
@@ -244,5 +424,32 @@ function collectionRow(id: string, name: string): Record<string, unknown> {
     notes: null,
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function groupRow(
+  id: string,
+  name: string,
+  collectionId: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id,
+    name,
+    type: 'url-test',
+    collection_ids: JSON.stringify([collectionId]),
+    group_ids: '[]',
+    builtins: '[]',
+    test_url: null,
+    interval: 300,
+    tolerance: 50,
+    lazy: 1,
+    enabled: 1,
+    sort_order: 1,
+    is_builtin: 0,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    ...overrides,
   }
 }

@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { AppSettings } from '@uni-conf/types'
-import { resolveNextDnsMode, validateSettingsPatch } from './settings'
+import { buildSettingsUpdate, resolveNextDnsMode, validateSettingsPatch } from './settings'
 
 describe('settings route helpers', () => {
+  it('rejects non-object, empty, and unknown settings patches', () => {
+    expect(validateSettingsPatch(null)).toBe('settings patch must be a JSON object')
+    expect(validateSettingsPatch([])).toBe('settings patch must be a JSON object')
+    expect(validateSettingsPatch('language=en')).toBe('settings patch must be a JSON object')
+    expect(validateSettingsPatch({})).toBe('settings patch must include at least one field')
+    expect(validateSettingsPatch({ langauge: 'en' })).toBe('unknown settings field: langauge')
+  })
+
   it('accepts valid settings patches', () => {
     expect(validateSettingsPatch({
       language: 'zh',
@@ -19,6 +27,7 @@ describe('settings route helpers', () => {
       autoNodeGroupKeys: ['country:US:url-test', 'tag:streaming:fallback'],
       autoNodeGroupIncludeFlag: false,
       showCompatibilityWarnings: true,
+      ruleSetConversionPolicy: 'strict',
       enableAutoRefresh: true,
       autoRefreshInterval: 1440,
       defaultExportToken: ' token-1 ',
@@ -50,6 +59,7 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ defaultExportToken: 123 as never })).toBe('invalid default export token')
     expect(validateSettingsPatch({ showCompatibilityWarnings: 1 as never })).toBe('invalid compatibility warnings setting')
     expect(validateSettingsPatch({ enableAutoRefresh: 1 as never })).toBe('invalid auto refresh setting')
+    expect(validateSettingsPatch({ ruleSetConversionPolicy: 'best-effort' as never })).toBe('invalid rule set conversion policy')
   })
 
   it('rejects invalid auto refresh intervals', () => {
@@ -73,6 +83,70 @@ describe('settings route helpers', () => {
       language: 'en',
     })).toBe('fake-ip')
   })
+
+  it('updates only fields present in an unrelated settings patch', () => {
+    const language = buildSettingsUpdate({ language: 'en' }, '2026-07-24T00:00:00.000Z')
+    const dns = buildSettingsUpdate({ dnsMode: 'fake-ip' }, '2026-07-24T00:00:01.000Z')
+
+    expect(language.sql).toContain('language = ?')
+    expect(language.sql).not.toContain('theme = ?')
+    expect(language.sql).not.toContain('dns_mode = ?')
+    expect(language.values).toEqual(['en', '2026-07-24T00:00:00.000Z'])
+
+    expect(dns.sql).toContain('dns_mode = ?')
+    expect(dns.sql).not.toContain('language = ?')
+    expect(dns.values).toEqual(['fake-ip', '2026-07-24T00:00:01.000Z'])
+  })
+
+  it('derives template DNS atomically from the database row without rewriting unrelated fields', () => {
+    const update = buildSettingsUpdate(
+      { routingPolicyTemplate: 'router' },
+      '2026-07-24T00:00:00.000Z',
+    )
+
+    expect(update.sql).toContain(
+      'dns_mode = CASE WHEN routing_policy_template <> ? THEN ? ELSE dns_mode END',
+    )
+    expect(update.sql).toContain('routing_policy_template = ?')
+    expect(update.sql).not.toContain('language = ?')
+    expect(update.values).toEqual([
+      'router',
+      'compatible',
+      'router',
+      '2026-07-24T00:00:00.000Z',
+    ])
+  })
+
+  it('uses an explicit DNS override instead of the template recommendation', () => {
+    const update = buildSettingsUpdate(
+      { routingPolicyTemplate: 'router', dnsMode: 'smart' },
+      '2026-07-24T00:00:00.000Z',
+    )
+
+    expect(update.sql).not.toContain('CASE')
+    expect(update.sql).toContain('routing_policy_template = ?')
+    expect(update.sql).toContain('dns_mode = ?')
+    expect(update.values).toEqual(['router', 'smart', '2026-07-24T00:00:00.000Z'])
+  })
+
+  it('serializes nullable and structured settings without carrying stale values', () => {
+    const update = buildSettingsUpdate({
+      routingOutletPreferences: { 'builtin-ai': 'group:AI' },
+      defaultExportToken: null,
+      autoNodeGroupTypes: ['select', 'fallback'],
+      autoNodeGroupKeys: null,
+      showCompatibilityWarnings: false,
+    }, '2026-07-24T00:00:00.000Z')
+
+    expect(update.values).toEqual([
+      '{"builtin-ai":"group:AI"}',
+      null,
+      0,
+      '["select","fallback"]',
+      null,
+      '2026-07-24T00:00:00.000Z',
+    ])
+  })
 })
 
 function settings(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -83,6 +157,7 @@ function settings(overrides: Partial<AppSettings> = {}): AppSettings {
     dnsMode: 'smart',
     exportNodeNamingMode: 'smart',
     showCompatibilityWarnings: true,
+    ruleSetConversionPolicy: 'compatible',
     enableAutoRefresh: true,
     autoRefreshInterval: 1440,
     autoNodeGroupsEnabled: true,

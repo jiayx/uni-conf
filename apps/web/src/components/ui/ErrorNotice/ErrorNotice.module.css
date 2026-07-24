@@ -1,0 +1,75 @@
+.notice {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-error) 25%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-error-subtle);
+  color: var(--color-error);
+  font-size: 0.8125rem;
+}
+
+.title,
+.message {
+  overflow-wrap: anywhere;
+}
+
+.diagnostic {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.dependencies {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.dependency {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+}
+
+.dependency a {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.dependency a:hover,
+.dependency a:focus-visible {
+  text-decoration: underline;
+}
+
+.diagnostic code {
+  max-width: 100%;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 75%, transparent);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.diagnostic button {
+  padding: 0.125rem 0.375rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.diagnostic button:hover,
+.diagnostic button:focus-visible {
+  text-decoration: underline;
+}
+
+.copyFailed {
+  flex-basis: 100%;
+  color: var(--color-error);
+}

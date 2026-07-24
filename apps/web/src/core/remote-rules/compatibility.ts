@@ -1,5 +1,6 @@
 import {
   getCompatibleRuleSetFormats as getSharedCompatibleRuleSetFormats,
+  getRuleSetConversionTargetFormat,
   isRemoteRuleSetCompatible as isSharedRemoteRuleSetCompatible,
   isRuleSetFormatCompatible as isSharedRuleSetFormatCompatible,
   resolveRemoteRuleSetForExport as resolveSharedRemoteRuleSetForExport,
@@ -14,8 +15,18 @@ export function isRuleSetFormatCompatible(exportFormat: ExportFormat, ruleSetFor
   return isSharedRuleSetFormatCompatible(exportFormat, ruleSetFormat)
 }
 
-export function isRemoteRuleSetCompatible(exportFormat: ExportFormat, ruleSet: Pick<RemoteRuleSet, 'format' | 'presetSource' | 'presetId'>): boolean {
-  return isSharedRemoteRuleSetCompatible(exportFormat, ruleSet)
+export function isRemoteRuleSetCompatible(exportFormat: ExportFormat, ruleSet: Pick<RemoteRuleSet, 'format' | 'presetSource' | 'presetId' | 'sourceOverrides'>): boolean {
+  return getRemoteRuleSetCompatibilityMode(exportFormat, ruleSet) !== 'unsupported'
+}
+
+export function getRemoteRuleSetCompatibilityMode(
+  exportFormat: ExportFormat,
+  ruleSet: Pick<RemoteRuleSet, 'format' | 'presetSource' | 'presetId' | 'sourceOverrides'>
+): 'direct' | 'converted' | 'unsupported' {
+  const resolved = resolveSharedRemoteRuleSetForExport({ ...ruleSet, url: '' }, exportFormat)
+  if (!resolved || !isSharedRemoteRuleSetCompatible(exportFormat, ruleSet)) return 'unsupported'
+  if (isSharedRuleSetFormatCompatible(exportFormat, resolved.format)) return 'direct'
+  return getRuleSetConversionTargetFormat(resolved.format, exportFormat) ? 'converted' : 'unsupported'
 }
 
 export function resolveRemoteRuleSetForExport(

@@ -3,7 +3,7 @@
   "name": "uni-conf-worker",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-23",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",

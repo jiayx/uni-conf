@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as yaml from 'js-yaml';
 import type { ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { generateMihomoYaml } from './mihomo';
 import { generateSingboxJson } from './singbox';
@@ -82,6 +83,7 @@ const remoteSet: RemoteRuleSet = {
   url: 'https://example.com/ads.yaml',
   format: 'mihomo',
   behavior: 'classical',
+  sourceOverrides: {},
   targetGroupId: directGroup.id,
   updateInterval: 12,
   enabled: true,
@@ -226,8 +228,8 @@ describe('remote rule set generators', () => {
         created_at: '2026-01-01T00:00:00.000Z',
       },
     ]);
-    expect(surge.indexOf('RULE-SET,Earlier_List,DIRECT')).toBeLessThan(
-      surge.indexOf('RULE-SET,Later_List,DIRECT')
+    expect(surge.indexOf('RULE-SET,https://example.com/earlier.yaml,DIRECT')).toBeLessThan(
+      surge.indexOf('RULE-SET,https://example.com/later.yaml,DIRECT')
     );
   });
 
@@ -318,6 +320,77 @@ describe('remote rule set generators', () => {
     expect(config.route.rule_set.some(item => item['url'] === remoteSet.url)).toBe(false);
   });
 
+  it('references token-scoped conversion endpoints when an exact container conversion is available', () => {
+    const conversionBaseUrl = 'https://config.example.com/sub/public-token/rules';
+    const singbox = generateSingboxJson(
+      [], [proxyGroup, directGroup], [matchRule], [remoteSet], {}, { ruleSetConversionBaseUrl: conversionBaseUrl }
+    );
+    const singboxConfig = JSON.parse(singbox) as { route: { rule_set: Array<Record<string, unknown>> } };
+    expect(singboxConfig.route.rule_set).toContainEqual(expect.objectContaining({
+      tag: 'Ads_List',
+      format: 'source',
+      url: `${conversionBaseUrl}/remote-ads/singbox.json`,
+    }));
+
+    const mihomo = generateMihomoYaml(
+      [], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet], {}, { ruleSetConversionBaseUrl: conversionBaseUrl }
+    );
+    expect(mihomo).toContain(`${conversionBaseUrl}/remote-singbox/mihomo.yaml`);
+
+    const quantumultx = generateQuantumultX(
+      [],
+      [proxyGroup, directGroup] as unknown as Record<string, unknown>[],
+      [matchRule] as unknown as Record<string, unknown>[],
+      [singboxRemoteSet] as unknown as Record<string, unknown>[],
+      {},
+      { ruleSetConversionBaseUrl: conversionBaseUrl }
+    );
+    expect(quantumultx).toContain(`${conversionBaseUrl}/remote-singbox/quantumultx.list`);
+  });
+
+  it('keeps Clash and Stash target-native sources distinct from Mihomo sources', () => {
+    const clientSpecificSet: RemoteRuleSet = {
+      ...singboxRemoteSet,
+      sourceOverrides: {
+        mihomo: 'https://example.com/mihomo.yaml',
+        clash: 'https://example.com/clash.yaml',
+        stash: 'https://example.com/stash.yaml',
+      },
+    };
+
+    const clash = generateMihomoYaml(
+      [], [proxyGroup, directGroup], [matchRule], [clientSpecificSet], {}, { ruleSetExportFormat: 'clash' }
+    );
+    const stash = generateStashYaml(
+      [], [proxyGroup, directGroup], [matchRule], [clientSpecificSet]
+    );
+    const mihomo = generateMihomoYaml(
+      [], [proxyGroup, directGroup], [matchRule], [clientSpecificSet]
+    );
+
+    expect(clash).toContain('https://example.com/clash.yaml');
+    expect(clash).not.toContain('https://example.com/mihomo.yaml');
+    expect(stash).toContain('https://example.com/stash.yaml');
+    expect(stash).not.toContain('https://example.com/mihomo.yaml');
+    expect(mihomo).toContain('https://example.com/mihomo.yaml');
+  });
+
+  it('preserves Clash and Stash identity in shared Mihomo-container conversion URLs', () => {
+    const conversionBaseUrl = 'https://config.example.com/sub/public-token/rules';
+
+    const clash = generateMihomoYaml(
+      [], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet], {},
+      { ruleSetConversionBaseUrl: conversionBaseUrl, ruleSetExportFormat: 'clash' }
+    );
+    const stash = generateStashYaml(
+      [], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet], {},
+      { ruleSetConversionBaseUrl: conversionBaseUrl }
+    );
+
+    expect(clash).toContain(`${conversionBaseUrl}/remote-singbox/mihomo.yaml?for=clash`);
+    expect(stash).toContain(`${conversionBaseUrl}/remote-singbox/mihomo.yaml?for=stash`);
+  });
+
   it('resolves Quixotic presets to the current export format', () => {
     const singbox = generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet]);
     const config = JSON.parse(singbox) as { route: { rule_set: Array<Record<string, unknown>> } };
@@ -333,7 +406,7 @@ describe('remote rule set generators', () => {
     const surge = generateSurge([], groupRows, ruleRows, [
       { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id },
     ]);
-    expect(surge).toContain('AI = https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/surge/ai.list');
+    expect(surge).toContain('RULE-SET,https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/surge/ai.list,DIRECT');
   });
 
   it('skips unsupported local rules for INI-style clients', () => {
@@ -372,9 +445,8 @@ describe('remote rule set generators', () => {
       { ...singboxRemoteSet, target_group_id: directGroup.id },
     ]);
 
-    expect(content).toContain('[Rule Set]');
-    expect(content).toContain('Ads_List = https://example.com/ads.yaml');
-    expect(content).toContain('RULE-SET,Ads_List,DIRECT');
+    expect(content).not.toContain('[Rule Set]');
+    expect(content).toContain('RULE-SET,https://example.com/ads.yaml,DIRECT');
     expect(content).not.toContain('ai.srs');
   });
 
@@ -392,8 +464,47 @@ describe('remote rule set generators', () => {
       { ...remoteSet, format: 'egern', target_group_id: directGroup.id },
     ]);
 
-    expect(content).toContain('rule_sets:');
-    expect(content).toContain('url: https://example.com/ads.yaml');
-    expect(content).toContain('rule_set: Ads_List');
+    const config = yaml.load(content) as { rule_sets?: unknown; rules: Array<Record<string, unknown>> }
+    expect(config.rule_sets).toBeUndefined()
+    expect(config.rules).toContainEqual({
+      rule_set: {
+        match: 'https://example.com/ads.yaml',
+        policy: 'DIRECT',
+        update_interval: 86400,
+      },
+    })
+  });
+
+  it('uses a custom target-native source override before automatic conversion', () => {
+    const content = generateEgern([], groupRows, ruleRows, [{
+      ...singboxRemoteSet,
+      source_overrides: JSON.stringify({ egern: 'https://rules.example.com/native-egern.yaml' }),
+      target_group_id: directGroup.id,
+    }], {}, { ruleSetConversionBaseUrl: 'https://conf.example/sub/token/rules' })
+
+    const config = yaml.load(content) as { rules: Array<Record<string, unknown>> }
+    expect(config.rules).toContainEqual({
+      rule_set: {
+        match: 'https://rules.example.com/native-egern.yaml',
+        policy: 'DIRECT',
+        update_interval: 86400,
+      },
+    })
+    expect(content).not.toContain('/sub/token/rules/')
+  });
+
+  it('routes incompatible Egern rule sets through the token-scoped converter', () => {
+    const conversionBaseUrl = 'https://conf.example/sub/token/rules'
+    const content = generateEgern([], groupRows, ruleRows, [
+      { ...singboxRemoteSet, target_group_id: directGroup.id },
+    ], {}, { ruleSetConversionBaseUrl: conversionBaseUrl })
+    const config = yaml.load(content) as { rules: Array<Record<string, unknown>> }
+    expect(config.rules).toContainEqual({
+      rule_set: {
+        match: `${conversionBaseUrl}/${singboxRemoteSet.id}/egern.yaml`,
+        policy: 'DIRECT',
+        update_interval: 86400,
+      },
+    })
   });
 });

@@ -22,4 +22,8 @@ describe('buildQuickSubscriptionLinks', () => {
     expect(buildQuickSubscriptionLinks('https://conf.example.com', null)).toEqual([])
     expect(buildQuickSubscriptionLinks('https://conf.example.com', '')).toEqual([])
   })
+
+  it('returns no links while the default export profile is paused', () => {
+    expect(buildQuickSubscriptionLinks('https://conf.example.com', 'token-1', false)).toEqual([])
+  })
 })

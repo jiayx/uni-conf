@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    maxWorkers: 4,
+    testTimeout: 20000,
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
@@ -14,10 +16,11 @@ export default defineConfig({
       include: ['src/{app,components,core,lib,pages,store}/**/*.{ts,tsx}'],
       exclude: ['src/**/__tests__/**', 'src/**/*.test.{ts,tsx}'],
       thresholds: {
-        statements: 50,
-        lines: 50,
-        functions: 40,
-        branches: 40,
+        statements: 55,
+        lines: 55,
+        functions: 45,
+        branches: 45,
+        'src/app/**': { statements: 85, lines: 85, functions: 80, branches: 70 },
         'src/core/**': { statements: 65, lines: 70, functions: 70, branches: 65 },
         'src/lib/**': { statements: 85, lines: 85, functions: 85, branches: 65 },
         'src/store/**': { statements: 85, lines: 85, functions: 85, branches: 55 },

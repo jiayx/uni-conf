@@ -34,7 +34,7 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-disabled', false, 'singbox'),
       ],
       t
-    )).toBe('节点组: 全部启用 1 / 策略组与出口: 全部启用 1 / 手动规则: 全部启用 1 / 兼容分流规则集: 全部启用 1')
+    )).toBe('节点组: 全部启用 1 / 策略组与出口: 全部启用 1 / 手动规则: 全部启用 1 / 兼容分流规则集: 全部启用 2')
   })
 
   it('shows selected scope counts against the eligible export pool', () => {
@@ -51,7 +51,7 @@ describe('export config scope summary', () => {
       [makeRule('rule-enabled', true), makeRule('rule-ai', true)],
       [makeRemoteSet('remote-singbox', true, 'singbox'), makeRemoteSet('remote-mihomo', true, 'mihomo')],
       t
-    )).toBe('节点组: 已选 1/2 / 策略组与出口: 已选 1/2 / 手动规则: 已选 1/2 / 兼容分流规则集: 已选 1/1')
+    )).toBe('节点组: 已选 1/2 / 策略组与出口: 已选 1/2 / 手动规则: 已选 1/2 / 兼容分流规则集: 已选 1/2')
   })
 
   it('matches worker export target filtering when groups are scoped', () => {
@@ -113,7 +113,7 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
       ],
       t
-    )).toBe('节点组: 已选 1/1 / 策略组与出口: 已选 2/3 / 手动规则: 已选 1/1 / 兼容分流规则集: 已选 1/1')
+    )).toBe('节点组: 已选 1/1 / 策略组与出口: 已选 2/3 / 手动规则: 已选 1/1 / 兼容分流规则集: 已选 2/2')
   })
 })
 
@@ -197,6 +197,7 @@ function makeRemoteSet(id: string, enabled: boolean, format: RemoteRuleSet['form
     url: `https://example.com/${id}`,
     format,
     behavior: 'classical',
+    sourceOverrides: {},
     targetGroupId,
     updateInterval: 24,
     enabled,

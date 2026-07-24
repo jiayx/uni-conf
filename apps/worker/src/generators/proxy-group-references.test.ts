@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import yaml from 'js-yaml'
-import type { ProxyGroup, ProxyNode } from '@uni-conf/types'
+import * as yaml from 'js-yaml'
+import type { ProxyGroup, ProxyNode, ProxyRule } from '@uni-conf/types'
+import { getRuleCompatibilityLevel, RULE_COMPATIBILITY } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
 import { generateSingboxJson } from './singbox'
 import { generateEgern, generateQuantumultX, generateShadowrocket, generateStashYaml, generateSurge } from './client-configs'
@@ -333,8 +334,9 @@ describe('proxy group references', () => {
   it('maps DNS mode to sing-box fakeip settings', () => {
     const smart = JSON.parse(generateSingboxJson([], [], [], [])) as {
       log: Record<string, unknown>;
-      dns: Record<string, unknown>;
+      dns: { fakeip?: unknown; rules: Array<Record<string, unknown>> };
       inbounds: Array<Record<string, unknown>>;
+      route: { default_domain_resolver: string };
       experimental: { cache_file: { store_fakeip: boolean } };
     }
     const fakeIp = JSON.parse(generateSingboxJson([], [], [], [], {}, { dnsMode: 'fake-ip' })) as {
@@ -358,6 +360,12 @@ describe('proxy group references', () => {
       set_system_proxy: false,
     }))
     expect(smart.experimental.cache_file.store_fakeip).toBe(false)
+    expect(smart.dns.rules).toEqual([
+      expect.objectContaining({ rule_set: 'geosite-cn', action: 'route', server: 'localDns' }),
+      expect.objectContaining({ rule_set: 'geosite-geolocation-!cn', action: 'route', server: 'proxyDns' }),
+    ])
+    expect(smart.dns.rules.every(rule => rule.outbound === undefined)).toBe(true)
+    expect(smart.route.default_domain_resolver).toBe('localDns')
     expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
   })
@@ -403,15 +411,15 @@ describe('proxy group references', () => {
       ipv6: boolean;
       http_port: number;
       socks_port: number;
-      policy_groups: Array<{ name: string }>;
+      policy_groups: Array<Record<string, { name: string }>>;
       rules: Array<Record<string, unknown>>;
     }
     expect(egern.auto_update.interval).toBe(86400)
     expect(egern.ipv6).toBe(false)
     expect(egern.http_port).toBe(3080)
     expect(egern.socks_port).toBe(3081)
-    expect(egern.policy_groups.map((group) => group.name)).toContain(autoGroup.name)
-    expect(egern.rules).toContainEqual({ default: 'PROXY' })
+    expect(egern.policy_groups.map(egernEntryBody).map((group) => group?.name)).toContain(autoGroup.name)
+    expect(egern.rules).toContainEqual({ default: { policy: 'PROXY' } })
   })
 
   it('still appends text-client fallback rules when MATCH is disabled', () => {
@@ -435,7 +443,7 @@ describe('proxy group references', () => {
     const egern = yaml.load(generateEgern(nodeRows, rows, [disabledMatchRule], [])) as {
       rules: Array<Record<string, unknown>>;
     }
-    expect(egern.rules).toContainEqual({ default: 'PROXY' })
+    expect(egern.rules).toContainEqual({ default: { policy: 'PROXY' } })
   })
 
   it('uses an existing sing-box outbound for DNS and rule set downloads', () => {
@@ -570,7 +578,7 @@ describe('proxy group references', () => {
     })
   })
 
-  it('exports ShadowsocksR nodes for Mihomo and sing-box full configs', () => {
+  it('exports ShadowsocksR nodes for Mihomo and omits them from sing-box', () => {
     const mihomo = generateMihomoYaml(
       [ssrNode],
       [autoGroup],
@@ -591,19 +599,7 @@ describe('proxy group references', () => {
       [],
       { 'collection-auto': [ssrNode.name] }
     )) as { outbounds: Array<Record<string, unknown>> }
-    const outbound = singbox.outbounds.find(item => item.tag === ssrNode.name)
-    expect(outbound).toMatchObject({
-      type: 'shadowsocksr',
-      tag: 'HK SSR',
-      server: 'hk.example.com',
-      server_port: 443,
-      method: 'aes-256-cfb',
-      password: 'secret',
-      protocol: 'auth_sha1_v4',
-      protocol_param: '32',
-      obfs: 'tls1.2_ticket_auth',
-      obfs_param: 'cdn.example.com',
-    })
+    expect(singbox.outbounds.some(item => item.tag === ssrNode.name)).toBe(false)
   })
 
   it('uses parsed Hysteria auth strings for Mihomo and sing-box full configs', () => {
@@ -630,18 +626,29 @@ describe('proxy group references', () => {
     })
   })
 
-  it('normalizes WireGuard local address strings for sing-box full configs', () => {
-    const singbox = JSON.parse(generateSingboxJson([wireguardNode], [], [], [])) as { outbounds: Array<Record<string, unknown>> }
-    expect(singbox.outbounds.find(item => item.tag === wireguardNode.name)).toMatchObject({
-      type: 'wireguard',
-      tag: 'US WireGuard',
-      server: 'wg.example.com',
-      server_port: 51820,
-      private_key: 'private-key',
-      peer_public_key: 'peer-key',
-      pre_shared_key: 'psk',
-      local_address: ['172.16.0.2/32'],
-    })
+  it('exports WireGuard nodes as sing-box 1.13 endpoints', () => {
+    const singbox = JSON.parse(generateSingboxJson([wireguardNode], [], [], [])) as {
+      endpoints?: Array<Record<string, unknown>>;
+      outbounds: Array<Record<string, unknown>>;
+    }
+    expect(singbox.endpoints).toEqual([
+      expect.objectContaining({
+        type: 'wireguard',
+        tag: wireguardNode.name,
+        address: ['172.16.0.2/32'],
+        private_key: 'private-key',
+        peers: [
+          expect.objectContaining({
+            address: 'wg.example.com',
+            port: 51820,
+            public_key: 'peer-key',
+            pre_shared_key: 'psk',
+            allowed_ips: ['0.0.0.0/0', '::/0'],
+          }),
+        ],
+      }),
+    ])
+    expect(singbox.outbounds.some(item => item.type === 'wireguard')).toBe(false)
   })
 
   it('prefers native Mihomo node config while applying current identity fields', () => {
@@ -746,11 +753,12 @@ describe('proxy group references', () => {
     expect(quantumultx).toContain(`url-latency-benchmark=${autoGroup.name}, ${ssNode.name}`)
 
     const egern = yaml.load(generateEgern(nodeRows, rows, [], [], collectionNodeNames)) as {
-      proxies: Array<{ name: string }>;
-      policy_groups: Array<{ name: string; policies: string[] }>;
+      proxies: Array<Record<string, { name: string }>>;
+      policy_groups: Array<Record<string, { name: string; policies: string[] }>>;
     }
-    expect(egern.proxies.map((node) => node.name)).toContain(ssNode.name)
-    expect(egern.policy_groups.find((group) => group.name === autoGroup.name)?.policies).toContain(ssNode.name)
+    expect(egern.proxies.map(egernEntryBody).map((node) => node?.name)).toContain(ssNode.name)
+    expect(egern.policy_groups.map(egernEntryBody)
+      .find((group) => group?.name === autoGroup.name)?.policies).toContain(ssNode.name)
   })
 
   it('uses Mihomo built-in DIRECT and REJECT policies without emitting invalid groups', () => {
@@ -855,6 +863,211 @@ describe('proxy group references', () => {
     expect(config.route.rules).toContainEqual({ domain_suffix: ['ads.example'], action: 'reject' })
   })
 
+  it('keeps every advertised sing-box manual-rule capability aligned with serialization', () => {
+    const payloads: Record<ProxyRule['type'], string> = {
+      DOMAIN: 'example.com',
+      'DOMAIN-SUFFIX': 'example.com',
+      'DOMAIN-KEYWORD': 'example',
+      'DOMAIN-REGEX': '^api\\.',
+      'IP-CIDR': '192.0.2.0/24',
+      'IP-CIDR6': '2001:db8::/32',
+      'IP-ASN': '13335',
+      GEOIP: 'CN',
+      GEOSITE: 'CN',
+      'PROCESS-NAME': 'curl',
+      'PROCESS-PATH': '/usr/bin/curl',
+      PORT: '443',
+      'SRC-PORT': '12345',
+      'SRC-IP-CIDR': '10.0.0.0/8',
+      PROTOCOL: 'HTTP',
+      NETWORK: 'TCP',
+      'IN-TYPE': 'TUN',
+      'RULE-SET': 'custom-rules',
+      SCRIPT: 'script-name',
+      MATCH: '',
+    }
+
+    for (const type of Object.keys(RULE_COMPATIBILITY) as ProxyRule['type'][]) {
+      const rule: ProxyRule = {
+        id: `rule-${type}`,
+        type,
+        payload: payloads[type],
+        targetGroupId: directGroup.id,
+        enabled: true,
+        order: 1,
+        compatibility: [],
+        createdAt,
+        updatedAt: createdAt,
+      }
+      const config = JSON.parse(generateSingboxJson([], [directGroup], [rule], [])) as {
+        route: { rules: Array<Record<string, unknown>>; final?: string }
+      }
+      const serialized = type === 'MATCH'
+        ? config.route.final === 'direct'
+        : config.route.rules.length > 2
+      const advertised = getRuleCompatibilityLevel(type, 'singbox') !== 'unsupported'
+
+      expect(serialized, `${type} serialization must match its sing-box capability level`)
+        .toBe(advertised)
+    }
+  })
+
+  it('migrates sing-box GEOIP rules to binary rule sets instead of removed legacy fields', () => {
+    const rule: ProxyRule = {
+      id: 'rule-geoip',
+      type: 'GEOIP',
+      payload: 'CN',
+      targetGroupId: directGroup.id,
+      enabled: true,
+      order: 1,
+      compatibility: [],
+      createdAt,
+      updatedAt: createdAt,
+    }
+    const config = JSON.parse(generateSingboxJson([], [directGroup], [rule], [])) as {
+      route: {
+        rules: Array<Record<string, unknown>>
+        rule_set: Array<Record<string, unknown>>
+      }
+    }
+
+    expect(config.route.rules).toContainEqual({
+      rule_set: ['geoip-cn'],
+      outbound: 'direct',
+    })
+    expect(config.route.rules.some(item => 'geoip' in item)).toBe(false)
+    expect(config.route.rule_set).toContainEqual(expect.objectContaining({
+      tag: 'geoip-cn',
+      format: 'binary',
+      url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
+    }))
+  })
+
+  it('serializes canonical manual port ranges with sing-box range fields', () => {
+    const rules: ProxyRule[] = [
+      {
+        id: 'rule-port-range',
+        type: 'PORT',
+        payload: '8000-9000',
+        targetGroupId: directGroup.id,
+        enabled: true,
+        order: 1,
+        compatibility: [],
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: 'rule-source-port-range',
+        type: 'SRC-PORT',
+        payload: '1000:2000',
+        targetGroupId: directGroup.id,
+        enabled: true,
+        order: 2,
+        compatibility: [],
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ]
+    const config = JSON.parse(generateSingboxJson([], [directGroup], rules, [])) as {
+      route: { rules: Array<Record<string, unknown>> }
+    }
+
+    expect(config.route.rules).toContainEqual({
+      port_range: ['8000:9000'],
+      outbound: 'direct',
+    })
+    expect(config.route.rules).toContainEqual({
+      source_port_range: ['1000:2000'],
+      outbound: 'direct',
+    })
+  })
+
+  it('converts value-dependent network, protocol, and port rules per client', () => {
+    const definitions: Array<[ProxyRule['type'], string, boolean?]> = [
+      ['PROTOCOL', 'tcp'],
+      ['PROTOCOL', 'http'],
+      ['PROTOCOL', 'https'],
+      ['NETWORK', 'icmp'],
+      ['PORT', '443', true],
+      ['SRC-PORT', '12345'],
+      ['SRC-IP-CIDR', '10.0.0.0/8'],
+      ['IP-ASN', '13335'],
+    ]
+    const rules = definitions.map(([type, payload, noResolve], index): ProxyRule => ({
+      id: `value-rule-${index}`,
+      type,
+      payload,
+      targetGroupId: directGroup.id,
+      noResolve,
+      enabled: true,
+      order: index,
+      compatibility: [],
+      createdAt,
+      updatedAt: createdAt,
+    }))
+    const ruleRows = rules.map(rule => ({
+      id: rule.id,
+      type: rule.type,
+      payload: rule.payload,
+      target_group_id: rule.targetGroupId,
+      no_resolve: rule.noResolve ? 1 : 0,
+      enabled: 1,
+      sort_order: rule.order,
+      compatibility: '[]',
+      created_at: createdAt,
+      updated_at: createdAt,
+    }))
+
+    const mihomo = generateMihomoYaml([], [directGroup], rules, [])
+    expect(mihomo).toContain('  - NETWORK,tcp,DIRECT')
+    expect(mihomo).toContain('  - DST-PORT,443,DIRECT')
+    expect(mihomo).not.toContain('PROTOCOL,http')
+    expect(mihomo).not.toContain('PROTOCOL,https')
+    expect(mihomo).not.toContain('NETWORK,icmp')
+    expect(mihomo).not.toContain('DST-PORT,443,DIRECT,no-resolve')
+
+    const singbox = JSON.parse(generateSingboxJson([], [directGroup], rules, [])) as {
+      route: { rules: Array<Record<string, unknown>> }
+    }
+    expect(singbox.route.rules).toContainEqual({ network: ['tcp'], outbound: 'direct' })
+    expect(singbox.route.rules).toContainEqual({ protocol: ['http'], outbound: 'direct' })
+    expect(singbox.route.rules).toContainEqual({ network: ['icmp'], outbound: 'direct' })
+    expect(singbox.route.rules).not.toContainEqual(expect.objectContaining({ protocol: ['https'] }))
+
+    const surge = generateSurge([], [toRow(directGroup)], ruleRows, [])
+    expect(surge).toContain('PROTOCOL,TCP,DIRECT')
+    expect(surge).toContain('PROTOCOL,HTTP,DIRECT')
+    expect(surge).toContain('PROTOCOL,HTTPS,DIRECT')
+    expect(surge).toContain('DEST-PORT,443,DIRECT')
+    expect(surge).toContain('SRC-IP,10.0.0.0/8,DIRECT')
+    expect(surge).not.toContain('NETWORK,icmp')
+    expect(surge).not.toContain('DEST-PORT,443,DIRECT,no-resolve')
+
+    const loon = generateLoon([], [toRow(directGroup)], ruleRows, [])
+    expect(loon).toContain('PROTOCOL, TCP, DIRECT')
+    expect(loon).toContain('DEST-PORT, 443, DIRECT')
+    expect(loon).toContain('SRC-PORT, 12345, DIRECT')
+    expect(loon).toContain('IPASN, 13335, DIRECT')
+    expect(loon).not.toContain('PROTOCOL, HTTP, DIRECT')
+    expect(loon).not.toContain('NETWORK, icmp, DIRECT')
+
+    const shadowrocket = generateShadowrocket([], [toRow(directGroup)], ruleRows, [])
+    expect(shadowrocket).toContain('DST-PORT,443,DIRECT')
+    expect(shadowrocket).not.toContain('\nPORT,443,DIRECT')
+
+    const quantumultx = generateQuantumultX([], [toRow(directGroup)], ruleRows, [])
+    expect(quantumultx).not.toContain('PORT,443,DIRECT')
+    expect(quantumultx).not.toContain('SRC-PORT,12345,DIRECT')
+
+    const egern = yaml.load(generateEgern([], [toRow(directGroup)], ruleRows, [])) as {
+      rules: Array<Record<string, { match?: string }>>
+    }
+    expect(egern.rules).toContainEqual({ protocol: { match: 'tcp', policy: 'DIRECT' } })
+    expect(egern.rules).toContainEqual({ protocol: { match: 'http', policy: 'DIRECT' } })
+    expect(egern.rules).toContainEqual({ protocol: { match: 'https', policy: 'DIRECT' } })
+    expect(egern.rules).not.toContainEqual({ protocol: expect.objectContaining({ match: 'icmp' }) })
+  })
+
   it('does not emit native outlet groups for text based client configs', () => {
     const rows = [toRow(directGroup), toRow(rejectGroup)]
     const ruleRows = [
@@ -880,7 +1093,7 @@ describe('proxy group references', () => {
     const loon = generateLoon([], rows, ruleRows, [])
     const qx = generateQuantumultX([], rows, ruleRows, [])
     const egern = yaml.load(generateEgern([], rows, ruleRows, [])) as {
-      policy_groups: Array<{ name: string }>;
+      policy_groups: Array<Record<string, { name: string }>>;
       rules: Array<Record<string, unknown>>;
     }
 
@@ -896,12 +1109,16 @@ describe('proxy group references', () => {
     expect(qx).not.toContain('static=REJECT')
     expect(qx).toContain('HOST,example.com,DIRECT')
     expect(qx).toContain('HOST-SUFFIX,ads.example,REJECT')
-    expect(egern.policy_groups.some((group) => group.name === 'DIRECT')).toBe(false)
-    expect(egern.policy_groups.some((group) => group.name === 'REJECT')).toBe(false)
-    expect(egern.rules).toContainEqual({ domain: 'example.com', policy: 'DIRECT' })
-    expect(egern.rules).toContainEqual({ domain_suffix: 'ads.example', policy: 'REJECT' })
+    expect(egern.policy_groups.map(egernEntryBody).some((group) => group?.name === 'DIRECT')).toBe(false)
+    expect(egern.policy_groups.map(egernEntryBody).some((group) => group?.name === 'REJECT')).toBe(false)
+    expect(egern.rules).toContainEqual({ domain: { match: 'example.com', policy: 'DIRECT' } })
+    expect(egern.rules).toContainEqual({ domain_suffix: { match: 'ads.example', policy: 'REJECT' } })
   })
 })
+
+function egernEntryBody<T>(entry: Record<string, T>): T | undefined {
+  return Object.values(entry)[0]
+}
 
 function toRow(group: ProxyGroup): Record<string, unknown> {
   return {

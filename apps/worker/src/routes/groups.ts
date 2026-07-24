@@ -1,10 +1,15 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
-import type { ProxyGroup } from '@uni-conf/types';
-import { listAutoCollectionKeysById, withOutletRefs } from '../services/routing-policy-groups';
+import type {
+  CompatibilityWarningRemediation,
+  ProxyGroup,
+  ResourceDependency,
+} from '@uni-conf/types';
+import { listAutoCollectionKeysById, resolveRoutingGroupIds, withOutletRefs } from '../services/routing-policy-groups';
 import { DEFAULT_HEALTH_CHECK, FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
+import { validateGroupReferenceGraph } from '../services/group-reference-graph';
 
 const app = new Hono<{ Bindings: Env }>();
 const GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']);
@@ -31,13 +36,31 @@ app.get('/', async (c) => {
 // ─── Reorder groups ───────────────────────────────────────────────────────────
 
 app.post('/reorder', async (c) => {
-  const body = await c.req.json<{ ids: string[] }>();
-  if (!Array.isArray(body.ids)) {
-    return c.json({ success: false, error: 'ids array is required' }, 400);
+  const validation = validateGroupReorderInput(await c.req.json<unknown>());
+  if (!validation.valid) {
+    return c.json({ success: false, error: validation.error }, 400);
+  }
+
+  const { results: currentRows } = await c.env.DB.prepare(
+    'SELECT id FROM groups'
+  ).all<{ id: string }>();
+  const currentIds = new Set(currentRows.map(row => row.id));
+  if (
+    validation.ids.length !== currentRows.length
+    || validation.ids.some(id => !currentIds.has(id))
+  ) {
+    return c.json({
+      success: false,
+      error: 'ids must be an exact permutation of all current group ids',
+    }, 409);
+  }
+
+  if (validation.ids.length === 0) {
+    return c.json({ success: true, data: [] });
   }
 
   const ts = now();
-  const stmts = body.ids.map((id, index) =>
+  const stmts = validation.ids.map((id, index) =>
     c.env.DB.prepare('UPDATE groups SET sort_order = ?, updated_at = ? WHERE id = ? AND is_builtin = 0').bind(
       index,
       ts,
@@ -55,6 +78,31 @@ app.post('/reorder', async (c) => {
   return c.json({ success: true, data: withOutletRefs(results, autoCollectionKeysById).map(mapGroup) });
 });
 
+type GroupReorderValidation =
+  | { valid: true; ids: string[] }
+  | { valid: false; error: string };
+
+export function validateGroupReorderInput(value: unknown): GroupReorderValidation {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { valid: false, error: 'body must be an object' };
+  }
+  const body = value as Record<string, unknown>;
+  if (!Array.isArray(body.ids)) {
+    return { valid: false, error: 'ids array is required' };
+  }
+  const ids: string[] = [];
+  for (const value of body.ids) {
+    if (typeof value !== 'string' || !value.trim()) {
+      return { valid: false, error: 'every group id must be a non-empty string' };
+    }
+    ids.push(value.trim());
+  }
+  if (new Set(ids).size !== ids.length) {
+    return { valid: false, error: 'group ids must not contain duplicates' };
+  }
+  return { valid: true, ids };
+}
+
 // ─── Create group (non-builtin only) ─────────────────────────────────────────
 
 app.post('/', async (c) => {
@@ -66,6 +114,10 @@ app.post('/', async (c) => {
 
   const id = newId();
   const ts = now();
+  const collectionError = await validateGroupCollectionReferences(c.env.DB, validation.collectionIds ?? []);
+  if (collectionError) return c.json({ success: false, error: collectionError }, 409);
+  const graphError = await validateGroupReferenceChange(c.env.DB, id, validation.groupIds ?? []);
+  if (graphError) return c.json({ success: false, error: graphError }, 409);
 
   // Determine sort_order: max + 1
   const maxRow = await c.env.DB.prepare(
@@ -140,6 +192,14 @@ app.put('/:id', async (c) => {
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
   }
+  if (validation.groupIds !== undefined) {
+    const graphError = await validateGroupReferenceChange(c.env.DB, id, validation.groupIds);
+    if (graphError) return c.json({ success: false, error: graphError }, 409);
+  }
+  if (validation.collectionIds !== undefined) {
+    const collectionError = await validateGroupCollectionReferences(c.env.DB, validation.collectionIds);
+    if (collectionError) return c.json({ success: false, error: collectionError }, 409);
+  }
 
   await c.env.DB.prepare(
     `UPDATE groups SET
@@ -188,12 +248,180 @@ app.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'Cannot delete built-in group' }, 403);
   }
 
+  const deleteBlockers = await findGroupDeleteBlockers(c.env.DB, id);
+  if (deleteBlockers.length > 0) {
+    const firstBlocker = deleteBlockers[0]!;
+    return c.json({
+      success: false,
+      error: firstBlocker.error,
+      code: 'resource_in_use',
+      details: {
+        dependency: firstBlocker.dependency,
+        remediation: firstBlocker.remediation,
+        dependencies: deleteBlockers.map(blocker => ({
+          ...blocker.dependency,
+          remediation: blocker.remediation,
+        })),
+      },
+    }, 409);
+  }
+
   await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(id).run();
   await ensureZeroSetupDefaults(c.env.DB, now());
   return c.json({ success: true, data: { id } });
 });
 
 export default app;
+
+async function validateGroupReferenceChange(
+  db: D1Database,
+  id: string,
+  groupIds: readonly string[]
+): Promise<string | undefined> {
+  const { results } = await db.prepare('SELECT id, group_ids FROM groups').all<{
+    id: string;
+    group_ids: string | null;
+  }>();
+  const nodes = results
+    .filter(row => row.id !== id)
+    .map(row => ({
+      id: row.id,
+      groupIds: parseStoredGroupIds(row.group_ids),
+    }));
+  nodes.push({ id, groupIds: [...groupIds] });
+  return validateGroupReferenceGraph(nodes);
+}
+
+function parseStoredGroupIds(value: string | null): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function validateGroupCollectionReferences(
+  db: D1Database,
+  collectionIds: readonly string[]
+): Promise<string | undefined> {
+  if (collectionIds.length === 0) return undefined;
+  const { results } = await db.prepare('SELECT id FROM collections').all<{ id: string }>();
+  const existingIds = new Set(results.map(row => row.id));
+  const missingId = collectionIds.find(id => !existingIds.has(id));
+  return missingId ? `group references a missing node group: ${missingId}` : undefined;
+}
+
+export interface GroupDeleteBlocker {
+  error: string;
+  dependency: ResourceDependency;
+  remediation: CompatibilityWarningRemediation;
+}
+
+export async function findGroupDeleteBlockers(
+  db: D1Database,
+  id: string
+): Promise<GroupDeleteBlocker[]> {
+  const [groups, rules, ruleSets, exportConfigs, settings] = await Promise.all([
+    db.prepare('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups').all<{
+      id: string;
+      name: string;
+      type: string;
+      collection_ids: string | null;
+      group_ids: string | null;
+      enabled: number;
+      is_builtin: number;
+    }>(),
+    db.prepare('SELECT id, name FROM rules WHERE target_group_id = ? ORDER BY sort_order, id').bind(id).all<{
+      id: string;
+      name: string | null;
+    }>(),
+    db.prepare('SELECT id, name FROM remote_rule_sets WHERE target_group_id = ? ORDER BY sort_order, id').bind(id).all<{
+      id: string;
+      name: string;
+    }>(),
+    db.prepare('SELECT id, name, include_group_ids FROM export_configs').all<{
+      id: string;
+      name: string;
+      include_group_ids: string | null;
+    }>(),
+    db.prepare('SELECT routing_outlet_preferences FROM app_settings WHERE id = ?')
+      .bind('singleton')
+      .first<{ routing_outlet_preferences: string | null }>(),
+  ]);
+
+  const blockers: GroupDeleteBlocker[] = [];
+  const managedRoutingGroupIds = new Set(resolveRoutingGroupIds(groups.results));
+  const parents = groups.results.filter(group => (
+    group.id !== id
+    && !managedRoutingGroupIds.has(group.id)
+    && parseStoredGroupIds(group.group_ids).includes(id)
+  ));
+  for (const parent of parents) {
+    blockers.push({
+      error: `group is referenced by policy group: ${parent.name || parent.id}`,
+      dependency: { type: 'policy-group', id: parent.id, name: parent.name || parent.id },
+      remediation: { target: 'groups', id: parent.id },
+    });
+  }
+
+  for (const rule of rules.results) {
+    blockers.push({
+      error: `group is targeted by rule: ${rule.name || rule.id}`,
+      dependency: { type: 'rule', id: rule.id, name: rule.name || rule.id },
+      remediation: { target: 'rules', id: rule.id },
+    });
+  }
+
+  for (const ruleSet of ruleSets.results) {
+    blockers.push({
+      error: `group is targeted by remote rule set: ${ruleSet.name || ruleSet.id}`,
+      dependency: { type: 'remote-rule-set', id: ruleSet.id, name: ruleSet.name || ruleSet.id },
+      remediation: { target: 'remote-rule-sets', id: ruleSet.id },
+    });
+  }
+
+  const scopedExportConfigs = exportConfigs.results.filter(
+    config => parseStoredGroupIds(config.include_group_ids).includes(id)
+  );
+  for (const exportConfig of scopedExportConfigs) {
+    blockers.push({
+      error: `group is included by export profile: ${exportConfig.name || exportConfig.id}`,
+      dependency: {
+        type: 'export-profile',
+        id: exportConfig.id,
+        name: exportConfig.name || exportConfig.id,
+      },
+      remediation: { target: 'export', id: exportConfig.id },
+    });
+  }
+
+  if (settings?.routing_outlet_preferences) {
+    try {
+      const preferences = JSON.parse(settings.routing_outlet_preferences) as unknown;
+      if (
+        preferences
+        && typeof preferences === 'object'
+        && !Array.isArray(preferences)
+        && (
+          Object.hasOwn(preferences, id)
+          || Object.values(preferences).includes(`group:${id}`)
+        )
+      ) {
+        blockers.push({
+          error: 'group is selected by a routing outlet preference',
+          dependency: { type: 'routing-outlet-preference', id },
+          remediation: { target: 'groups' },
+        });
+      }
+    } catch {
+      // Invalid legacy settings are normalized elsewhere and must not make deletion fail closed.
+    }
+  }
+
+  return blockers;
+}
 
 type GroupWriteValidation =
   | {

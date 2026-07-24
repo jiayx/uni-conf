@@ -9,6 +9,13 @@ await check('/api/health', (response, body) => {
   }
 })
 
+await check('/api/ready', (response, body) => {
+  if (!response.ok || body?.success !== true || body?.data?.status !== 'ready') {
+    const checks = JSON.stringify(body?.data?.checks ?? {})
+    throw new Error(`readiness check failed (${response.status}): ${checks}`)
+  }
+})
+
 await check('/', (response, body, text) => {
   if (!response.ok || !text.includes('<div id="root">')) {
     throw new Error(`SPA smoke check failed (${response.status})`)

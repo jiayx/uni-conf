@@ -22,7 +22,7 @@ UniConf lets you manage proxy subscriptions, nodes, filtering rules, strategy gr
 
 ## Tech Stack
 
-- **Frontend**: Vite 8 + React 19 + TypeScript + Zustand + i18next
+- **Frontend**: Vite 8 + React 19 + TypeScript 7 + Zustand + i18next
 - **Backend**: Hono 4 + Cloudflare Workers + D1 (SQLite)
 - **Styling**: Vanilla CSS + CSS Modules
 - **Tests**: Vitest + React Testing Library

@@ -1,7 +1,7 @@
 import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
 import { MIHOMO_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)

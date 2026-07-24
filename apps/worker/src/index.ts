@@ -16,6 +16,7 @@ import { exportRouter } from './routes/export'
 import { subscriptionRouter } from './routes/subscription'
 import type { Env } from './types'
 import { refreshDueSources } from './services/source-auto-refresh'
+import { SCHEDULED_PENDING_HEALTH_BATCH_LIMIT, validatePendingRuleSetSources } from './services/remote-rule-set-health'
 import { kvRateLimit } from './middleware/rate-limit'
 
 type AppVariables = { requestId: string }
@@ -30,11 +31,13 @@ app.use('*', async (c, next) => {
     await next()
   } finally {
     if (c.env.ENVIRONMENT !== 'test') {
+      const errorCode = c.res.headers.get('X-UniConf-Error-Code')
       logEvent('http_request', {
         requestId,
         method: c.req.method,
         path: redactLogPath(c.req.path),
         status: c.res.status,
+        ...(errorCode ? { errorCode } : {}),
         durationMs: Date.now() - startedAt,
         environment: c.env.ENVIRONMENT,
       })
@@ -53,6 +56,12 @@ app.use('/api/*', (c, next) =>
   cors({
     origin: c.env.ALLOWED_ORIGIN || (c.env.ENVIRONMENT === 'production' ? '' : '*'),
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    exposeHeaders: [
+      'Content-Disposition',
+      'X-Request-Id',
+      'X-UniConf-Error-Code',
+      'X-UniConf-Capability-Profile',
+    ],
   })(c, next)
 )
 
@@ -70,6 +79,14 @@ app.use('/sub/*', kvRateLimit({ namespace: 'public-subscriptions', limit: 120 })
 
 // Health check - stays public for infra probes
 app.get('/api/health', (c) => c.json({ success: true, data: { status: 'ok', env: c.env.ENVIRONMENT } }))
+app.get('/api/ready', async (c) => {
+  const checks = await checkReadiness(c.env)
+  const ready = Object.values(checks).every(Boolean)
+  return c.json({
+    success: ready,
+    data: { status: ready ? 'ready' : 'not_ready', env: c.env.ENVIRONMENT, checks },
+  }, ready ? 200 : 503)
+})
 
 app.use('/api/*', async (c, next) => {
   if (c.env.ENVIRONMENT === 'production' && !c.env.ALLOWED_ORIGIN) {
@@ -126,6 +143,38 @@ export default {
       durationMs: Date.now() - startedAt,
       environment: env.ENVIRONMENT,
     }, result.failedCount > 0 ? 'error' : 'log')
+
+    const healthStartedAt = Date.now()
+    if (result.skipped) {
+      logEvent('remote_rule_set_health_refresh', {
+        checkedCount: 0,
+        remainingCount: 0,
+        skipped: true,
+        durationMs: Date.now() - healthStartedAt,
+        environment: env.ENVIRONMENT,
+      })
+      return
+    }
+    try {
+      const health = await validatePendingRuleSetSources(env.DB, SCHEDULED_PENDING_HEALTH_BATCH_LIMIT)
+      logEvent('remote_rule_set_health_refresh', {
+        checkedCount: health.checkedCount,
+        remainingCount: health.remainingCount,
+        skipped: false,
+        durationMs: Date.now() - healthStartedAt,
+        environment: env.ENVIRONMENT,
+      })
+    } catch (error) {
+      logEvent('remote_rule_set_health_refresh', {
+        checkedCount: 0,
+        remainingCount: 0,
+        skipped: false,
+        failed: true,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - healthStartedAt,
+        environment: env.ENVIRONMENT,
+      }, 'error')
+    }
   },
 } satisfies ExportedHandler<Env>
 
@@ -133,6 +182,36 @@ export function redactLogPath(path: string): string {
   if (!path.startsWith('/sub/')) return path
   const [, prefix, , ...rest] = path.split('/')
   return `/${prefix}/[redacted]${rest.length > 0 ? `/${rest.join('/')}` : ''}`
+}
+
+export async function checkReadiness(env: Env): Promise<{
+  database: boolean
+  kv: boolean
+  apiKeyConfigured: boolean
+  allowedOriginConfigured: boolean
+}> {
+  const [database, kv] = await Promise.all([
+    checkBinding(async () => Boolean(await env.DB?.prepare('SELECT 1 AS ok').first<{ ok: number }>())),
+    checkBinding(async () => {
+      await env.KV?.get('__uni_conf_readiness__')
+      return Boolean(env.KV)
+    }),
+  ])
+  const production = env.ENVIRONMENT === 'production'
+  return {
+    database,
+    kv,
+    apiKeyConfigured: !production || Boolean(env.API_KEY),
+    allowedOriginConfigured: !production || Boolean(env.ALLOWED_ORIGIN),
+  }
+}
+
+async function checkBinding(check: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await check()
+  } catch {
+    return false
+  }
 }
 
 export function logEvent(

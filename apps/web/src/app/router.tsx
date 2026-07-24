@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, type RouteObject } from 'react-router'
 import { Layout } from '@/components/layout/Layout/Layout'
 import { Dashboard } from '@/pages/Dashboard/Dashboard'
 import { Sources } from '@/pages/Sources/Sources'
@@ -11,7 +11,7 @@ import { Export } from '@/pages/Export/Export'
 import { Preview } from '@/pages/Preview/Preview'
 import { Settings } from '@/pages/Settings/Settings'
 
-export const router = createBrowserRouter([
+export const appRoutes: RouteObject[] = [
   {
     path: '/',
     element: <Layout />,
@@ -28,4 +28,6 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <Settings /> },
     ],
   },
-])
+]
+
+export const router = createBrowserRouter(appRoutes)

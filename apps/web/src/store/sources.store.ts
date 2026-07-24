@@ -11,7 +11,7 @@ import { api } from '@/lib/api'
 interface SourcesState {
   sources: ProxySource[]
   loading: boolean
-  error: string | null
+  error: unknown | null
   refreshResults: Record<string, SourceRefreshResult>
   refreshErrors: Record<string, string>
   fetchSources: () => Promise<void>
@@ -56,7 +56,7 @@ export const useSourcesStore = create<SourcesState>((set, get) => ({
       const sources = await api.sources.list()
       set({ sources, loading: false })
     } catch (e) {
-      set({ error: (e as Error).message, loading: false })
+      set({ error: e, loading: false })
     }
   },
 

@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- Node.js ≥ 20
-- pnpm ≥ 10
+- Node.js 24 recommended (minimum 20.19)
+- pnpm ≥ 11.17
 - Cloudflare account (for deployment)
 
 ## Local Development Setup
@@ -38,12 +38,15 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full architecture overview.
 
 ```bash
 pnpm test              # Run all tests
+pnpm test:golden       # Real-D1 fresh install, backup/restore, and all-format export acceptance
 pnpm test:coverage     # Run with coverage report
 pnpm --filter web test # Frontend tests only
 pnpm --filter worker test # Worker tests only
 ```
 
-Coverage is enforced in CI. Worker coverage includes routes, services, and generators (global 80% statements/lines, 90% functions, 65% branches). Web coverage includes application wiring, shared components, core logic, API clients, every page, and all stores. Its current ratchet is 50% statements/lines, 40% functions/branches, with stricter per-directory floors for core, lib, and store code. Raise thresholds with new tests; do not narrow the include globs to make a gate pass.
+Coverage is enforced in CI. Worker coverage includes routes, services, and generators (global 80% statements/lines, 90% functions, 65% branches). Web coverage includes application wiring, shared components, core logic, API clients, every page, and all stores. Its current ratchet is 55% statements/lines and 45% functions/branches, with stricter per-directory floors for app, core, lib, and store code. Raise thresholds with new tests; do not narrow the include globs to make a gate pass.
+
+`pnpm test:golden` is the release acceptance path rather than a mocked route test. It creates an empty Miniflare D1 database, applies every migration in order, imports one representative configuration, verifies every advertised subscription format, exports and validates a backup, clears the instance, confirms the old public token is unavailable, restores the backup, and verifies every format again with the restored token and routing graph.
 
 ## Code Style
 

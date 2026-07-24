@@ -7,6 +7,8 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
+import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import { useCollectionsStore } from '@/store/collections.store'
 import { useGroupsStore } from '@/store/groups.store'
 import { useNodesStore } from '@/store/nodes.store'
@@ -27,9 +29,9 @@ import {
   buildSourceGroupSuggestions,
   makeSourceNodeGroupMarker,
   mapUpstreamGroupType,
-  nextSourceGroupLinkedOrder,
 } from '@/core/collections/source-group-suggestions'
-import { AUTO_NODE_GROUP_PREFIX, DEFAULT_HEALTH_CHECK } from '@uni-conf/shared'
+import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
+import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared'
 import type {
   DedupStrategy,
   FilterOperator,
@@ -45,30 +47,37 @@ import styles from './Collections.module.css'
 type CollectionForm = Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>
 type GeneratedGroupType = Extract<GroupType, 'select' | 'url-test' | 'fallback'>
 
-const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; labelKey: string; suffix: string }> = [
-  { value: 'select', labelKey: 'collections.group_type_select', suffix: 'Select' },
-  { value: 'url-test', labelKey: 'collections.group_type_url_test', suffix: 'Auto' },
-  { value: 'fallback', labelKey: 'collections.group_type_fallback', suffix: 'Fallback' },
+interface AutoEditorSnapshot {
+  autoKeys: string[]
+  autoTypes: GeneratedGroupType[]
+  sourceGroupKeys: string[]
+  includeFlag: boolean
+}
+
+const GENERATED_GROUP_TYPES: Array<{ value: GeneratedGroupType; labelKey: string }> = [
+  { value: 'select', labelKey: 'collections.group_type_select' },
+  { value: 'url-test', labelKey: 'collections.group_type_url_test' },
+  { value: 'fallback', labelKey: 'collections.group_type_fallback' },
 ]
-const FILTER_FIELDS: Array<{ value: NodeFilter['field']; label: string }> = [
-  { value: 'name', label: '名称' },
-  { value: 'server', label: '服务器' },
-  { value: 'protocol', label: '协议' },
-  { value: 'country', label: '地区' },
-  { value: 'countryCode', label: '地区代码' },
-  { value: 'tag', label: '标签' },
-  { value: 'sourceId', label: '来源 ID' },
+const FILTER_FIELDS: Array<{ value: NodeFilter['field']; labelKey: string }> = [
+  { value: 'name', labelKey: 'collections.filter_field_name' },
+  { value: 'server', labelKey: 'collections.filter_field_server' },
+  { value: 'protocol', labelKey: 'collections.filter_field_protocol' },
+  { value: 'country', labelKey: 'collections.filter_field_country' },
+  { value: 'countryCode', labelKey: 'collections.filter_field_country_code' },
+  { value: 'tag', labelKey: 'collections.filter_field_tag' },
+  { value: 'sourceId', labelKey: 'collections.filter_field_source_id' },
 ]
 
-const FILTER_OPERATORS: Array<{ value: FilterOperator; label: string }> = [
-  { value: 'contains', label: '包含' },
-  { value: 'not_contains', label: '不包含' },
-  { value: 'equals', label: '等于' },
-  { value: 'not_equals', label: '不等于' },
-  { value: 'regex', label: '正则匹配' },
-  { value: 'not_regex', label: '正则不匹配' },
-  { value: 'in', label: '包含于列表' },
-  { value: 'not_in', label: '不包含于列表' },
+const FILTER_OPERATORS: Array<{ value: FilterOperator; labelKey: string }> = [
+  { value: 'contains', labelKey: 'collections.filter_op_contains' },
+  { value: 'not_contains', labelKey: 'collections.filter_op_not_contains' },
+  { value: 'equals', labelKey: 'collections.filter_op_equals' },
+  { value: 'not_equals', labelKey: 'collections.filter_op_not_equals' },
+  { value: 'regex', labelKey: 'collections.filter_op_regex' },
+  { value: 'not_regex', labelKey: 'collections.filter_op_not_regex' },
+  { value: 'in', labelKey: 'collections.filter_op_in' },
+  { value: 'not_in', labelKey: 'collections.filter_op_not_in' },
 ]
 
 const DEDUP_OPTIONS: Array<{ value: DedupStrategy; labelKey: string }> = [
@@ -86,14 +95,14 @@ const SORT_OPTIONS: Array<{ value: SortStrategy; labelKey: string }> = [
   { value: 'manual', labelKey: 'collections.sort_manual' },
 ]
 
-const RENAME_TYPES: Array<{ value: NodeRename['type']; label: string }> = [
-  { value: 'replace', label: '文本替换' },
-  { value: 'regex', label: '正则替换' },
-  { value: 'prefix', label: '添加前缀' },
-  { value: 'suffix', label: '添加后缀' },
-  { value: 'strip_emoji', label: '去除 Emoji' },
-  { value: 'standardize_country', label: '地区名称标准化' },
-  { value: 'auto_number', label: '重复名称编号' },
+const RENAME_TYPES: Array<{ value: NodeRename['type']; labelKey: string }> = [
+  { value: 'replace', labelKey: 'collections.rename_type_replace' },
+  { value: 'regex', labelKey: 'collections.rename_type_regex' },
+  { value: 'prefix', labelKey: 'collections.rename_type_prefix' },
+  { value: 'suffix', labelKey: 'collections.rename_type_suffix' },
+  { value: 'strip_emoji', labelKey: 'collections.rename_type_strip_emoji' },
+  { value: 'standardize_country', labelKey: 'collections.rename_type_standardize_country' },
+  { value: 'auto_number', labelKey: 'collections.rename_type_auto_number' },
 ]
 
 function createEmptyForm(): CollectionForm {
@@ -111,12 +120,28 @@ function createEmptyForm(): CollectionForm {
   }
 }
 
+function createAutoEditorSnapshot(
+  autoKeys: Set<string>,
+  autoTypes: Set<GeneratedGroupType>,
+  sourceGroupKeys: Set<string>,
+  includeFlag: boolean,
+): AutoEditorSnapshot {
+  return {
+    autoKeys: [...autoKeys].sort(),
+    autoTypes: [...autoTypes].sort(),
+    sourceGroupKeys: [...sourceGroupKeys].sort(),
+    includeFlag,
+  }
+}
+
 export function Collections() {
   const { t } = useTranslation()
+  const confirmAction = useConfirmDialog()
   const {
     collections,
     previews,
     loading,
+    error: loadError,
     fetchCollections,
     deleteCollection,
     previewCollection,
@@ -128,9 +153,18 @@ export function Collections() {
   const [showModal, setShowModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<NodeCollection | null>(null)
   const [form, setForm] = useState<CollectionForm>(createEmptyForm)
-  const [formError, setFormError] = useState('')
+  const [initialForm, setInitialForm] = useState<CollectionForm>(createEmptyForm)
+  const [formError, setFormError] = useState<unknown | null>(null)
+  const [actionError, setActionError] = useState<unknown | null>(null)
+  const [autoError, setAutoError] = useState<unknown | null>(null)
+  const [formSaving, setFormSaving] = useState(false)
+  const [rowActionId, setRowActionId] = useState<string | null>(null)
+  const [openingAuto, setOpeningAuto] = useState(false)
   const [loadingPreviewIds, setLoadingPreviewIds] = useState<Set<string>>(() => new Set())
   const [requestedPreviewIds, setRequestedPreviewIds] = useState<Set<string>>(() => new Set())
+  const [expandedAutoPreviewIds, setExpandedAutoPreviewIds] = useState<Set<string>>(() => new Set())
+  const [collapsedManualPreviewIds, setCollapsedManualPreviewIds] = useState<Set<string>>(() => new Set())
+  const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({})
   const [showAutoModal, setShowAutoModal] = useState(false)
   const [selectedAutoKeys, setSelectedAutoKeys] = useState<Set<string>>(() => new Set())
   const [selectedAutoTypes, setSelectedAutoTypes] = useState<Set<GeneratedGroupType>>(() => new Set(['url-test']))
@@ -138,6 +172,20 @@ export function Collections() {
   const [autoNamesIncludeFlag, setAutoNamesIncludeFlag] = useState(true)
   const [autoApplying, setAutoApplying] = useState(false)
   const [manualGroupType, setManualGroupType] = useState<GeneratedGroupType>('url-test')
+  const [initialManualGroupType, setInitialManualGroupType] = useState<GeneratedGroupType>('url-test')
+  const [initialAutoEditor, setInitialAutoEditor] = useState<AutoEditorSnapshot>(() =>
+    createAutoEditorSnapshot(new Set(), new Set(['url-test']), new Set(), true)
+  )
+  const formDirty = showModal && (
+    !formValuesEqual(form, initialForm)
+    || manualGroupType !== initialManualGroupType
+  )
+  const autoEditorDirty = showAutoModal && !formValuesEqual(
+    createAutoEditorSnapshot(selectedAutoKeys, selectedAutoTypes, selectedSourceGroupKeys, autoNamesIncludeFlag),
+    initialAutoEditor,
+  )
+  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
+  const confirmDiscardAutoEditor = useUnsavedChangesGuard(autoEditorDirty)
 
   useEffect(() => {
     void fetchCollections()
@@ -148,6 +196,9 @@ export function Collections() {
 
   useEffect(() => {
     const missingIds = collections
+      .filter(collection => isAutoNodeGroup(collection)
+        ? expandedAutoPreviewIds.has(collection.id)
+        : !collapsedManualPreviewIds.has(collection.id))
       .map(collection => collection.id)
       .filter(id => previews[id] === undefined && !loadingPreviewIds.has(id) && !requestedPreviewIds.has(id))
 
@@ -156,7 +207,19 @@ export function Collections() {
     queueMicrotask(() => {
       setLoadingPreviewIds(current => new Set([...current, ...missingIds]))
       setRequestedPreviewIds(current => new Set([...current, ...missingIds]))
-      void Promise.all(missingIds.map(id => previewCollection(id).catch(() => [])))
+      void Promise.all(missingIds.map(async id => {
+        try {
+          await previewCollection(id)
+          setPreviewErrors(current => {
+            if (!current[id]) return current
+            const next = { ...current }
+            delete next[id]
+            return next
+          })
+        } catch (error) {
+          setPreviewErrors(current => ({ ...current, [id]: (error as Error).message }))
+        }
+      }))
         .finally(() => {
           setLoadingPreviewIds(current => {
             const next = new Set(current)
@@ -165,7 +228,28 @@ export function Collections() {
           })
         })
     })
-  }, [collections, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
+  }, [collapsedManualPreviewIds, collections, expandedAutoPreviewIds, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
+
+  const togglePreview = (collection: NodeCollection) => {
+    if (isAutoNodeGroup(collection)) {
+      setExpandedAutoPreviewIds(current => toggleSet(current, collection.id))
+    } else {
+      setCollapsedManualPreviewIds(current => toggleSet(current, collection.id))
+    }
+  }
+
+  const retryPreview = (id: string) => {
+    setPreviewErrors(current => {
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+    setRequestedPreviewIds(current => {
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
+  }
 
   const sourceOptions = useMemo(
     () => sources.map(source => ({ id: source.id, label: `${source.name} (${source.nodeCount})` })),
@@ -203,51 +287,74 @@ export function Collections() {
   )
 
   const openCreate = () => {
+    const nextForm = createEmptyForm()
     setEditingCollection(null)
-    setForm(createEmptyForm())
+    setForm(nextForm)
+    setInitialForm(nextForm)
     setManualGroupType('url-test')
-    setFormError('')
+    setInitialManualGroupType('url-test')
+    setFormError(null)
     setShowModal(true)
   }
 
   const openAutoGenerate = async () => {
-    const settings = await api.settings.get()
-    applySettings(settings)
-    const configuredTypes = settings.autoNodeGroupsEnabled ? settings.autoNodeGroupTypes : []
-    const existingKeys = new Set(
-      collections
-        .map(collection => parseAutoNodeGroupMarker(collection.notes)?.key)
-        .filter((key): key is string => Boolean(key))
-    )
-    const configuredKeys = settings.autoNodeGroupKeys !== undefined
-      ? new Set(settings.autoNodeGroupKeys)
-      : null
-    const defaultKeys = !settings.autoNodeGroupsEnabled
-      ? new Set<string>()
-      : configuredKeys ?? (existingKeys.size > 0
-          ? existingKeys
-          : buildAutoNodeGroupKeysForSuggestions({
-              countryCodes: countrySuggestions.map(item => item.countryCode),
-              tagKeys: tagSuggestions.map(item => item.key),
-              types: configuredTypes.length > 0 ? configuredTypes : (['url-test'] as GeneratedGroupType[]),
-            }))
-    const defaultTypes = new Set<GeneratedGroupType>(configuredTypes.filter(isGeneratedGroupType))
-    for (const key of defaultKeys) {
-      const marker = parseAutoNodeGroupKey(key)
-      if (marker) defaultTypes.add(marker.type)
+    setOpeningAuto(true)
+    setActionError(null)
+    try {
+      const settings = await api.settings.get()
+      applySettings(settings)
+      const configuredTypes = settings.autoNodeGroupsEnabled ? settings.autoNodeGroupTypes : []
+      const existingKeys = new Set(
+        collections
+          .map(collection => parseAutoNodeGroupMarker(collection.notes)?.key)
+          .filter((key): key is string => Boolean(key))
+      )
+      const configuredKeys = settings.autoNodeGroupKeys !== undefined
+        ? new Set(settings.autoNodeGroupKeys)
+        : null
+      const defaultKeys = !settings.autoNodeGroupsEnabled
+        ? new Set<string>()
+        : configuredKeys ?? (existingKeys.size > 0
+            ? existingKeys
+            : buildAutoNodeGroupKeysForSuggestions({
+                countryCodes: countrySuggestions.map(item => item.countryCode),
+                tagKeys: tagSuggestions.map(item => item.key),
+                types: configuredTypes.length > 0 ? configuredTypes : (['url-test'] as GeneratedGroupType[]),
+              }))
+      const defaultTypes = new Set<GeneratedGroupType>(configuredTypes.filter(isGeneratedGroupType))
+      for (const key of defaultKeys) {
+        const marker = parseAutoNodeGroupKey(key)
+        if (marker) defaultTypes.add(marker.type)
+      }
+      const nextTypes: Set<GeneratedGroupType> = defaultTypes.size > 0
+        ? defaultTypes
+        : (settings.autoNodeGroupsEnabled
+            ? new Set<GeneratedGroupType>(['url-test'])
+            : new Set<GeneratedGroupType>())
+      const nextSourceGroupKeys = new Set<string>()
+      setSelectedAutoKeys(defaultKeys)
+      setSelectedAutoTypes(nextTypes)
+      setSelectedSourceGroupKeys(nextSourceGroupKeys)
+      setAutoNamesIncludeFlag(settings.autoNodeGroupIncludeFlag)
+      setInitialAutoEditor(createAutoEditorSnapshot(
+        defaultKeys,
+        nextTypes,
+        nextSourceGroupKeys,
+        settings.autoNodeGroupIncludeFlag,
+      ))
+      setAutoError(null)
+      setShowAutoModal(true)
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setOpeningAuto(false)
     }
-    setSelectedAutoKeys(defaultKeys)
-    setSelectedAutoTypes(defaultTypes.size > 0 ? defaultTypes : (settings.autoNodeGroupsEnabled ? new Set(['url-test' as GeneratedGroupType]) : new Set()))
-    setSelectedSourceGroupKeys(new Set())
-    setAutoNamesIncludeFlag(settings.autoNodeGroupIncludeFlag)
-    setShowAutoModal(true)
   }
 
   const openEdit = (collection: NodeCollection) => {
-    setEditingCollection(collection)
     const linkedGroup = groups.find(group => group.collectionIds.includes(collection.id) && isGeneratedGroupType(group.type))
-    setManualGroupType(linkedGroup && isGeneratedGroupType(linkedGroup.type) ? linkedGroup.type : 'url-test')
-    setForm({
+    const nextGroupType = linkedGroup && isGeneratedGroupType(linkedGroup.type) ? linkedGroup.type : 'url-test'
+    const nextForm: CollectionForm = {
       name: collection.name,
       sourceIds: collection.sourceIds,
       nodeIds: collection.nodeIds,
@@ -258,16 +365,34 @@ export function Collections() {
       sortCountryOrder: collection.sortCountryOrder ?? [],
       enabled: collection.enabled,
       notes: collection.notes ?? '',
-    })
-    setFormError('')
+    }
+    setEditingCollection(collection)
+    setManualGroupType(nextGroupType)
+    setInitialManualGroupType(nextGroupType)
+    setForm(nextForm)
+    setInitialForm(nextForm)
+    setFormError(null)
     setShowModal(true)
+  }
+
+  const closeFormModal = async () => {
+    if (!(await confirmDiscardForm())) return
+    setShowModal(false)
+    setEditingCollection(null)
+    setFormError(null)
+  }
+
+  const closeAutoModal = async () => {
+    if (!(await confirmDiscardAutoEditor())) return
+    setShowAutoModal(false)
+    setAutoError(null)
   }
 
   const handleSave = async () => {
     const payload: CollectionForm = {
       ...form,
       name: form.name.trim(),
-      notes: form.notes?.trim() || undefined,
+      notes: form.notes?.trim() ?? '',
       filters: form.filters.map(filter => ({
         ...filter,
         value: normalizeListValue(filter.operator, filter.value),
@@ -275,37 +400,46 @@ export function Collections() {
     }
 
     if (!payload.name) {
-      setFormError('name is required')
+      setFormError(t('collections.name_required'))
       return
     }
 
-    let savedCollection: NodeCollection
+    setFormSaving(true)
+    setFormError(null)
+    try {
+      const result = editingCollection
+        ? await api.collections.updateWithGroup(editingCollection.id, payload, manualGroupType)
+        : await api.collections.createWithGroup(payload, manualGroupType)
 
-    if (editingCollection) {
-      const updated = await api.collections.update(editingCollection.id, payload)
-      savedCollection = updated
-      const linkedGroup = groups.find(group => group.collectionIds.includes(editingCollection.id) && !group.isBuiltin)
-      if (linkedGroup) {
-        await api.groups.update(linkedGroup.id, {
-          name: updated.name,
-          type: manualGroupType,
-          collectionIds: [updated.id],
-        })
-      } else {
-        await createLinkedGroup(updated, manualGroupType, groups.length)
-      }
-    } else {
-      const created = await api.collections.create(payload)
-      savedCollection = created
-      await createLinkedGroup(created, manualGroupType, groups.length)
+      await Promise.all([fetchCollections(), fetchGroups()])
+      void previewCollection(result.collection.id)
+      setShowModal(false)
+      setEditingCollection(null)
+      setForm(createEmptyForm())
+      setManualGroupType('url-test')
+    } catch (error) {
+      setFormError(error)
+    } finally {
+      setFormSaving(false)
     }
+  }
 
-    await Promise.all([fetchCollections(), fetchGroups()])
-    void previewCollection(savedCollection.id)
-    setShowModal(false)
-    setEditingCollection(null)
-    setForm(createEmptyForm())
-    setManualGroupType('url-test')
+  const handleDeleteCollection = async (collection: NodeCollection) => {
+    if (!(await confirmAction({
+      description: t('collections.delete_confirm'),
+      confirmLabel: t('common.delete'),
+      danger: true,
+    }))) return
+    setRowActionId(collection.id)
+    setActionError(null)
+    try {
+      await deleteCollection(collection.id)
+      await fetchGroups()
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setRowActionId(null)
+    }
   }
 
   const addFilter = () => {
@@ -338,6 +472,7 @@ export function Collections() {
 
   const applyAutoGenerate = async () => {
     setAutoApplying(true)
+    setAutoError(null)
     try {
       const selectedTypes = [...selectedAutoTypes]
       const selectedKeys = [...selectedAutoKeys]
@@ -348,14 +483,11 @@ export function Collections() {
         includeFlag: autoNamesIncludeFlag,
       }))
       applySettings(updatedSettings)
-      const groups = await api.groups.list()
-      let importedCount = 0
-
       for (const key of selectedSourceGroupKeys) {
         const suggestion = sourceGroupSuggestions.find(item => item.key === key)
         if (!suggestion || suggestion.exists || suggestion.nodeIds.length === 0) continue
 
-        const collection = await api.collections.create({
+        await api.collections.createWithGroup({
           name: suggestion.name,
           sourceIds: [],
           nodeIds: suggestion.nodeIds,
@@ -366,14 +498,14 @@ export function Collections() {
           sortCountryOrder: [],
           enabled: true,
           notes: makeSourceNodeGroupMarker(suggestion.sourceId, suggestion.groupName),
-        })
-
-        await createLinkedGroup(collection, mapUpstreamGroupType(suggestion.group.type), nextSourceGroupLinkedOrder(groups.length, importedCount))
-        importedCount += 1
+        }, mapUpstreamGroupType(suggestion.group.type))
       }
 
       await Promise.all([fetchCollections(), fetchGroups()])
       setShowAutoModal(false)
+    } catch (error) {
+      setAutoError(error)
+      await Promise.allSettled([fetchCollections(), fetchGroups()])
     } finally {
       setAutoApplying(false)
     }
@@ -384,8 +516,10 @@ export function Collections() {
       <PageHeader
         title={t('collections.title')}
         description={t('collections.description', { count: collections.length })}
-        actions={<><Button variant="secondary" onClick={() => void openAutoGenerate()}>{t('collections.auto_generate')}</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
+        actions={<><Button variant="secondary" loading={openingAuto} onClick={() => void openAutoGenerate()}>{t('collections.auto_generate')}</Button><Button onClick={openCreate} icon={<PlusIcon />}>{t('collections.new')}</Button></>}
       />
+      {loadError != null && <ErrorNotice error={loadError} />}
+      {actionError != null && <ErrorNotice error={actionError} />}
       {loading && collections.length === 0 ? (
         <div className={styles.loading}>{t('common.loading')}</div>
       ) : collections.length === 0 ? (
@@ -396,8 +530,11 @@ export function Collections() {
         />
       ) : (
         <div className={styles.grid}>
-          {collections.map(collection => (
-            <Card key={collection.id} className={styles.card}>
+          {collections.map(collection => {
+            const previewExpanded = isAutoNodeGroup(collection)
+              ? expandedAutoPreviewIds.has(collection.id)
+              : !collapsedManualPreviewIds.has(collection.id)
+            return <Card key={collection.id} className={styles.card}>
               <div className={styles.cardHeader}>
                 <div>
                   <div className={styles.cardTitle}>{collection.name}</div>
@@ -409,19 +546,37 @@ export function Collections() {
               </div>
 
               <div className={styles.cardMeta}>
-                <Badge variant="info">{scopeText(collection)}</Badge>
+                <Badge variant="info">{scopeText(collection, t)}</Badge>
                 <Badge variant={isAutoNodeGroup(collection) ? 'success' : 'default'}>{isAutoNodeGroup(collection) ? t('collections.auto_label') : t('collections.manual_label')}</Badge>
-                <Badge variant="default">{sortLabel(collection.sort)}</Badge>
-                <Badge variant="default">{dedupLabel(collection.dedup)}</Badge>
+                <Badge variant="default">{sortLabel(collection.sort, t)}</Badge>
+                <Badge variant="default">{dedupLabel(collection.dedup, t)}</Badge>
                 {collection.filters.length > 0 && <Badge variant="warning">{t('collections.filter_count', { count: collection.filters.length })}</Badge>}
                 {collection.renames.length > 0 && <Badge variant="purple">{t('collections.rename_count', { count: collection.renames.length })}</Badge>}
               </div>
 
-              <PreviewList
-                nodes={previews[collection.id] ?? []}
-                loading={loadingPreviewIds.has(collection.id) && previews[collection.id] === undefined}
-                sourceNameById={sourceNameById}
-              />
+              <button
+                type="button"
+                className={styles.previewToggle}
+                aria-label={t('collections.preview_toggle_label', { name: collection.name })}
+                aria-expanded={previewExpanded}
+                aria-controls={`collection-preview-${collection.id}`}
+                onClick={() => togglePreview(collection)}
+              >
+                <span>{t('collections.preview_nodes')}</span>
+                <span>{previews[collection.id] ? t('collections.preview_count', { count: previews[collection.id].length }) : t('collections.preview_on_demand')}</span>
+              </button>
+
+              {previewExpanded && (
+                <div id={`collection-preview-${collection.id}`}>
+                  <PreviewList
+                    nodes={previews[collection.id] ?? []}
+                    loading={loadingPreviewIds.has(collection.id) && previews[collection.id] === undefined}
+                    error={previewErrors[collection.id]}
+                    onRetry={() => retryPreview(collection.id)}
+                    sourceNameById={sourceNameById}
+                  />
+                </div>
+              )}
 
               <div className={styles.cardActions}>
                 {!isAutoNodeGroup(collection) && (
@@ -432,7 +587,10 @@ export function Collections() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { if (confirm(t('collections.delete_confirm'))) void deleteCollection(collection.id) }}
+                      loading={rowActionId === collection.id}
+                      disabled={rowActionId === collection.id}
+                      aria-label={t('collections.delete_collection', { name: collection.name })}
+                      onClick={() => void handleDeleteCollection(collection)}
                     >
                       {t('common.delete')}
                     </Button>
@@ -440,41 +598,44 @@ export function Collections() {
                 )}
               </div>
             </Card>
-          ))}
+          })}
         </div>
       )}
 
       <Modal
         open={showModal}
-        onOpenChange={setShowModal}
+        onOpenChange={open => {
+          if (!open) void closeFormModal()
+        }}
         title={editingCollection ? t('common.edit') : t('collections.new')}
         size="lg"
+        closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</Button>
-            <Button onClick={() => void handleSave()}>{t('common.save')}</Button>
+            <Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+            <Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button>
           </>
         }
       >
-        {formError && <div className={styles.formError}>{formError}</div>}
+        {formError != null && <ErrorNotice error={formError} className={styles.formError} />}
 
         <div className={styles.formGrid}>
           <Input label={t('common.name')} value={form.name} onChange={e => setFormValue('name', e.target.value, setForm)} />
           <div>
-            <label className={styles.selectLabel}>{t('collections.group_type')}</label>
-            <select className={styles.select} value={manualGroupType} onChange={e => setManualGroupType(e.target.value as GeneratedGroupType)}>
+            <label className={styles.selectLabel} htmlFor="collection-group-type">{t('collections.group_type')}</label>
+            <select id="collection-group-type" className={styles.select} value={manualGroupType} onChange={e => setManualGroupType(e.target.value as GeneratedGroupType)}>
               {GENERATED_GROUP_TYPES.map(type => <option key={type.value} value={type.value}>{t(type.labelKey)}</option>)}
             </select>
           </div>
           <div>
-            <label className={styles.selectLabel}>{t('collections.dedup')}</label>
-            <select className={styles.select} value={form.dedup} onChange={e => setFormValue('dedup', e.target.value as DedupStrategy, setForm)}>
+            <label className={styles.selectLabel} htmlFor="collection-dedup">{t('collections.dedup')}</label>
+            <select id="collection-dedup" className={styles.select} value={form.dedup} onChange={e => setFormValue('dedup', e.target.value as DedupStrategy, setForm)}>
               {DEDUP_OPTIONS.map(option => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
             </select>
           </div>
           <div>
-            <label className={styles.selectLabel}>{t('collections.sort')}</label>
-            <select className={styles.select} value={form.sort} onChange={e => setFormValue('sort', e.target.value as SortStrategy, setForm)}>
+            <label className={styles.selectLabel} htmlFor="collection-sort">{t('collections.sort')}</label>
+            <select id="collection-sort" className={styles.select} value={form.sort} onChange={e => setFormValue('sort', e.target.value as SortStrategy, setForm)}>
               {SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
             </select>
           </div>
@@ -495,8 +656,8 @@ export function Collections() {
         />
 
         <MultiSelect
-          label="指定节点"
-          emptyText="不指定，按来源和过滤规则选择"
+          label={t('collections.specific_nodes')}
+          emptyText={t('collections.no_specific_nodes')}
           options={nodeOptions}
           value={form.nodeIds}
           onChange={nodeIds => setForm(current => ({ ...current, nodeIds }))}
@@ -508,10 +669,11 @@ export function Collections() {
             <Button type="button" variant="secondary" size="sm" onClick={addFilter}>{t('collections.add_filter')}</Button>
           </div>
           {form.filters.length === 0 ? (
-            <div className={styles.inlineEmpty}>不过滤节点</div>
-          ) : form.filters.map(filter => (
+            <div className={styles.inlineEmpty}>{t('collections.no_filters')}</div>
+          ) : form.filters.map((filter, index) => (
             <FilterRow
               key={filter.id}
+              index={index}
               filter={filter}
               onChange={next => setForm(current => ({
                 ...current,
@@ -531,10 +693,11 @@ export function Collections() {
             <Button type="button" variant="secondary" size="sm" onClick={addRename}>{t('collections.add_rename')}</Button>
           </div>
           {form.renames.length === 0 ? (
-            <div className={styles.inlineEmpty}>不重命名节点</div>
-          ) : form.renames.map(rename => (
+            <div className={styles.inlineEmpty}>{t('collections.no_renames')}</div>
+          ) : form.renames.map((rename, index) => (
             <RenameRow
               key={rename.id}
+              index={index}
               rename={rename}
               onChange={next => setForm(current => ({
                 ...current,
@@ -550,16 +713,20 @@ export function Collections() {
       </Modal>
       <Modal
         open={showAutoModal}
-        onOpenChange={setShowAutoModal}
+        onOpenChange={open => {
+          if (!open) void closeAutoModal()
+        }}
         title={t('collections.auto_generate_title')}
         size="lg"
+        closeDisabled={autoApplying}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowAutoModal(false)}>{t('common.cancel')}</Button>
+            <Button variant="secondary" disabled={autoApplying} onClick={() => void closeAutoModal()}>{t('common.cancel')}</Button>
             <Button loading={autoApplying} onClick={() => void applyAutoGenerate()}>{t('common.apply')}</Button>
           </>
         }
       >
+        {autoError != null && <ErrorNotice error={autoError} className={styles.formError} />}
         <div className={styles.autoPanel}>
           <div className={styles.autoSection}>
             <div className={styles.sectionHeader}>{t('collections.group_type')}</div>
@@ -658,61 +825,85 @@ export function Collections() {
   )
 }
 
-function FilterRow({ filter, onChange, onRemove }: {
+function FilterRow({ filter, index, onChange, onRemove }: {
   filter: NodeFilter
+  index: number
   onChange: (filter: NodeFilter) => void
   onRemove: () => void
 }) {
+  const { t } = useTranslation()
   const value = Array.isArray(filter.value) ? filter.value.join(', ') : filter.value
+  const row = index + 1
 
   return (
-    <div className={styles.ruleRow}>
+    <div className={styles.ruleRow} role="group" aria-label={t('collections.filter_row', { row })}>
       <label className={styles.ruleToggle}>
-        <input type="checkbox" checked={filter.enabled} onChange={e => onChange({ ...filter, enabled: e.target.checked })} />
+        <input
+          type="checkbox"
+          aria-label={t('collections.filter_enabled', { row })}
+          checked={filter.enabled}
+          onChange={e => onChange({ ...filter, enabled: e.target.checked })}
+        />
       </label>
-      <select className={styles.select} value={filter.field} onChange={e => onChange({ ...filter, field: e.target.value as NodeFilter['field'] })}>
-        {FILTER_FIELDS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      <select aria-label={t('collections.filter_field', { row })} className={styles.select} value={filter.field} onChange={e => onChange({ ...filter, field: e.target.value as NodeFilter['field'] })}>
+        {FILTER_FIELDS.map(option => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
       </select>
-      <select className={styles.select} value={filter.operator} onChange={e => onChange({ ...filter, operator: e.target.value as FilterOperator })}>
-        {FILTER_OPERATORS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      <select aria-label={t('collections.filter_operator', { row })} className={styles.select} value={filter.operator} onChange={e => onChange({ ...filter, operator: e.target.value as FilterOperator })}>
+        {FILTER_OPERATORS.map(option => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
       </select>
-      <input className={styles.textInput} value={value} onChange={e => onChange({ ...filter, value: e.target.value })} placeholder="value" />
-      <Button type="button" variant="ghost" size="sm" onClick={onRemove}>删除</Button>
+      <input
+        aria-label={t('collections.filter_value', { row })}
+        className={styles.textInput}
+        value={value}
+        onChange={e => onChange({ ...filter, value: e.target.value })}
+        placeholder={t('collections.filter_value_placeholder')}
+      />
+      <Button type="button" variant="ghost" size="sm" aria-label={t('collections.remove_filter', { row })} onClick={onRemove}>{t('common.delete')}</Button>
     </div>
   )
 }
 
-function RenameRow({ rename, onChange, onRemove }: {
+function RenameRow({ rename, index, onChange, onRemove }: {
   rename: NodeRename
+  index: number
   onChange: (rename: NodeRename) => void
   onRemove: () => void
 }) {
+  const { t } = useTranslation()
   const needsPattern = rename.type === 'replace' || rename.type === 'regex'
   const needsReplacement = rename.type !== 'strip_emoji' && rename.type !== 'standardize_country' && rename.type !== 'auto_number'
+  const row = index + 1
 
   return (
-    <div className={styles.ruleRow}>
+    <div className={styles.ruleRow} role="group" aria-label={t('collections.rename_row', { row })}>
       <label className={styles.ruleToggle}>
-        <input type="checkbox" checked={rename.enabled} onChange={e => onChange({ ...rename, enabled: e.target.checked })} />
+        <input
+          type="checkbox"
+          aria-label={t('collections.rename_enabled', { row })}
+          checked={rename.enabled}
+          onChange={e => onChange({ ...rename, enabled: e.target.checked })}
+        />
       </label>
-      <select className={styles.select} value={rename.type} onChange={e => onChange({ ...rename, type: e.target.value as NodeRename['type'] })}>
-        {RENAME_TYPES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      <select aria-label={t('collections.rename_type', { row })} className={styles.select} value={rename.type} onChange={e => onChange({ ...rename, type: e.target.value as NodeRename['type'] })}>
+        {RENAME_TYPES.map(option => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
       </select>
       <input
+        aria-label={t('collections.rename_pattern', { row })}
         className={styles.textInput}
         value={rename.pattern ?? ''}
         onChange={e => onChange({ ...rename, pattern: e.target.value })}
-        placeholder={needsPattern ? 'pattern' : '不需要'}
+        placeholder={needsPattern ? t('collections.rename_pattern_placeholder') : t('collections.not_required')}
         disabled={!needsPattern}
       />
       <input
+        aria-label={t('collections.rename_replacement', { row })}
         className={styles.textInput}
         value={rename.replacement ?? ''}
         onChange={e => onChange({ ...rename, replacement: e.target.value })}
-        placeholder={needsReplacement ? 'replacement' : '不需要'}
+        placeholder={needsReplacement ? t('collections.rename_replacement_placeholder') : t('collections.not_required')}
         disabled={!needsReplacement}
       />
-      <Button type="button" variant="ghost" size="sm" onClick={onRemove}>删除</Button>
+      <Button type="button" variant="ghost" size="sm" aria-label={t('collections.remove_rename', { row })} onClick={onRemove}>{t('common.delete')}</Button>
     </div>
   )
 }
@@ -724,19 +915,20 @@ function MultiSelect({ label, emptyText, options, value, onChange }: {
   value: string[]
   onChange: (value: string[]) => void
 }) {
+  const { t } = useTranslation()
   const selected = new Set(value)
   const toggle = (id: string) => {
     onChange(selected.has(id) ? value.filter(item => item !== id) : [...value, id])
   }
 
   return (
-    <div className={styles.selector}>
+    <div className={styles.selector} role="group" aria-label={label}>
       <div className={styles.selectorHeader}>
         <span className={styles.selectLabel}>{label}</span>
-        {value.length > 0 && <button type="button" className={styles.clearButton} onClick={() => onChange([])}>全部</button>}
+        {value.length > 0 && <button type="button" className={styles.clearButton} onClick={() => onChange([])}>{t('collections.clear_selection')}</button>}
       </div>
       {options.length === 0 ? (
-        <div className={styles.selectorEmpty}>暂无可选项</div>
+        <div className={styles.selectorEmpty}>{t('collections.no_options')}</div>
       ) : (
         <div className={styles.optionList}>
           <label className={styles.optionItem}>
@@ -758,31 +950,41 @@ function MultiSelect({ label, emptyText, options, value, onChange }: {
 function PreviewList({
   nodes,
   loading,
+  error,
+  onRetry,
   sourceNameById,
 }: {
   nodes: ProxyNode[]
   loading: boolean
+  error?: string
+  onRetry: () => void
   sourceNameById: Record<string, string>
 }) {
+  const { t } = useTranslation()
   return (
     <div className={styles.preview}>
       <div className={styles.previewHeader}>
-        <span>节点：{loading ? '加载中' : `${nodes.length} 个`}</span>
+        <span>{t('collections.preview_status', { status: loading ? t('common.loading') : t('collections.preview_count', { count: nodes.length }) })}</span>
       </div>
-      {loading ? (
-        <div className={styles.previewEmpty}>正在加载节点...</div>
+      {error ? (
+        <div className={styles.previewError} role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={onRetry}>{t('collections.preview_retry')}</button>
+        </div>
+      ) : loading ? (
+        <div className={styles.previewEmpty}>{t('collections.preview_loading')}</div>
       ) : nodes.length === 0 ? (
-        <div className={styles.previewEmpty}>当前组合没有匹配节点</div>
+        <div className={styles.previewEmpty}>{t('collections.preview_empty')}</div>
       ) : (
         <div className={styles.previewTableWrap}>
           <table className={styles.previewTable}>
             <thead>
               <tr>
                 <th>#</th>
-                <th>节点</th>
-                <th>协议</th>
-                <th>地址</th>
-                <th>来源</th>
+                <th>{t('collections.table_node')}</th>
+                <th>{t('collections.table_protocol')}</th>
+                <th>{t('collections.table_address')}</th>
+                <th>{t('collections.table_source')}</th>
               </tr>
             </thead>
             <tbody>
@@ -819,38 +1021,32 @@ function normalizeListValue(operator: FilterOperator, value: NodeFilter['value']
   return raw.split(',').map(item => item.trim()).filter(Boolean)
 }
 
-function scopeText(collection: NodeCollection): string {
-  if (collection.nodeIds.length > 0) return `${collection.nodeIds.length} 指定节点`
-  return collection.sourceIds.length === 0 ? '全部来源' : `${collection.sourceIds.length} 个来源`
-}
-
-function sortLabel(sort: SortStrategy): string {
-  return `排序: ${sort}`
-}
-
-function dedupLabel(dedup: DedupStrategy): string {
-  return `去重: ${dedup}`
-}
-
-async function createLinkedGroup(
+function scopeText(
   collection: NodeCollection,
-  type: GeneratedGroupType,
-  order: number,
-) {
-  await api.groups.create({
-    name: collection.name,
-    type,
-    collectionIds: [collection.id],
-    groupIds: [],
-    builtins: [],
-    testUrl: DEFAULT_HEALTH_CHECK.testUrl,
-    interval: DEFAULT_HEALTH_CHECK.interval,
-    tolerance: DEFAULT_HEALTH_CHECK.tolerance,
-    lazy: DEFAULT_HEALTH_CHECK.lazy,
-    enabled: true,
-    order,
-    isBuiltin: false,
-  })
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if (collection.nodeIds.length > 0) {
+    return t('collections.scope_specific_nodes', { count: collection.nodeIds.length })
+  }
+  return collection.sourceIds.length === 0
+    ? t('collections.scope_all_sources')
+    : t('collections.scope_sources', { count: collection.sourceIds.length })
+}
+
+function sortLabel(
+  sort: SortStrategy,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const option = SORT_OPTIONS.find(item => item.value === sort)
+  return t('collections.sort_summary', { value: option ? t(option.labelKey) : sort })
+}
+
+function dedupLabel(
+  dedup: DedupStrategy,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const option = DEDUP_OPTIONS.find(item => item.value === dedup)
+  return t('collections.dedup_summary', { value: option ? t(option.labelKey) : dedup })
 }
 
 function buildCountrySuggestions(nodes: ProxyNode[]): Array<{ countryCode: string; label: string; count: number }> {

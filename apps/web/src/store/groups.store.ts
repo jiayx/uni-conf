@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 interface GroupsState {
   groups: ProxyGroup[]
   loading: boolean
-  error: string | null
+  error: unknown | null
   fetchGroups: () => Promise<void>
   addGroup: (data: Omit<ProxyGroup, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateGroup: (id: string, data: Partial<ProxyGroup>) => Promise<void>
@@ -24,7 +24,7 @@ export const useGroupsStore = create<GroupsState>((set) => ({
       const groups = await api.groups.list()
       set({ groups: groups.sort((a, b) => a.order - b.order), loading: false })
     } catch (e) {
-      set({ error: (e as Error).message, loading: false })
+      set({ error: e, loading: false })
     }
   },
 
@@ -44,17 +44,7 @@ export const useGroupsStore = create<GroupsState>((set) => ({
   },
 
   reorderGroups: async (orderedIds) => {
-    // Optimistically update
-    set(s => {
-      const map = new Map(s.groups.map(g => [g.id, g]))
-      const reordered = orderedIds
-        .map((id, idx) => {
-          const g = map.get(id)
-          return g ? { ...g, order: idx } : null
-        })
-        .filter(Boolean) as ProxyGroup[]
-      return { groups: reordered }
-    })
-    await api.groups.reorder(orderedIds)
+    const groups = await api.groups.reorder(orderedIds)
+    set({ groups: [...groups].sort((a, b) => a.order - b.order) })
   },
 }))

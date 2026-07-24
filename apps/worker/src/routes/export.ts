@@ -6,9 +6,18 @@ import { getAppSettings } from '../services/app-settings'
 import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { findBlockingExportWarning, resolveExportWarnings, validateRemoteRuleSetReachability } from '../services/export-validation'
+import { exportArtifactWarnings, validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
-import type { ExportConfig, ExportFormat } from '@uni-conf/types'
-import { EXPORT_SUBSCRIPTION_FORMATS, getExportSubscriptionFilename } from '@uni-conf/shared'
+import type { CompatibilityWarning, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
+import { buildRuleSetConversionBaseUrl } from './subscription'
+import { preflightRuleSetConversions } from '../services/rule-set-conversion'
+import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
+import {
+  EXPORT_SUBSCRIPTION_FORMATS,
+  getExportCapabilityProfile,
+  getExportSubscriptionFilename,
+  serializeExportCapabilityProfile,
+} from '@uni-conf/shared'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -34,8 +43,8 @@ exportRouter.post('/configs', async (c) => {
   const ts = now()
 
   await c.env.DB.prepare(
-    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, extra_config, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     resolveExportConfigName(body.name, body.format),
@@ -45,6 +54,7 @@ exportRouter.post('/configs', async (c) => {
     JSON.stringify(selection.includeGroupIds),
     JSON.stringify(selection.includeRuleIds),
     JSON.stringify(selection.includeRemoteSetIds),
+    selection.ruleSetConversionPolicy ?? null,
     selection.extraConfig ? JSON.stringify(selection.extraConfig) : null,
     ts, ts
   ).run()
@@ -123,6 +133,10 @@ exportRouter.put('/configs/:id', async (c) => {
   if (body.includeGroupIds !== undefined) { fields.push('include_group_ids = ?'); values.push(JSON.stringify(selection.includeGroupIds)) }
   if (body.includeRuleIds !== undefined) { fields.push('include_rule_ids = ?'); values.push(JSON.stringify(selection.includeRuleIds)) }
   if (body.includeRemoteSetIds !== undefined) { fields.push('include_remote_set_ids = ?'); values.push(JSON.stringify(selection.includeRemoteSetIds)) }
+  if (body.ruleSetConversionPolicy !== undefined) {
+    fields.push('rule_set_conversion_policy = ?')
+    values.push(selection.ruleSetConversionPolicy ?? null)
+  }
   if (body.extraConfig !== undefined) {
     fields.push('extra_config = ?')
     values.push(selection.extraConfig === null ? null : JSON.stringify(selection.extraConfig))
@@ -189,6 +203,48 @@ async function syncDefaultExportTokenAfterReset(
     .run()
 }
 
+async function inspectExport(
+  c: Context<{ Bindings: Env }>,
+  format: ExportFormat,
+  config: ExportConfig,
+): Promise<ExportResult | null> {
+  const settings = await getAppSettings(c.env.DB)
+  const exportData = await buildExportData(c.env.DB, config, format)
+  const conversionPreflight = await preflightRuleSetConversions(exportData, format, {
+    kv: c.env.KV,
+    policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
+  })
+  const rendered = renderExportData(exportData, format, {
+    dnsMode: settings.dnsMode,
+    ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
+  })
+  if (!rendered) return null
+  const warnings = resolveExportWarnings(exportData, format, {
+    showCompatibilityWarnings: settings.showCompatibilityWarnings,
+    dnsMode: settings.dnsMode,
+  }).filter(warning => warning.code !== 'remote-rule-set-conversion-planned')
+  const remoteRuleSetWarnings = await validateRemoteRuleSetReachability(exportData, format, {
+    kv: c.env.KV,
+  })
+  const artifactValidation = validateRenderedExport(format, rendered.content)
+  const artifactWarnings = exportArtifactWarnings(artifactValidation)
+  const graphBlockingWarning = findBlockingExportWarning(exportData, format)
+  const blockingWarnings = [
+    graphBlockingWarning,
+    ...conversionPreflight.blockingWarnings,
+    ...artifactWarnings,
+  ].filter((warning): warning is CompatibilityWarning => warning !== null)
+
+  return {
+    ...rendered,
+    format,
+    capabilityProfile: getExportCapabilityProfile(format),
+    artifactValidation,
+    readiness: { ready: blockingWarnings.length === 0, blockingWarnings },
+    warnings: [...warnings, ...conversionPreflight.warnings, ...remoteRuleSetWarnings, ...artifactWarnings],
+  }
+}
+
 // GET /api/export/preview/:format
 exportRouter.get('/preview/:format', async (c) => {
   const format = c.req.param('format')
@@ -197,28 +253,39 @@ exportRouter.get('/preview/:format', async (c) => {
   }
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
-  const settings = await getAppSettings(c.env.DB)
-  const exportData = await buildExportData(c.env.DB, config, format as ExportFormat)
-  const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
-  if (!rendered) {
+  const result = await inspectExport(c, format, config)
+  if (!result) return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+  return c.json({ success: true, data: result })
+})
+
+// GET /api/export/readiness/:format
+exportRouter.get('/readiness/:format', async (c) => {
+  const format = c.req.param('format')
+  if (!isValidExportFormat(format)) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
-  const warnings = resolveExportWarnings(exportData, format as ExportFormat, {
-    showCompatibilityWarnings: settings.showCompatibilityWarnings,
-    dnsMode: settings.dnsMode,
+  const config = await resolveConfig(c)
+  if (config instanceof Response) return config
+  const result = await inspectExport(c, format, config)
+  if (!result) return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+  return c.json({
+    success: true,
+    data: {
+      format: result.format,
+      capabilityProfile: result.capabilityProfile,
+      warnings: result.warnings,
+      artifactValidation: result.artifactValidation,
+      readiness: result.readiness,
+    },
   })
-  const remoteRuleSetWarnings = await validateRemoteRuleSetReachability(exportData, format as ExportFormat, {
-    kv: c.env.KV,
-  })
-
-  return c.json({ success: true, data: { ...rendered, format, warnings: [...warnings, ...remoteRuleSetWarnings] } })
 })
 
 // GET /api/export/download/:format
 exportRouter.get('/download/:format', async (c) => {
   const format = c.req.param('format')
   if (!isValidExportFormat(format)) {
-    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+    c.header('X-UniConf-Error-Code', 'export_format_invalid')
+    return c.json({ success: false, code: 'export_format_invalid', error: `Unsupported format: ${format}` }, 400)
   }
   const config = await resolveConfig(c)
   if (config instanceof Response) return config
@@ -226,11 +293,39 @@ exportRouter.get('/download/:format', async (c) => {
   const exportData = await buildExportData(c.env.DB, config, format)
   const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
-    return c.json({ success: false, error: blockingWarning.message, warnings: [blockingWarning] }, 409)
+    c.header('X-UniConf-Error-Code', 'export_not_ready')
+    return c.json({ success: false, code: 'export_not_ready', error: blockingWarning.message, warnings: [blockingWarning] }, 409)
   }
-  const rendered = renderExportData(exportData, format, { dnsMode: settings.dnsMode })
+  const conversionPreflight = await preflightRuleSetConversions(exportData, format, {
+    kv: c.env.KV,
+    policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
+  })
+  if (conversionPreflight.blockingWarning) {
+    c.header('X-UniConf-Error-Code', 'conversion_incomplete')
+    return c.json({
+      success: false,
+      code: 'conversion_incomplete',
+      error: conversionPreflight.blockingWarning.message,
+      warnings: conversionPreflight.warnings,
+    }, 409)
+  }
+  const rendered = renderExportData(exportData, format, {
+    dnsMode: settings.dnsMode,
+    ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
+  })
   if (!rendered) {
-    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
+    c.header('X-UniConf-Error-Code', 'export_format_invalid')
+    return c.json({ success: false, code: 'export_format_invalid', error: `Unsupported format: ${format}` }, 400)
+  }
+  const artifactValidation = validateRenderedExport(format, rendered.content)
+  if (!artifactValidation.valid) {
+    c.header('X-UniConf-Error-Code', 'artifact_invalid')
+    return c.json({
+      success: false,
+      code: 'artifact_invalid',
+      error: 'Generated export failed structural validation',
+      artifactValidation,
+    }, 500)
   }
   const filename = getExportSubscriptionFilename(format)
 
@@ -238,13 +333,18 @@ exportRouter.get('/download/:format', async (c) => {
     headers: {
       'Content-Type': rendered.contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,
+      'X-UniConf-Capability-Profile': serializeExportCapabilityProfile(format),
     },
   })
 })
 
 async function resolveConfig(c: Context<{ Bindings: Env }>) {
   const configId = c.req.query('configId')
-  if (!configId) return ensureDefaultExportConfig(c.env.DB, now())
+  if (!configId) {
+    const config = await ensureDefaultExportConfig(c.env.DB, now())
+    if (!config.enabled) return c.json({ success: false, error: 'Export config is disabled' }, 403)
+    return config
+  }
 
   const config = await getExportConfigById(c.env.DB, configId)
   if (!config) return c.json({ success: false, error: 'Export config not found' }, 404)
@@ -265,6 +365,7 @@ type ExportSelectionValidation =
       includeGroupIds: string[]
       includeRuleIds: string[]
       includeRemoteSetIds: string[]
+      ruleSetConversionPolicy?: ExportConfig['ruleSetConversionPolicy']
       extraConfig?: Record<string, unknown> | null
     }
   | { valid: false; error: string }
@@ -280,6 +381,8 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
   if (!includeRemoteSetIds.valid) return includeRemoteSetIds
   const extraConfig = normalizeExtraConfig(body.extraConfig)
   if (!extraConfig.valid) return extraConfig
+  const ruleSetConversionPolicy = normalizeRuleSetConversionPolicy(body.ruleSetConversionPolicy)
+  if (!ruleSetConversionPolicy.valid) return ruleSetConversionPolicy
 
   return {
     valid: true,
@@ -287,6 +390,9 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
     includeGroupIds: includeGroupIds.value,
     includeRuleIds: includeRuleIds.value,
     includeRemoteSetIds: includeRemoteSetIds.value,
+    ...(ruleSetConversionPolicy.value !== undefined
+      ? { ruleSetConversionPolicy: ruleSetConversionPolicy.value }
+      : {}),
     ...(extraConfig.value !== undefined ? { extraConfig: extraConfig.value } : {}),
   }
 }
@@ -318,4 +424,19 @@ function normalizeExtraConfig(value: unknown): ExtraConfigValidation {
     return { valid: true, value: value as Record<string, unknown> }
   }
   return { valid: false, error: 'extraConfig must be an object or null' }
+}
+
+type RuleSetConversionPolicyValidation =
+  | { valid: true; value?: ExportConfig['ruleSetConversionPolicy'] }
+  | { valid: false; error: string }
+
+function normalizeRuleSetConversionPolicy(value: unknown): RuleSetConversionPolicyValidation {
+  if (value === undefined) return { valid: true }
+  if (value === null || value === 'compatible' || value === 'strict') {
+    return { valid: true, value }
+  }
+  return {
+    valid: false,
+    error: 'ruleSetConversionPolicy must be compatible, strict, or null',
+  }
 }
