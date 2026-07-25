@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import dataApp, { restoreDefaultData, validateBackupPayload } from './data'
+import dataApp, {
+  restoreDefaultData,
+  validateBackupPayload as validateCurrentBackupPayload,
+} from './data'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 vi.mock('../services/zero-setup', () => ({
@@ -39,7 +42,7 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 4, tables: {} }),
+      body: JSON.stringify(currentBackup()),
     }, { DB: db })
 
     expect(response.status).toBe(200)
@@ -62,7 +65,7 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 4, tables: { nodes: [nodeRow('n1', 'missing')] } }),
+      body: JSON.stringify(currentBackup({ nodes: [nodeRow('n1', 'missing')] })),
     }, { DB: db })
 
     expect(response.status).toBe(400)
@@ -91,7 +94,7 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 4, tables: { sources: [{ id: 'source-1' }] } }),
+      body: JSON.stringify(currentBackup({ sources: [{ id: 'source-1' }] })),
     }, { DB: db })
     expect(response.status).toBe(400)
     expect(db.batch).not.toHaveBeenCalled()
@@ -193,15 +196,12 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        version: 4,
-        tables: {
+      body: JSON.stringify(currentBackup({
           groups: [
             { ...groupRow('group-a'), group_ids: '["group-b"]' },
             { ...groupRow('group-b'), group_ids: '["group-a"]' },
           ],
-        },
-      }),
+      })),
     }, { DB: db })
     expect(response.status).toBe(400)
     expect(db.batch).not.toHaveBeenCalled()
@@ -248,7 +248,7 @@ describe('data reset defaults', () => {
           ...exportRow('export-1', 'token-1'), include_collection_ids: '["collection-1"]',
           include_group_ids: '["group-1"]', include_rule_ids: '["rule-1"]', include_remote_set_ids: '["remote-1"]',
         }],
-        app_settings: [{ id: 'singleton', default_export_token: 'token-1', updated_at: TS }],
+        app_settings: [{ ...appSettingsRow(), default_export_token: 'token-1' }],
       },
     })).toMatchObject({ valid: true, version: 4, totalRows: 8 })
   })
@@ -269,7 +269,7 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 4, tables: { sources: [sourceRow('s1')] } }),
+      body: JSON.stringify(currentBackup({ sources: [sourceRow('s1')] })),
     }, { DB: db })
 
     expect(response.status).toBe(200)
@@ -301,34 +301,229 @@ function createMockDb(): D1Database {
 
 const TS = '2026-01-01T00:00:00.000Z'
 
+type BackupTables = Record<string, unknown>
+
+function currentTables(overrides: BackupTables = {}): BackupTables {
+  return {
+    sources: [],
+    nodes: [],
+    collections: [],
+    groups: [],
+    rules: [],
+    remote_rule_sets: [],
+    export_configs: [],
+    app_settings: [],
+    source_import_runs: [],
+    ...overrides,
+  }
+}
+
+function currentBackup(tables: BackupTables = {}): Record<string, unknown> {
+  return { version: 4, tables: currentTables(tables) }
+}
+
+function validateBackupPayload(value: unknown) {
+  if (!isTestRecord(value)) return validateCurrentBackupPayload(value)
+  if (isTestRecord(value.data) && isTestRecord(value.data.tables)) {
+    return validateCurrentBackupPayload({
+      ...value,
+      data: { ...value.data, tables: currentTables(value.data.tables) },
+    })
+  }
+  if (isTestRecord(value.tables)) {
+    return validateCurrentBackupPayload({ ...value, tables: currentTables(value.tables) })
+  }
+  return validateCurrentBackupPayload(value)
+}
+
+function isTestRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function sourceRow(id: string): Record<string, unknown> {
-  return { id, name: 'Source', type: 'url', created_at: TS, updated_at: TS }
+  return {
+    id,
+    name: 'Source',
+    type: 'url',
+    url: 'https://example.com/subscription',
+    format: 'auto',
+    enabled: 1,
+    node_count: 0,
+    last_updated: null,
+    last_refresh_error: null,
+    update_interval: 0,
+    user_agent: null,
+    notes: null,
+    tags: '[]',
+    source_groups: '[]',
+    raw_content: null,
+    upload_bytes: null,
+    download_bytes: null,
+    total_bytes: null,
+    expire_time: null,
+    created_at: TS,
+    updated_at: TS,
+  }
 }
 
 function nodeRow(id: string, sourceId: string): Record<string, unknown> {
-  return { id, source_id: sourceId, name: 'Node', protocol: 'ss', server: 'example.com', port: 443, created_at: TS, updated_at: TS }
+  return {
+    id,
+    source_id: sourceId,
+    name: 'Node',
+    protocol: 'ss',
+    server: 'example.com',
+    port: 443,
+    country: null,
+    country_code: null,
+    enabled: 1,
+    tags: '[]',
+    notes: null,
+    raw_config: '{}',
+    parsed_config: '{}',
+    is_manual: 0,
+    created_at: TS,
+    updated_at: TS,
+  }
 }
 
 function collectionRow(id: string): Record<string, unknown> {
-  return { id, name: 'Collection', created_at: TS, updated_at: TS }
+  return {
+    id,
+    name: 'Collection',
+    source_ids: '[]',
+    node_ids: '[]',
+    filters: '[]',
+    renames: '[]',
+    dedup: 'name',
+    sort: 'country',
+    sort_country_order: null,
+    enabled: 1,
+    notes: null,
+    created_at: TS,
+    updated_at: TS,
+  }
 }
 
 function groupRow(id: string): Record<string, unknown> {
-  return { id, name: 'Group', type: 'select', created_at: TS, updated_at: TS }
+  return {
+    id,
+    name: 'Group',
+    type: 'select',
+    collection_ids: '[]',
+    group_ids: '[]',
+    builtins: '[]',
+    test_url: null,
+    interval: 300,
+    tolerance: 150,
+    lazy: 1,
+    enabled: 1,
+    sort_order: 0,
+    is_builtin: 0,
+    created_at: TS,
+    updated_at: TS,
+  }
 }
 
 function ruleRow(id: string): Record<string, unknown> {
-  return { id, type: 'DOMAIN', payload: 'example.com', target_group_id: 'group-1', created_at: TS, updated_at: TS }
+  return {
+    id,
+    name: null,
+    type: 'DOMAIN',
+    payload: 'example.com',
+    no_resolve: 0,
+    target_group_id: 'group-1',
+    enabled: 1,
+    sort_order: 0,
+    notes: null,
+    compatibility: '[]',
+    created_at: TS,
+    updated_at: TS,
+  }
 }
 
 function remoteRuleSetRow(id: string): Record<string, unknown> {
-  return { id, name: 'Remote', url: 'https://example.com/rules.txt', format: 'text', target_group_id: 'group-1', created_at: TS, updated_at: TS }
+  return {
+    id,
+    name: 'Remote',
+    url: 'https://example.com/rules.txt',
+    format: 'text',
+    behavior: 'classical',
+    preset_source: null,
+    preset_id: null,
+    source_overrides: '{}',
+    target_group_id: 'group-1',
+    update_interval: 24,
+    enabled: 1,
+    sort_order: 0,
+    last_updated: null,
+    notes: null,
+    created_at: TS,
+    updated_at: TS,
+  }
 }
 
 function exportRow(id: string, token: string): Record<string, unknown> {
-  return { id, name: 'Export', format: 'mihomo', token, created_at: TS, updated_at: TS }
+  return {
+    id,
+    name: 'Export',
+    format: 'mihomo',
+    token,
+    enabled: 1,
+    include_collection_ids: '[]',
+    include_group_ids: '[]',
+    include_rule_ids: '[]',
+    include_remote_set_ids: '[]',
+    rule_set_conversion_policy: null,
+    extra_config: null,
+    created_at: TS,
+    updated_at: TS,
+  }
+}
+
+function appSettingsRow(): Record<string, unknown> {
+  return {
+    id: 'singleton',
+    language: 'zh',
+    theme: 'system',
+    routing_policy_template: 'common',
+    routing_outlet_preferences: null,
+    dns_mode: 'smart',
+    export_node_naming_mode: 'smart',
+    default_export_token: null,
+    show_compatibility_warnings: 1,
+    rule_set_conversion_policy: 'compatible',
+    enable_auto_refresh: 1,
+    auto_refresh_interval: 1440,
+    auto_node_groups_enabled: 1,
+    auto_node_group_types: '["url-test"]',
+    auto_node_group_keys: null,
+    auto_node_group_include_flag: 1,
+    updated_at: TS,
+  }
 }
 
 function importRunRow(id: string): Record<string, unknown> {
-  return { id, source_name: 'Imported', format: 'clash', status: 'success', created_at: TS }
+  return {
+    id,
+    source_id: null,
+    source_name: 'Imported',
+    format: 'clash',
+    node_import_mode: 'all',
+    status: 'success',
+    node_count: 0,
+    added_count: 0,
+    updated_count: 0,
+    skipped_existing_count: 0,
+    rule_count: 0,
+    remote_rule_set_count: 0,
+    skipped_rule_count: 0,
+    conflict_count: 0,
+    refresh_error: null,
+    structured_error: null,
+    structured_changes: '[]',
+    created_at: TS,
+    completed_at: TS,
+    undone_at: null,
+  }
 }

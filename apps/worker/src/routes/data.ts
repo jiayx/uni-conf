@@ -35,19 +35,7 @@ const TABLE_COLUMNS = {
 } as const satisfies Record<TableName, readonly string[]>
 
 type TableName = typeof TABLES[number]
-type ExportPayload = Partial<Record<TableName, Record<string, unknown>[]>>
-
-const REQUIRED_COLUMNS = {
-  sources: ['id', 'name', 'type', 'created_at', 'updated_at'],
-  nodes: ['id', 'source_id', 'name', 'protocol', 'server', 'port', 'created_at', 'updated_at'],
-  collections: ['id', 'name', 'created_at', 'updated_at'],
-  groups: ['id', 'name', 'type', 'created_at', 'updated_at'],
-  rules: ['id', 'type', 'payload', 'target_group_id', 'created_at', 'updated_at'],
-  remote_rule_sets: ['id', 'name', 'url', 'format', 'target_group_id', 'created_at', 'updated_at'],
-  export_configs: ['id', 'name', 'format', 'token', 'created_at', 'updated_at'],
-  app_settings: ['id', 'updated_at'],
-  source_import_runs: ['id', 'source_name', 'format', 'status', 'created_at'],
-} as const satisfies Record<TableName, readonly string[]>
+type ExportPayload = Record<TableName, Record<string, unknown>[]>
 
 const NON_NULL_COLUMNS = {
   sources: ['id', 'name', 'type', 'format', 'enabled', 'node_count', 'tags', 'source_groups', 'created_at', 'updated_at'],
@@ -63,7 +51,17 @@ const NON_NULL_COLUMNS = {
 
 app.get('/export', async (c) => {
   await restoreDefaultData(c.env.DB, now())
-  const data: ExportPayload = {}
+  const data: ExportPayload = {
+    sources: [],
+    nodes: [],
+    collections: [],
+    groups: [],
+    rules: [],
+    remote_rule_sets: [],
+    export_configs: [],
+    app_settings: [],
+    source_import_runs: [],
+  }
   for (const table of TABLES) {
     const { results } = await c.env.DB.prepare(`SELECT * FROM ${table}`).all<Record<string, unknown>>()
     data[table] = results
@@ -95,7 +93,6 @@ app.post('/import', async (c) => {
   }
   for (const table of TABLES) {
     const rows = tables[table]
-    if (!Array.isArray(rows)) continue
     for (const row of rows) {
       stmts.push(insertRow(c.env.DB, table, row))
     }
@@ -115,7 +112,7 @@ app.post('/import/validate', async (c) => {
     data: {
       version: validation.version,
       totalRows: validation.totalRows,
-      tables: Object.fromEntries(TABLES.map((table) => [table, validation.tables[table]?.length ?? 0])),
+      tables: Object.fromEntries(TABLES.map((table) => [table, validation.tables[table].length])),
       containsSensitiveData: true,
     },
   })
@@ -189,7 +186,7 @@ export function validateBackupPayload(value: unknown): BackupValidation {
     return { valid: false, error: `unsupported backup version: ${String(versionValue)}` }
   }
   if (!isRecord(envelope.tables)) return { valid: false, error: 'tables object is required' }
-  const tables = envelope.tables as ExportPayload
+  const tables = envelope.tables
 
   for (const key of Object.keys(tables)) {
     if (!TABLES.includes(key as TableName)) return { valid: false, error: `unknown backup table: ${key}` }
@@ -198,13 +195,13 @@ export function validateBackupPayload(value: unknown): BackupValidation {
   let totalRows = 0
   for (const table of TABLES) {
     const rows = tables[table]
-    if (rows === undefined) continue
     if (!Array.isArray(rows)) return { valid: false, error: `${table} must be an array` }
     totalRows += rows.length
     if (totalRows > MAX_BACKUP_ROWS) {
       return { valid: false, error: `backup exceeds ${MAX_BACKUP_ROWS} rows` }
     }
-    const allowed = new Set<string>(TABLE_COLUMNS[table])
+    const expectedColumns = TABLE_COLUMNS[table]
+    const allowed = new Set<string>(expectedColumns)
     for (const [index, row] of rows.entries()) {
       if (!isRecord(row) || Object.keys(row).length === 0) {
         return { valid: false, error: `${table}[${index}] must be a non-empty object` }
@@ -212,22 +209,23 @@ export function validateBackupPayload(value: unknown): BackupValidation {
       for (const column of Object.keys(row)) {
         if (!allowed.has(column)) return { valid: false, error: `unknown column ${table}.${column}` }
       }
+      for (const column of expectedColumns) {
+        if (!Object.hasOwn(row, column)) return { valid: false, error: `${table}[${index}].${column} is required` }
+      }
       const shapeError = validateBackupRowShape(table, row, index)
       if (shapeError) return { valid: false, error: shapeError }
     }
   }
 
-  const relationError = validateBackupRelations(tables)
+  const currentTables = tables as ExportPayload
+  const relationError = validateBackupRelations(currentTables)
   if (relationError) return { valid: false, error: relationError }
-  return { valid: true, tables, version: versionValue, totalRows }
+  return { valid: true, tables: currentTables, version: versionValue, totalRows }
 }
 
 function validateBackupRowShape(table: TableName, row: Record<string, unknown>, index: number): string | undefined {
-  for (const column of REQUIRED_COLUMNS[table]) {
-    if (!Object.hasOwn(row, column)) return `${table}[${index}].${column} is required`
-  }
   for (const column of NON_NULL_COLUMNS[table]) {
-    if (Object.hasOwn(row, column) && row[column] == null) return `${table}[${index}].${column} must not be null`
+    if (row[column] == null) return `${table}[${index}].${column} must not be null`
   }
 
   if (table === 'sources' && !['url', 'manual', 'file', 'clipboard'].includes(String(row.type))) {
@@ -236,13 +234,12 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
   if (table === 'groups' && !['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject'].includes(String(row.type))) {
     return `groups[${index}].type is invalid`
   }
-  if (table === 'remote_rule_sets' && row.source_overrides !== undefined) {
+  if (table === 'remote_rule_sets') {
     const sourceOverridesError = validateSourceOverridesBackup(row.source_overrides)
     if (sourceOverridesError) return `remote_rule_sets[${index}].source_overrides ${sourceOverridesError}`
   }
   if (
     table === 'export_configs'
-    && row.rule_set_conversion_policy !== undefined
     && row.rule_set_conversion_policy !== null
     && row.rule_set_conversion_policy !== 'compatible'
     && row.rule_set_conversion_policy !== 'strict'
@@ -250,7 +247,7 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
     return `export_configs[${index}].rule_set_conversion_policy is invalid`
   }
   if (table === 'source_import_runs') {
-    if (row.node_import_mode !== undefined && !['all', 'new-only'].includes(String(row.node_import_mode))) {
+    if (!['all', 'new-only'].includes(String(row.node_import_mode))) {
       return `source_import_runs[${index}].node_import_mode is invalid`
     }
     if (!['running', 'success', 'partial', 'undone'].includes(String(row.status))) {
@@ -287,7 +284,7 @@ function validateBackupRelations(tables: ExportPayload): string | undefined {
   const idsByTable = {} as Record<TableName, Set<string>>
   for (const table of TABLES) {
     const ids = new Set<string>()
-    for (const [index, row] of (tables[table] ?? []).entries()) {
+    for (const [index, row] of tables[table].entries()) {
       if (typeof row.id !== 'string' || !row.id.trim()) return `${table}[${index}].id must be a non-empty string`
       if (ids.has(row.id)) return `${table}[${index}].id duplicates ${row.id}`
       ids.add(row.id)
@@ -304,52 +301,52 @@ function validateBackupRelations(tables: ExportPayload): string | undefined {
   const remoteSetIds = ids('remote_rule_sets')
   const exportTokens = new Set<string>()
 
-  for (const [index, row] of (tables.export_configs ?? []).entries()) {
+  for (const [index, row] of tables.export_configs.entries()) {
     if (typeof row.token !== 'string' || !row.token.trim()) return `export_configs[${index}].token must be a non-empty string`
     if (exportTokens.has(row.token)) return `export_configs[${index}].token duplicates ${row.token}`
     exportTokens.add(row.token)
   }
 
-  for (const [index, row] of (tables.nodes ?? []).entries()) {
+  for (const [index, row] of tables.nodes.entries()) {
     if (typeof row.source_id !== 'string' || !sourceIds.has(row.source_id)) return `nodes[${index}] references a missing source`
   }
-  for (const [index, row] of (tables.source_import_runs ?? []).entries()) {
+  for (const [index, row] of tables.source_import_runs.entries()) {
     if (row.source_id != null && (typeof row.source_id !== 'string' || !sourceIds.has(row.source_id))) {
       return `source_import_runs[${index}] references a missing source`
     }
   }
 
-  for (const [index, row] of (tables.collections ?? []).entries()) {
+  for (const [index, row] of tables.collections.entries()) {
     const sourceError = validateJsonReferences(row.source_ids, `collections[${index}].source_ids`, sourceIds, 'source')
     if (sourceError) return sourceError
     const nodeError = validateJsonReferences(row.node_ids, `collections[${index}].node_ids`, nodeIds, 'node')
     if (nodeError) return nodeError
   }
 
-  for (const [index, row] of (tables.groups ?? []).entries()) {
+  for (const [index, row] of tables.groups.entries()) {
     const collectionError = validateJsonReferences(row.collection_ids, `groups[${index}].collection_ids`, collectionIds, 'collection')
     if (collectionError) return collectionError
     const groupError = validateJsonReferences(row.group_ids, `groups[${index}].group_ids`, groupIds, 'group')
     if (groupError) return groupError
   }
-  const groupGraphError = validateGroupReferenceGraph((tables.groups ?? []).map(row => ({
+  const groupGraphError = validateGroupReferenceGraph(tables.groups.map(row => ({
     id: String(row.id),
-    groupIds: row.group_ids === undefined ? [] : JSON.parse(String(row.group_ids)) as string[],
+    groupIds: JSON.parse(String(row.group_ids)) as string[],
   })))
   if (groupGraphError) return groupGraphError
   for (const table of ['rules', 'remote_rule_sets'] as const) {
-    for (const [index, row] of (tables[table] ?? []).entries()) {
+    for (const [index, row] of tables[table].entries()) {
       if (typeof row.target_group_id !== 'string' || !groupIds.has(row.target_group_id)) return `${table}[${index}] references a missing group`
     }
   }
-  for (const [index, row] of (tables.app_settings ?? []).entries()) {
+  for (const [index, row] of tables.app_settings.entries()) {
     if (row.id !== 'singleton') return `app_settings[${index}].id must be singleton`
     if (row.default_export_token != null && (typeof row.default_export_token !== 'string' || !exportTokens.has(row.default_export_token))) {
       return `app_settings[${index}] references a missing default export token`
     }
   }
 
-  for (const [index, row] of (tables.export_configs ?? []).entries()) {
+  for (const [index, row] of tables.export_configs.entries()) {
     const references = [
       ['include_collection_ids', collectionIds, 'collection'],
       ['include_group_ids', groupIds, 'group'],
@@ -370,7 +367,6 @@ function validateJsonReferences(
   allowedIds: ReadonlySet<string>,
   targetLabel: string
 ): string | undefined {
-  if (value === undefined) return undefined
   if (typeof value !== 'string') return `${path} must be a JSON string array`
 
   let parsed: unknown
