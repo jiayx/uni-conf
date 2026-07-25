@@ -23,13 +23,13 @@
   "dependencies": {
     "@uni-conf/shared": "workspace:*",
     "@uni-conf/types": "workspace:*",
-    "hono": "^4.12.31",
+    "hono": "^4.12.32",
     "js-yaml": "catalog:"
   },
   "devDependencies": {
     "@black-duty/sing-box-schema": "1.13.13",
-    "@cloudflare/vitest-pool-workers": "^0.18.7",
-    "@cloudflare/workers-types": "^5.20260723.1",
+    "@cloudflare/vitest-pool-workers": "^0.18.8",
+    "@cloudflare/workers-types": "^5.20260724.1",
     "@types/node": "catalog:",
     "ajv": "^8.17.1",
     "@vitest/coverage-v8": "catalog:",
