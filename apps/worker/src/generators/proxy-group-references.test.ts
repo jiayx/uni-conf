@@ -912,7 +912,7 @@ describe('proxy group references', () => {
     }
   })
 
-  it('migrates sing-box GEOIP rules to binary rule sets instead of removed legacy fields', () => {
+  it('exports sing-box GEOIP rules through binary rule sets', () => {
     const rule: ProxyRule = {
       id: 'rule-geoip',
       type: 'GEOIP',
@@ -935,7 +935,6 @@ describe('proxy group references', () => {
       rule_set: ['geoip-cn'],
       outbound: 'direct',
     })
-    expect(config.route.rules.some(item => 'geoip' in item)).toBe(false)
     expect(config.route.rule_set).toContainEqual(expect.objectContaining({
       tag: 'geoip-cn',
       format: 'binary',

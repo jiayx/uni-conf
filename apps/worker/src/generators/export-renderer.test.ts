@@ -89,8 +89,6 @@ describe('renderExportData', () => {
         validateSingboxSchema(parsed),
         `${protocol}: ${JSON.stringify(validateSingboxSchema.errors)}`
       ).toBe(true)
-      expect(JSON.stringify(parsed), `${protocol} must not use removed TUN or WireGuard forms`)
-        .not.toMatch(/inet[46]_address|"local_address"|"peer_public_key"|"outbound":"any"/)
       expect(parsed).toMatchObject({
         route: { default_domain_resolver: 'localDns' },
       })

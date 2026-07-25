@@ -279,7 +279,7 @@ describe('export validation', () => {
     }));
   });
 
-  it('blocks legacy invalid manual-rule payloads and links to the exact rule', () => {
+  it('blocks invalid manual-rule payloads and links to the exact rule', () => {
     const group = makeGroup('proxy', 'PROXY');
     const invalidRule = makeRule('invalid-cidr', group.id, 'IP-CIDR', '999.1.1.1/24');
     const data = makeExportData({ groups: [group], rules: [invalidRule] });

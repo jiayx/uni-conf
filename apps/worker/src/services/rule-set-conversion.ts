@@ -973,21 +973,24 @@ function parseCachedConversionResult(value: string): RuleSetConversionResult | n
       || !isNonNegativeInteger(parsed.convertedRuleCount)
       || parsed.convertedRuleCount === 0
       || !isNonNegativeInteger(parsed.skippedRuleCount)
+      || !isRecord(parsed.skippedRuleTypes)
+      || !isRecord(parsed.skippedRuleExamples)
+      || !Array.isArray(parsed.convertedRuleExamples)
+      || typeof parsed.convertedRuleExamplesTruncated !== 'boolean'
     ) return null
     const skippedRuleTypes = normalizeCachedCountRecord(parsed.skippedRuleTypes)
     const skippedRuleExamples = normalizeCachedExamples(parsed.skippedRuleExamples)
-    const convertedRuleExamples = Array.isArray(parsed.convertedRuleExamples)
-      ? parsed.convertedRuleExamples.filter((item): item is RemoteRuleSetConversionMapping =>
+    const convertedRuleExamples = parsed.convertedRuleExamples
+      .filter((item): item is RemoteRuleSetConversionMapping =>
         Boolean(item)
         && typeof item === 'object'
         && typeof item.source === 'string'
         && typeof item.target === 'string')
-        .slice(0, MAX_CONVERTED_EXAMPLES)
-        .map(item => ({
-          source: formatDiagnosticValue(item.source),
-          target: formatDiagnosticValue(item.target),
-        }))
-      : []
+      .slice(0, MAX_CONVERTED_EXAMPLES)
+      .map(item => ({
+        source: formatDiagnosticValue(item.source),
+        target: formatDiagnosticValue(item.target),
+      }))
     return {
       content: parsed.content,
       contentType: parsed.contentType,
@@ -996,11 +999,15 @@ function parseCachedConversionResult(value: string): RuleSetConversionResult | n
       skippedRuleTypes,
       skippedRuleExamples,
       convertedRuleExamples,
-      convertedRuleExamplesTruncated: parsed.convertedRuleExamplesTruncated === true,
+      convertedRuleExamplesTruncated: parsed.convertedRuleExamplesTruncated,
     }
   } catch {
     return null
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function normalizeCachedCountRecord(value: unknown): Record<string, number> {

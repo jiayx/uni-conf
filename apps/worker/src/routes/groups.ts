@@ -416,7 +416,7 @@ export async function findGroupDeleteBlockers(
         });
       }
     } catch {
-      // Invalid legacy settings are normalized elsewhere and must not make deletion fail closed.
+      // Corrupt settings must not make dependency inspection fail closed.
     }
   }
 

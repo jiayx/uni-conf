@@ -527,26 +527,6 @@ describe('rule set conversion', () => {
     expect(fetchCount).toBe(2)
   })
 
-  it('normalizes cached artifacts created before skipped-type diagnostics existed', async () => {
-    const legacy = {
-      content: '{"version":3,"rules":[]}', contentType: 'application/json',
-      convertedRuleCount: 1, skippedRuleCount: 0,
-    }
-    const kv = {
-      get: async () => JSON.stringify(legacy),
-      put: async () => undefined,
-    } as unknown as KVNamespace
-    const fetcher = async () => { throw new Error('should not fetch') }
-
-    await expect(getConvertedRemoteRuleSet(makeRuleSet(), 'singbox', { kv, fetcher })).resolves.toEqual({
-      ...legacy,
-      skippedRuleTypes: {},
-      skippedRuleExamples: {},
-      convertedRuleExamples: [],
-      convertedRuleExamplesTruncated: false,
-    })
-  })
-
   it('rejects oversized conversion sources before reading their bodies', async () => {
     await expect(getConvertedRemoteRuleSet(makeRuleSet(), 'singbox', {
       fetcher: async () => new Response('small', { headers: { 'content-length': String(4 * 1024 * 1024 + 1) } }),

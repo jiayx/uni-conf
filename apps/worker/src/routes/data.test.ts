@@ -39,7 +39,7 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tables: {} }),
+      body: JSON.stringify({ version: 4, tables: {} }),
     }, { DB: db })
 
     expect(response.status).toBe(200)
@@ -47,11 +47,11 @@ describe('data reset defaults', () => {
   })
 
   it('rejects unknown tables and SQL identifier-like columns before touching the database', async () => {
-    expect(validateBackupPayload({ tables: { unexpected: [] } })).toEqual({
+    expect(validateBackupPayload({ version: 4, tables: { unexpected: [] } })).toEqual({
       valid: false,
       error: 'unknown backup table: unexpected',
     })
-    expect(validateBackupPayload({ tables: { sources: [{ "id) VALUES ('x'); --": 'bad' }] } })).toEqual({
+    expect(validateBackupPayload({ version: 4, tables: { sources: [{ "id) VALUES ('x'); --": 'bad' }] } })).toEqual({
       valid: false,
       error: "unknown column sources.id) VALUES ('x'); --",
     })
@@ -70,15 +70,15 @@ describe('data reset defaults', () => {
   })
 
   it('rejects missing, null, and invalid constrained fields before destructive restore', async () => {
-    expect(validateBackupPayload({ tables: { sources: [{ id: 'source-1' }] } })).toEqual({
+    expect(validateBackupPayload({ version: 4, tables: { sources: [{ id: 'source-1' }] } })).toEqual({
       valid: false,
       error: 'sources[0].name is required',
     })
-    expect(validateBackupPayload({ tables: { sources: [{ ...sourceRow('source-1'), format: null }] } })).toEqual({
+    expect(validateBackupPayload({ version: 4, tables: { sources: [{ ...sourceRow('source-1'), format: null }] } })).toEqual({
       valid: false,
       error: 'sources[0].format must not be null',
     })
-    expect(validateBackupPayload({ tables: { sources: [{ ...sourceRow('source-1'), type: 'unknown' }] } })).toEqual({
+    expect(validateBackupPayload({ version: 4, tables: { sources: [{ ...sourceRow('source-1'), type: 'unknown' }] } })).toEqual({
       valid: false,
       error: 'sources[0].type is invalid',
     })
@@ -91,13 +91,13 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tables: { sources: [{ id: 'source-1' }] } }),
+      body: JSON.stringify({ version: 4, tables: { sources: [{ id: 'source-1' }] } }),
     }, { DB: db })
     expect(response.status).toBe(400)
     expect(db.batch).not.toHaveBeenCalled()
   })
 
-  it('validates optional export-profile conversion policies and rejects old backups', () => {
+  it('validates optional export-profile conversion policies', () => {
     expect(validateBackupPayload({
       version: 4,
       tables: {
@@ -119,17 +119,22 @@ describe('data reset defaults', () => {
       valid: false,
       error: 'export_configs[0].rule_set_conversion_policy is invalid',
     })
+  })
+
+  it('accepts the current exported API envelope', () => {
     expect(validateBackupPayload({
-      version: 3,
-      tables: { export_configs: [exportRow('export-1', 'token-1')] },
-    })).toEqual({ valid: false, error: 'unsupported backup version: 3' })
+      success: true,
+      data: { version: 4, tables: { sources: [sourceRow('source-1')] } },
+    })).toMatchObject({ valid: true, version: 4, totalRows: 1 })
   })
 
   it('rejects duplicate primary identifiers and export tokens before restore', () => {
     expect(validateBackupPayload({
+      version: 4,
       tables: { sources: [sourceRow('source-1'), sourceRow('source-1')] },
     })).toEqual({ valid: false, error: 'sources[1].id duplicates source-1' })
     expect(validateBackupPayload({
+      version: 4,
       tables: {
         export_configs: [
           exportRow('export-1', 'shared'),
@@ -141,12 +146,15 @@ describe('data reset defaults', () => {
 
   it('rejects malformed and dangling JSON relationship lists', () => {
     expect(validateBackupPayload({
+      version: 4,
       tables: { collections: [{ ...collectionRow('collection-1'), source_ids: '{', node_ids: '[]' }] },
     })).toEqual({ valid: false, error: 'collections[0].source_ids must contain valid JSON' })
     expect(validateBackupPayload({
+      version: 4,
       tables: { groups: [{ ...groupRow('group-1'), collection_ids: '["missing"]', group_ids: '[]' }] },
     })).toEqual({ valid: false, error: 'groups[0].collection_ids references a missing collection: missing' })
     expect(validateBackupPayload({
+      version: 4,
       tables: {
         groups: [{ ...groupRow('group-1'), collection_ids: '[]', group_ids: '[]' }],
         export_configs: [{
@@ -159,6 +167,7 @@ describe('data reset defaults', () => {
 
   it('rejects direct and indirect policy-group reference cycles before destructive restore', async () => {
     expect(validateBackupPayload({
+      version: 4,
       tables: {
         groups: [{ ...groupRow('group-1'), group_ids: '["group-1"]' }],
       },
@@ -167,6 +176,7 @@ describe('data reset defaults', () => {
       error: 'group reference cycle detected: group-1 -> group-1',
     })
     expect(validateBackupPayload({
+      version: 4,
       tables: {
         groups: [
           { ...groupRow('group-a'), group_ids: '["group-b"]' },
@@ -184,6 +194,7 @@ describe('data reset defaults', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        version: 4,
         tables: {
           groups: [
             { ...groupRow('group-a'), group_ids: '["group-b"]' },

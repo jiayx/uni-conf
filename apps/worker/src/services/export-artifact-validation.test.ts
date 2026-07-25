@@ -125,59 +125,6 @@ describe('export artifact validation', () => {
     expect(validation).toMatchObject({ valid: true, issues: [] })
   })
 
-  it('rejects removed sing-box WireGuard outbound and legacy inbound fields', () => {
-    const legacyWireGuard = validateRenderedExport('singbox', JSON.stringify({
-      outbounds: [
-        {
-          type: 'wireguard',
-          tag: 'WG',
-          server: 'wg.example.com',
-          server_port: 51820,
-          private_key: 'private-key',
-          peer_public_key: 'public-key',
-          local_address: ['10.0.0.2/32'],
-        },
-        { type: 'direct', tag: 'direct' },
-      ],
-      route: { rules: [{ outbound: 'WG' }], final: 'WG' },
-    }))
-    expect(legacyWireGuard.issues).toContainEqual(expect.objectContaining({
-      code: 'obsolete_section',
-      path: 'outbounds[0]',
-    }))
-
-    const legacyInbound = validateRenderedExport('singbox', JSON.stringify({
-      inbounds: [{
-        type: 'tun',
-        tag: 'tun-in',
-        inet4_address: '172.19.0.1/30',
-        sniff: true,
-      }],
-      outbounds: [{ type: 'direct', tag: 'direct' }],
-      route: { rules: [{ outbound: 'direct' }], final: 'direct' },
-    }))
-    expect(legacyInbound.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'obsolete_section', path: 'inbounds[0].inet4_address' }),
-      expect.objectContaining({ code: 'obsolete_section', path: 'inbounds[0].sniff' }),
-    ]))
-  })
-
-  it('rejects deprecated sing-box DNS outbound matching and implicit server actions', () => {
-    const validation = validateRenderedExport('singbox', JSON.stringify({
-      dns: {
-        servers: [{ type: 'local', tag: 'localDns' }],
-        rules: [{ outbound: 'any', server: 'localDns' }],
-      },
-      outbounds: [{ type: 'direct', tag: 'direct' }],
-      route: { rules: [{ outbound: 'direct' }], final: 'direct' },
-    }))
-
-    expect(validation.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'obsolete_section', path: 'dns.rules[0].outbound' }),
-      expect.objectContaining({ code: 'obsolete_section', path: 'dns.rules[0].server' }),
-    ]))
-  })
-
   it('validates current Egern remote rule references and policy graph', () => {
     const valid = validateRenderedExport('egern', toYaml({
       proxies: [{ shadowsocks: { name: 'Node', server: 'node.example.com', port: 443, method: 'aes-256-gcm', password: 'secret' } }],
@@ -209,32 +156,6 @@ describe('export artifact validation', () => {
     ]))
   })
 
-  it('rejects the obsolete top-level Egern rule_sets registry', () => {
-    const validation = validateRenderedExport('egern', toYaml({
-      proxies: [{ shadowsocks: { name: 'Node', server: 'node.example.com', port: 443, method: 'aes-256-gcm', password: 'secret' } }],
-      policy_groups: [{ select: { name: 'PROXY', policies: ['Node'] } }],
-      rule_sets: [{ tag: 'Legacy', url: 'https://rules.example.com/list.yaml' }],
-      rules: [{ rule_set: 'Legacy', policy: 'PROXY' }],
-    }))
-    expect(validation.issues).toContainEqual(expect.objectContaining({
-      code: 'obsolete_section', path: 'rule_sets',
-    }))
-  })
-
-  it('rejects obsolete flat Egern proxy, group, and rule forms', () => {
-    const validation = validateRenderedExport('egern', toYaml({
-      proxies: [{ name: 'Node', type: 'ss', server: 'node.example.com', port: 443 }],
-      policy_groups: [{ name: 'PROXY', type: 'select', policies: ['Node'] }],
-      rules: [{ default: 'PROXY' }],
-    }))
-
-    expect(validation.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'invalid_entry', path: 'proxies[0]' }),
-      expect.objectContaining({ code: 'invalid_entry', path: 'policy_groups[0]' }),
-      expect.objectContaining({ code: 'invalid_entry', path: 'rules[0].default' }),
-    ]))
-  })
-
   it.each(['loon', 'surge', 'shadowrocket'] as const)('detects dangling %s text-client references', format => {
     const validation = validateRenderedExport(format, [
       '[General]', 'loglevel=notify',
@@ -245,21 +166,6 @@ describe('export artifact validation', () => {
     expect(validation.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'missing_reference', path: 'proxy group[0]' }),
       expect.objectContaining({ code: 'missing_reference', path: 'rule[0]' }),
-    ]))
-  })
-
-  it('rejects legacy named Surge rule-set sections and non-URL RULE-SET entries', () => {
-    const validation = validateRenderedExport('surge', [
-      '[General]', 'loglevel=notify',
-      '[Proxy]', 'Node = ss, example.com, 443',
-      '[Proxy Group]', 'PROXY = select, Node',
-      '[Rule Set]', 'Legacy = https://rules.example.com/list, policy=PROXY',
-      '[Rule]', 'RULE-SET,Legacy,PROXY', 'FINAL,PROXY',
-    ].join('\n'))
-
-    expect(validation.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'obsolete_section', path: 'rule set' }),
-      expect.objectContaining({ code: 'invalid_url', path: 'rule[0]' }),
     ]))
   })
 

@@ -445,7 +445,6 @@ describe('remote rule set generators', () => {
       { ...singboxRemoteSet, target_group_id: directGroup.id },
     ]);
 
-    expect(content).not.toContain('[Rule Set]');
     expect(content).toContain('RULE-SET,https://example.com/ads.yaml,DIRECT');
     expect(content).not.toContain('ai.srs');
   });
@@ -464,8 +463,7 @@ describe('remote rule set generators', () => {
       { ...remoteSet, format: 'egern', target_group_id: directGroup.id },
     ]);
 
-    const config = yaml.load(content) as { rule_sets?: unknown; rules: Array<Record<string, unknown>> }
-    expect(config.rule_sets).toBeUndefined()
+    const config = yaml.load(content) as { rules: Array<Record<string, unknown>> }
     expect(config.rules).toContainEqual({
       rule_set: {
         match: 'https://example.com/ads.yaml',

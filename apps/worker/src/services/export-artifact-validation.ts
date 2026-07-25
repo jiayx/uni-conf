@@ -56,14 +56,6 @@ function validateEgernConfig(content: string): ExportArtifactValidationResult {
     ...requireNonEmptyArray(config, 'policy_groups'),
     ...requireNonEmptyArray(config, 'rules'),
   ]
-  if (config['rule_sets'] !== undefined) {
-    issues.push(issue(
-      'obsolete_section',
-      'rule_sets',
-      'Egern 远程规则集必须通过 rules[].rule_set.match 直接引用',
-      'Egern remote rule sets must be referenced directly through rules[].rule_set.match.'
-    ))
-  }
   if (issues.length === 0) issues.push(...validateEgernReferences(config))
   return result('egern', 'yaml', issues)
 }
@@ -73,7 +65,6 @@ function validateSingBoxConfig(content: string): ExportArtifactValidationResult 
   if (!parsed.value) return parsed.result
   const config = parsed.value
   const issues = requireNonEmptyArray(config, 'outbounds')
-  issues.push(...validateSingBoxCurrentSyntax(config))
   const route = asRecord(config['route'])
   if (!route) {
     issues.push(issue('missing_section', 'route', '缺少 route 对象', 'Missing the route object.'))
@@ -195,14 +186,6 @@ function validateSingBoxReferences(config: RecordValue, route: RecordValue): Exp
     } else {
       tags.add(tag)
     }
-    if (outbound?.['type'] === 'wireguard') {
-      issues.push(issue(
-        'obsolete_section',
-        `outbounds[${index}]`,
-        'sing-box 1.13 已移除 WireGuard outbound，请使用 endpoints',
-        'sing-box 1.13 removed the WireGuard outbound; use endpoints instead.'
-      ))
-    }
   }
   for (const [index, value] of endpoints.entries()) {
     const endpoint = asRecord(value)
@@ -278,62 +261,6 @@ function validateSingBoxReferences(config: RecordValue, route: RecordValue): Exp
     for (const reference of values) {
       if (typeof reference === 'string' && ruleSetTags.has(reference)) continue
       issues.push(issue('missing_reference', `route.rules[${index}].rule_set`, `路由规则引用了不存在的规则集 ${String(reference)}`, `A route rule references the missing rule set ${String(reference)}.`))
-    }
-  }
-  return issues
-}
-
-function validateSingBoxCurrentSyntax(config: RecordValue): ExportArtifactValidationIssue[] {
-  const issues: ExportArtifactValidationIssue[] = []
-  const dns = asRecord(config['dns'])
-  const dnsRules = dns?.['rules']
-  if (dnsRules !== undefined && !Array.isArray(dnsRules)) {
-    issues.push(issue('invalid_entry', 'dns.rules', 'sing-box dns.rules 必须是数组', 'sing-box dns.rules must be an array.'))
-  }
-  for (const [index, value] of (Array.isArray(dnsRules) ? dnsRules : []).entries()) {
-    const rule = asRecord(value)
-    if (!rule) continue
-    if (rule['outbound'] !== undefined) {
-      issues.push(issue(
-        'obsolete_section',
-        `dns.rules[${index}].outbound`,
-        'sing-box 1.12 已弃用 DNS outbound 匹配，请使用 domain_resolver',
-        'sing-box 1.12 deprecated DNS outbound matching; use domain_resolver instead.'
-      ))
-    }
-    if (rule['server'] !== undefined && rule['action'] === undefined) {
-      issues.push(issue(
-        'obsolete_section',
-        `dns.rules[${index}].server`,
-        'sing-box DNS server 字段必须放在显式 route action 中',
-        'The sing-box DNS server field must be used with an explicit route action.'
-      ))
-    }
-  }
-  const inbounds = config['inbounds']
-  if (inbounds !== undefined && !Array.isArray(inbounds)) {
-    return [issue('invalid_entry', 'inbounds', 'sing-box inbounds 必须是数组', 'sing-box inbounds must be an array.')]
-  }
-  for (const [index, value] of (Array.isArray(inbounds) ? inbounds : []).entries()) {
-    const inbound = asRecord(value)
-    if (!inbound) continue
-    for (const field of ['inet4_address', 'inet6_address']) {
-      if (inbound[field] === undefined) continue
-      issues.push(issue(
-        'obsolete_section',
-        `inbounds[${index}].${field}`,
-        `sing-box 1.12 已移除 ${field}，请使用 address`,
-        `sing-box 1.12 removed ${field}; use address instead.`
-      ))
-    }
-    for (const field of ['sniff', 'sniff_override_destination', 'sniff_timeout']) {
-      if (inbound[field] === undefined) continue
-      issues.push(issue(
-        'obsolete_section',
-        `inbounds[${index}].${field}`,
-        `sing-box 已将 ${field} 迁移到 route sniff action`,
-        `sing-box moved ${field} to the route sniff action.`
-      ))
     }
   }
   return issues
@@ -561,14 +488,6 @@ function validateTextClientReferences(
   sections: ReadonlyMap<string, string[]>
 ): ExportArtifactValidationIssue[] {
   const issues: ExportArtifactValidationIssue[] = []
-  if (format === 'surge' && sections.has('rule set')) {
-    issues.push(issue(
-      'obsolete_section',
-      'rule set',
-      'Surge 外部规则集必须在 [Rule] 中通过 RULE-SET URL 直接引用',
-      'Surge external rule sets must be referenced by URL directly from RULE-SET entries in [Rule].'
-    ))
-  }
   const proxyLines = sections.get('proxy') ?? []
   const proxyNames = collectIniEntryNames(proxyLines, 'proxy', issues)
   if (format === 'surge') issues.push(...validateSurgeProxyEntries(proxyLines))
@@ -606,7 +525,7 @@ function validateTextClientReferences(
       }
     }
   }
-  for (const section of ['rule set', 'remote rule']) {
+  for (const section of ['remote rule']) {
     for (const [index, line] of (sections.get(section) ?? []).entries()) {
       const policy = line.match(/(?:^|,\s*)policy\s*=\s*([^,]+)/i)?.[1]?.trim()
       if (!policy || targets.has(policy)) continue

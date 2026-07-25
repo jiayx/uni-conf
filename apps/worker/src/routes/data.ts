@@ -84,7 +84,7 @@ app.get('/export', async (c) => {
 })
 
 app.post('/import', async (c) => {
-  const body = await c.req.json<ImportPayload>()
+  const body = await c.req.json<unknown>()
   const validation = validateBackupPayload(body)
   if (!validation.valid) return c.json({ success: false, error: validation.error }, 400)
   const tables = validation.tables
@@ -107,7 +107,7 @@ app.post('/import', async (c) => {
 })
 
 app.post('/import/validate', async (c) => {
-  const body = await c.req.json<ImportPayload>()
+  const body = await c.req.json<unknown>()
   const validation = validateBackupPayload(body)
   if (!validation.valid) return c.json({ success: false, error: validation.error }, 400)
   return c.json({
@@ -174,36 +174,22 @@ function insertRow(db: D1Database, table: TableName, row: Record<string, unknown
   ).bind(...entries.map(([, value]) => value))
 }
 
-type ImportPayload =
-  | ExportPayload
-  | { version?: number; tables?: ExportPayload }
-  | { data?: { version?: number; tables?: ExportPayload } }
-
-function extractTables(value: ImportPayload): ExportPayload | undefined {
-  if ('data' in value && value.data?.tables) return value.data.tables
-  if ('tables' in value && value.tables) return value.tables
-  return value as ExportPayload
-}
-
 type BackupValidation =
   | { valid: true; tables: ExportPayload; version: number; totalRows: number }
   | { valid: false; error: string }
 
 export function validateBackupPayload(value: unknown): BackupValidation {
   if (!isRecord(value)) return { valid: false, error: 'backup must be a JSON object' }
-  const payload = value as ImportPayload
-  const tables = extractTables(payload)
-  if (!tables || !isRecord(tables)) return { valid: false, error: 'tables object is required' }
-
   const envelope = isRecord(value.data) ? value.data : value
   const versionValue = envelope.version
-  if (versionValue !== undefined && typeof versionValue !== 'number') {
+  if (typeof versionValue !== 'number') {
     return { valid: false, error: `unsupported backup version: ${String(versionValue)}` }
   }
-  const version = versionValue === undefined ? BACKUP_VERSION : versionValue
-  if (version !== BACKUP_VERSION) {
-    return { valid: false, error: `unsupported backup version: ${String(version)}` }
+  if (versionValue !== BACKUP_VERSION) {
+    return { valid: false, error: `unsupported backup version: ${String(versionValue)}` }
   }
+  if (!isRecord(envelope.tables)) return { valid: false, error: 'tables object is required' }
+  const tables = envelope.tables as ExportPayload
 
   for (const key of Object.keys(tables)) {
     if (!TABLES.includes(key as TableName)) return { valid: false, error: `unknown backup table: ${key}` }
@@ -233,7 +219,7 @@ export function validateBackupPayload(value: unknown): BackupValidation {
 
   const relationError = validateBackupRelations(tables)
   if (relationError) return { valid: false, error: relationError }
-  return { valid: true, tables, version, totalRows }
+  return { valid: true, tables, version: versionValue, totalRows }
 }
 
 function validateBackupRowShape(table: TableName, row: Record<string, unknown>, index: number): string | undefined {
