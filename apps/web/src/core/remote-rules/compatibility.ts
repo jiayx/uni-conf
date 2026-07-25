@@ -1,6 +1,7 @@
 import {
   getCompatibleRuleSetFormats as getSharedCompatibleRuleSetFormats,
   getRuleSetConversionTargetFormat,
+  isRuleSetFormat,
   isRemoteRuleSetCompatible as isSharedRemoteRuleSetCompatible,
   isRuleSetFormatCompatible as isSharedRuleSetFormatCompatible,
   resolveRemoteRuleSetForExport as resolveSharedRemoteRuleSetForExport,
@@ -8,7 +9,7 @@ import {
 import type { ExportFormat, RemoteRuleSet, RuleSetFormat } from '@uni-conf/types'
 
 export function getCompatibleRuleSetFormats(format: ExportFormat): RuleSetFormat[] {
-  return getSharedCompatibleRuleSetFormats(format).filter(isRuleSetFormat) as RuleSetFormat[]
+  return getSharedCompatibleRuleSetFormats(format).filter(isRuleSetFormat)
 }
 
 export function isRuleSetFormatCompatible(exportFormat: ExportFormat, ruleSetFormat: RuleSetFormat): boolean {
@@ -44,8 +45,4 @@ export function describeCompatibleRuleSetFormats(
 ): string {
   const formats = getCompatibleRuleSetFormats(format)
   return formats.length > 0 ? formats.join(', ') : t('remoteRuleSets.unsupported_formats')
-}
-
-function isRuleSetFormat(value: string): value is RuleSetFormat {
-  return ['mihomo', 'clash', 'singbox', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'egern', 'stash', 'text'].includes(value)
 }

@@ -7,6 +7,7 @@ import { validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
 import {
   getExportFormatFromSubscriptionFilename,
+  isFullConfigExportFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
 import type { ExportFormat, ProxySource } from '@uni-conf/types'
@@ -99,10 +100,7 @@ function parseTextConversionTarget(filename: string): 'surge' | 'loon' | 'shadow
 }
 
 function isRuleSetConversionExportFormat(value: string): value is Exclude<ExportFormat, 'nodes_base64' | 'nodes_raw'> {
-  return [
-    'mihomo', 'clash', 'singbox', 'loon', 'surge',
-    'shadowrocket', 'quantumultx', 'stash', 'egern',
-  ].includes(value)
+  return isFullConfigExportFormat(value)
 }
 
 // GET /sub/:token/:filename

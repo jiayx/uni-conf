@@ -20,6 +20,7 @@ import {
   SOURCE_FORMATS,
   getRuleCompatibilityForPayload,
   MAX_SOURCE_CONTENT_BYTES,
+  parseSingboxWireGuardEndpoint,
 } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type { ProxyProtocol, NormalizedProxyConfig, RuleType, SourceFormat, SourceImportConflictResolution, SourceImportRun, SourceNodeGroup, SourceRefreshResult, SourceStructuredImportSummary, SourceType } from '@uni-conf/types';
@@ -2453,33 +2454,48 @@ function clashTypeToProtocol(type: string, proxy?: Record<string, unknown>): Pro
 function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
   const nodes: ParsedNodeRaw[] = [];
   const outbounds = data.outbounds as Array<Record<string, unknown>> | undefined;
-  if (!Array.isArray(outbounds)) return nodes;
 
   const proxyTypes = new Set([
     'shadowsocks', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2', 'tuic',
-    'anytls', 'wireguard', 'socks', 'http', 'ssh', 'shadowtls',
+    'anytls', 'socks', 'http', 'ssh', 'shadowtls',
   ]);
 
-  for (const ob of outbounds) {
-    const type = (ob.type as string | undefined)?.toLowerCase() ?? '';
-    if (!proxyTypes.has(type)) continue;
+  if (Array.isArray(outbounds)) {
+    for (const ob of outbounds) {
+      const type = (ob.type as string | undefined)?.toLowerCase() ?? '';
+      if (!proxyTypes.has(type)) continue;
 
-    const name = (ob.tag as string | null) ?? 'Unknown';
-    const server = (ob.server as string | null) ?? '';
-    const port = (ob.server_port as number | null) ?? 0;
-    if (!server || !port) continue;
+      const name = (ob.tag as string | null) ?? 'Unknown';
+      const server = (ob.server as string | null) ?? '';
+      const port = (ob.server_port as number | null) ?? 0;
+      if (!server || !port) continue;
 
-    const protocol = singboxTypeToProtocol(type, ob);
-    nodes.push({
-      name,
-      protocol,
-      server,
-      port,
-      ...countryFields(name),
-      ...recognitionTags(name),
-      rawConfig: ob,
-      parsedConfig: buildParsedConfig(protocol, server, port, ob),
-    });
+      const protocol = singboxTypeToProtocol(type, ob);
+      nodes.push({
+        name,
+        protocol,
+        server,
+        port,
+        ...countryFields(name),
+        ...recognitionTags(name),
+        rawConfig: ob,
+        parsedConfig: buildParsedConfig(protocol, server, port, ob),
+      });
+    }
+  }
+
+  const endpoints = data.endpoints as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(endpoints)) {
+    for (const endpoint of endpoints) {
+      const parsed = parseSingboxWireGuardEndpoint(endpoint);
+      if (!parsed) continue;
+      nodes.push({
+        ...parsed,
+        protocol: 'wireguard',
+        ...countryFields(parsed.name),
+        ...recognitionTags(parsed.name),
+      });
+    }
   }
 
   return nodes;

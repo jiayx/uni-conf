@@ -4,6 +4,7 @@ import { now } from '../db/helpers'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
 import { validateGroupReferenceGraph } from '../services/group-reference-graph'
+import { FULL_CONFIG_EXPORT_FORMATS, isFullConfigExportFormat } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -257,10 +258,6 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
   return undefined
 }
 
-const SOURCE_OVERRIDE_TARGETS = new Set([
-  'mihomo', 'clash', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
-])
-
 function validateSourceOverridesBackup(value: unknown): string | undefined {
   if (typeof value !== 'string') return 'must be a JSON object string'
   let parsed: unknown
@@ -269,11 +266,11 @@ function validateSourceOverridesBackup(value: unknown): string | undefined {
   } catch {
     return 'must contain valid JSON'
   }
-  if (!isRecord(parsed) || Object.keys(parsed).length > SOURCE_OVERRIDE_TARGETS.size) {
+  if (!isRecord(parsed) || Object.keys(parsed).length > FULL_CONFIG_EXPORT_FORMATS.length) {
     return 'must contain a supported target-to-URL object'
   }
   for (const [target, url] of Object.entries(parsed)) {
-    if (!SOURCE_OVERRIDE_TARGETS.has(target) || typeof url !== 'string' || !isSafeRemoteHttpUrl(url)) {
+    if (!isFullConfigExportFormat(target) || typeof url !== 'string' || !isSafeRemoteHttpUrl(url)) {
       return 'must contain only supported targets and public http(s) URLs'
     }
   }

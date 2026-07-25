@@ -89,7 +89,8 @@ export const PROXY_PROTOCOL_REGISTRY = {
   wireguard: {
     label: 'WireGuard',
     uriSchemes: ['wireguard', 'wg'],
-    singboxType: 'wireguard',
+    singboxType: undefined,
+    singboxEndpointType: 'wireguard',
     mihomoType: 'wireguard',
     mainstream: true,
   },

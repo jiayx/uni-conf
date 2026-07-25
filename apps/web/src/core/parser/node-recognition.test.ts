@@ -88,12 +88,48 @@ describe('frontend parser node recognition', () => {
 
   it('detects structured config formats and client config headers', () => {
     expect(detectFormat(JSON.stringify({ outbounds: [] }))).toBe('singbox')
+    expect(detectFormat(JSON.stringify({ endpoints: [] }))).toBe('singbox')
     expect(detectFormat('{"outbounds":')).toBe('unknown')
     expect(detectFormat('proxies:\n  - name: HK\n    type: trojan\n    server: hk.example.com\n    port: 443\n    password: p')).toBe('clash')
     expect(detectFormat('proxies: [')).toBe('unknown')
     expect(detectFormat('[General]\nloglevel = notify\n[Proxy]\nHK = trojan, hk.example.com, 443, password=p')).toBe('surge')
     expect(detectFormat('[General]\n[Proxy Group]\nAuto = select, HK')).toBe('loon')
     expect(detectFormat('not a subscription')).toBe('unknown')
+  })
+
+  it('parses sing-box 1.13 WireGuard endpoints with the shared normalizer', () => {
+    const nodes = parseSingboxConfig(JSON.stringify({
+      endpoints: [{
+        type: 'wireguard',
+        tag: 'US WireGuard',
+        address: ['172.16.0.2/32'],
+        private_key: 'private-key',
+        peers: [{
+          address: 'wg.example.com',
+          port: 51820,
+          public_key: 'peer-key',
+          pre_shared_key: 'psk',
+          allowed_ips: ['0.0.0.0/0', '::/0'],
+        }],
+      }],
+    }), 'source-1')
+
+    expect(nodes).toEqual([
+      expect.objectContaining({
+        name: 'US WireGuard',
+        protocol: 'wireguard',
+        server: 'wg.example.com',
+        port: 51820,
+        parsedConfig: expect.objectContaining({
+          extra: expect.objectContaining({
+            privateKey: 'private-key',
+            publicKey: 'peer-key',
+            presharedKey: 'psk',
+            address: ['172.16.0.2/32'],
+          }),
+        }),
+      }),
+    ])
   })
 
   it('distinguishes plain HTTP and TLS-enabled HTTP native proxy configs', () => {

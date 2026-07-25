@@ -1,5 +1,15 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { AutoNodeGroupType, NormalizedProxyConfig, ProxyProtocol, RuleSetBehavior, RuleType, SourceFormat } from '@uni-conf/types';
+import type {
+  AutoNodeGroupType,
+  ExportFormat,
+  NormalizedProxyConfig,
+  ProxyProtocol,
+  RemoteRuleSetSourceOverrideTarget,
+  RuleSetBehavior,
+  RuleSetFormat as ModelRuleSetFormat,
+  RuleType,
+  SourceFormat,
+} from '@uni-conf/types';
 
 export interface CountryInfo {
   country: string;
@@ -431,30 +441,8 @@ export function isRuleTargetGroup(group: { id: string; collectionIds?: readonly 
   return !isGlobalNodeOutletGroupId(group.id) && (group.collectionIds?.length ?? 0) === 0;
 }
 
-export type ExportSubscriptionFormat =
-  | 'mihomo'
-  | 'clash'
-  | 'singbox'
-  | 'loon'
-  | 'surge'
-  | 'shadowrocket'
-  | 'quantumultx'
-  | 'stash'
-  | 'egern'
-  | 'nodes_base64'
-  | 'nodes_raw';
-
-export type RuleSetFormat =
-  | 'mihomo'
-  | 'clash'
-  | 'singbox'
-  | 'surge'
-  | 'loon'
-  | 'shadowrocket'
-  | 'quantumultx'
-  | 'egern'
-  | 'stash'
-  | 'text';
+export type ExportSubscriptionFormat = ExportFormat;
+export type RuleSetFormat = ModelRuleSetFormat;
 
 export type RuleCompatibilityType =
   | 'DOMAIN'
@@ -480,7 +468,7 @@ export type RuleCompatibilityType =
 
 export type RuleCompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
 
-export const EXPORT_SUBSCRIPTION_FORMATS: ExportSubscriptionFormat[] = [
+export const FULL_CONFIG_EXPORT_FORMATS = [
   'mihomo',
   'clash',
   'singbox',
@@ -490,9 +478,83 @@ export const EXPORT_SUBSCRIPTION_FORMATS: ExportSubscriptionFormat[] = [
   'quantumultx',
   'stash',
   'egern',
+] as const satisfies readonly RemoteRuleSetSourceOverrideTarget[];
+
+export const NODE_SUBSCRIPTION_EXPORT_FORMATS = [
   'nodes_base64',
   'nodes_raw',
-];
+] as const satisfies readonly ExportSubscriptionFormat[];
+
+export const EXPORT_SUBSCRIPTION_FORMATS = [
+  ...FULL_CONFIG_EXPORT_FORMATS,
+  ...NODE_SUBSCRIPTION_EXPORT_FORMATS,
+] as const satisfies readonly ExportSubscriptionFormat[];
+
+export const RULE_SET_FORMATS = [
+  ...FULL_CONFIG_EXPORT_FORMATS,
+  'text',
+] as const satisfies readonly RuleSetFormat[];
+
+const EXPORT_SUBSCRIPTION_FORMAT_SET: ReadonlySet<string> = new Set(EXPORT_SUBSCRIPTION_FORMATS);
+const FULL_CONFIG_EXPORT_FORMAT_SET: ReadonlySet<string> = new Set(FULL_CONFIG_EXPORT_FORMATS);
+const RULE_SET_FORMAT_SET: ReadonlySet<string> = new Set(RULE_SET_FORMATS);
+
+export function isExportSubscriptionFormat(value: unknown): value is ExportSubscriptionFormat {
+  return typeof value === 'string' && EXPORT_SUBSCRIPTION_FORMAT_SET.has(value);
+}
+
+export function isFullConfigExportFormat(value: unknown): value is RemoteRuleSetSourceOverrideTarget {
+  return typeof value === 'string' && FULL_CONFIG_EXPORT_FORMAT_SET.has(value);
+}
+
+export function isRuleSetFormat(value: unknown): value is RuleSetFormat {
+  return typeof value === 'string' && RULE_SET_FORMAT_SET.has(value);
+}
+
+export interface ParsedSingboxWireGuardEndpoint {
+  name: string;
+  server: string;
+  port: number;
+  rawConfig: Record<string, unknown>;
+  parsedConfig: NormalizedProxyConfig;
+}
+
+export function parseSingboxWireGuardEndpoint(value: unknown): ParsedSingboxWireGuardEndpoint | null {
+  if (!isRecordValue(value) || value.type !== 'wireguard' || !Array.isArray(value.peers) || value.peers.length !== 1) {
+    return null;
+  }
+  const peer = value.peers[0];
+  if (!isRecordValue(peer)) return null;
+
+  const server = typeof peer.address === 'string' ? peer.address.trim() : '';
+  const port = typeof peer.port === 'number' && Number.isInteger(peer.port) ? peer.port : 0;
+  if (!server || port <= 0 || port > 65535) return null;
+
+  const name = typeof value.tag === 'string' && value.tag.trim() ? value.tag.trim() : 'WireGuard';
+  return {
+    name,
+    server,
+    port,
+    rawConfig: value,
+    parsedConfig: {
+      protocol: 'wireguard',
+      server,
+      port,
+      extra: {
+        privateKey: value.private_key,
+        publicKey: peer.public_key,
+        presharedKey: peer.pre_shared_key,
+        address: value.address,
+        allowedIPs: peer.allowed_ips,
+        reserved: peer.reserved,
+      },
+    },
+  };
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 export const EXPORT_FORMAT_FILENAMES: Record<ExportSubscriptionFormat, string> = {
   mihomo: 'mihomo.yaml',

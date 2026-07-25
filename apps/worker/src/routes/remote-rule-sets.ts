@@ -2,7 +2,13 @@ import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
 import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
-import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '@uni-conf/shared'
+import {
+  FULL_CONFIG_EXPORT_FORMATS,
+  isFullConfigExportFormat,
+  isRuleSetFormat,
+  isRuleSetFormatCompatible,
+  resolveRemoteRuleSetForExport,
+} from '@uni-conf/shared'
 import { DEFAULT_RULE_TARGET_GROUP_ID, isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
@@ -147,7 +153,7 @@ app.post('/validate-source', async (c) => {
 
 app.post('/validate-sources', async (c) => {
   const body = await c.req.json<{ sources?: Array<Partial<RemoteRuleSetSourceValidationInput>> }>().catch(() => null)
-  if (!body || !Array.isArray(body.sources) || body.sources.length === 0 || body.sources.length > SOURCE_OVERRIDE_TARGETS.size) {
+  if (!body || !Array.isArray(body.sources) || body.sources.length === 0 || body.sources.length > FULL_CONFIG_EXPORT_FORMATS.length) {
     return c.json({ success: false, error: 'sources must contain between 1 and 9 items', code: 'invalid_batch' }, 400)
   }
 
@@ -403,35 +409,18 @@ export function isManagedRemoteRuleSetUpdate(body: Partial<RemoteRuleSet>): bool
   return keys.length > 0 && keys.every(key => key === 'enabled' || key === 'sourceOverrides')
 }
 
-const RULE_SET_FORMATS: ReadonlySet<RuleSetFormat> = new Set([
-  'clash',
-  'mihomo',
-  'singbox',
-  'surge',
-  'loon',
-  'shadowrocket',
-  'quantumultx',
-  'egern',
-  'stash',
-  'text',
-])
-
 const RULE_SET_BEHAVIORS: ReadonlySet<RuleSetBehavior> = new Set(['domain', 'ipcidr', 'classical'])
 
 export function isValidRuleSetFormat(value: unknown): value is RuleSetFormat {
-  return RULE_SET_FORMATS.has(value as RuleSetFormat)
+  return isRuleSetFormat(value)
 }
 
 export function isValidRuleSetBehavior(value: unknown): value is RuleSetBehavior {
   return RULE_SET_BEHAVIORS.has(value as RuleSetBehavior)
 }
 
-const RULE_SET_PREVIEW_TARGETS: ReadonlySet<ExportFormat> = new Set([
-  'mihomo', 'clash', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
-])
-
 export function isRuleSetPreviewTarget(value: unknown): value is ExportFormat {
-  return RULE_SET_PREVIEW_TARGETS.has(value as ExportFormat)
+  return isFullConfigExportFormat(value)
 }
 
 type RemoteRuleSetWriteValidation =
@@ -551,10 +540,6 @@ export function validateRemoteRuleSetWrite(
   }
 }
 
-const SOURCE_OVERRIDE_TARGETS: ReadonlySet<RemoteRuleSetSourceOverrideTarget> = new Set([
-  'mihomo', 'clash', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
-])
-
 type NormalizedSourceValidationInput =
   | { valid: true; value: RemoteRuleSetSourceValidationInput }
   | { valid: false; error: string; code: 'unsafe_url' | 'invalid_format' | 'invalid_behavior' }
@@ -574,13 +559,13 @@ function normalizeSourceValidationInput(value: Partial<RemoteRuleSetSourceValida
 function normalizeSourceOverrides(value: unknown): RemoteRuleSetSourceOverrides | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const entries = Object.entries(value)
-  if (entries.length > SOURCE_OVERRIDE_TARGETS.size) return null
+  if (entries.length > FULL_CONFIG_EXPORT_FORMATS.length) return null
   const normalized: RemoteRuleSetSourceOverrides = {}
   for (const [target, rawUrl] of entries) {
-    if (!SOURCE_OVERRIDE_TARGETS.has(target as RemoteRuleSetSourceOverrideTarget)) return null
+    if (!isFullConfigExportFormat(target)) return null
     const url = normalizeHttpUrl(rawUrl)
     if (!url) return null
-    normalized[target as RemoteRuleSetSourceOverrideTarget] = url
+    normalized[target] = url
   }
   return normalized
 }

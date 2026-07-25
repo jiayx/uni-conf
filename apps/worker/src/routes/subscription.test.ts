@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { ProxySource } from '@uni-conf/types'
-import { getExportFormatFromSubscriptionFilename, getExportSubscriptionFilename } from '@uni-conf/shared'
+import {
+  EXPORT_SUBSCRIPTION_FORMATS,
+  FULL_CONFIG_EXPORT_FORMATS,
+  NODE_SUBSCRIPTION_EXPORT_FORMATS,
+  RULE_SET_FORMATS,
+  getExportFormatFromSubscriptionFilename,
+  getExportSubscriptionFilename,
+  isExportSubscriptionFormat,
+  isFullConfigExportFormat,
+  isRuleSetFormat,
+} from '@uni-conf/shared'
 import { buildSubscriptionUserInfoHeader } from './subscription'
 
 const baseSource: ProxySource = {
@@ -52,5 +62,16 @@ describe('subscription route helpers', () => {
   it('exposes Clash as an explicit Mihomo-compatible subscription filename', () => {
     expect(getExportSubscriptionFilename('clash')).toBe('clash.yaml')
     expect(getExportFormatFromSubscriptionFilename('clash.yaml')).toBe('clash')
+  })
+
+  it('derives every target format registry from one complete partition', () => {
+    expect(EXPORT_SUBSCRIPTION_FORMATS).toEqual([
+      ...FULL_CONFIG_EXPORT_FORMATS,
+      ...NODE_SUBSCRIPTION_EXPORT_FORMATS,
+    ])
+    expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'text'])
+    expect(FULL_CONFIG_EXPORT_FORMATS.every(isFullConfigExportFormat)).toBe(true)
+    expect(EXPORT_SUBSCRIPTION_FORMATS.every(isExportSubscriptionFormat)).toBe(true)
+    expect(RULE_SET_FORMATS.every(isRuleSetFormat)).toBe(true)
   })
 })

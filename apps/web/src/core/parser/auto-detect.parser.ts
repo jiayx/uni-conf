@@ -17,11 +17,11 @@ function isValidBase64(s: string): boolean {
 export function detectFormat(content: string): DetectedFormat {
   const trimmed = content.trim()
 
-  // 1. Try JSON -> check for outbounds array -> singbox
+  // 1. Try JSON -> check current sing-box outbound or endpoint containers
   if (trimmed.startsWith('{')) {
     try {
       const doc = JSON.parse(trimmed) as Record<string, unknown>
-      if (doc && Array.isArray(doc['outbounds'])) {
+      if (doc && (Array.isArray(doc['outbounds']) || Array.isArray(doc['endpoints']))) {
         return 'singbox'
       }
     } catch {

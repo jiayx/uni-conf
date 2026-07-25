@@ -13,9 +13,9 @@ import { buildRuleSetConversionBaseUrl } from './subscription'
 import { preflightRuleSetConversions } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
 import {
-  EXPORT_SUBSCRIPTION_FORMATS,
   getExportCapabilityProfile,
   getExportSubscriptionFilename,
+  isExportSubscriptionFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
 
@@ -352,10 +352,8 @@ async function resolveConfig(c: Context<{ Bindings: Env }>) {
   return config
 }
 
-const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set(EXPORT_SUBSCRIPTION_FORMATS as ExportFormat[])
-
 export function isValidExportFormat(value: unknown): value is ExportFormat {
-  return EXPORT_FORMATS.has(value as ExportFormat)
+  return isExportSubscriptionFormat(value)
 }
 
 type ExportSelectionValidation =

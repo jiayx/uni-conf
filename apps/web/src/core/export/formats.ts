@@ -1,31 +1,25 @@
+import { EXPORT_SUBSCRIPTION_FORMATS } from '@uni-conf/shared'
 import type { ExportFormat } from '@uni-conf/types'
 
-export const EXPORT_FORMAT_OPTIONS: Array<{ value: ExportFormat; label: string }> = [
-  { value: 'mihomo', label: 'Mihomo / Clash / OpenClash YAML' },
-  { value: 'clash', label: 'Clash YAML' },
-  { value: 'singbox', label: 'sing-box JSON' },
-  { value: 'loon', label: 'Loon CONF' },
-  { value: 'surge', label: 'Surge CONF' },
-  { value: 'shadowrocket', label: 'Shadowrocket CONF' },
-  { value: 'quantumultx', label: 'Quantumult X CONF' },
-  { value: 'stash', label: 'Stash YAML' },
-  { value: 'egern', label: 'Egern YAML' },
-  { value: 'nodes_base64', label: 'Node Subscription (Base64)' },
-  { value: 'nodes_raw', label: 'Node Subscription (Raw)' },
-]
+const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
+  mihomo: 'Mihomo / Clash / OpenClash YAML',
+  clash: 'Clash YAML',
+  singbox: 'sing-box JSON',
+  loon: 'Loon CONF',
+  surge: 'Surge CONF',
+  shadowrocket: 'Shadowrocket CONF',
+  quantumultx: 'Quantumult X CONF',
+  stash: 'Stash YAML',
+  egern: 'Egern YAML',
+  nodes_base64: 'Node Subscription (Base64)',
+  nodes_raw: 'Node Subscription (Raw)',
+}
+
+export const EXPORT_FORMAT_OPTIONS = EXPORT_SUBSCRIPTION_FORMATS.map(value => ({
+  value,
+  label: EXPORT_FORMAT_LABELS[value],
+}))
 
 export const PREVIEW_FORMATS: ExportFormat[] = EXPORT_FORMAT_OPTIONS.map(option => option.value)
 
-export const QUICK_EXPORT_OPTIONS: Array<{ value: ExportFormat; label: string }> = [
-  { value: 'mihomo', label: 'Mihomo / Clash / OpenClash YAML' },
-  { value: 'clash', label: 'Clash YAML' },
-  { value: 'singbox', label: 'sing-box JSON' },
-  { value: 'loon', label: 'Loon CONF' },
-  { value: 'surge', label: 'Surge CONF' },
-  { value: 'shadowrocket', label: 'Shadowrocket CONF' },
-  { value: 'quantumultx', label: 'Quantumult X CONF' },
-  { value: 'stash', label: 'Stash YAML' },
-  { value: 'egern', label: 'Egern YAML' },
-  { value: 'nodes_base64', label: 'Node Subscription (Base64)' },
-  { value: 'nodes_raw', label: 'Node Subscription (Raw)' },
-]
+export const QUICK_EXPORT_OPTIONS = EXPORT_FORMAT_OPTIONS

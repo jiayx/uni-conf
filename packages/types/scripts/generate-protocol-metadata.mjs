@@ -30,8 +30,9 @@ const MANAGED_SINGBOX_TYPES = new Set([
   'tuic',
   'vless',
   'vmess',
-  'wireguard',
 ])
+
+const MANAGED_SINGBOX_ENDPOINT_TYPES = new Set(['wireguard'])
 
 const MANAGED_MIHOMO_TYPES = new Set([
   'anytls',
@@ -88,6 +89,22 @@ function extractSingboxOutbounds() {
   return sortObject(outbounds)
 }
 
+function extractSingboxEndpoints() {
+  const defs = singboxSchema.$defs ?? {}
+  const endpoints = {}
+  for (const [name, schema] of Object.entries(defs)) {
+    if (!name.endsWith('EndpointOptions')) continue
+    const type = schemaTypeName(schema)
+    if (!type || !MANAGED_SINGBOX_ENDPOINT_TYPES.has(type)) continue
+    endpoints[type] = {
+      schemaRef: `#/$defs/${name}`,
+      fields: [...collectProperties(schema)].sort(),
+      required: Array.isArray(schema.required) ? schema.required : [],
+    }
+  }
+  return sortObject(endpoints)
+}
+
 function extractMihomoProxies() {
   const entries = mihomoSchema.definitions?.proxies?.items?.anyOf ?? []
   const proxies = {}
@@ -134,6 +151,7 @@ const metadata = {
     },
   },
   singboxOutbounds: extractSingboxOutbounds(),
+  singboxEndpoints: extractSingboxEndpoints(),
   mihomoProxies: extractMihomoProxies(),
 }
 

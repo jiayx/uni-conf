@@ -1,4 +1,9 @@
-import { buildNodeRecognitionTags, detectCountry, isSubscriptionInfoNodeName } from '@uni-conf/shared'
+import {
+  buildNodeRecognitionTags,
+  detectCountry,
+  isSubscriptionInfoNodeName,
+  parseSingboxWireGuardEndpoint,
+} from '@uni-conf/shared'
 import { SINGBOX_TYPE_TO_PROTOCOL } from '@uni-conf/types'
 import type { ProxyNode, NormalizedProxyConfig, ProxyProtocol } from '@uni-conf/types'
 
@@ -32,7 +37,6 @@ const PROXY_TYPES = new Set([
   'http',
   'ssh',
   'shadowtls',
-  'wireguard',
 ])
 
 function mapSingboxProtocol(type: string, outbound?: SingboxOutbound): ProxyProtocol {
@@ -127,20 +131,45 @@ function hasNativeTls(outbound?: SingboxOutbound): boolean {
   return Boolean(tls && typeof tls === 'object' && !Array.isArray(tls) && (tls as Record<string, unknown>)['enabled'] === true)
 }
 
+function singboxEndpointToNode(endpoint: unknown, sourceId: string): ProxyNode | null {
+  const parsed = parseSingboxWireGuardEndpoint(endpoint)
+  if (!parsed) return null
+  const countryInfo = detectCountry(parsed.name)
+  const now = new Date().toISOString()
+  return {
+    id: generateId(),
+    sourceId,
+    name: parsed.name,
+    protocol: 'wireguard',
+    server: parsed.server,
+    port: parsed.port,
+    country: countryInfo?.country,
+    countryCode: countryInfo?.countryCode,
+    enabled: true,
+    tags: buildNodeRecognitionTags(parsed.name),
+    rawConfig: parsed.rawConfig,
+    parsedConfig: parsed.parsedConfig,
+    isManual: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
 export function parseSingboxConfig(content: string, sourceId: string): ProxyNode[] {
   try {
     const doc = JSON.parse(content) as Record<string, unknown>
     if (!doc || typeof doc !== 'object') return []
 
-    const outbounds = doc['outbounds'] as SingboxOutbound[] | undefined
-    if (!Array.isArray(outbounds)) return []
-
-    return outbounds
+    const outbounds = Array.isArray(doc['outbounds']) ? doc['outbounds'] as SingboxOutbound[] : []
+    const endpoints = Array.isArray(doc['endpoints']) ? doc['endpoints'] : []
+    const outboundNodes = outbounds
       .filter((ob) => {
         const t = (ob['type'] as string | undefined)?.toLowerCase()
         return t && !BUILTIN_TYPES.has(t) || (t && PROXY_TYPES.has(t))
       })
       .map((ob) => singboxOutboundToNode(ob, sourceId))
+    const endpointNodes = endpoints.map(endpoint => singboxEndpointToNode(endpoint, sourceId))
+    return [...outboundNodes, ...endpointNodes]
       .filter((node): node is ProxyNode => node !== null && !isSubscriptionInfoNodeName(node.name))
   } catch {
     return []

@@ -249,6 +249,49 @@ rule-providers:
     })
   })
 
+  it('imports sing-box 1.13 WireGuard endpoints into the unified node model', () => {
+    const result = detectAndParse(JSON.stringify({
+      endpoints: [{
+        type: 'wireguard',
+        tag: 'US WireGuard',
+        address: ['172.16.0.2/32'],
+        private_key: 'private-key',
+        peers: [{
+          address: 'wg.example.com',
+          port: 51820,
+          public_key: 'peer-key',
+          pre_shared_key: 'psk',
+          allowed_ips: ['0.0.0.0/0', '::/0'],
+          reserved: [1, 2, 3],
+        }],
+      }],
+      outbounds: [{ type: 'selector', tag: 'PROXY', outbounds: ['US WireGuard'] }],
+    }), 'singbox')
+
+    expect(result).toMatchObject({
+      format: 'singbox',
+      nodes: [{
+        name: 'US WireGuard',
+        protocol: 'wireguard',
+        server: 'wg.example.com',
+        port: 51820,
+        parsedConfig: {
+          protocol: 'wireguard',
+          server: 'wg.example.com',
+          port: 51820,
+          extra: {
+            privateKey: 'private-key',
+            publicKey: 'peer-key',
+            presharedKey: 'psk',
+            address: ['172.16.0.2/32'],
+            allowedIPs: ['0.0.0.0/0', '::/0'],
+            reserved: [1, 2, 3],
+          },
+        },
+      }],
+    })
+  })
+
   it('parses a 10k-node raw subscription without dropping entries', () => {
     const content = Array.from({ length: 10_000 }, (_, index) =>
       `trojan://pwd@node-${index}.example.com:443#Node-${index}`

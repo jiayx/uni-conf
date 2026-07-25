@@ -23,10 +23,14 @@ while ((match = entryPattern.exec(registrySource))) {
   const protocol = match[1]
   const body = match[2]
   const singboxType = body.match(/singboxType: '([^']+)'/)?.[1]
+  const singboxEndpointType = body.match(/singboxEndpointType: '([^']+)'/)?.[1]
   const mihomoType = body.match(/mihomoType: '([^']+)'/)?.[1]
 
   if (singboxType && !metadata.singboxOutbounds[singboxType]) {
     missing.push(`${protocol}: sing-box type "${singboxType}" is not present in generated metadata`)
+  }
+  if (singboxEndpointType && !metadata.singboxEndpoints[singboxEndpointType]) {
+    missing.push(`${protocol}: sing-box endpoint type "${singboxEndpointType}" is not present in generated metadata`)
   }
   if (mihomoType && !metadata.mihomoProxies[mihomoType]) {
     missing.push(`${protocol}: mihomo type "${mihomoType}" is not present in generated metadata`)

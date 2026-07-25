@@ -4,9 +4,10 @@ This document records how UniConf should keep proxy protocol fields aligned with
 
 ## Current Baseline
 
-As of 2026-06-19, the practical protocol baseline should be derived from:
+As of 2026-07-25, the practical protocol baseline should be derived from the bundled sing-box 1.13.13 schema:
 
-- sing-box outbounds: `direct`, `block`, `socks`, `http`, `shadowsocks`, `vmess`, `trojan`, `wireguard`, `hysteria`, `vless`, `shadowtls`, `tuic`, `hysteria2`, `anytls`, `tor`, `ssh`, `dns`, `selector`, `urltest`, `naive`.
+- sing-box outbounds: `anytls`, `block`, `direct`, `http`, `hysteria`, `hysteria2`, `naive`, `shadowsocks`, `shadowtls`, `socks`, `ssh`, `tor`, `trojan`, `tuic`, `vless`, `vmess`.
+- sing-box endpoints: `wireguard`, `tailscale`. UniConf currently manages WireGuard; it must not be reintroduced as an outbound.
 - mihomo proxy nodes: common proxy fields plus protocol-specific YAML objects such as `ss`, `ssr`, `vmess`, `vless`, `trojan`, `hysteria`, `hysteria2`, `tuic`, `wireguard`, `socks5`, `http`, `anytls`, and related TLS fields.
 
 UniConf should not manually mirror every protocol field in `NormalizedProxyConfig`. That will drift as AnyTLS, REALITY, ECH, Hysteria2, TUIC, WireGuard, and transport fields evolve.
@@ -47,6 +48,7 @@ interface StoredNodeConfig {
   sourceUri?: string
   mihomo?: MihomoProxy
   singbox?: SingboxOutbound
+  singboxEndpoint?: SingboxEndpoint
   normalized: NormalizedProxyIndex
 }
 
@@ -70,7 +72,7 @@ interface NormalizedProxyIndex {
 
 Add a codegen step that:
 
-1. Loads sing-box outbound schemas/types from `@black-duty/sing-box-schema`.
+1. Loads sing-box outbound and endpoint schemas/types from `@black-duty/sing-box-schema`.
 2. Loads mihomo JSON Schema from `meta-json-schema/schemas/meta-json-schema.json`.
 3. Generates checked TypeScript types into `packages/types/src/generated/`.
 4. Generates a protocol field registry for the UI:
@@ -112,6 +114,7 @@ sing-box export:
 
 - If `raw_config.singbox` exists, emit it after applying the current node tag.
 - If `raw_config` itself is a sing-box outbound object (`type`, `server`, `server_port`), emit that native object after applying the current node tag, server, and server port.
+- WireGuard is rebuilt as a top-level 1.13 endpoint from the shared normalized fields; it never enters the outbound-native path.
 - Else convert from `raw_config.mihomo` using explicit protocol adapters.
 - Else fall back to `normalized` only for simple protocols.
 

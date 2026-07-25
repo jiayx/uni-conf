@@ -564,6 +564,51 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
       ]
     }
   },
+  "singboxEndpoints": {
+    "wireguard": {
+      "schemaRef": "#/$defs/WireGuardEndpointOptions",
+      "fields": [
+        "address",
+        "bind_address_no_port",
+        "bind_interface",
+        "connect_timeout",
+        "detour",
+        "disable_tcp_keep_alive",
+        "domain_resolver",
+        "domain_strategy",
+        "fallback_delay",
+        "fallback_network_type",
+        "inet4_bind_address",
+        "inet6_bind_address",
+        "listen_port",
+        "mtu",
+        "name",
+        "netns",
+        "network_strategy",
+        "network_type",
+        "peers",
+        "private_key",
+        "protect_path",
+        "reuse_addr",
+        "routing_mark",
+        "system",
+        "tag",
+        "tcp_fast_open",
+        "tcp_keep_alive",
+        "tcp_keep_alive_interval",
+        "tcp_multi_path",
+        "type",
+        "udp_fragment",
+        "udp_timeout",
+        "workers"
+      ],
+      "required": [
+        "type",
+        "address",
+        "private_key"
+      ]
+    }
+  },
   "mihomoProxies": {
     "anytls": {
       "fields": [

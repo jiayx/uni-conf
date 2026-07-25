@@ -28,7 +28,12 @@ import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
-import { GLOBAL_NODE_OUTLET_GROUP_NAMES, RULE_TARGET_FOUNDATION_GROUP_NAMES, resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport } from '@uni-conf/shared'
+import {
+  FULL_CONFIG_EXPORT_FORMATS,
+  GLOBAL_NODE_OUTLET_GROUP_NAMES,
+  RULE_TARGET_FOUNDATION_GROUP_NAMES,
+  resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport,
+} from '@uni-conf/shared'
 import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationInput, RemoteRuleSetValidationResult, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import styles from './RemoteRuleSets.module.css'
 
@@ -54,13 +59,8 @@ const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; labelKey: strin
   { value: 'classical', labelKey: 'remoteRuleSets.behavior_classical' },
 ]
 
-const CONVERSION_PREVIEW_TARGETS: ExportFormat[] = [
-  'mihomo', 'clash', 'singbox', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'stash', 'egern',
-]
-
-const SOURCE_OVERRIDE_TARGETS: RemoteRuleSetSourceOverrideTarget[] = [
-  'mihomo', 'clash', 'singbox', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'stash', 'egern',
-]
+const CONVERSION_PREVIEW_TARGETS = FULL_CONFIG_EXPORT_FORMATS
+const SOURCE_OVERRIDE_TARGETS = FULL_CONFIG_EXPORT_FORMATS
 
 const REQUESTED_EDIT_PARAMS = ['nativeSource'] as const
 
