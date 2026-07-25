@@ -85,6 +85,7 @@ export function Layout() {
             {/* Mobile header with menu button */}
             <div className={styles.mobileHeader}>
               <button
+                type="button"
                 ref={menuButtonRef}
                 className={styles.menuButton}
                 onClick={toggleSidebar}

@@ -283,6 +283,7 @@ export function Settings() {
           {DNS_MODE_PRESETS.map(preset => (
             <button
               key={preset.id}
+              type="button"
               className={`${styles.optionBtn} ${dnsMode === preset.id ? styles.active : ''}`}
               onClick={() => handleDnsMode(preset.id)}
               disabled={interactionLocked}
@@ -301,6 +302,7 @@ export function Settings() {
           {EXPORT_NODE_NAMING_PRESETS.map(preset => (
             <button
               key={preset.id}
+              type="button"
               className={`${styles.optionBtn} ${exportNodeNamingMode === preset.id ? styles.active : ''}`}
               onClick={() => handleExportNodeNamingMode(preset.id)}
               disabled={interactionLocked}
@@ -328,6 +330,7 @@ export function Settings() {
           {AUTO_NODE_GROUP_TYPE_PRESETS.map(preset => (
             <button
               key={preset.id}
+              type="button"
               className={`${styles.optionBtn} ${autoNodeGroupTypes.includes(preset.id) ? styles.active : ''}`}
               onClick={() => handleAutoNodeGroupType(preset.id)}
               disabled={interactionLocked || !autoNodeGroupsEnabled}

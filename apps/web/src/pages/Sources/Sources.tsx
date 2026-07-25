@@ -650,6 +650,7 @@ export function Sources() {
               <div className={styles.cardHeader}>
                 <div className={styles.titleRow}>
                   <button
+                    type="button"
                     className={`${styles.toggleBtn} ${source.enabled ? styles.enabled : styles.disabled}`}
                     aria-label={source.enabled
                       ? t('sources.disable_source', { name: source.name })
