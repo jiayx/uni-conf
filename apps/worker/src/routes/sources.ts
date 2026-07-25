@@ -28,6 +28,7 @@ import type { SourceImportDiffItem, SourceImportDiffSection, SourceImportPreview
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 import { isSafeRemoteHttpUrl, safeRemoteFetch } from '../services/safe-remote-fetch';
+import { validateOptionalBooleanFields } from '../services/request-validation';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -76,6 +77,8 @@ app.post('/', async (c) => {
   if (sourceType !== 'url') {
     return c.json({ success: false, error: 'subscription source creation only accepts URL sources' }, 400);
   }
+  const booleanError = validateOptionalBooleanFields(body, ['enabled', 'refreshAfterCreate']);
+  if (booleanError) return c.json({ success: false, error: booleanError }, 400);
   const format = body.format ?? 'auto';
   if (!isValidSourceFormat(format)) {
     return c.json({ success: false, error: 'invalid source format' }, 400);
@@ -157,6 +160,8 @@ app.post('/import', async (c) => {
     structuredConflictResolutions?: unknown;
   }>();
 
+  const booleanError = validateOptionalBooleanFields(body, ['importStructured']);
+  if (booleanError) return c.json({ success: false, error: booleanError }, 400);
   const rawContent = typeof body.content === 'string' ? body.content : '';
   if (utf8ByteLength(rawContent) > MAX_SOURCE_CONTENT_BYTES) {
     return c.json({ success: false, error: 'source content exceeds the 4 MiB size limit' }, 413);
@@ -562,6 +567,8 @@ app.put('/:id', async (c) => {
   if (body.type !== undefined) {
     return c.json({ success: false, error: 'source type cannot be changed' }, 400);
   }
+  const booleanError = validateOptionalBooleanFields(body, ['enabled']);
+  if (booleanError) return c.json({ success: false, error: booleanError }, 400);
   const ts = now();
   const nextType = String(existing.type);
   const nextUrl = body.url !== undefined ? normalizeHttpUrl(body.url) ?? String(body.url ?? '').trim() : String(existing.url ?? '');

@@ -23,6 +23,8 @@ describe('groups route helpers', () => {
       builtins: ['DIRECT', 'DIRECT'],
       interval: 300,
       tolerance: 150,
+      lazy: false,
+      enabled: false,
     }, { create: true, isBuiltin: false })).toEqual({
       valid: true,
       name: 'AI Backup',
@@ -33,8 +35,8 @@ describe('groups route helpers', () => {
       testUrl: undefined,
       interval: 300,
       tolerance: 150,
-      lazy: true,
-      enabled: true,
+      lazy: false,
+      enabled: false,
     })
   })
 

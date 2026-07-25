@@ -26,6 +26,8 @@ describe('rules route helpers', () => {
       type: 'DOMAIN-SUFFIX',
       payload: 'example.com',
       targetGroupId: 'builtin-proxy',
+      noResolve: false,
+      enabled: false,
     })).toBeNull()
 
     expect(validateRuleInput({

@@ -3,7 +3,11 @@ import { mapExportConfig, newId, now } from '../db/helpers'
 import { buildExportData, getExportConfigById } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
-import { ensureDefaultExportConfig, generateExportToken } from '../services/default-export-config'
+import {
+  DEFAULT_EXPORT_CONFIG_ID,
+  ensureDefaultExportConfig,
+  generateExportToken,
+} from '../services/default-export-config'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { findBlockingExportWarning, resolveExportWarnings, validateRemoteRuleSetReachability } from '../services/export-validation'
 import { exportArtifactWarnings, validateRenderedExport } from '../services/export-artifact-validation'
@@ -12,6 +16,7 @@ import type { CompatibilityWarning, ExportConfig, ExportFormat, ExportResult } f
 import { buildRuleSetConversionBaseUrl } from './subscription'
 import { preflightRuleSetConversions } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
+import { validateOptionalBooleanFields } from '../services/request-validation'
 import {
   getExportCapabilityProfile,
   getExportSubscriptionFilename,
@@ -44,12 +49,13 @@ exportRouter.post('/configs', async (c) => {
 
   await c.env.DB.prepare(
     `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     resolveExportConfigName(body.name, body.format),
     body.format ?? 'mihomo',
     token,
+    body.enabled !== false ? 1 : 0,
     JSON.stringify(selection.includeCollectionIds),
     JSON.stringify(selection.includeGroupIds),
     JSON.stringify(selection.includeRuleIds),
@@ -108,6 +114,15 @@ exportRouter.put('/configs/:id', async (c) => {
 
   const existing = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
+  if (
+    id === DEFAULT_EXPORT_CONFIG_ID
+    && Object.keys(body).some(field => field !== 'enabled')
+  ) {
+    return c.json({
+      success: false,
+      error: 'Default export config only allows enabled state updates',
+    }, 403)
+  }
   if (body.format !== undefined && !isValidExportFormat(body.format)) {
     return c.json({ success: false, error: 'invalid export format' }, 400)
   }
@@ -142,21 +157,10 @@ exportRouter.put('/configs/:id', async (c) => {
     values.push(selection.extraConfig === null ? null : JSON.stringify(selection.extraConfig))
   }
 
-  // Reset token if requested
-  let nextToken: string | undefined
-  if (body.token === 'reset') {
-    nextToken = generateExportToken()
-    fields.push('token = ?')
-    values.push(nextToken)
-  }
-
   if (fields.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400)
   fields.push('updated_at = ?'); values.push(ts); values.push(id)
 
   await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run()
-  if (nextToken) {
-    await syncDefaultExportTokenAfterReset(c.env.DB, String(existing.token ?? ''), nextToken, ts)
-  }
   await ensureZeroSetupDefaults(c.env.DB, ts)
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
@@ -165,6 +169,9 @@ exportRouter.put('/configs/:id', async (c) => {
 // DELETE /api/export/configs/:id
 exportRouter.delete('/configs/:id', async (c) => {
   const id = c.req.param('id')
+  if (id === DEFAULT_EXPORT_CONFIG_ID) {
+    return c.json({ success: false, error: 'Default export config is managed internally' }, 403)
+  }
   const existing = await c.env.DB.prepare('SELECT id FROM export_configs WHERE id = ?').bind(id).first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
   await c.env.DB.prepare('DELETE FROM export_configs WHERE id = ?').bind(id).run()
@@ -369,6 +376,9 @@ type ExportSelectionValidation =
   | { valid: false; error: string }
 
 export function validateExportConfigSelection(body: Partial<ExportConfig>): ExportSelectionValidation {
+  const booleanError = validateOptionalBooleanFields(body, ['enabled'])
+  if (booleanError) return { valid: false, error: booleanError }
+
   const includeCollectionIds = normalizeIdList(body.includeCollectionIds, 'includeCollectionIds')
   if (!includeCollectionIds.valid) return includeCollectionIds
   const includeGroupIds = normalizeIdList(body.includeGroupIds, 'includeGroupIds')

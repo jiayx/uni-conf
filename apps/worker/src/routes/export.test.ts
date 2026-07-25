@@ -38,6 +38,7 @@ describe('export route helpers', () => {
       includeGroupIds: ['group-1'],
       includeRuleIds: undefined,
       includeRemoteSetIds: ['remote-1'],
+      enabled: false,
     })).toEqual({
       valid: true,
       includeCollectionIds: ['collection-1', 'collection-2'],

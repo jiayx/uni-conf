@@ -10,6 +10,7 @@ import {
 } from '@uni-conf/shared';
 import { isEnabledTargetGroup, listEnabledTargetGroupIds, normalizeRuleTargetGroupId } from '../services/group-targets';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
+import { validateOptionalBooleanFields } from '../services/request-validation';
 
 const app = new Hono<{ Bindings: Env }>();
 const RULE_BATCH_SQL_CHUNK_SIZE = 90;
@@ -286,6 +287,8 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Rule not found' }, 404);
 
   const body = await c.req.json<Partial<ProxyRule>>();
+  const booleanError = validateOptionalBooleanFields(body, ['noResolve', 'enabled']);
+  if (booleanError) return c.json({ success: false, error: booleanError }, 400);
   const ts = now();
   await ensureZeroSetupDefaults(c.env.DB, ts);
   const nextType = (body.type ?? existing.type) as ProxyRule['type'];
@@ -356,6 +359,8 @@ export function isValidRuleType(value: unknown): value is ProxyRule['type'] {
 }
 
 export function validateRuleInput(rule: Partial<ProxyRule>): string | null {
+  const booleanError = validateOptionalBooleanFields(rule, ['noResolve', 'enabled']);
+  if (booleanError) return booleanError;
   if (!isValidRuleType(rule.type)) return 'invalid rule type';
   const validation = validateAndNormalizeRulePayload(rule.type, rule.payload);
   return validation.valid ? null : validation.message;

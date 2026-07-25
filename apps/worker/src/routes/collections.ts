@@ -11,6 +11,7 @@ import {
   type GroupDeleteBlocker,
   validateGroupWrite,
 } from './groups';
+import { validateOptionalBooleanFields } from '../services/request-validation';
 
 const app = new Hono<{ Bindings: Env }>();
 const FILTER_FIELDS = new Set<NodeFilter['field']>(['name', 'server', 'protocol', 'country', 'countryCode', 'tag', 'sourceId']);
@@ -488,6 +489,9 @@ export function validateCollectionWrite(
   body: Partial<NodeCollection>,
   options: { create: boolean }
 ): CollectionWriteValidation {
+  const booleanError = validateOptionalBooleanFields(body, ['enabled']);
+  if (booleanError) return { valid: false, error: booleanError };
+
   const name = normalizeOptionalText(body.name);
   if (options.create && !name) return { valid: false, error: 'name is required' };
   if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
@@ -674,6 +678,8 @@ function normalizeFilters(value: unknown): FiltersValidation {
   for (const [index, filter] of value.entries()) {
     if (!filter || typeof filter !== 'object') return { valid: false, error: `invalid filter at index ${index}` };
     const item = filter as Partial<NodeFilter>;
+    const booleanError = validateOptionalBooleanFields(item, ['enabled']);
+    if (booleanError) return { valid: false, error: `${booleanError} at filter index ${index}` };
     const id = normalizeOptionalText(item.id) ?? `filter-${index}`;
     if (!FILTER_FIELDS.has(item.field as NodeFilter['field'])) {
       return { valid: false, error: `invalid filter field at index ${index}` };
@@ -723,6 +729,8 @@ function normalizeRenames(value: unknown): RenamesValidation {
   for (const [index, rename] of value.entries()) {
     if (!rename || typeof rename !== 'object') return { valid: false, error: `invalid rename at index ${index}` };
     const item = rename as Partial<NodeRename>;
+    const booleanError = validateOptionalBooleanFields(item, ['enabled']);
+    if (booleanError) return { valid: false, error: `${booleanError} at rename index ${index}` };
     const type = item.type as NodeRename['type'];
     if (!RENAME_TYPES.has(type)) return { valid: false, error: `invalid rename type at index ${index}` };
     if ((type === 'replace' || type === 'regex') && !normalizeOptionalText(item.pattern)) {

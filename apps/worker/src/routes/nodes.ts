@@ -5,6 +5,7 @@ import type { ProxyProtocol } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 import { parseRawLines } from './sources';
+import { validateOptionalBooleanFields } from '../services/request-validation';
 import {
   buildNodeRecognitionTags,
   buildStructuredProxyConfig,
@@ -127,6 +128,10 @@ export function normalizeNodeSearchQuery(value: string | undefined): string {
 
 app.post('/', async (c) => {
   const body = await c.req.json<ManualNodeCreateBody>();
+  const booleanError = validateOptionalBooleanFields(body, ['enabled']);
+  if (booleanError) {
+    return c.json({ success: false, error: booleanError }, 400);
+  }
   const input = resolveManualNodeInput(body);
 
   if (!input) {

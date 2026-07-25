@@ -33,23 +33,6 @@ describe('export token reset route', () => {
     expect(state.exportToken).toBe(payload.data.token)
     expect(state.defaultExportToken).toBe('default-token')
   })
-
-  it('keeps the default export token when reset through the config update route', async () => {
-    const state = createState({ defaultExportToken: 'old-token' })
-    const db = createMockDb(state)
-
-    const response = await exportRouter.request('/configs/export-1', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token: 'reset' }),
-    }, { DB: db })
-    const payload = await response.json<{ data: { token: string } }>()
-
-    expect(response.status).toBe(200)
-    expect(payload.data.token).not.toBe('old-token')
-    expect(state.exportToken).toBe(payload.data.token)
-    expect(state.defaultExportToken).toBe(payload.data.token)
-  })
 })
 
 function createState(patch: Partial<TestState> = {}): TestState {

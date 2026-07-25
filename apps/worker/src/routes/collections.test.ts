@@ -36,6 +36,7 @@ describe('collections route helpers', () => {
         enabled: true,
         order: 0,
       }],
+      enabled: false,
     }, { create: true })).toEqual({
       valid: true,
       name: 'US Pool',
@@ -59,7 +60,7 @@ describe('collections route helpers', () => {
       dedup: 'name',
       sort: 'country',
       sortCountryOrder: undefined,
-      enabled: true,
+      enabled: false,
       notes: undefined,
     })
   })

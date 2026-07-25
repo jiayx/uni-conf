@@ -16,6 +16,7 @@ import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
 import { getConvertedRemoteRuleSet, resolveRuleSetConversionIssues, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
 import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources, validatePendingRuleSetSources } from '../services/remote-rule-set-health'
+import { validateOptionalBooleanFields } from '../services/request-validation'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -485,6 +486,9 @@ export function validateRemoteRuleSetWrite(
   body: Partial<RemoteRuleSet>,
   options: { create: boolean }
 ): RemoteRuleSetWriteValidation {
+  const booleanError = validateOptionalBooleanFields(body, ['enabled'])
+  if (booleanError) return { valid: false, error: booleanError }
+
   const name = normalizeOptionalText(body.name)
   if (options.create && !name) return { valid: false, error: 'name is required' }
   if (body.name !== undefined && !name) return { valid: false, error: 'name is required' }

@@ -10,6 +10,7 @@ import { listAutoCollectionKeysById, resolveRoutingGroupIds, withOutletRefs } fr
 import { DEFAULT_HEALTH_CHECK, FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { validateGroupReferenceGraph } from '../services/group-reference-graph';
+import { validateOptionalBooleanFields } from '../services/request-validation';
 
 const app = new Hono<{ Bindings: Env }>();
 const GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']);
@@ -440,6 +441,9 @@ export function validateGroupWrite(
   body: Partial<ProxyGroup>,
   options: { create: boolean; id?: string; isBuiltin: boolean }
 ): GroupWriteValidation {
+  const booleanError = validateOptionalBooleanFields(body, ['lazy', 'enabled']);
+  if (booleanError) return { valid: false, error: booleanError };
+
   const name = normalizeOptionalText(body.name);
   if (options.create && !name) return { valid: false, error: 'name is required' };
   if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
