@@ -149,8 +149,6 @@ describe('api client', () => {
       error: 'group is targeted by rule: Work Rule',
       code: 'resource_in_use',
       details: {
-        dependency: { type: 'rule', id: 'rule-1', name: 'Work Rule' },
-        remediation: { target: 'rules', id: 'rule-1' },
         dependencies: [
           {
             type: 'rule',
@@ -173,8 +171,6 @@ describe('api client', () => {
       status: 409,
       code: 'resource_in_use',
       details: {
-        dependency: { type: 'rule', id: 'rule-1', name: 'Work Rule' },
-        remediation: { target: 'rules', id: 'rule-1' },
         dependencies: [
           {
             type: 'rule',

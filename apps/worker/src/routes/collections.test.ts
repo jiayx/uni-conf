@@ -269,8 +269,6 @@ describe('collections route helpers', () => {
       error: 'node group is referenced by policy group: Combined',
       code: 'resource_in_use',
       details: {
-        dependency: { type: 'policy-group', id: 'combined-group', name: 'Combined' },
-        remediation: { target: 'groups', id: 'combined-group' },
         dependencies: [{
           type: 'policy-group',
           id: 'combined-group',

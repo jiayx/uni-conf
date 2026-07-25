@@ -24,12 +24,9 @@ export function ErrorNotice({ error, className = '', title }: ErrorNoticeProps) 
   const diagnostic = error instanceof ApiError && error.requestId
     ? [error.code, error.requestId].filter(Boolean).join(' · ')
     : null
-  const dependency = error instanceof ApiError ? error.details?.dependency : undefined
   const dependencies = error instanceof ApiError && error.details?.dependencies?.length
     ? error.details.dependencies
-    : dependency
-      ? [{ ...dependency, remediation: error instanceof ApiError ? error.details?.remediation : undefined }]
-      : []
+    : []
 
   const copyDiagnostic = async () => {
     if (!diagnostic) return

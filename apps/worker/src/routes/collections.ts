@@ -366,14 +366,11 @@ app.delete('/:id', async (c) => {
     })));
   }
   if (blockers.length > 0) {
-    const firstBlocker = blockers[0]!;
     return c.json({
       success: false,
-      error: firstBlocker.error,
+      error: blockers[0]!.error,
       code: 'resource_in_use',
       details: {
-        dependency: firstBlocker.dependency,
-        remediation: firstBlocker.remediation,
         dependencies: blockers.map(blocker => ({
           ...blocker.dependency,
           remediation: blocker.remediation,

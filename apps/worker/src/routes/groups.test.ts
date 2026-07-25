@@ -256,8 +256,6 @@ describe('groups route helpers', () => {
       error: 'group is referenced by policy group: Parent',
       code: 'resource_in_use',
       details: {
-        dependency: { type: 'policy-group', id: 'custom-parent', name: 'Parent' },
-        remediation: { target: 'groups', id: 'custom-parent' },
         dependencies: [{
           type: 'policy-group',
           id: 'custom-parent',
@@ -291,8 +289,6 @@ describe('groups route helpers', () => {
       error: 'group is included by export profile: Mobile',
       code: 'resource_in_use',
       details: {
-        dependency: { type: 'export-profile', id: 'export-mobile', name: 'Mobile' },
-        remediation: { target: 'export', id: 'export-mobile' },
         dependencies: [
           {
             type: 'export-profile',

@@ -18,8 +18,12 @@ describe('ErrorNotice', () => {
       'resource_in_use',
       'request-1',
       {
-        dependency: { type: 'rule', id: 'rule-1', name: 'Work Rule' },
-        remediation: { target: 'rules', id: 'rule-1' },
+        dependencies: [{
+          type: 'rule',
+          id: 'rule-1',
+          name: 'Work Rule',
+          remediation: { target: 'rules', id: 'rule-1' },
+        }],
       },
     )
 
@@ -47,8 +51,6 @@ describe('ErrorNotice', () => {
       'resource_in_use',
       undefined,
       {
-        dependency: { type: 'export-profile', id: 'export-1', name: 'Mobile' },
-        remediation: { target: 'export', id: 'export-1' },
         dependencies: [
           {
             type: 'export-profile',

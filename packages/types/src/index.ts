@@ -722,8 +722,6 @@ export interface ResourceDependencyDetail extends ResourceDependency {
 }
 
 export interface ApiErrorDetails {
-  dependency?: ResourceDependency;
-  remediation?: CompatibilityWarningRemediation;
   dependencies?: ResourceDependencyDetail[];
 }
 

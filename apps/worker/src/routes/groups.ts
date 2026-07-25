@@ -250,14 +250,11 @@ app.delete('/:id', async (c) => {
 
   const deleteBlockers = await findGroupDeleteBlockers(c.env.DB, id);
   if (deleteBlockers.length > 0) {
-    const firstBlocker = deleteBlockers[0]!;
     return c.json({
       success: false,
-      error: firstBlocker.error,
+      error: deleteBlockers[0]!.error,
       code: 'resource_in_use',
       details: {
-        dependency: firstBlocker.dependency,
-        remediation: firstBlocker.remediation,
         dependencies: deleteBlockers.map(blocker => ({
           ...blocker.dependency,
           remediation: blocker.remediation,
