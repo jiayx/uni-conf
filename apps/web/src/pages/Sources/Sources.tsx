@@ -134,6 +134,7 @@ export function Sources() {
     !formValuesEqual(importForm, initialImportForm)
     || Object.keys(conflictResolutions).length > 0
   )
+  const canAddSources = parseSubscriptionUrls(form.url).length > 0
   const confirmDiscardSourceForm = useUnsavedChangesGuard(sourceFormDirty)
   const confirmDiscardImportForm = useUnsavedChangesGuard(importFormDirty)
   const refreshAttentionMode = searchParams.get('attention') === 'refresh'
@@ -758,7 +759,7 @@ export function Sources() {
         footer={
           <>
             <Button variant="secondary" disabled={formSaving} onClick={() => void closeSourceFormModal('add')}>{t('common.cancel')}</Button>
-            <Button loading={formSaving} onClick={() => void handleAdd()}>{t('sources.save_and_generate')}</Button>
+            <Button loading={formSaving} disabled={!canAddSources} onClick={() => void handleAdd()}>{t('sources.save_and_generate')}</Button>
           </>
         }
       >
@@ -774,6 +775,7 @@ export function Sources() {
             value={form.url}
             onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
             placeholder={t('sources.url_placeholder')}
+            required
           />
         </label>
         <details className={styles.advanced}>

@@ -60,6 +60,24 @@ describe('Sources import flow', () => {
     vi.mocked(api.sources.listImports).mockResolvedValue([])
   })
 
+  it('only enables source creation after detecting a valid subscription URL', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Sources /></MemoryRouter>)
+
+    const addButtons = screen.getAllByRole('button', { name: 'Add URL' })
+    await user.click(addButtons[0]!)
+
+    const input = screen.getByRole('textbox', { name: 'Subscription URL' })
+    const submit = screen.getByRole('button', { name: 'Save and Generate' })
+    expect(submit).toBeDisabled()
+
+    await user.type(input, 'not a subscription')
+    expect(submit).toBeDisabled()
+
+    await user.type(input, '\nhttps://example.com/sub')
+    expect(submit).toBeEnabled()
+  })
+
   it('previews a config before committing the import', async () => {
     vi.mocked(api.sources.previewImport).mockResolvedValue({
       detectedFormat: 'mihomo', nodeCount: 1, excludedCount: 0, sourceGroupCount: 1,

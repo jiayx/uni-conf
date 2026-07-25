@@ -102,6 +102,7 @@ export function Dashboard() {
 
   const hasUsableNodes = (stats?.enabledNodeCount ?? 0) > 0
   const needsSetup = !loading && !hasUsableNodes
+  const canCreateSource = parseSubscriptionUrls(sourceUrl).length > 0
   const quickSubscriptionLinks = buildQuickSubscriptionLinks(
     window.location.origin,
     stats?.defaultExportToken,
@@ -253,8 +254,8 @@ export function Dashboard() {
       <PageHeader title={t('dashboard.title')} description={t('dashboard.description')} />
 
       {error && <div className={styles.error}>{error}</div>}
-      {sourceError && <div className={styles.inlineError}>{sourceError}</div>}
-      {downloadError && <div className={styles.inlineError}>{downloadError}</div>}
+      {sourceError && <div id="dashboard-source-error" className={styles.inlineError} role="alert">{sourceError}</div>}
+      {downloadError && <div className={styles.inlineError} role="alert">{downloadError}</div>}
 
       {stats && <ConfigurationJourney stages={journey} />}
       {attentionItems.length > 0 && (
@@ -262,15 +263,22 @@ export function Dashboard() {
       )}
 
       {/* Stats */}
-      <div className={styles.statsGrid}>
-        {statCards.map(stat => (
-          <Card key={stat.label} className={`${styles.statCard} ${stat.wide ? styles.wide : ''}`}>
-            <div className={styles.statIcon}>{stat.icon}</div>
-            <div className={styles.statValue}>{stat.value}</div>
-            <div className={styles.statLabel}>{stat.label}</div>
-          </Card>
-        ))}
-      </div>
+      {loading ? (
+        <Card className={styles.statsLoading} role="status" aria-live="polite">
+          <span className={styles.loadingIndicator} aria-hidden="true" />
+          {t('common.loading')}
+        </Card>
+      ) : stats ? (
+        <div className={styles.statsGrid}>
+          {statCards.map(stat => (
+            <Card key={stat.label} className={`${styles.statCard} ${stat.wide ? styles.wide : ''}`}>
+              <div className={styles.statIcon}>{stat.icon}</div>
+              <div className={styles.statValue}>{stat.value}</div>
+              <div className={styles.statLabel}>{stat.label}</div>
+            </Card>
+          ))}
+        </div>
+      ) : null}
 
       {stats?.ruleSetHealth && stats.ruleSetHealth.total > 0 && (
         <Card className={styles.ruleSetHealth}>
@@ -335,9 +343,12 @@ export function Dashboard() {
                 value={sourceUrl}
                 onChange={event => setSourceUrl(event.target.value)}
                 placeholder={t('sources.url_placeholder')}
+                required
+                aria-invalid={Boolean(sourceError)}
+                aria-describedby={sourceError ? 'dashboard-source-error' : undefined}
               />
             </label>
-            <Button type="submit" loading={creatingSource}>{t('sources.add_url')}</Button>
+            <Button type="submit" loading={creatingSource} disabled={!canCreateSource}>{t('sources.add_url')}</Button>
           </form>
         </Card>
       )}

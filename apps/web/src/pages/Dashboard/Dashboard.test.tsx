@@ -49,6 +49,21 @@ describe('Dashboard public export state', () => {
     vi.mocked(api.export.readinessFormat).mockResolvedValue(exportResult())
   })
 
+  it('shows a loading state instead of temporary zero statistics', async () => {
+    let resolveStats!: (value: DashboardStats) => void
+    vi.mocked(api.dashboard.stats).mockReturnValue(new Promise(resolve => { resolveStats = resolve }))
+
+    render(<MemoryRouter><Dashboard /></MemoryRouter>)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
+    expect(screen.queryByText('Sources', { exact: true })).not.toBeInTheDocument()
+
+    resolveStats(stats)
+
+    expect(await screen.findByText('Sources', { exact: true })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('does not expose stale quick links while the default profile is paused', async () => {
     render(<MemoryRouter><Dashboard /></MemoryRouter>)
 
@@ -161,6 +176,27 @@ describe('Dashboard public export state', () => {
     expect(screen.getByRole('link', { name: 'Open next step' })).toHaveAttribute('href', '/sources')
     expect(screen.getAllByText('Pending')).toHaveLength(2)
     expect(api.export.readinessFormat).not.toHaveBeenCalled()
+  })
+
+  it('only enables zero-setup source creation after detecting a valid URL', async () => {
+    vi.mocked(api.dashboard.stats).mockResolvedValue({
+      ...stats,
+      sourceCount: 0,
+      nodeCount: 0,
+      enabledNodeCount: 0,
+    })
+    const user = userEvent.setup()
+    render(<MemoryRouter><Dashboard /></MemoryRouter>)
+
+    const input = await screen.findByRole('textbox', { name: 'Subscription URL' })
+    const submit = screen.getByRole('button', { name: 'Add URL' })
+    expect(submit).toBeDisabled()
+
+    await user.type(input, 'not a subscription')
+    expect(submit).toBeDisabled()
+
+    await user.type(input, '\nhttps://example.com/sub')
+    expect(submit).toBeEnabled()
   })
 
   it('blocks quick actions when preview diagnostics prove the export is unusable', async () => {
