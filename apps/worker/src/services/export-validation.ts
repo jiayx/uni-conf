@@ -425,7 +425,7 @@ function validateNodeCompatibility(data: ExportData, format: ExportFormat): Comp
         level: 'partial',
         message: `节点 "${node.name}" 使用的 ${node.protocol} 传输层 ${transport} 无法安全导出到 Loon，导出时会跳过`,
         messageEn: `Node "${node.name}" uses the ${transport} transport for ${node.protocol}, which cannot be safely exported to Loon and will be skipped.`,
-        remediation: { target: 'nodes', id: node.id },
+        remediation: nodeRemediation(node),
       });
       continue;
     }
@@ -441,7 +441,7 @@ function validateNodeCompatibility(data: ExportData, format: ExportFormat): Comp
         level: 'partial',
         message: `节点 "${node.name}" 使用的 ${node.protocol} 传输层 ${transport} 无法安全导出到 Egern，导出时会跳过`,
         messageEn: `Node "${node.name}" uses the ${transport} transport for ${node.protocol}, which cannot be safely exported to Egern and will be skipped.`,
-        remediation: { target: 'nodes', id: node.id },
+        remediation: nodeRemediation(node),
       });
       continue;
     }
@@ -451,7 +451,7 @@ function validateNodeCompatibility(data: ExportData, format: ExportFormat): Comp
       level: 'partial',
       message: `节点 "${node.name}" 使用的协议 ${node.protocol} 暂不支持导出到 ${format}，导出时会跳过`,
       messageEn: `Node "${node.name}" uses protocol ${node.protocol}, which is not currently supported by the ${format} exporter and will be skipped.`,
-      remediation: { target: 'nodes', id: node.id },
+      remediation: nodeRemediation(node),
     });
   }
   return warnings;
@@ -473,10 +473,29 @@ function validateNodeSubscriptionCompatibility(
       level: 'partial',
       message: `节点 "${name}" 使用的协议 ${protocol} 无法转换为订阅 URI，导出时会跳过`,
       messageEn: `Node "${name}" uses protocol ${protocol}, which cannot be converted to a subscription URI and will be skipped.`,
-      remediation: { target: 'nodes', ...(id ? { id } : {}) },
+      remediation: nodeRowRemediation(row, id),
     });
   }
   return warnings;
+}
+
+function nodeRemediation(
+  node: ExportData['nodes'][number]
+): NonNullable<CompatibilityWarning['remediation']> {
+  if (!node.isManual && node.sourceId && node.sourceId !== 'manual') {
+    return { target: 'sources', id: node.sourceId };
+  }
+  return { target: 'nodes', id: node.id };
+}
+
+function nodeRowRemediation(
+  row: Record<string, unknown>,
+  id: string
+): NonNullable<CompatibilityWarning['remediation']> {
+  const sourceId = String(row['source_id'] ?? '');
+  const isManual = Boolean(row['is_manual']) || sourceId === 'manual';
+  if (!isManual && sourceId) return { target: 'sources', id: sourceId };
+  return { target: 'nodes', ...(id ? { id } : {}) };
 }
 
 function supportedNodeNameSet(data: ExportData, format: ExportFormat): Set<string> {

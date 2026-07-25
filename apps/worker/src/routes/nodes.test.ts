@@ -219,6 +219,7 @@ describe('manual node input', () => {
       server: ' hk.example.com ',
       port: '443',
       countryCode: 'hk',
+      enabled: false,
       tags: [' streaming ', 'streaming', ''],
       notes: ' note ',
       rawConfig: { type: 'trojan' },
@@ -231,7 +232,7 @@ describe('manual node input', () => {
       port: 443,
       country: undefined,
       countryCode: 'HK',
-      enabled: undefined,
+      enabled: false,
       tags: ['streaming'],
       notes: 'note',
       rawConfig: { type: 'trojan' },
@@ -310,6 +311,22 @@ describe('manual node input', () => {
     }, { DB: db });
 
     expect(response.status).toBe(200);
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+  });
+
+  it('allows subscription nodes to be disabled without changing their source-owned config', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb(false);
+
+    const response = await nodesApp.request('/node-1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    }, { DB: db });
+    const payload = await response.json() as { success: boolean; data: { enabled: boolean } };
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ success: true, data: { enabled: false } });
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
   });
 
@@ -441,7 +458,7 @@ describe('node listing', () => {
   });
 });
 
-function createManualNodeCreateMockDb(): D1Database {
+function createManualNodeCreateMockDb(isManual = true): D1Database {
   const inserted: Record<string, unknown> = {};
   const updated: Record<string, unknown> = {};
   return {
@@ -460,12 +477,12 @@ function createManualNodeCreateMockDb(): D1Database {
               port: inserted.port ?? 443,
               country: updated.country ?? inserted.country ?? 'Germany',
               country_code: updated.country_code ?? inserted.country_code ?? 'DE',
-              enabled: 1,
+              enabled: updated.enabled ?? 1,
               tags: updated.tags ?? inserted.tags ?? '[]',
               notes: null,
               raw_config: inserted.raw_config ?? '{"password":"password"}',
               parsed_config: updated.parsed_config ?? inserted.parsed_config ?? '{"protocol":"trojan","server":"de.example.com","port":443,"password":"password","extra":{"password":"password"}}',
-              is_manual: 1,
+              is_manual: isManual ? 1 : 0,
               created_at: inserted.created_at ?? '2026-01-01T00:00:00.000Z',
               updated_at: inserted.updated_at ?? '2026-01-01T00:00:00.000Z',
             };
@@ -489,7 +506,9 @@ function createManualNodeCreateMockDb(): D1Database {
             inserted.created_at = args[13];
             inserted.updated_at = args[14];
           }
-          if (sql.includes('UPDATE nodes SET')) {
+          if (sql.includes('UPDATE nodes SET enabled = ?, updated_at = ?')) {
+            updated.enabled = args[0];
+          } else if (sql.includes('UPDATE nodes SET')) {
             updated.name = args[0];
             updated.country = args[4];
             updated.country_code = args[5];

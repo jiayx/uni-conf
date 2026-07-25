@@ -118,13 +118,13 @@ describe('Nodes filters', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Nodes /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Edit' }))[0]!)
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
     expect(screen.getByRole('dialog', { name: 'Edit Manual Node' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(screen.queryByRole('textbox', { name: 'Node URI' })).not.toBeInTheDocument()
 
-    resolveNode(stores.nodes.nodes[0]!)
-    expect(await screen.findByDisplayValue('Hong Kong Premium')).toBeInTheDocument()
+    resolveNode(stores.nodes.nodes[2]!)
+    expect(await screen.findByDisplayValue('Home Relay')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
@@ -133,7 +133,7 @@ describe('Nodes filters', () => {
     const user = userEvent.setup()
     const { unmount } = render(<MemoryRouter><Nodes /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Edit' }))[0]!)
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('detail unavailable')
     expect(screen.getByRole('dialog', { name: 'Edit Manual Node' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
@@ -142,7 +142,7 @@ describe('Nodes filters', () => {
     stores.nodes.updateNode.mockRejectedValueOnce(new Error('save failed'))
     apiMocks.getNode.mockResolvedValueOnce(stores.nodes.nodes[2]!)
     render(<MemoryRouter><Nodes /></MemoryRouter>)
-    await user.click((await screen.findAllByRole('button', { name: 'Edit' }))[2]!)
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
     await screen.findByDisplayValue('Home Relay')
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('save failed')

@@ -311,6 +311,24 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Node not found' }, 404);
 
   const body = await c.req.json<Record<string, unknown>>();
+  if (!existing.is_manual) {
+    if (!isEnabledOnlyNodeUpdate(body)) {
+      return c.json(
+        { success: false, error: 'Subscription nodes can only be enabled or disabled. Edit or refresh the source instead.' },
+        403
+      );
+    }
+    const ts = now();
+    await c.env.DB.prepare('UPDATE nodes SET enabled = ?, updated_at = ? WHERE id = ?')
+      .bind(body.enabled ? 1 : 0, ts, id)
+      .run();
+    await ensureZeroSetupDefaults(c.env.DB, ts);
+    const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
+      .bind(id)
+      .first<Record<string, unknown>>();
+    return c.json({ success: true, data: mapNode(updated!) });
+  }
+
   const validation = validateManualNodeUpdate(body);
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
@@ -479,6 +497,10 @@ type ManualNodeUpdateValidation =
   | { valid: false; error: string };
 
 export function validateManualNodeUpdate(body: Record<string, unknown>): ManualNodeUpdateValidation {
+  if (body.enabled !== undefined && typeof body.enabled !== 'boolean') {
+    return { valid: false, error: 'enabled must be a boolean' };
+  }
+
   const name = body.name !== undefined ? normalizeNonEmptyText(body.name) : undefined;
   if (body.name !== undefined && !name) return { valid: false, error: 'name is required' };
 
@@ -526,12 +548,16 @@ export function validateManualNodeUpdate(body: Record<string, unknown>): ManualN
     port,
     country: body.country !== undefined ? normalizeNullableText(body.country) : undefined,
     countryCode: body.countryCode !== undefined ? normalizeNullableText(body.countryCode)?.toUpperCase() ?? null : undefined,
-    enabled: body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+    enabled: body.enabled,
     tags,
     notes: body.notes !== undefined ? normalizeNullableText(body.notes) : undefined,
     rawConfig,
     parsedConfig,
   };
+}
+
+export function isEnabledOnlyNodeUpdate(body: Record<string, unknown>): body is { enabled: boolean } {
+  return Object.keys(body).length === 1 && typeof body.enabled === 'boolean';
 }
 
 function normalizeNonEmptyText(value: unknown): string | undefined {

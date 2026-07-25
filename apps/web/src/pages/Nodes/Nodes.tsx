@@ -197,7 +197,7 @@ export function Nodes() {
     setShowModal(true)
   }
 
-  useRequestedEdit(nodes, openEdit)
+  useRequestedEdit(nodes.filter(node => node.isManual), openEdit)
 
   const closeFormModal = async () => {
     if (!(await confirmDiscardForm())) return
@@ -438,20 +438,22 @@ export function Nodes() {
                       >
                         {node.enabled ? t('common.disable') : t('common.enable')}
                       </Button>
-                      <Button variant="ghost" size="sm" disabled={rowAction?.id === node.id || detailLoading} onClick={() => void openEdit(node)}>
-                        {t('common.edit')}
-                      </Button>
                       {node.isManual && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          loading={rowAction?.id === node.id && rowAction.type === 'delete'}
-                          disabled={rowAction?.id === node.id}
-                          aria-label={t('nodes.delete_node', { name: node.name })}
-                          onClick={() => void handleDelete(node)}
-                        >
-                          {t('common.delete')}
-                        </Button>
+                        <>
+                          <Button variant="ghost" size="sm" disabled={rowAction?.id === node.id || detailLoading} onClick={() => void openEdit(node)}>
+                            {t('common.edit')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            loading={rowAction?.id === node.id && rowAction.type === 'delete'}
+                            disabled={rowAction?.id === node.id}
+                            aria-label={t('nodes.delete_node', { name: node.name })}
+                            onClick={() => void handleDelete(node)}
+                          >
+                            {t('common.delete')}
+                          </Button>
+                        </>
                       )}
                     </div>
                   </td>

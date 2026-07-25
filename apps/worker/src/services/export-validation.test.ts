@@ -182,6 +182,11 @@ describe('export validation', () => {
       nodes: [
         makeNode('node-ss', 'HK 01'),
         makeNode('node-wg', 'WG 01', { protocol: 'wireguard' }),
+        makeNode('manual-wg', 'Manual WG', {
+          protocol: 'wireguard',
+          sourceId: 'manual',
+          isManual: true,
+        }),
       ],
       groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
       collectionNodeNames: { 'collection-auto': ['HK 01', 'WG 01'] },
@@ -192,6 +197,11 @@ describe('export validation', () => {
         nodeId: 'node-wg',
         level: 'partial',
         message: expect.stringContaining('wireguard'),
+        remediation: { target: 'sources', id: 'source-1' },
+      }),
+      expect.objectContaining({
+        nodeId: 'manual-wg',
+        remediation: { target: 'nodes', id: 'manual-wg' },
       }),
       expect.objectContaining({
         groupId: 'auto',
@@ -645,6 +655,7 @@ describe('export validation', () => {
         nodeId: 'node-ss',
         level: 'partial',
         message: expect.stringContaining('订阅 URI'),
+        remediation: { target: 'sources', id: 'source-1' },
       }),
     ]));
   });
