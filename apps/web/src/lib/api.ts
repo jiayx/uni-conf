@@ -75,12 +75,29 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body != null ? JSON.stringify(body) : undefined,
   })
   if (res.status === 401) throw new UnauthorizedError()
-  const json = (await res.json()) as {
+  let json: {
     success: boolean
     data?: T
     error?: string
     code?: string
     details?: ApiErrorDetails
+  }
+  try {
+    const value: unknown = await res.json()
+    if (
+      !value
+      || typeof value !== 'object'
+      || Array.isArray(value)
+      || typeof (value as { success?: unknown }).success !== 'boolean'
+    ) throw new Error('invalid response')
+    json = value as typeof json
+  } catch {
+    throw new ApiError(
+      'The server returned an invalid response',
+      res.status,
+      res.headers.get('X-UniConf-Error-Code') ?? 'invalid_api_response',
+      res.headers.get('X-Request-Id') ?? undefined,
+    )
   }
   if (!res.ok || !json.success) {
     throw new ApiError(

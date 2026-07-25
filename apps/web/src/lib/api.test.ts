@@ -143,6 +143,25 @@ describe('api client', () => {
     } satisfies Partial<ApiError>)
   })
 
+  it('preserves diagnostics when an API gateway returns a non-JSON response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>Bad gateway</html>', {
+      status: 502,
+      headers: {
+        'content-type': 'text/html',
+        'X-UniConf-Error-Code': 'gateway_failure',
+        'X-Request-Id': 'request-gateway-1',
+      },
+    })))
+
+    await expect(api.dashboard.stats()).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 502,
+      code: 'gateway_failure',
+      requestId: 'request-gateway-1',
+      message: 'The server returned an invalid response',
+    } satisfies Partial<ApiError>)
+  })
+
   it('preserves structured dependency remediation from API errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
       success: false,
