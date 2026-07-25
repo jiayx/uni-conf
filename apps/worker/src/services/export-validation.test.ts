@@ -52,11 +52,11 @@ describe('export validation', () => {
 
   it('blocks downloads for structural readiness errors', () => {
     expect(findBlockingExportWarning(makeExportData({
-      groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
+      groups: [makeGroup('proxy', 'PROXY', ['missing-child'], { isBuiltin: true })],
     }), 'mihomo')).toEqual(expect.objectContaining({
       groupId: 'proxy',
       level: 'unsupported',
-      remediation: { target: 'groups', id: 'proxy' },
+      remediation: { target: 'groups' },
     }));
 
     expect(findBlockingExportWarning(makeExportData({
@@ -65,6 +65,15 @@ describe('export validation', () => {
       level: 'unsupported',
       message: expect.stringContaining('不是可下载的 http(s) 地址'),
       remediation: { target: 'remote-rule-sets', id: 'bad-url' },
+    }));
+  });
+
+  it('opens an editable custom group when its export structure needs repair', () => {
+    expect(findBlockingExportWarning(makeExportData({
+      groups: [makeGroup('custom-proxy', 'Custom Proxy', ['missing-child'])],
+    }), 'mihomo')).toEqual(expect.objectContaining({
+      groupId: 'custom-proxy',
+      remediation: { target: 'groups', id: 'custom-proxy' },
     }));
   });
 

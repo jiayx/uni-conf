@@ -166,7 +166,7 @@ export function Groups() {
     setShowModal(true)
   }
 
-  useRequestedEdit(groups, openEdit)
+  useRequestedEdit(groups.filter(group => !group.isBuiltin), openEdit)
 
   const closeFormModal = async () => {
     if (!(await confirmDiscardForm())) return
@@ -331,7 +331,14 @@ export function Groups() {
             <div className={styles.templateTitle}>{t('groups.template_title')}</div>
             <div className={styles.templateMeta}>{t('groups.template_meta')}</div>
           </div>
-          <Button variant="secondary" onClick={() => void fetchGroups()} loading={savingTemplate}>{t('common.refresh')}</Button>
+          <Button
+            variant="secondary"
+            onClick={() => void fetchGroups()}
+            loading={loading}
+            disabled={savingTemplate || savingPreferenceId !== null || reordering}
+          >
+            {t('common.refresh')}
+          </Button>
         </div>
         <div className={styles.templateGrid}>
           {templateOptions.map(template => (

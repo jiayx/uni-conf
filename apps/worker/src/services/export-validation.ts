@@ -373,7 +373,7 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
         level: 'unsupported',
         message: `策略组 "${group.name}" 引用了不存在或未导出的策略组 ${childId}`,
         messageEn: `Policy group "${group.name}" references a missing or non-exported group ${childId}.`,
-        remediation: { target: 'groups', id: group.id },
+        remediation: groupRemediation(group),
       });
     }
 
@@ -386,7 +386,7 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
           level: 'partial',
           message: `策略组 "${group.name}" 绑定的节点组 ${collectionId} 没有可导出的节点，导出时会回退到 DIRECT`,
           messageEn: `Policy group "${group.name}" uses node group ${collectionId}, but it has no exportable nodes. The export will fall back to DIRECT.`,
-          remediation: { target: 'groups', id: group.id },
+          remediation: groupRemediation(group),
         });
         continue;
       }
@@ -399,12 +399,20 @@ function validateGroups(data: ExportData, format: ExportFormat): CompatibilityWa
           level: 'unsupported',
           message: `策略组 "${group.name}" 引用了不存在或未导出的节点 "${nodeName}"`,
           messageEn: `Policy group "${group.name}" references missing or non-exported node "${nodeName}".`,
-          remediation: { target: 'groups', id: group.id },
+          remediation: groupRemediation(group),
         });
       }
     }
   }
   return warnings;
+}
+
+function groupRemediation(
+  group: ExportData['groups'][number]
+): NonNullable<CompatibilityWarning['remediation']> {
+  return group.isBuiltin
+    ? { target: 'groups' }
+    : { target: 'groups', id: group.id };
 }
 
 function validateNodeCompatibility(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
