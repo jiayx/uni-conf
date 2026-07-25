@@ -456,7 +456,7 @@ export function Sources() {
     setShowEditModal(true)
   }
 
-  useRequestedEdit(sources, handleEdit)
+  useRequestedEdit(sources.filter(source => source.type === 'url'), handleEdit)
 
   const handleUpdate = async () => {
     if (!editingSource) return
@@ -663,25 +663,29 @@ export function Sources() {
                   <div className={styles.cardTitle}>{source.name}</div>
                 </div>
                 <div className={styles.cardActions}>
-                  <Button
-                    variant="ghost" size="sm"
-                    disabled={rowAction?.id === source.id || refreshingId === source.id}
-                    aria-label={t('sources.edit_source', { name: source.name })}
-                    onClick={() => handleEdit(source)}
-                    title={t('common.edit')}
-                  >
-                    <EditIcon />
-                  </Button>
-                  <Button
-                    variant="ghost" size="sm"
-                    loading={refreshingId === source.id}
-                    disabled={rowAction?.id === source.id}
-                    aria-label={t('sources.refresh_source', { name: source.name })}
-                    onClick={() => void handleRefresh(source.id)}
-                    title={t('sources.refresh_now')}
-                  >
-                    <RefreshIcon />
-                  </Button>
+                  {source.type === 'url' && (
+                    <>
+                      <Button
+                        variant="ghost" size="sm"
+                        disabled={rowAction?.id === source.id || refreshingId === source.id}
+                        aria-label={t('sources.edit_source', { name: source.name })}
+                        onClick={() => handleEdit(source)}
+                        title={t('common.edit')}
+                      >
+                        <EditIcon />
+                      </Button>
+                      <Button
+                        variant="ghost" size="sm"
+                        loading={refreshingId === source.id}
+                        disabled={rowAction?.id === source.id}
+                        aria-label={t('sources.refresh_source', { name: source.name })}
+                        onClick={() => void handleRefresh(source.id)}
+                        title={t('sources.refresh_now')}
+                      >
+                        <RefreshIcon />
+                      </Button>
+                    </>
+                  )}
                   <Button
                     variant="ghost" size="sm"
                     loading={rowAction?.id === source.id && rowAction.type === 'delete'}
@@ -698,20 +702,23 @@ export function Sources() {
                   {source.enabled ? t('common.enabled') : t('common.disabled')}
                 </Badge>
                 <Badge variant="info">{source.format.toUpperCase()}</Badge>
+                {source.type !== 'url' && <Badge variant="default">{t('sources.imported_source')}</Badge>}
               </div>
-              <div className={styles.urlRow}>
-                <div className={styles.cardUrl}>
-                  {revealedSourceIds.has(source.id) ? (source.url ?? '') : maskSubscriptionUrl(source.url ?? '')}
+              {source.type === 'url' && (
+                <div className={styles.urlRow}>
+                  <div className={styles.cardUrl}>
+                    {revealedSourceIds.has(source.id) ? (source.url ?? '') : maskSubscriptionUrl(source.url ?? '')}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void toggleSourceUrl(source)}
+                    aria-label={revealedSourceIds.has(source.id) ? t('sources.hide_url') : t('sources.reveal_url')}
+                  >
+                    {revealedSourceIds.has(source.id) ? t('sources.hide_url') : t('sources.reveal_url')}
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void toggleSourceUrl(source)}
-                  aria-label={revealedSourceIds.has(source.id) ? t('sources.hide_url') : t('sources.reveal_url')}
-                >
-                  {revealedSourceIds.has(source.id) ? t('sources.hide_url') : t('sources.reveal_url')}
-                </Button>
-              </div>
+              )}
               <div className={styles.cardStats}>
                 <span>{t('sources.node_count')}: <strong>{source.nodeCount}</strong></span>
                 {source.lastUpdated && (
@@ -740,7 +747,7 @@ export function Sources() {
                   </span>
                 </div>
               )}
-              {(refreshErrors[source.id] || source.lastRefreshError) && (
+              {source.type === 'url' && (refreshErrors[source.id] || source.lastRefreshError) && (
                 <div className={styles.refreshError}>
                   {t('sources.refresh_failed')}: {refreshErrors[source.id] || source.lastRefreshError}
                 </div>

@@ -93,6 +93,7 @@
     "format_shadowrocket": "Shadowrocket",
     "format_quantumultx": "QuantumultX",
     "format_raw": "原始 URI 行",
+    "imported_source": "导入配置",
     "node_count": "节点数量",
     "last_updated": "上次更新",
     "update_interval": "自动更新间隔",

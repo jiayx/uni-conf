@@ -1311,6 +1311,7 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
           if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
             return {
               id: args[0],
+              type: 'url',
               url: 'https://example.com/sub',
               format: 'auto',
               user_agent: null,
@@ -1394,6 +1395,7 @@ function createRefreshUpdateMockDb(): D1Database & { operations: Array<Record<st
           if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
             return {
               id: args[0],
+              type: 'url',
               url: 'https://example.com/sub',
               format: 'auto',
               user_agent: null,
@@ -1482,6 +1484,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
           if (sql.includes('SELECT * FROM sources WHERE id = ?')) {
             return {
               id: args[0],
+              type: 'url',
               url: 'https://example.com/sub',
               format: 'auto',
               user_agent: null,
@@ -1565,8 +1568,8 @@ function createDeleteMockDb(hasSource: boolean): D1Database & { operations: Arra
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
         first: async () => {
-          if (sql.includes('SELECT id FROM sources WHERE id = ?')) {
-            return hasSource ? { id: args[0] } : null
+          if (sql.includes('FROM sources WHERE id = ?')) {
+            return hasSource ? { id: args[0], type: 'url' } : null
           }
           return null
         },

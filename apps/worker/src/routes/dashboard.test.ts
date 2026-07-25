@@ -33,6 +33,9 @@ describe('dashboard rule-set health stats', () => {
     expect(healthBind).toHaveBeenCalledWith(
       expect.any(String), expect.any(String), expect.any(String), expect.any(String)
     )
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining("FROM sources WHERE type <> 'manual'"))
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining("FROM sources WHERE type = 'url' AND last_refresh_error"))
+    expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining("FROM sources WHERE type = 'url'"))
     await expect(response.json()).resolves.toMatchObject({
       success: true,
       data: {

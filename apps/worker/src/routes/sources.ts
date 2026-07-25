@@ -42,7 +42,9 @@ app.get('/', async (c) => {
       update_interval, user_agent, notes, tags, source_groups,
       upload_bytes, download_bytes, total_bytes, expire_time,
       created_at, updated_at
-     FROM sources ORDER BY created_at DESC`
+     FROM sources
+     WHERE type <> 'manual'
+     ORDER BY created_at DESC`
   ).all();
   const sources = (results as Record<string, unknown>[]).map(mapSource);
   return c.json({ success: true, data: sources });
@@ -70,6 +72,9 @@ app.post('/', async (c) => {
   }
   if (!isValidSourceType(sourceType)) {
     return c.json({ success: false, error: 'invalid source type' }, 400);
+  }
+  if (sourceType !== 'url') {
+    return c.json({ success: false, error: 'subscription source creation only accepts URL sources' }, 400);
   }
   const format = body.format ?? 'auto';
   if (!isValidSourceFormat(format)) {
@@ -549,10 +554,16 @@ app.put('/:id', async (c) => {
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Source not found' }, 404);
+  if (existing.type === 'manual') {
+    return c.json({ success: false, error: 'The manual node source is managed internally' }, 403);
+  }
 
   const body = await c.req.json<Record<string, unknown>>();
+  if (body.type !== undefined) {
+    return c.json({ success: false, error: 'source type cannot be changed' }, 400);
+  }
   const ts = now();
-  const nextType = body.type !== undefined ? String(body.type) : String(existing.type);
+  const nextType = String(existing.type);
   const nextUrl = body.url !== undefined ? normalizeHttpUrl(body.url) ?? String(body.url ?? '').trim() : String(existing.url ?? '');
   const nextFormat = body.format !== undefined ? String(body.format) : String(existing.format ?? 'auto');
 
@@ -610,17 +621,24 @@ app.put('/:id', async (c) => {
 
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
+  const existing = await c.env.DB.prepare('SELECT type FROM sources WHERE id = ?')
+    .bind(id)
+    .first<{ type: SourceType }>();
+  if (!existing) return c.json({ success: false, error: 'Source not found' }, 404);
+  if (existing.type === 'manual') {
+    return c.json({ success: false, error: 'The manual node source is managed internally' }, 403);
+  }
   const deleted = await deleteSourceById(c.env.DB, id);
-  if (!deleted) return c.json({ success: false, error: 'Source not found' }, 404);
+  if (!deleted) return c.json({ success: false, error: 'Source could not be deleted' }, 409);
   return c.json({ success: true, data: { id } });
 });
 
 export async function deleteSourceById(db: D1Database, id: string, ts = now()): Promise<boolean> {
-  const existing = await db.prepare('SELECT id FROM sources WHERE id = ?')
+  const existing = await db.prepare('SELECT id, type FROM sources WHERE id = ?')
     .bind(id)
-    .first();
+    .first<{ id: string; type: SourceType }>();
 
-  if (!existing) return false;
+  if (!existing || existing.type === 'manual') return false;
 
   const marker = structuredImportMarker(id);
   const { results: importRunRows } = await db.prepare(
@@ -783,7 +801,9 @@ app.post('/:id/refresh', async (c) => {
     return c.json({ success: true, data: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : `Failed to fetch URL: ${String(err)}`;
-    await recordSourceRefreshError(c.env.DB, id, message);
+    if (!(err instanceof SourceRefreshError) || err.status >= 422) {
+      await recordSourceRefreshError(c.env.DB, id, message);
+    }
     await ensureZeroSetupDefaults(c.env.DB, ts);
     if (err instanceof SourceRefreshError) {
       return c.json({ success: false, error: err.message }, err.status);
@@ -810,6 +830,9 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     .first<Record<string, unknown>>();
 
   if (!row) throw new SourceRefreshError('Source not found', 404);
+  if (row.type !== 'url') {
+    throw new SourceRefreshError('Only URL subscription sources can be refreshed', 400);
+  }
   if (!row.url) throw new SourceRefreshError('Source has no URL to fetch', 400);
 
   // Use mainstream client User-Agent to avoid 502 errors from airport servers

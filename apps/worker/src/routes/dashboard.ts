@@ -21,15 +21,15 @@ app.get('/stats', async (c) => {
     lastRefresh,
     ruleSetHealth,
   ] = await Promise.all([
-    count(c.env.DB, 'sources'),
-    count(c.env.DB, 'sources', "last_refresh_error IS NOT NULL AND TRIM(last_refresh_error) <> ''"),
+    count(c.env.DB, 'sources', "type <> 'manual'"),
+    count(c.env.DB, 'sources', "type = 'url' AND last_refresh_error IS NOT NULL AND TRIM(last_refresh_error) <> ''"),
     count(c.env.DB, 'nodes'),
     countEnabledExportNodes(c.env.DB),
     count(c.env.DB, 'collections'),
     count(c.env.DB, 'groups'),
     count(c.env.DB, 'rules'),
     count(c.env.DB, 'export_configs'),
-    c.env.DB.prepare('SELECT MAX(last_updated) as last_refreshed_at FROM sources')
+    c.env.DB.prepare("SELECT MAX(last_updated) as last_refreshed_at FROM sources WHERE type = 'url'")
       .first<{ last_refreshed_at: string | null }>(),
     c.env.DB.prepare(
       `SELECT

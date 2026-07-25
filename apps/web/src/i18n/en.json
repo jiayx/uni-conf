@@ -93,6 +93,7 @@
     "format_shadowrocket": "Shadowrocket",
     "format_quantumultx": "QuantumultX",
     "format_raw": "Raw URI lines",
+    "imported_source": "Imported config",
     "node_count": "Node Count",
     "last_updated": "Last Updated",
     "update_interval": "Auto Update Interval",

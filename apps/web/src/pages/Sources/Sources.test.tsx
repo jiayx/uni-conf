@@ -143,6 +143,22 @@ describe('Sources import flow', () => {
     expect(store.updateSource).toHaveBeenCalledWith('source-1', { enabled: false })
   })
 
+  it('presents an imported config as a managed local source', async () => {
+    store.sources = [{
+      ...makeSource(),
+      id: 'imported-1',
+      name: 'Imported Profile',
+      type: 'clipboard',
+      url: undefined,
+      format: 'mihomo',
+    }]
+    render(<MemoryRouter><Sources /></MemoryRouter>)
+
+    expect(await screen.findByText('Imported Profile')).toBeInTheDocument()
+    expect(screen.getByText('Imported config')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Imported Profile' })).toBeInTheDocument()
+  })
+
   it('opens a URL-addressable refresh-failure view and can return to all sources', async () => {
     store.sources = [
       makeSource(),
