@@ -114,7 +114,7 @@ sing-box export:
 
 - If `raw_config.singbox` exists, emit it after applying the current node tag.
 - If `raw_config` itself is a sing-box outbound object (`type`, `server`, `server_port`), emit that native object after applying the current node tag, server, and server port.
-- WireGuard is rebuilt as a top-level 1.13 endpoint from the shared normalized fields; it never enters the outbound-native path.
+- WireGuard is emitted as a top-level 1.13 endpoint and never enters the outbound-native path. A current native endpoint keeps all peers and endpoint-only options; the current node identity and normalized primary-peer fields override the imported tag, first peer, local address, and private key.
 - Else convert from `raw_config.mihomo` using explicit protocol adapters.
 - Else fall back to `normalized` only for simple protocols.
 

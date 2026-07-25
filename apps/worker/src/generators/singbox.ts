@@ -2,6 +2,7 @@ import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@
 import {
   DEFAULT_HEALTH_CHECK,
   isRuleSetFormatCompatible,
+  parseSingboxWireGuardEndpoint,
   parseRulePortPayload,
   resolveRuleForExport,
 } from '@uni-conf/shared';
@@ -406,6 +407,27 @@ function nodeToSingbox(node: ProxyNode): object | null {
 function nodeToWireGuardEndpoint(node: ProxyNode): object {
   const cfg = node.parsedConfig;
   const extra = cfg.extra ?? {};
+  const nativeEndpoint = parseSingboxWireGuardEndpoint(nativeObject(node.rawConfig, 'singboxEndpoint'));
+  if (nativeEndpoint) {
+    const rawPeers = nativeEndpoint.rawConfig.peers as Record<string, unknown>[];
+    const primaryPeer = { ...rawPeers[0] };
+    primaryPeer.address = node.server;
+    primaryPeer.port = node.port;
+    if (extra.publicKey !== undefined) primaryPeer.public_key = String(extra.publicKey);
+    if (extra.presharedKey !== undefined) primaryPeer.pre_shared_key = String(extra.presharedKey);
+    if (extra.reserved !== undefined) primaryPeer.reserved = extra.reserved;
+    const allowedIps = configStringArray(extra.allowedIPs ?? extra.allowedIps ?? extra.allowed_ips);
+    if (allowedIps.length > 0) primaryPeer.allowed_ips = allowedIps;
+
+    return {
+      ...nativeEndpoint.rawConfig,
+      tag: node.name,
+      address: wireguardLocalAddress(extra.ip ?? extra.address ?? nativeEndpoint.rawConfig.address),
+      private_key: String(extra.privateKey ?? nativeEndpoint.rawConfig.private_key ?? ''),
+      peers: [primaryPeer, ...rawPeers.slice(1).map(peer => ({ ...peer }))],
+    };
+  }
+
   const peer: Record<string, unknown> = {
     address: node.server,
     port: node.port,

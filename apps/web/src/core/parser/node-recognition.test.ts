@@ -110,6 +110,11 @@ describe('frontend parser node recognition', () => {
           public_key: 'peer-key',
           pre_shared_key: 'psk',
           allowed_ips: ['0.0.0.0/0', '::/0'],
+        }, {
+          address: 'backup-wg.example.com',
+          port: 51821,
+          public_key: 'backup-peer-key',
+          allowed_ips: ['10.0.0.0/8'],
         }],
       }],
     }), 'source-1')
@@ -127,6 +132,12 @@ describe('frontend parser node recognition', () => {
             presharedKey: 'psk',
             address: ['172.16.0.2/32'],
           }),
+        }),
+        rawConfig: expect.objectContaining({
+          peers: [
+            expect.objectContaining({ address: 'wg.example.com' }),
+            expect.objectContaining({ address: 'backup-wg.example.com' }),
+          ],
         }),
       }),
     ])

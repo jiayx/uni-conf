@@ -64,6 +64,44 @@ const wireguardNode: ProxyNode = {
   },
 }
 
+const nativeWireGuardEndpointNode: ProxyNode = {
+  ...wireguardNode,
+  id: 'node-native-wireguard-endpoint',
+  name: 'Renamed WireGuard',
+  server: 'primary-current.example.com',
+  port: 51822,
+  rawConfig: {
+    type: 'wireguard',
+    tag: 'Original WireGuard',
+    address: ['172.16.0.2/32'],
+    private_key: 'imported-private-key',
+    mtu: 1380,
+    peers: [{
+      address: 'primary-imported.example.com',
+      port: 51820,
+      public_key: 'imported-primary-key',
+      allowed_ips: ['0.0.0.0/0'],
+      persistent_keepalive_interval: 30,
+    }, {
+      address: 'backup.example.com',
+      port: 51821,
+      public_key: 'backup-key',
+      allowed_ips: ['10.0.0.0/8'],
+    }],
+  },
+  parsedConfig: {
+    protocol: 'wireguard',
+    server: 'primary-current.example.com',
+    port: 51822,
+    extra: {
+      privateKey: 'current-private-key',
+      publicKey: 'current-primary-key',
+      address: ['172.16.0.3/32'],
+      allowedIPs: ['0.0.0.0/0', '::/0'],
+    },
+  },
+}
+
 const anytlsNode: ProxyNode = {
   ...ssNode,
   id: 'node-anytls',
@@ -649,6 +687,32 @@ describe('proxy group references', () => {
       }),
     ])
     expect(singbox.outbounds.some(item => item.type === 'wireguard')).toBe(false)
+  })
+
+  it('preserves current native WireGuard endpoint peers while applying editable primary fields', () => {
+    const singbox = JSON.parse(generateSingboxJson([nativeWireGuardEndpointNode], [], [], [])) as {
+      endpoints: Array<Record<string, unknown>>;
+    }
+
+    expect(singbox.endpoints).toEqual([{
+      type: 'wireguard',
+      tag: 'Renamed WireGuard',
+      address: ['172.16.0.3/32'],
+      private_key: 'current-private-key',
+      mtu: 1380,
+      peers: [{
+        address: 'primary-current.example.com',
+        port: 51822,
+        public_key: 'current-primary-key',
+        allowed_ips: ['0.0.0.0/0', '::/0'],
+        persistent_keepalive_interval: 30,
+      }, {
+        address: 'backup.example.com',
+        port: 51821,
+        public_key: 'backup-key',
+        allowed_ips: ['10.0.0.0/8'],
+      }],
+    }])
   })
 
   it('prefers native Mihomo node config while applying current identity fields', () => {

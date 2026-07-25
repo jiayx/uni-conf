@@ -95,6 +95,60 @@ describe('renderExportData', () => {
     }
   })
 
+  it('keeps imported multi-peer WireGuard endpoints valid against the stable sing-box schema', () => {
+    const data = makeExportData('wireguard')
+    data.nodes[0] = {
+      ...data.nodes[0]!,
+      name: 'Current WireGuard',
+      server: 'primary-current.example.com',
+      port: 51822,
+      rawConfig: {
+        type: 'wireguard',
+        tag: 'Imported WireGuard',
+        address: ['10.0.0.2/32'],
+        private_key: 'imported-private-key',
+        peers: [
+          {
+            address: 'primary-imported.example.com',
+            port: 51820,
+            public_key: 'imported-primary-key',
+            allowed_ips: ['0.0.0.0/0'],
+          },
+          {
+            address: 'backup.example.com',
+            port: 51821,
+            public_key: 'backup-key',
+            allowed_ips: ['10.0.0.0/8'],
+          },
+        ],
+      },
+      parsedConfig: {
+        protocol: 'wireguard',
+        server: 'primary-current.example.com',
+        port: 51822,
+        extra: {
+          privateKey: 'current-private-key',
+          publicKey: 'current-primary-key',
+          address: ['10.0.0.3/32'],
+          allowedIPs: ['0.0.0.0/0', '::/0'],
+        },
+      },
+    }
+
+    const rendered = renderExportData(data, 'singbox')
+    const parsed = JSON.parse(rendered?.content ?? '{}') as {
+      endpoints?: Array<{ peers?: Array<{ address?: string }> }>;
+    }
+    expect(
+      validateSingboxSchema(parsed),
+      JSON.stringify(validateSingboxSchema.errors),
+    ).toBe(true)
+    expect(parsed.endpoints?.[0]?.peers).toEqual([
+      expect.objectContaining({ address: 'primary-current.example.com' }),
+      expect.objectContaining({ address: 'backup.example.com' }),
+    ])
+  })
+
   it('matches the stable sing-box 1.13 schema for source and process rule fields', () => {
     const data = makeExportData()
     const rules: Array<[ProxyRule['type'], string]> = [

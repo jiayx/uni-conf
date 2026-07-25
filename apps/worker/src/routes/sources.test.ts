@@ -263,6 +263,11 @@ rule-providers:
           pre_shared_key: 'psk',
           allowed_ips: ['0.0.0.0/0', '::/0'],
           reserved: [1, 2, 3],
+        }, {
+          address: 'backup-wg.example.com',
+          port: 51821,
+          public_key: 'backup-peer-key',
+          allowed_ips: ['10.0.0.0/8'],
         }],
       }],
       outbounds: [{ type: 'selector', tag: 'PROXY', outbounds: ['US WireGuard'] }],
@@ -287,6 +292,12 @@ rule-providers:
             allowedIPs: ['0.0.0.0/0', '::/0'],
             reserved: [1, 2, 3],
           },
+        },
+        rawConfig: {
+          peers: [
+            expect.objectContaining({ address: 'wg.example.com' }),
+            expect.objectContaining({ address: 'backup-wg.example.com' }),
+          ],
         },
       }],
     })

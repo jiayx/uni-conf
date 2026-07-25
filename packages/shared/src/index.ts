@@ -520,7 +520,7 @@ export interface ParsedSingboxWireGuardEndpoint {
 }
 
 export function parseSingboxWireGuardEndpoint(value: unknown): ParsedSingboxWireGuardEndpoint | null {
-  if (!isRecordValue(value) || value.type !== 'wireguard' || !Array.isArray(value.peers) || value.peers.length !== 1) {
+  if (!isRecordValue(value) || value.type !== 'wireguard' || !Array.isArray(value.peers) || value.peers.length === 0) {
     return null;
   }
   const peer = value.peers[0];
