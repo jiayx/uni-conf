@@ -285,6 +285,8 @@
     "auto_generate_title": "自动生成节点组",
     "include_flag": "名称包含旗帜 Emoji",
     "recognized_countries": "可识别国家/地区",
+    "select_all_countries": "全选",
+    "clear_all_countries": "取消全选",
     "no_recognized_countries": "当前没有可按国家/地区识别的节点",
     "recognized_tag_pools": "可识别标签节点池",
     "no_recognized_tag_pools": "当前没有可按流媒体、解锁、家宽或原生标签识别的节点",

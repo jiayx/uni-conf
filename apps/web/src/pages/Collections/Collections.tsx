@@ -20,6 +20,7 @@ import {
   buildAutoNodeGroupKeysForSuggestions,
   buildAutoNodeTagSuggestions,
   parseAutoNodeGroupKey,
+  toggleAllAutoNodeGroupScopes,
   type AutoNodeGroupMarker,
 } from '@/core/collections/auto-node-settings'
 import {
@@ -277,6 +278,8 @@ export function Collections() {
     [sources]
   )
   const countrySuggestions = useMemo(() => buildCountrySuggestions(nodes), [nodes])
+  const allRecognizedCountriesSelected = countrySuggestions.length > 0
+    && countrySuggestions.every(item => selectedAutoCountries.has(item.countryCode))
   const tagSuggestions = useMemo(() => buildAutoNodeTagSuggestions(nodes), [nodes])
   const sourceGroupSuggestions = useMemo(
     () => buildSourceGroupSuggestions(sources, nodes, collections),
@@ -779,7 +782,23 @@ export function Collections() {
             )}
           </div>
           <div className={styles.autoSection}>
-            <div className={styles.sectionHeader}>{t('collections.recognized_countries')}</div>
+            <div className={styles.sectionHeader}>
+              <span>{t('collections.recognized_countries')}</span>
+              {countrySuggestions.length > 0 && (
+                <button
+                  type="button"
+                  className={styles.clearButton}
+                  onClick={() => setSelectedAutoCountries(current => toggleAllAutoNodeGroupScopes(
+                    current,
+                    countrySuggestions.map(item => item.countryCode),
+                  ))}
+                >
+                  {allRecognizedCountriesSelected
+                    ? t('collections.clear_all_countries')
+                    : t('collections.select_all_countries')}
+                </button>
+              )}
+            </div>
             {countrySuggestions.length === 0 ? (
               <div className={styles.inlineEmpty}>{t('collections.no_recognized_countries')}</div>
             ) : (

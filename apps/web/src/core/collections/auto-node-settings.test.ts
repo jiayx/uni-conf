@@ -6,6 +6,7 @@ import {
   buildAutoNodeTagSuggestions,
   parseAutoNodeGroupKey,
   normalizeAutoNodeGroupTypeSelection,
+  toggleAllAutoNodeGroupScopes,
   toggleAutoNodeGroupTypeSelection,
 } from './auto-node-settings'
 import type { ProxyNode } from '@uni-conf/types'
@@ -90,6 +91,11 @@ describe('auto node group settings helpers', () => {
       'tag:streaming:url-test',
       'tag:native:url-test',
     ])
+  })
+
+  it('selects or clears every visible country without changing hidden selections', () => {
+    expect([...toggleAllAutoNodeGroupScopes(['TW'], ['US', 'HK'])]).toEqual(['TW', 'US', 'HK'])
+    expect([...toggleAllAutoNodeGroupScopes(['TW', 'US', 'HK'], ['US', 'HK'])]).toEqual(['TW'])
   })
 })
 

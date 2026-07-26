@@ -109,3 +109,17 @@ export function buildAutoNodeGroupKeysForSuggestions({
   }
   return keys
 }
+
+export function toggleAllAutoNodeGroupScopes(
+  current: Iterable<string>,
+  visible: Iterable<string>,
+): Set<string> {
+  const next = new Set(current)
+  const visibleValues = [...visible]
+  const allVisibleSelected = visibleValues.length > 0 && visibleValues.every(value => next.has(value))
+  for (const value of visibleValues) {
+    if (allVisibleSelected) next.delete(value)
+    else next.add(value)
+  }
+  return next
+}

@@ -285,6 +285,8 @@
     "auto_generate_title": "Auto Generate Node Groups",
     "include_flag": "Include flag emoji in names",
     "recognized_countries": "Recognized Countries/Regions",
+    "select_all_countries": "Select all",
+    "clear_all_countries": "Clear all",
     "no_recognized_countries": "No nodes can currently be recognized by country/region",
     "recognized_tag_pools": "Recognized Tag Pools",
     "no_recognized_tag_pools": "No nodes can currently be recognized by streaming, unlock, residential, or native tags",
