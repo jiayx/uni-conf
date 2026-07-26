@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import worker, { redactLogPath } from './index'
 import { refreshDueSources } from './services/source-auto-refresh'
-import { validatePendingRuleSetSources } from './services/remote-rule-set-health'
 import type { Env } from './types'
 
 vi.mock('./services/source-auto-refresh', () => ({
@@ -15,11 +14,6 @@ vi.mock('./services/source-auto-refresh', () => ({
   })),
 }))
 
-vi.mock('./services/remote-rule-set-health', () => ({
-  SCHEDULED_PENDING_HEALTH_BATCH_LIMIT: 2,
-  validatePendingRuleSetSources: vi.fn(async () => ({ results: [], checkedCount: 1, remainingCount: 0 })),
-}))
-
 describe('worker entrypoint', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -31,28 +25,6 @@ describe('worker entrypoint', () => {
     await worker.scheduled?.({} as ScheduledController, env)
 
     expect(refreshDueSources).toHaveBeenCalledWith(env.DB)
-    expect(validatePendingRuleSetSources).toHaveBeenCalledWith(env.DB, 2)
-  })
-
-  it('skips scheduled rule-set health checks when automatic refresh is disabled', async () => {
-    vi.mocked(refreshDueSources).mockResolvedValueOnce({
-      checkedCount: 0, refreshedCount: 0, failedCount: 0, skipped: true,
-      refreshedSourceIds: [], errors: [],
-    })
-    const env = { DB: {} as D1Database } as Env
-
-    await worker.scheduled?.({} as ScheduledController, env)
-
-    expect(validatePendingRuleSetSources).not.toHaveBeenCalled()
-  })
-
-  it('does not fail the scheduled event when rule-set health refresh fails', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    vi.mocked(validatePendingRuleSetSources).mockRejectedValueOnce(new Error('D1 health snapshot unavailable'))
-    const env = { DB: {} as D1Database } as Env
-
-    await expect(worker.scheduled?.({} as ScheduledController, env)).resolves.toBeUndefined()
-    consoleSpy.mockRestore()
   })
 
   it('redacts subscription tokens from structured request logs', () => {

@@ -24,7 +24,6 @@ const LINKED_GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'f
 // ─── List collections ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM collections ORDER BY created_at DESC'
@@ -147,7 +146,6 @@ app.post('/with-group', async (c) => {
 // ─── Get collection ───────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(c.req.param('id'))
@@ -392,7 +390,6 @@ app.delete('/:id', async (c) => {
 // ─── Preview filtered nodes for collection ────────────────────────────────────
 
 app.get('/:id/preview', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const id = c.req.param('id');
   const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')

@@ -403,9 +403,8 @@ export function Sources() {
     }
   }
 
-  const toggleSourceUrl = async (source: ProxySource) => {
+  const toggleSourceUrl = (source: ProxySource) => {
     const isRevealed = revealedSourceIds.has(source.id)
-    if (!isRevealed && !(await confirmAction({ description: t('sources.reveal_url_confirm') }))) return
     setRevealedSourceIds(current => {
       const next = new Set(current)
       if (isRevealed) next.delete(source.id)
@@ -712,7 +711,7 @@ export function Sources() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => void toggleSourceUrl(source)}
+                    onClick={() => toggleSourceUrl(source)}
                     aria-label={revealedSourceIds.has(source.id) ? t('sources.hide_url') : t('sources.reveal_url')}
                   >
                     {revealedSourceIds.has(source.id) ? t('sources.hide_url') : t('sources.reveal_url')}

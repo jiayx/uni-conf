@@ -1,53 +1,17 @@
 import type {
   RemoteRuleSet,
-  RemoteRuleSetPendingHealthBatchResult,
   RemoteRuleSetSourceHealthResult,
   RemoteRuleSetSourceHealthSnapshot,
   RemoteRuleSetSourceOverrideTarget,
   RuleSetFormat,
 } from '@uni-conf/types'
-import { mapRemoteRuleSet } from '../db/helpers'
 import { mapWithConcurrency } from './async-pool'
 import { validateRemoteRuleSetContent } from './remote-rule-set-validation'
-
-export const DEFAULT_PENDING_HEALTH_BATCH_LIMIT = 5
-export const SCHEDULED_PENDING_HEALTH_BATCH_LIMIT = 2
 
 interface RemoteRuleSetSourceHealthRow {
   remote_rule_set_id: string
   expires_at: string
   result: string
-}
-
-export async function validatePendingRuleSetSources(
-  db: D1Database,
-  limit = DEFAULT_PENDING_HEALTH_BATCH_LIMIT,
-): Promise<RemoteRuleSetPendingHealthBatchResult> {
-  const [{ results: rows }, healthByRuleSetId] = await Promise.all([
-    db.prepare(
-      'SELECT * FROM remote_rule_sets WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC'
-    ).all<Record<string, unknown>>(),
-    listSourceHealthSnapshots(db),
-  ])
-  const candidates = rows
-    .map(mapRemoteRuleSet)
-    .filter(ruleSet => {
-      const health = healthByRuleSetId.get(ruleSet.id)
-      return !health || health.stale
-    })
-  const selected = candidates.slice(0, Math.max(0, Math.floor(limit)))
-  const results = []
-  for (const ruleSet of selected) {
-    results.push({
-      ruleSetId: ruleSet.id,
-      health: await validateAndPersistRuleSetSources(db, ruleSet),
-    })
-  }
-  return {
-    results,
-    checkedCount: results.length,
-    remainingCount: candidates.length - results.length,
-  }
 }
 
 export async function validateAndPersistRuleSetSources(

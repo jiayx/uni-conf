@@ -6,7 +6,6 @@ import {
   findEmptyNodeExportWarning,
   resolveExportWarnings,
   validateExportData,
-  validateRemoteRuleSetReachability,
 } from './export-validation';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
@@ -314,7 +313,7 @@ describe('export validation', () => {
     }));
   });
 
-  it('reports value-dependent rule conversions and unsupported values per client', () => {
+  it('reports only lossy or unsupported value-dependent rule handling', () => {
     const group = makeGroup('proxy', 'PROXY');
     const protocolTcp = makeRule('protocol-tcp', group.id, 'PROTOCOL', 'tcp', 1);
     const protocolHttp = makeRule('protocol-http', group.id, 'PROTOCOL', 'http', 2);
@@ -329,33 +328,15 @@ describe('export validation', () => {
     });
 
     const mihomoWarnings = validateExportData(data, 'mihomo');
-    expect(mihomoWarnings).toContainEqual(expect.objectContaining({
+    expect(mihomoWarnings).not.toContainEqual(expect.objectContaining({
       code: 'rule-converted',
-      ruleId: protocolTcp.id,
-      level: 'convert',
-      messageEn: expect.stringContaining('NETWORK,tcp'),
-      transformation: expect.objectContaining({
-        resource: 'rule',
-        action: 'convert',
-        source: 'PROTOCOL,tcp',
-        target: 'NETWORK,tcp',
-      }),
     }));
 
     const quantumultxWarnings = validateExportData(makeExportData({
       groups: [group],
       rules: [makeRule('domain-suffix', group.id, 'DOMAIN-SUFFIX', 'example.com')],
     }), 'quantumultx');
-    expect(quantumultxWarnings).toContainEqual(expect.objectContaining({
-      code: 'rule-converted',
-      ruleId: 'domain-suffix',
-      level: 'convert',
-      transformation: expect.objectContaining({
-        action: 'convert',
-        source: 'DOMAIN-SUFFIX,example.com',
-        target: 'HOST-SUFFIX,example.com',
-      }),
-    }));
+    expect(quantumultxWarnings).toEqual([]);
     expect(mihomoWarnings).toContainEqual(expect.objectContaining({
       code: 'rule-unsupported',
       ruleId: protocolHttp.id,
@@ -382,10 +363,8 @@ describe('export validation', () => {
     }));
 
     const singboxWarnings = validateExportData(data, 'singbox');
-    expect(singboxWarnings).toContainEqual(expect.objectContaining({
-      ruleId: protocolTcp.id,
-      level: 'convert',
-      messageEn: expect.stringContaining('NETWORK,tcp'),
+    expect(singboxWarnings).not.toContainEqual(expect.objectContaining({
+      code: 'rule-converted',
     }));
     expect(singboxWarnings).not.toContainEqual(expect.objectContaining({
       ruleId: networkIcmp.id,
@@ -464,7 +443,7 @@ describe('export validation', () => {
     ]));
   });
 
-  it('warns when MATCH is not the final rule', () => {
+  it('silently normalizes MATCH to the final position', () => {
     const warnings = validateExportData(makeExportData({
       rules: [
         makeRule('match', 'proxy', 'MATCH', '', 0),
@@ -472,11 +451,7 @@ describe('export validation', () => {
       ],
     }), 'mihomo');
 
-    expect(warnings).toContainEqual(expect.objectContaining({
-      ruleId: 'match',
-      level: 'partial',
-      message: expect.stringContaining('MATCH 规则不是最后一条'),
-    }));
+    expect(warnings).toEqual([]);
   });
 
   it('warns when a rule type is unsupported by the export format', () => {
@@ -669,15 +644,12 @@ describe('export validation', () => {
     ]));
   });
 
-  it('reports when a remote rule set will be converted for the export format', () => {
+  it('does not report an exact remote rule set conversion as a warning', () => {
     const warnings = validateExportData(makeExportData({
       remoteSets: [makeRemoteSet('singbox-remote', 'proxy', { format: 'singbox' })],
     }), 'mihomo');
 
-    expect(warnings).toContainEqual(expect.objectContaining({
-      level: 'convert',
-      message: expect.stringContaining('自动转换为 mihomo'),
-    }));
+    expect(warnings).toEqual([]);
   });
 
   it('does not warn when a dynamic Quixotic preset resolves to a compatible export format', () => {
@@ -703,274 +675,6 @@ describe('export validation', () => {
       level: 'unsupported',
       message: expect.stringContaining('不是可下载的 http(s) 地址'),
     }));
-  });
-
-  it('checks whether compatible remote rule sets can be downloaded', async () => {
-    const fetcher = async () => new Response('', { status: 404 });
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
-    }), 'mihomo', { fetcher });
-
-    expect(warnings).toContainEqual(expect.objectContaining({
-      level: 'partial',
-      message: expect.stringContaining('Ads'),
-      messageEn: expect.stringContaining('cannot be downloaded'),
-    }));
-  });
-
-  it('retries a transient network failure before warning', async () => {
-    let fetchCount = 0;
-    const fetcher = async () => {
-      fetchCount++;
-      if (fetchCount === 1) throw new TypeError('fetch failed');
-      return new Response('', { status: 200 });
-    };
-
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
-    }), 'mihomo', { fetcher });
-
-    expect(fetchCount).toBe(2);
-    expect(warnings).toEqual([]);
-  });
-
-  it('reports a timeout separately after retrying it once', async () => {
-    let fetchCount = 0;
-    const fetcher = async () => {
-      fetchCount++;
-      const error = new Error('aborted');
-      error.name = 'AbortError';
-      throw error;
-    };
-
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
-    }), 'mihomo', { fetcher });
-
-    expect(fetchCount).toBe(2);
-    expect(warnings).toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('请求超时'),
-      messageEn: expect.stringContaining('request timed out'),
-    }));
-  });
-
-  it('falls back to ranged GET when a remote rule set host does not support HEAD', async () => {
-    const calls: Array<{ url: string; method?: string; range?: string | null }> = [];
-    const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
-      calls.push({
-        url: String(url),
-        method: init?.method,
-        range: init?.headers instanceof Headers
-          ? init.headers.get('Range')
-          : (init?.headers as Record<string, string> | undefined)?.Range ?? null,
-      });
-      return new Response('', { status: init?.method === 'HEAD' ? 405 : 206 });
-    };
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
-    }), 'mihomo', { fetcher });
-
-    expect(warnings).toEqual([]);
-    expect(calls).toEqual([
-      { url: 'https://example.com/remote.list', method: 'HEAD', range: null },
-      { url: 'https://example.com/remote.list', method: 'GET', range: 'bytes=0-0' },
-    ]);
-  });
-
-  it('bounds concurrent reachability checks while preserving warning order', async () => {
-    const remoteSets = Array.from({ length: 5 }, (_, index) => makeRemoteSet(`remote-${index}`, 'proxy', {
-      name: `Remote ${index}`,
-      url: `https://rules-${index}.example.com/list.yaml`,
-      sortOrder: index,
-    }));
-    let active = 0;
-    let maxActive = 0;
-    const fetcher = async () => {
-      active++;
-      maxActive = Math.max(maxActive, active);
-      await new Promise(resolve => setTimeout(resolve, 8));
-      active--;
-      return new Response('', { status: 404 });
-    };
-
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({ remoteSets }), 'mihomo', {
-      fetcher,
-      concurrency: 2,
-    });
-
-    expect(maxActive).toBe(2);
-    expect(warnings.map(warning => warning.message.match(/"([^"]+)"/)?.[1])).toEqual([
-      'Remote 0', 'Remote 1', 'Remote 2', 'Remote 3', 'Remote 4',
-    ]);
-  });
-
-  it('coalesces duplicate rule-set URL checks within one validation pass', async () => {
-    let fetchCount = 0;
-    const fetcher = async () => {
-      fetchCount++;
-      await new Promise(resolve => setTimeout(resolve, 5));
-      return new Response('', { status: 404 });
-    };
-    const remoteSets = [
-      makeRemoteSet('remote-1', 'proxy', { name: 'First' }),
-      makeRemoteSet('remote-2', 'proxy', { name: 'Second' }),
-    ];
-
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({ remoteSets }), 'mihomo', { fetcher });
-
-    expect(fetchCount).toBe(1);
-    expect(warnings).toHaveLength(2);
-  });
-
-  it('uses a fresh valid source-health snapshot without probing the URL again', async () => {
-    const fetcher = async () => {
-      throw new Error('should not fetch');
-    };
-    const remoteSet = makeRemoteSet('remote-1', 'proxy', {
-      sourceHealth: makeSourceHealth('valid'),
-    });
-
-    await expect(validateRemoteRuleSetReachability(
-      makeExportData({ remoteSets: [remoteSet] }),
-      'mihomo',
-      { fetcher }
-    )).resolves.toEqual([]);
-  });
-
-  it('surfaces a fresh invalid source-health snapshot without probing the URL again', async () => {
-    const fetcher = async () => {
-      throw new Error('should not fetch');
-    };
-    const remoteSet = makeRemoteSet('remote-1', 'proxy', {
-      name: 'Ads',
-      sourceHealth: makeSourceHealth('invalid'),
-    });
-
-    const warnings = await validateRemoteRuleSetReachability(
-      makeExportData({ remoteSets: [remoteSet] }),
-      'mihomo',
-      { fetcher }
-    );
-
-    expect(warnings).toContainEqual(expect.objectContaining({
-      level: 'partial',
-      message: expect.stringContaining('最近一次健康检查失败'),
-      messageEn: expect.stringContaining('latest health check failed'),
-      remediation: { target: 'remote-rule-sets', id: 'remote-1' },
-    }));
-  });
-
-  it('bounds unique live probes and reports deferred checks', async () => {
-    let fetchCount = 0;
-    const fetcher = async () => {
-      fetchCount++;
-      return new Response('', { status: 200 });
-    };
-    const remoteSets = Array.from({ length: 5 }, (_, index) => makeRemoteSet(`remote-${index}`, 'proxy', {
-      url: `https://rules-${index}.example.com/list.yaml`,
-    }));
-
-    const warnings = await validateRemoteRuleSetReachability(
-      makeExportData({ remoteSets }),
-      'mihomo',
-      { fetcher, maxChecks: 2 }
-    );
-
-    expect(fetchCount).toBe(2);
-    expect(warnings).toEqual([
-      expect.objectContaining({
-        level: 'partial',
-        message: expect.stringContaining('3 个规则集未实时探测'),
-        remediation: { target: 'remote-rule-sets' },
-      }),
-    ]);
-  });
-
-  it('does not spend additional live-probe budget on duplicate URLs', async () => {
-    const fetchedUrls: string[] = [];
-    const fetcher = async (url: string | URL | Request) => {
-      fetchedUrls.push(String(url));
-      return new Response('', { status: 200 });
-    };
-    const remoteSets = [
-      makeRemoteSet('remote-1', 'proxy', { url: 'https://shared.example.com/list.yaml' }),
-      makeRemoteSet('remote-2', 'proxy', { url: 'https://shared.example.com/list.yaml' }),
-      makeRemoteSet('remote-3', 'proxy', { url: 'https://second.example.com/list.yaml' }),
-    ];
-
-    const warnings = await validateRemoteRuleSetReachability(
-      makeExportData({ remoteSets }),
-      'mihomo',
-      { fetcher, maxChecks: 2 }
-    );
-
-    expect(fetchedUrls).toEqual([
-      'https://shared.example.com/list.yaml',
-      'https://second.example.com/list.yaml',
-    ]);
-    expect(warnings).toEqual([]);
-  });
-
-  it('skips remote rule set reachability checks for incompatible or node-only exports', async () => {
-    const fetcher = async () => {
-      throw new Error('should not fetch');
-    };
-
-    await expect(validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy', { format: 'unknown' as 'egern' })],
-    }), 'mihomo', { fetcher })).resolves.toEqual([]);
-    await expect(validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
-    }), 'nodes_raw', { fetcher })).resolves.toEqual([]);
-  });
-
-  it('caches a reachable rule set result in KV and skips re-fetching on the next call', async () => {
-    let fetchCount = 0;
-    const cacheTtls: number[] = [];
-    const fetcher = async () => {
-      fetchCount++;
-      return new Response('', { status: 200 });
-    };
-    const kv = createMockKv(ttl => cacheTtls.push(ttl));
-
-    await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
-    }), 'mihomo', { fetcher, kv });
-    expect(fetchCount).toBe(1);
-
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
-    }), 'mihomo', { fetcher, kv });
-
-    expect(fetchCount).toBe(1);
-    expect(warnings).toEqual([]);
-    expect(cacheTtls).toEqual([3600]);
-  });
-
-  it('caches an unreachable rule set result in KV and keeps warning without re-fetching', async () => {
-    let fetchCount = 0;
-    const cacheTtls: number[] = [];
-    const fetcher = async () => {
-      fetchCount++;
-      return new Response('', { status: 404 });
-    };
-    const kv = createMockKv(ttl => cacheTtls.push(ttl));
-
-    await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
-    }), 'mihomo', { fetcher, kv });
-    expect(fetchCount).toBe(1); // 404 short-circuits before the ranged GET fallback
-
-    const warnings = await validateRemoteRuleSetReachability(makeExportData({
-      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
-    }), 'mihomo', { fetcher, kv });
-
-    expect(fetchCount).toBe(1);
-    expect(warnings).toContainEqual(expect.objectContaining({
-      level: 'partial',
-      message: expect.stringContaining('Ads'),
-    }));
-    expect(cacheTtls).toEqual([60]);
   });
 
   it('warns when the export format cannot include managed DNS settings', () => {
@@ -1168,51 +872,4 @@ function makeRemoteSet(
     updatedAt: createdAt,
     ...patch,
   };
-}
-
-function makeSourceHealth(
-  status: 'valid' | 'invalid'
-): NonNullable<ExportData['remoteSets'][number]['sourceHealth']> {
-  const issue = {
-    code: 'download_failed',
-    severity: 'error' as const,
-    message: '规则集下载失败或超时',
-    messageEn: 'The rule set download failed or timed out.',
-  };
-  const defaultSource = {
-    status,
-    checkedAt: createdAt,
-    url: 'https://example.com/remote.list',
-    format: 'mihomo' as const,
-    behavior: 'classical' as const,
-    inspectionMode: 'text' as const,
-    byteLength: 0,
-    invalidRuleCount: status === 'invalid' ? 1 : 0,
-    issues: status === 'invalid' ? [issue] : [],
-  };
-  return {
-    status,
-    checkedAt: createdAt,
-    defaultSource,
-    sourceOverrides: [],
-    summary: {
-      total: 1,
-      valid: status === 'valid' ? 1 : 0,
-      warning: 0,
-      invalid: status === 'invalid' ? 1 : 0,
-    },
-    expiresAt: '2099-01-01T00:00:00.000Z',
-    stale: false,
-  };
-}
-
-function createMockKv(onPut?: (expirationTtl: number) => void): KVNamespace {
-  const store = new Map<string, string>();
-  return {
-    get: async (key: string) => store.get(key) ?? null,
-    put: async (key: string, value: string, options?: { expirationTtl?: number }) => {
-      store.set(key, value);
-      if (options?.expirationTtl !== undefined) onPut?.(options.expirationTtl);
-    },
-  } as unknown as KVNamespace;
 }

@@ -1,12 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExportConfig } from '@uni-conf/types';
 import { buildExportData } from './export-data';
-import { ensureZeroSetupDefaults } from './services/zero-setup';
 import { getAppSettings } from './services/app-settings';
-
-vi.mock('./services/zero-setup', () => ({
-  ensureZeroSetupDefaults: vi.fn(async () => undefined),
-}));
 
 vi.mock('./services/app-settings', () => ({
   getAppSettings: vi.fn(async () => ({
@@ -19,12 +14,11 @@ describe('buildExportData', () => {
     vi.clearAllMocks();
   });
 
-  it('ensures zero-setup defaults before collecting export rows', async () => {
+  it('collects export rows without mutating zero-setup state', async () => {
     const db = createEmptyDb();
 
     await buildExportData(db);
 
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce();
     expect(getAppSettings).toHaveBeenCalledOnce();
   });
 

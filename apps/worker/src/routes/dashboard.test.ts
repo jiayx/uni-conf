@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import dashboardApp from './dashboard'
 
-vi.mock('../services/zero-setup', () => ({
-  ensureZeroSetupDefaults: vi.fn(async () => ({
+vi.mock('../export-data', () => ({
+  getExportConfigById: vi.fn(async () => ({
     token: 'default-token', format: 'mihomo', enabled: true,
   })),
 }))

@@ -1,6 +1,5 @@
 import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
 import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types';
-import { now } from '../db/helpers';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
 const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
@@ -23,11 +22,7 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     .first<Record<string, unknown>>();
 
   if (!row) {
-    const ts = now();
-    await db.prepare('INSERT INTO app_settings (id, updated_at) VALUES (?, ?)')
-      .bind('singleton', ts)
-      .run();
-    return getAppSettings(db);
+    throw new Error('Application settings are not initialized');
   }
 
   return {

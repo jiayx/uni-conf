@@ -1,14 +1,16 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows'
-import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { now } from '../db/helpers'
+import { getExportConfigById } from '../export-data'
+import { DEFAULT_EXPORT_CONFIG_ID } from '../services/default-export-config'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/stats', async (c) => {
   const ts = now()
-  const defaultExportConfig = await ensureZeroSetupDefaults(c.env.DB, ts)
+  const defaultExportConfig = await getExportConfigById(c.env.DB, DEFAULT_EXPORT_CONFIG_ID)
+  if (!defaultExportConfig) throw new Error('Default export config is not initialized')
   const [
     sourceCount,
     sourceRefreshFailureCount,

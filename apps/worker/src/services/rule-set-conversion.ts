@@ -148,6 +148,9 @@ export async function preflightRuleSetConversions(
   blockingWarnings: CompatibilityWarning[]
   blockingWarning: CompatibilityWarning | null
 }> {
+  if (options.policy !== 'strict') {
+    return { warnings: [], blockingWarnings: [], blockingWarning: null }
+  }
   const conversions = data.remoteSets
     .filter((item) => item.enabled)
     .flatMap((ruleSet) => {
@@ -214,23 +217,6 @@ export async function preflightRuleSetConversions(
         }
         warnings.push(warning)
         if (options.policy === 'strict') blockingWarnings.push(warning)
-      } else {
-        warnings.push({
-          code: 'remote-rule-set-converted',
-          client: format,
-          level: 'convert',
-          message: `远程规则集 "${outcome.ruleSet.name}" 已安全转换 ${outcome.converted.convertedRuleCount} 条规则为 ${outcome.conversion.target} 格式`,
-          messageEn: `Remote rule set "${outcome.ruleSet.name}" safely converted ${outcome.converted.convertedRuleCount} rules to ${outcome.conversion.target}.`,
-          transformation: {
-            resource: 'remote-rule-set',
-            action: 'convert',
-            source: `${outcome.ruleSet.name} (${outcome.conversion.source.format})`,
-            target: `${outcome.ruleSet.name} (${outcome.conversion.target})`,
-            convertedCount: outcome.converted.convertedRuleCount,
-            skippedCount: 0,
-            reason: 'target-rule-set-format',
-          },
-        })
       }
       continue
     }

@@ -20,6 +20,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let cancelled = false
     api.auth
       .check()
+      .then(() => api.system.initialize())
       .then(() => {
         if (!cancelled) setStatus('unlocked')
       })
@@ -42,6 +43,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setStoredApiKey(key.trim())
     api.auth
       .check()
+      .then(() => api.system.initialize())
       .then(() => setStatus('unlocked'))
       .catch(() => setError(t('auth.invalid_key')))
       .finally(() => setSubmitting(false))

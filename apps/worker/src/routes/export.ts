@@ -9,7 +9,7 @@ import {
   generateExportToken,
 } from '../services/default-export-config'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { findBlockingExportWarning, resolveExportWarnings, validateRemoteRuleSetReachability } from '../services/export-validation'
+import { findBlockingExportWarning, resolveExportWarnings } from '../services/export-validation'
 import { exportArtifactWarnings, validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
 import type { CompatibilityWarning, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
@@ -28,7 +28,6 @@ export const exportRouter = new Hono<{ Bindings: Env }>()
 
 // GET /api/export/configs - list export configs
 exportRouter.get('/configs', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now())
   const rows = await c.env.DB.prepare('SELECT * FROM export_configs ORDER BY created_at DESC').all()
   return c.json({ success: true, data: (rows.results ?? []).map(mapExportConfig) })
 })
@@ -100,7 +99,6 @@ export function resolveExportConfigUpdateName(
 
 // GET /api/export/configs/:id
 exportRouter.get('/configs/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now())
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(c.req.param('id')).first()
   if (!row) return c.json({ success: false, error: 'Not found' }, 404)
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
@@ -229,9 +227,6 @@ async function inspectExport(
   const warnings = resolveExportWarnings(exportData, format, {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
     dnsMode: settings.dnsMode,
-  }).filter(warning => warning.code !== 'remote-rule-set-conversion-planned')
-  const remoteRuleSetWarnings = await validateRemoteRuleSetReachability(exportData, format, {
-    kv: c.env.KV,
   })
   const artifactValidation = validateRenderedExport(format, rendered.content)
   const artifactWarnings = exportArtifactWarnings(artifactValidation)
@@ -248,7 +243,7 @@ async function inspectExport(
     capabilityProfile: getExportCapabilityProfile(format),
     artifactValidation,
     readiness: { ready: blockingWarnings.length === 0, blockingWarnings },
-    warnings: [...warnings, ...conversionPreflight.warnings, ...remoteRuleSetWarnings, ...artifactWarnings],
+    warnings: [...warnings, ...conversionPreflight.warnings, ...artifactWarnings],
   }
 }
 
@@ -263,28 +258,6 @@ exportRouter.get('/preview/:format', async (c) => {
   const result = await inspectExport(c, format, config)
   if (!result) return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   return c.json({ success: true, data: result })
-})
-
-// GET /api/export/readiness/:format
-exportRouter.get('/readiness/:format', async (c) => {
-  const format = c.req.param('format')
-  if (!isValidExportFormat(format)) {
-    return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
-  }
-  const config = await resolveConfig(c)
-  if (config instanceof Response) return config
-  const result = await inspectExport(c, format, config)
-  if (!result) return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
-  return c.json({
-    success: true,
-    data: {
-      format: result.format,
-      capabilityProfile: result.capabilityProfile,
-      warnings: result.warnings,
-      artifactValidation: result.artifactValidation,
-      readiness: result.readiness,
-    },
-  })
 })
 
 // GET /api/export/download/:format

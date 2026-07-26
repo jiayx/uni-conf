@@ -16,13 +16,11 @@ import type {
   RemoteRuleSetSourceValidationInput,
   RemoteRuleSetSourceValidationBatchResult,
   RemoteRuleSetSourceHealthResult,
-  RemoteRuleSetPendingHealthBatchResult,
   RemoteRuleSetConversionPreview,
   ExportConfig,
   ExportFormat,
   SourceRefreshResult,
   ExportResult,
-  ExportReadinessResult,
   DashboardStats,
   AppSettings,
   AppSettingsPatch,
@@ -146,6 +144,10 @@ const sources = {
   update: (id: string, data: Partial<ProxySource>): Promise<ProxySource> => put(`/sources/${pathSegment(id)}`, data),
   remove: (id: string): Promise<void> => del(`/sources/${pathSegment(id)}`),
   refresh: (id: string): Promise<SourceRefreshResult> => post(`/sources/${pathSegment(id)}/refresh`),
+}
+
+const system = {
+  initialize: (): Promise<{ initialized: true }> => post('/initialize'),
 }
 
 // ============================================================
@@ -307,8 +309,6 @@ const remoteRuleSets = {
     post(`/remote-rule-sets/${pathSegment(id)}/validate`, {}),
   validateAllSources: (id: string): Promise<RemoteRuleSetSourceHealthResult> =>
     post(`/remote-rule-sets/${pathSegment(id)}/validate-all`, {}),
-  validatePendingSources: (): Promise<RemoteRuleSetPendingHealthBatchResult> =>
-    post('/remote-rule-sets/validate-pending', {}),
   validateSource: (data: RemoteRuleSetSourceValidationInput): Promise<RemoteRuleSetValidationResult> =>
     post('/remote-rule-sets/validate-source', data),
   validateSources: (sources: RemoteRuleSetSourceValidationInput[]): Promise<RemoteRuleSetSourceValidationBatchResult> =>
@@ -333,8 +333,6 @@ const exportApi = {
   resetToken: (id: string): Promise<ExportConfig> => post(`/export/configs/${pathSegment(id)}/reset-token`),
   previewFormat: (format: ExportFormat, configId?: string): Promise<ExportResult> =>
     get(exportFormatPath('preview', format, configId)),
-  readinessFormat: (format: ExportFormat, configId?: string): Promise<ExportReadinessResult> =>
-    get(exportFormatPath('readiness', format, configId)),
   downloadFormat: async (format: ExportFormat, configId?: string): Promise<ExportDownloadFile> => {
     const res = await fetch(
       `${BASE}${exportFormatPath('download', format, configId)}`,
@@ -430,6 +428,7 @@ const authApi = {
 // ============================================================
 
 export const api = {
+  system,
   sources,
   nodes,
   collections,

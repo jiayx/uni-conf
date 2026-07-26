@@ -163,7 +163,7 @@ export function Collections() {
   const [loadingPreviewIds, setLoadingPreviewIds] = useState<Set<string>>(() => new Set())
   const [requestedPreviewIds, setRequestedPreviewIds] = useState<Set<string>>(() => new Set())
   const [expandedAutoPreviewIds, setExpandedAutoPreviewIds] = useState<Set<string>>(() => new Set())
-  const [collapsedManualPreviewIds, setCollapsedManualPreviewIds] = useState<Set<string>>(() => new Set())
+  const [expandedManualPreviewIds, setExpandedManualPreviewIds] = useState<Set<string>>(() => new Set())
   const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({})
   const [showAutoModal, setShowAutoModal] = useState(false)
   const [selectedAutoKeys, setSelectedAutoKeys] = useState<Set<string>>(() => new Set())
@@ -198,7 +198,7 @@ export function Collections() {
     const missingIds = collections
       .filter(collection => isAutoNodeGroup(collection)
         ? expandedAutoPreviewIds.has(collection.id)
-        : !collapsedManualPreviewIds.has(collection.id))
+        : expandedManualPreviewIds.has(collection.id))
       .map(collection => collection.id)
       .filter(id => previews[id] === undefined && !loadingPreviewIds.has(id) && !requestedPreviewIds.has(id))
 
@@ -228,13 +228,13 @@ export function Collections() {
           })
         })
     })
-  }, [collapsedManualPreviewIds, collections, expandedAutoPreviewIds, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
+  }, [collections, expandedAutoPreviewIds, expandedManualPreviewIds, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
 
   const togglePreview = (collection: NodeCollection) => {
     if (isAutoNodeGroup(collection)) {
       setExpandedAutoPreviewIds(current => toggleSet(current, collection.id))
     } else {
-      setCollapsedManualPreviewIds(current => toggleSet(current, collection.id))
+      setExpandedManualPreviewIds(current => toggleSet(current, collection.id))
     }
   }
 
@@ -533,7 +533,7 @@ export function Collections() {
           {collections.map(collection => {
             const previewExpanded = isAutoNodeGroup(collection)
               ? expandedAutoPreviewIds.has(collection.id)
-              : !collapsedManualPreviewIds.has(collection.id)
+              : expandedManualPreviewIds.has(collection.id)
             return <Card key={collection.id} className={styles.card}>
               <div className={styles.cardHeader}>
                 <div>

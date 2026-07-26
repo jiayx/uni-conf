@@ -199,22 +199,19 @@ describe('export download readiness', () => {
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
-  it('blocks authenticated downloads when a selected rule set cannot be converted safely', async () => {
+  it('defers compatible rule-set conversion during authenticated downloads', async () => {
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('payload:\n  - SCRIPT,legacy-only\n')))
+    const fetcher = vi.fn(async () => new Response('payload:\n  - SCRIPT,legacy-only\n'))
+    vi.stubGlobal('fetch', fetcher)
 
     const response = await exportRouter.request('/download/singbox', {}, { DB: createMockDb() })
 
-    expect(response.status).toBe(409)
-    expect(response.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
-    await expect(response.json()).resolves.toMatchObject({
-      code: 'conversion_incomplete',
-      error: expect.stringContaining('无法安全转换'),
-    })
-    expect(renderExportData).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(renderExportData).toHaveBeenCalled()
   })
 
-  it('includes exact skipped-rule counts in authenticated preview warnings', async () => {
+  it('does not report successful compatible conversions as preview warnings', async () => {
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
       'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy\n'
@@ -224,9 +221,7 @@ describe('export download readiness', () => {
     const body = await response.json() as { data: { warnings: Array<{ message: string }> } }
 
     expect(response.status).toBe(200)
-    expect(body.data.warnings).toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('已转换 1 条规则，另有 1 条'),
-    }))
+    expect(body.data.warnings).toEqual([])
   })
 
   it('blocks partial authenticated and public conversions in strict completeness mode', async () => {
@@ -248,50 +243,6 @@ describe('export download readiness', () => {
     expect(subscription.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
     await expect(subscription.text()).resolves.toContain('严格完整模式')
     expect(renderExportData).not.toHaveBeenCalled()
-  })
-
-  it('returns every strict conversion blocker in authenticated readiness', async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({
-      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-    } as AppSettings)
-    const exportData = makeConvertibleExportData()
-    const baseRuleSet = exportData.remoteSets[0]!
-    exportData.remoteSets = [
-      { ...baseRuleSet, id: 'partial', name: 'Partial', url: 'https://rules.example.com/partial.yaml' },
-      { ...baseRuleSet, id: 'invalid', name: 'Invalid', url: 'https://rules.example.com/invalid.yaml' },
-      { ...baseRuleSet, id: 'complete', name: 'Complete', url: 'https://rules.example.com/complete.yaml' },
-    ]
-    vi.mocked(buildExportData).mockResolvedValue(exportData)
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.includes('/partial.')) {
-        return new Response('payload:\n  - DOMAIN-SUFFIX,partial.example\n  - SCRIPT,legacy\n')
-      }
-      if (url.includes('/invalid.')) {
-        return new Response('payload:\n  - SCRIPT,legacy\n')
-      }
-      return new Response('payload:\n  - DOMAIN-SUFFIX,complete.example\n')
-    }))
-
-    const response = await exportRouter.request('/readiness/singbox', {}, { DB: createMockDb() })
-    const body = await response.json() as {
-      data: {
-        readiness: { ready: boolean; blockingWarnings: Array<{ remediation?: { target: string; id?: string } }> }
-        warnings: Array<{ code?: string }>
-      }
-    }
-
-    expect(response.status).toBe(200)
-    expect(body.data.readiness.ready).toBe(false)
-    expect(body.data.readiness.blockingWarnings.map(warning => warning.remediation?.id)).toEqual([
-      'partial',
-      'invalid',
-    ])
-    expect(body.data.warnings.map(warning => warning.code)).toEqual(expect.arrayContaining([
-      'remote-rule-set-conversion-partial',
-      'remote-rule-set-conversion-failed',
-      'remote-rule-set-converted',
-    ]))
   })
 
   it('lets an export profile override the global conversion policy in both directions', async () => {
@@ -404,41 +355,6 @@ describe('export download readiness', () => {
     })
   })
 
-  it('keeps authoritative download readiness separate from non-blocking warning severity', async () => {
-    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
-      nodes: [renderableNode()],
-      sources: [{
-        id: 'source-1', name: 'Cached Source', type: 'url', format: 'mihomo', enabled: true,
-        nodeCount: 1, updateInterval: 24, tags: [], groups: [],
-        lastRefreshError: 'HTTP 401', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-      }],
-    }))
-
-    const response = await exportRouter.request('/readiness/mihomo', {}, { DB: createMockDb() })
-    const body = await response.json() as {
-      data: { content?: string; readiness: { ready: boolean; blockingWarnings: unknown[] }; warnings: Array<{ level: string; message: string }> }
-    }
-
-    expect(response.status).toBe(200)
-    expect(body.data.warnings).toContainEqual(expect.objectContaining({
-      level: 'unsupported', message: expect.stringContaining('最近刷新失败'),
-    }))
-    expect(body.data.readiness).toEqual({ ready: true, blockingWarnings: [] })
-    expect(body.data.content).toBeUndefined()
-  })
-
-  it('reports the same graph blocker in preview readiness that download enforces', async () => {
-    vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [] }))
-
-    const response = await exportRouter.request('/readiness/mihomo', {}, { DB: createMockDb() })
-    const body = await response.json() as { data: { content?: string; readiness: { ready: boolean; blockingWarnings: Array<{ message: string }> } } }
-
-    expect(response.status).toBe(200)
-    expect(body.data.readiness.ready).toBe(false)
-    expect(body.data.readiness.blockingWarnings[0]?.message).toContain('没有可导出的节点')
-    expect(body.data.content).toBeUndefined()
-  })
-
   it('renders raw node quick downloads with the canonical node subscription filename', async () => {
     const parsedConfig = {
       protocol: 'ss' as const,
@@ -503,7 +419,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(409)
     await expect(response.text()).resolves.toContain('没有可导出的节点')
-    expect(response.headers.get('Subscription-Userinfo')).toBe('upload=0; download=0; total=10737418240; expire=4099680000')
+    expect(response.headers.get('Subscription-Userinfo')).toBeNull()
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
     expect(renderExportData).not.toHaveBeenCalled()
   })
@@ -720,16 +636,16 @@ describe('export download readiness', () => {
     expect(response.headers.get('X-UniConf-Error-Code')).toBe('rule_set_out_of_scope')
   })
 
-  it('blocks the main public subscription before emitting a broken conversion URL', async () => {
+  it('emits a lazy conversion URL without downloading the source first', async () => {
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('payload:\n  - SCRIPT,legacy-only\n')))
+    const fetcher = vi.fn(async () => new Response('payload:\n  - SCRIPT,legacy-only\n'))
+    vi.stubGlobal('fetch', fetcher)
 
     const response = await subscriptionRouter.request('/sub/token/singbox.json', {}, { DB: createMockDb() })
 
-    expect(response.status).toBe(409)
-    expect(response.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
-    await expect(response.text()).resolves.toContain('无法安全转换')
-    expect(renderExportData).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(renderExportData).toHaveBeenCalled()
   })
 
   it('blocks public subscriptions when all nodes are unsupported by the target exporter', async () => {

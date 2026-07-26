@@ -8,8 +8,6 @@ import { Badge } from '@/components/ui/Badge/Badge'
 import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { saveExportDownload } from '@/core/export/download-file'
 import { buildQuickSubscriptionLinks } from '@/core/export/quick-subscriptions'
-import { deriveExportReadiness, type ExportReadiness } from '@/core/export/readiness'
-import { compatibilityRemediationAction } from '@/core/export/compatibility-remediation'
 import { writeClipboardText } from '@/core/clipboard/write-text'
 import {
   deriveDashboardAttention,
@@ -20,19 +18,11 @@ import {
   openSetupGuide,
 } from '@/core/onboarding/setup-guide'
 import { api } from '@/lib/api'
-import { useSettingsStore } from '@/store/settings.store'
-import type { CompatibilityWarning, DashboardStats, ExportArtifactValidationIssue, ExportFormat } from '@uni-conf/types'
+import type { DashboardStats, ExportFormat } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
-
-type QuickReadinessState =
-  | { status: 'idle' }
-  | { status: 'loading'; format: ExportFormat }
-  | { status: 'ready'; format: ExportFormat; readiness: ExportReadiness; warnings: CompatibilityWarning[]; blockingWarnings: CompatibilityWarning[]; issue?: ExportArtifactValidationIssue }
-  | { status: 'error'; format: ExportFormat }
 
 export function Dashboard() {
   const { t } = useTranslation()
-  const applySettings = useSettingsStore(state => state.applySettings)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -40,9 +30,6 @@ export function Dashboard() {
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null)
   const [selectedQuickFormat, setSelectedQuickFormat] = useState<typeof QUICK_EXPORT_OPTIONS[number]['value']>('mihomo')
-  const [quickReadiness, setQuickReadiness] = useState<QuickReadinessState>({ status: 'idle' })
-  const [readinessVersion, setReadinessVersion] = useState(0)
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
 
   const loadStats = async () => {
     const nextStats = await api.dashboard.stats()
@@ -51,7 +38,6 @@ export function Dashboard() {
     if (defaultFormat && QUICK_EXPORT_OPTIONS.some(option => option.value === defaultFormat)) {
       setSelectedQuickFormat(defaultFormat)
     }
-    setReadinessVersion(version => version + 1)
     setError(null)
   }
 
@@ -70,17 +56,6 @@ export function Dashboard() {
     window.addEventListener(DASHBOARD_DATA_CHANGED_EVENT, reloadDashboard)
     return () => window.removeEventListener(DASHBOARD_DATA_CHANGED_EVENT, reloadDashboard)
   }, [])
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      void api.settings.get()
-        .then(settings => {
-          applySettings(settings)
-          setAutoRefreshEnabled(settings.enableAutoRefresh)
-        })
-        .catch(e => setError((e as Error).message))
-    })
-  }, [applySettings])
 
   const statCards = [
     { label: t('dashboard.sources'), value: stats?.sourceCount ?? 0, icon: <PackageIcon /> },
@@ -106,58 +81,9 @@ export function Dashboard() {
     stats?.defaultExportEnabled !== false,
   )
   const selectedQuickLink = quickSubscriptionLinks.find(item => item.value === selectedQuickFormat)
-  const selectedReadiness = quickReadiness.status !== 'idle' && quickReadiness.format === selectedQuickFormat
-    ? quickReadiness
-    : { status: 'loading' as const, format: selectedQuickFormat }
-  const exportBlocked = selectedReadiness.status === 'ready' && selectedReadiness.readiness.status === 'blocked'
-  const exportChecking = selectedReadiness.status === 'loading'
-  const selectedWarning = selectedReadiness.status === 'ready'
-    ? selectedReadiness.blockingWarnings[0] ?? selectedReadiness.warnings[0]
-    : undefined
-  const selectedRemediation = selectedWarning
-    ? compatibilityRemediationAction(selectedWarning)
-    : null
   const attentionItems = stats
-    ? deriveDashboardAttention(stats, {
-        status: selectedReadiness.status === 'ready'
-          ? selectedReadiness.readiness.status
-          : selectedReadiness.status === 'error'
-            ? 'unknown'
-            : 'checking',
-        issueCount: selectedReadiness.status === 'ready'
-          ? selectedReadiness.blockingWarnings.length
-            || selectedReadiness.warnings.length
-            || (selectedReadiness.issue ? 1 : 0)
-          : undefined,
-        remediationTo: selectedRemediation?.to,
-        previewTo: `/preview?format=${selectedQuickFormat}`,
-      })
+    ? deriveDashboardAttention(stats)
     : []
-
-  useEffect(() => {
-    if (!hasUsableNodes || stats?.defaultExportEnabled === false) return
-    let cancelled = false
-    queueMicrotask(() => {
-      if (cancelled) return
-      setQuickReadiness({ status: 'loading', format: selectedQuickFormat })
-      void api.export.readinessFormat(selectedQuickFormat)
-        .then(result => {
-          if (cancelled) return
-          setQuickReadiness({
-            status: 'ready',
-            format: selectedQuickFormat,
-            readiness: deriveExportReadiness(result),
-            warnings: result.warnings ?? [],
-            blockingWarnings: result.readiness.blockingWarnings,
-            issue: result.artifactValidation.issues[0],
-          })
-        })
-        .catch(() => {
-          if (!cancelled) setQuickReadiness({ status: 'error', format: selectedQuickFormat })
-        })
-    })
-    return () => { cancelled = true }
-  }, [hasUsableNodes, readinessVersion, selectedQuickFormat, stats?.defaultExportEnabled])
 
   const copySubscriptionUrl = async (format: string, url: string) => {
     setDownloadError(null)
@@ -205,7 +131,6 @@ export function Dashboard() {
               <Link to="/export">{t('dashboard.manage_export_links')}</Link>
             </div>
           ) : <>
-            <ExportReadinessPanel state={selectedReadiness} format={selectedQuickFormat} />
             <div className={styles.quickExportControl}>
               <label className={styles.quickFormatField}>
                 <span>{t('export.format')}</span>
@@ -221,7 +146,7 @@ export function Dashboard() {
               <div className={styles.quickLinkActions}>
                 <Button
                   variant="secondary"
-                  disabled={!selectedQuickLink || exportChecking || exportBlocked}
+                  disabled={!selectedQuickLink}
                   onClick={() => {
                     if (selectedQuickLink) void copySubscriptionUrl(selectedQuickLink.value, selectedQuickLink.url)
                   }}
@@ -230,7 +155,6 @@ export function Dashboard() {
                 </Button>
                 <Button
                   variant="secondary"
-                  disabled={exportChecking || exportBlocked}
                   loading={downloadingFormat === selectedQuickFormat}
                   onClick={() => void downloadQuickExport(selectedQuickFormat)}
                 >
@@ -265,33 +189,6 @@ export function Dashboard() {
         </div>
       ) : null}
 
-      {stats?.ruleSetHealth && stats.ruleSetHealth.total > 0 && (
-        <Card className={styles.ruleSetHealth}>
-          <div className={styles.ruleSetHealthHeader}>
-            <div>
-              <h2 className={styles.sectionTitle}>{t('dashboard.rule_set_health_title')}</h2>
-              <p className={styles.ruleSetHealthDescription}>
-                {t(autoRefreshEnabled
-                  ? 'dashboard.rule_set_health_auto_on'
-                  : 'dashboard.rule_set_health_auto_off')}
-              </p>
-            </div>
-            <Link to="/remote-rule-sets">{t('dashboard.rule_set_health_manage')}</Link>
-          </div>
-          <div className={styles.ruleSetHealthBadges}>
-            <Badge variant="success">{t('dashboard.rule_set_health_valid', { count: stats.ruleSetHealth.valid })}</Badge>
-            <Badge variant="warning">{t('dashboard.rule_set_health_warning', { count: stats.ruleSetHealth.warning })}</Badge>
-            <Badge variant="error">{t('dashboard.rule_set_health_invalid', { count: stats.ruleSetHealth.invalid })}</Badge>
-            <Badge variant="warning">{t('dashboard.rule_set_health_stale', { count: stats.ruleSetHealth.stale })}</Badge>
-            <Badge variant="default">{t('dashboard.rule_set_health_pending', { count: stats.ruleSetHealth.pending })}</Badge>
-          </div>
-          <div className={styles.ruleSetHealthMeta}>
-            {stats.ruleSetHealth.lastCheckedAt
-              ? t('dashboard.rule_set_health_last_checked', { time: new Date(stats.ruleSetHealth.lastCheckedAt).toLocaleString() })
-              : t('dashboard.rule_set_health_never_checked')}
-          </div>
-        </Card>
-      )}
     </div>
   )
 }
@@ -339,56 +236,6 @@ function AttentionCenter({
         ))}
       </ul>
     </Card>
-  )
-}
-
-function ExportReadinessPanel({ state, format }: { state: QuickReadinessState; format: ExportFormat }) {
-  const { t, i18n } = useTranslation()
-  const detailsUrl = `/preview?format=${format}`
-
-  if (state.status === 'idle' || state.status === 'loading') {
-    return (
-      <div className={`${styles.readiness} ${styles.readinessChecking}`} role="status">
-        <span className={styles.readinessDot} />
-        <div><strong>{t('dashboard.readiness_checking')}</strong><span>{t('dashboard.readiness_checking_desc')}</span></div>
-      </div>
-    )
-  }
-
-  if (state.status === 'error') {
-    return (
-      <div className={`${styles.readiness} ${styles.readinessUnknown}`} role="status">
-        <span className={styles.readinessDot} />
-        <div><strong>{t('dashboard.readiness_unknown')}</strong><span>{t('dashboard.readiness_unknown_desc')}</span></div>
-        <Link to={detailsUrl}>{t('dashboard.readiness_details')}</Link>
-      </div>
-    )
-  }
-
-  const { readiness } = state
-  const firstWarning = state.blockingWarnings[0] ?? state.warnings[0]
-  const remediationAction = firstWarning ? compatibilityRemediationAction(firstWarning) : null
-  const visibleIssue = firstWarning
-    ? (i18n.resolvedLanguage?.startsWith('zh') ? firstWarning.message : firstWarning.messageEn)
-    : state.issue
-      ? (i18n.resolvedLanguage?.startsWith('zh') ? state.issue.message : state.issue.messageEn)
-      : undefined
-  return (
-    <div className={`${styles.readiness} ${styles[`readiness_${readiness.status}`]}`} role="status">
-      <span className={styles.readinessDot} />
-      <div>
-        <strong>{t(`dashboard.readiness_${readiness.status}`)}</strong>
-        <span>{visibleIssue ?? t(`dashboard.readiness_${readiness.status}_desc`, {
-          partial: readiness.summary.partial,
-          convert: readiness.summary.convert,
-          unsupported: state.blockingWarnings.length,
-        })}</span>
-      </div>
-      <div className={styles.readinessActions}>
-        {remediationAction && <Link to={remediationAction.to}>{t(remediationAction.labelKey)}</Link>}
-        <Link to={detailsUrl}>{t('dashboard.readiness_details')}</Link>
-      </div>
-    </div>
   )
 }
 

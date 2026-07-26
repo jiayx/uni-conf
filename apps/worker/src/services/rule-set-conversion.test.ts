@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as yaml from 'js-yaml'
 import type { ExportData } from '../export-data'
 import type { RemoteRuleSet } from '@uni-conf/types'
@@ -533,36 +533,15 @@ describe('rule set conversion', () => {
     })).rejects.toMatchObject({ code: 'too_large' } satisfies Partial<RuleSetConversionError>)
   })
 
-  it('preflights partial conversions and blocks conversions with no safe rules', async () => {
-    const partial = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
-      fetcher: async () => new Response('payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy\n'),
+  it('defers compatible conversions until the client requests the converted rule set', async () => {
+    const fetcher = vi.fn(async () => new Response('payload:\n  - DOMAIN-SUFFIX,example.com\n'))
+    const result = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
+      policy: 'compatible',
+      fetcher,
     })
-    expect(partial.blockingWarning).toBeNull()
-    expect(partial.warnings).toContainEqual(expect.objectContaining({
-      code: 'remote-rule-set-conversion-partial',
-      level: 'partial',
-      message: expect.stringMatching(/跳过.*SCRIPT × 1/),
-      remediation: expect.objectContaining({
-        target: 'remote-rule-sets',
-        id: 'rules-1',
-        sourceOverrideTarget: 'singbox',
-      }),
-      transformation: expect.objectContaining({
-        resource: 'remote-rule-set',
-        action: 'degrade',
-        convertedCount: 1,
-        skippedCount: 1,
-      }),
-    }))
 
-    const blocked = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
-      fetcher: async () => new Response('payload:\n  - SCRIPT,legacy\n'),
-    })
-    expect(blocked.blockingWarning).toMatchObject({
-      level: 'unsupported',
-      message: expect.stringContaining('内容无法安全转换'),
-      transformation: expect.objectContaining({ reason: 'source-invalid-content' }),
-    })
+    expect(result).toEqual({ warnings: [], blockingWarnings: [], blockingWarning: null })
+    expect(fetcher).not.toHaveBeenCalled()
   })
 
   it('counts non-string YAML payload entries instead of silently dropping them', async () => {
@@ -598,6 +577,7 @@ describe('rule set conversion', () => {
 
   it('distinguishes unavailable, oversized, and invalid conversion sources', async () => {
     const unavailable = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
+      policy: 'strict',
       fetcher: async () => { throw new Error('offline') },
     })
     expect(unavailable.blockingWarning).toMatchObject({
@@ -608,6 +588,7 @@ describe('rule set conversion', () => {
     })
 
     const oversized = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
+      policy: 'strict',
       fetcher: async () => new Response('small', {
         headers: { 'content-length': String(4 * 1024 * 1024 + 1) },
       }),
@@ -665,7 +646,6 @@ describe('rule set conversion', () => {
     ))).toEqual([
       'partial',
       'invalid',
-      null,
     ])
     expect(result.blockingWarnings.map(warning => (
       warning.remediation?.target === 'remote-rule-sets' ? warning.remediation.id : null
@@ -677,9 +657,7 @@ describe('rule set conversion', () => {
     expect(result.warnings.map(warning => warning.code)).toEqual([
       'remote-rule-set-conversion-partial',
       'remote-rule-set-conversion-failed',
-      'remote-rule-set-converted',
     ])
-    expect(result.warnings[2]?.remediation).toBeUndefined()
   })
 
   it('does not call a no-resolve rule fully converted when the target has no equivalent option', async () => {
@@ -688,11 +666,7 @@ describe('rule set conversion', () => {
         'payload:\n  - DOMAIN-SUFFIX,example.com\n  - IP-CIDR,10.0.0.0/8,no-resolve\n'
       ),
     })
-    expect(compatible.blockingWarning).toBeNull()
-    expect(compatible.warnings).toContainEqual(expect.objectContaining({
-      level: 'partial',
-      message: expect.stringContaining('IP-CIDR-NO-RESOLVE × 1'),
-    }))
+    expect(compatible).toEqual({ warnings: [], blockingWarnings: [], blockingWarning: null })
 
     const strict = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
       policy: 'strict',
@@ -726,6 +700,7 @@ describe('rule set conversion', () => {
     }
 
     const result = await preflightRuleSetConversions(makeExportData(ruleSets), 'singbox', {
+      policy: 'strict',
       fetcher,
       concurrency: 2,
     })
@@ -743,6 +718,7 @@ describe('rule set conversion', () => {
       { ...makeRuleSet(), id: 'rules-2', name: 'Second' },
     ]
     const result = await preflightRuleSetConversions(makeExportData(ruleSets), 'singbox', {
+      policy: 'strict',
       fetcher: async () => {
         fetchCount += 1
         await new Promise(resolve => setTimeout(resolve, 5))

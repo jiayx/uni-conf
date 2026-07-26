@@ -31,7 +31,6 @@ vi.mock('@/lib/api', async () => {
         update: vi.fn(),
         validate: vi.fn(),
         validateAllSources: vi.fn(),
-        validatePendingSources: vi.fn(),
         validateSource: vi.fn(),
         validateSources: vi.fn(),
         previewConversion: vi.fn(),
@@ -279,46 +278,6 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.queryByText('Sources need checking')).not.toBeInTheDocument()
   })
 
-  it('checks a bounded batch of pending source-health cards from the toolbar', async () => {
-    vi.mocked(api.remoteRuleSets.list).mockResolvedValue([{
-      ...makeRuleSet('pending-source', 'Pending Source Health', 'builtin-proxy'),
-      format: 'mihomo',
-      sourceOverrides: { egern: 'https://example.com/egern.yaml' },
-    }])
-    const defaultSource = {
-      status: 'valid' as const, checkedAt: '2026-07-18T02:00:00.000Z',
-      url: 'https://example.com/default.yaml', format: 'mihomo' as const, behavior: 'domain' as const,
-      inspectionMode: 'structured' as const, httpStatus: 200, byteLength: 512,
-      ruleCount: 10, invalidRuleCount: 0, issues: [],
-    }
-    vi.mocked(api.remoteRuleSets.validatePendingSources).mockResolvedValue({
-      results: [{
-        ruleSetId: 'pending-source',
-        health: {
-          status: 'valid', checkedAt: '2026-07-18T02:00:00.000Z',
-          expiresAt: '2099-07-19T02:00:00.000Z', stale: false,
-          defaultSource,
-          sourceOverrides: [{ targetFormat: 'egern', result: { ...defaultSource, format: 'egern' } }],
-          summary: { total: 2, valid: 2, warning: 0, invalid: 0 },
-        },
-      }],
-      checkedCount: 1,
-      remainingCount: 0,
-    })
-
-    const user = userEvent.setup()
-    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
-
-    const bulkButton = await screen.findByRole('button', { name: 'Check pending sources (1)' })
-    await user.click(bulkButton)
-
-    expect(api.remoteRuleSets.validatePendingSources).toHaveBeenCalledOnce()
-    expect(await screen.findByText('Checked 1 rule sets · 0 remaining')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Check pending sources (0)' })).toBeDisabled()
-    expect(screen.getByText('2 valid · 0 review · 0 invalid')).toBeInTheDocument()
-    expect(screen.queryByText('Sources need checking')).not.toBeInTheDocument()
-  })
-
   it('previews a safe cross-client conversion with preserved and skipped counts', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
@@ -541,7 +500,7 @@ describe('RemoteRuleSets content validation', () => {
     expect(api.remoteRuleSets.update).not.toHaveBeenCalled()
   })
 
-  it('requires explicit risk acknowledgement before saving failed native sources in compatible mode', async () => {
+  it('keeps failed native-source validation advisory while allowing save', async () => {
     vi.mocked(api.remoteRuleSets.validateSource).mockResolvedValue({
       status: 'invalid', checkedAt: '2026-07-18T00:00:00.000Z',
       url: 'https://rules.example.com/broken.yaml', format: 'egern', behavior: 'domain',
@@ -565,34 +524,7 @@ describe('RemoteRuleSets content validation', () => {
     expect(await screen.findByText(/1 native sources failed content or availability checks/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(screen.getByText(/Confirm the failed native-source risk before saving/)).toBeInTheDocument()
-    expect(api.remoteRuleSets.update).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole('checkbox', { name: 'I understand the risk and want to save these sources anyway' }))
-    await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(api.remoteRuleSets.update).toHaveBeenCalledTimes(1)
-  })
-
-  it('blocks failed native sources from being saved in strict completeness mode', async () => {
-    useSettingsStore.setState({ ruleSetConversionPolicy: 'strict' })
-    vi.mocked(api.remoteRuleSets.validateSource).mockResolvedValue({
-      status: 'invalid', checkedAt: '2026-07-18T00:00:00.000Z',
-      url: 'https://rules.example.com/broken.yaml', format: 'egern', behavior: 'domain',
-      inspectionMode: 'structured', httpStatus: 200, byteLength: 64,
-      invalidRuleCount: 0, issues: [],
-    })
-    const user = userEvent.setup()
-    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
-
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
-    await user.click(screen.getByText('Target-native sources (optional)'))
-    await user.type(screen.getByRole('textbox', { name: 'Egern native rule-set URL' }), 'https://rules.example.com/broken.yaml')
-    await user.click(screen.getByRole('button', { name: 'Validate Egern native rule-set source' }))
-
-    expect(await screen.findByText(/Strict completeness blocks saving/)).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: /understand the risk/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(api.remoteRuleSets.update).not.toHaveBeenCalled()
   })
 
   it('allows warning-only native sources without a failure acknowledgement', async () => {
@@ -672,8 +604,7 @@ describe('RemoteRuleSets content validation', () => {
     await user.type(defaultUrl, 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list')
     await user.click(screen.getByText('Target-native sources (optional)'))
     const validateAfterDiscovery = screen.getByRole('checkbox', { name: 'Validate immediately after discovery' })
-    expect(validateAfterDiscovery).toBeChecked()
-    await user.click(validateAfterDiscovery)
+    expect(validateAfterDiscovery).not.toBeChecked()
     const egernUrl = screen.getByRole('textbox', { name: 'Egern native rule-set URL' })
     const singboxUrl = screen.getByRole('textbox', { name: 'sing-box native rule-set URL' })
     await user.type(egernUrl, 'https://manual.example.com/games.yaml')
@@ -694,7 +625,7 @@ describe('RemoteRuleSets content validation', () => {
     expect(api.remoteRuleSets.validateSources).not.toHaveBeenCalled()
   })
 
-  it('validates all configured sources immediately after discovery by default', async () => {
+  it('does not validate discovered sources unless explicitly requested', async () => {
     vi.mocked(api.remoteRuleSets.validateSources).mockImplementation(async sources => ({
       results: sources.map(source => ({
         targetFormat: source.targetFormat,
@@ -723,12 +654,7 @@ describe('RemoteRuleSets content validation', () => {
     await user.click(screen.getByText('Target-native sources (optional)'))
     await user.click(screen.getByRole('button', { name: 'Discover native sources (7)' }))
 
-    expect(api.remoteRuleSets.validateSources).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ targetFormat: 'singbox', url: expect.stringContaining('/singbox/version5/games.srs') }),
-      expect.objectContaining({ targetFormat: 'egern', url: expect.stringContaining('/egern/games.yaml') }),
-    ]))
-    expect(vi.mocked(api.remoteRuleSets.validateSources).mock.calls[0]?.[0]).toHaveLength(7)
-    expect(await screen.findByText('Checked 7/7 · 7 valid · 0 review · 0 invalid · 0 failed')).toBeInTheDocument()
+    expect(api.remoteRuleSets.validateSources).not.toHaveBeenCalled()
   })
 
   it('ignores discovery validation results after the default source changes', async () => {
@@ -746,6 +672,7 @@ describe('RemoteRuleSets content validation', () => {
     await user.clear(defaultUrl)
     await user.type(defaultUrl, 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list')
     await user.click(screen.getByText('Target-native sources (optional)'))
+    await user.click(screen.getByRole('checkbox', { name: 'Validate immediately after discovery' }))
     await user.click(screen.getByRole('button', { name: 'Discover native sources (7)' }))
 
     expect(capturedSources).toHaveLength(7)

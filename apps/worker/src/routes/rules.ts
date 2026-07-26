@@ -18,7 +18,6 @@ const RULE_BATCH_SQL_CHUNK_SIZE = 90;
 // ─── List rules ───────────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM rules ORDER BY sort_order ASC, created_at ASC'
@@ -266,7 +265,6 @@ app.post('/', async (c) => {
 // ─── Get rule ─────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const row = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ?')
     .bind(c.req.param('id'))

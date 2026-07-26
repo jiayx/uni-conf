@@ -27,7 +27,6 @@ import { api, ApiError } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { useGroupsStore } from '@/store/groups.store'
-import { useSettingsStore } from '@/store/settings.store'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
@@ -102,7 +101,6 @@ export function RemoteRuleSets() {
   const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
   const { groups, fetchGroups } = useGroupsStore()
-  const ruleSetConversionPolicy = useSettingsStore(state => state.ruleSetConversionPolicy)
   const [sets, setSets] = useState<RemoteRuleSet[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown | null>(null)
@@ -115,16 +113,13 @@ export function RemoteRuleSets() {
   const [saving, setSaving] = useState(false)
   const [togglingGroupId, setTogglingGroupId] = useState<string | null>(null)
   const [validatingId, setValidatingId] = useState<string | null>(null)
-  const [validatingPendingSources, setValidatingPendingSources] = useState(false)
-  const [pendingSourceHealthResult, setPendingSourceHealthResult] = useState<{ checked: number; remaining: number } | null>(null)
   const [validationById, setValidationById] = useState<Record<string, RemoteRuleSetValidationResult>>({})
   const [sourceHealthById, setSourceHealthById] = useState<Record<string, RemoteRuleSetSourceHealthResult>>({})
   const [conversionPreview, setConversionPreview] = useState<ConversionPreviewState | null>(null)
   const [sourceOverrideValidations, setSourceOverrideValidations] = useState<Partial<Record<RemoteRuleSetSourceOverrideTarget, SourceOverrideValidationState>>>({})
   const [validatingAllSourceOverrides, setValidatingAllSourceOverrides] = useState(false)
   const [autoDiscoveredSourceOverrides, setAutoDiscoveredSourceOverrides] = useState<RemoteRuleSet['sourceOverrides']>({})
-  const [validateAfterDiscovery, setValidateAfterDiscovery] = useState(true)
-  const [sourceOverrideRiskAcknowledged, setSourceOverrideRiskAcknowledged] = useState(false)
+  const [validateAfterDiscovery, setValidateAfterDiscovery] = useState(false)
   const [sourceOverridesExpanded, setSourceOverridesExpanded] = useState(false)
   const [sourceOverrideFocusTarget, setSourceOverrideFocusTarget] = useState<RemoteRuleSetSourceOverrideTarget | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -189,11 +184,6 @@ export function RemoteRuleSets() {
   const listFilterActive = normalizedSearchQuery.length > 0 || compatibilityFilterActive || attentionFilterActive
   const resolvedExpandedGroupIds = expandedGroupIds ?? defaultExpandedGroupIds
   const visibleSetCount = visibleSections.reduce((count, section) => count + section.sets.length, 0)
-  const pendingSourceHealthCount = sets.filter(set => {
-    if (!set.enabled || Object.keys(set.sourceOverrides).length === 0) return false
-    const health = sourceHealthById[set.id] ?? set.sourceHealth
-    return !health || ('stale' in health && health.stale === true)
-  }).length
   const changeAttentionMode = (mode: AttentionMode) => {
     setAttentionMode(mode)
     const nextParams = new URLSearchParams(searchParams)
@@ -262,7 +252,6 @@ export function RemoteRuleSets() {
     setSourceOverrideValidations({})
     setValidatingAllSourceOverrides(false)
     setAutoDiscoveredSourceOverrides({})
-    setSourceOverrideRiskAcknowledged(false)
   }
 
   const openCreate = (targetGroupId = defaultTargetGroupId) => {
@@ -272,7 +261,7 @@ export function RemoteRuleSets() {
     setInitialForm(nextForm)
     setSelectedPresetId('')
     setFormError('')
-    setValidateAfterDiscovery(true)
+    setValidateAfterDiscovery(false)
     setSourceOverridesExpanded(false)
     setSourceOverrideFocusTarget(null)
     resetSourceOverrideValidations()
@@ -300,7 +289,7 @@ export function RemoteRuleSets() {
     setInitialForm(nextForm)
     setSelectedPresetId(set.presetSource === 'quixotic' ? set.presetId ?? '' : '')
     setFormError('')
-    setValidateAfterDiscovery(true)
+    setValidateAfterDiscovery(false)
     setSourceOverridesExpanded(Boolean(focusTarget))
     setSourceOverrideFocusTarget(focusTarget ?? null)
     resetSourceOverrideValidations()
@@ -402,14 +391,6 @@ export function RemoteRuleSets() {
       setFormError(t('remoteRuleSets.source_override_input_errors_blocked', { count: sourceOverrideInputErrorCount }))
       return
     }
-    if (sourceOverrideSaveRiskCount > 0 && ruleSetConversionPolicy === 'strict') {
-      setFormError(t('remoteRuleSets.source_override_risk_strict_blocked', { count: sourceOverrideSaveRiskCount }))
-      return
-    }
-    if (sourceOverrideSaveRiskCount > 0 && !sourceOverrideRiskAcknowledged) {
-      setFormError(t('remoteRuleSets.source_override_risk_confirmation_required', { count: sourceOverrideSaveRiskCount }))
-      return
-    }
 
     setFormError('')
     setSaving(true)
@@ -505,31 +486,7 @@ export function RemoteRuleSets() {
     }
   }
 
-  const handleValidatePendingSources = async () => {
-    setError(null)
-    setValidatingPendingSources(true)
-    setPendingSourceHealthResult(null)
-    try {
-      const result = await api.remoteRuleSets.validatePendingSources()
-      const healthById = new Map(result.results.map(item => [item.ruleSetId, item.health]))
-      setSets(current => current.map(set => {
-        const sourceHealth = healthById.get(set.id)
-        return sourceHealth ? { ...set, sourceHealth } : set
-      }))
-      setSourceHealthById(current => ({
-        ...current,
-        ...Object.fromEntries(result.results.map(item => [item.ruleSetId, item.health])),
-      }))
-      setPendingSourceHealthResult({ checked: result.checkedCount, remaining: result.remainingCount })
-    } catch (e) {
-      setError(e)
-    } finally {
-      setValidatingPendingSources(false)
-    }
-  }
-
   const handleSourceOverrideChange = (target: RemoteRuleSetSourceOverrideTarget, url: string) => {
-    setSourceOverrideRiskAcknowledged(false)
     sourceOverrideRequestIds.current[target] = (sourceOverrideRequestIds.current[target] ?? 0) + 1
     setSourceOverrideValidations(current => {
       const next = { ...current }
@@ -548,7 +505,6 @@ export function RemoteRuleSets() {
   }
 
   const handleDefaultSourceUrlChange = (url: string) => {
-    setSourceOverrideRiskAcknowledged(false)
     setForm(current => {
       const sourceOverrides = { ...current.sourceOverrides }
       for (const [target, discoveredUrl] of Object.entries(autoDiscoveredSourceOverrides)) {
@@ -589,7 +545,6 @@ export function RemoteRuleSets() {
     if (!url) return
     const requestId = (sourceOverrideRequestIds.current[target] ?? 0) + 1
     sourceOverrideRequestIds.current[target] = requestId
-    setSourceOverrideRiskAcknowledged(false)
     setSourceOverrideValidations(current => ({ ...current, [target]: { status: 'loading' } }))
     try {
       const result = await api.remoteRuleSets.validateSource({ url, targetFormat: target, behavior: form.behavior })
@@ -611,7 +566,6 @@ export function RemoteRuleSets() {
   const validateSourceOverrideInputs = async (sources: RemoteRuleSetSourceValidationInput[]) => {
     if (sources.length === 0) return
     const requestIds = new Map<RemoteRuleSetSourceOverrideTarget, number>()
-    setSourceOverrideRiskAcknowledged(false)
     for (const source of sources) {
       const requestId = (sourceOverrideRequestIds.current[source.targetFormat] ?? 0) + 1
       sourceOverrideRequestIds.current[source.targetFormat] = requestId
@@ -793,13 +747,6 @@ export function RemoteRuleSets() {
               <Button
                 variant="secondary"
                 size="sm"
-                loading={validatingPendingSources}
-                disabled={pendingSourceHealthCount === 0}
-                onClick={() => void handleValidatePendingSources()}
-              >{t('remoteRuleSets.validate_pending_sources', { count: pendingSourceHealthCount })}</Button>
-              <Button
-                variant="secondary"
-                size="sm"
                 onClick={() => setExpandedGroupIds(new Set(setsByTargetGroup.map(section => section.groupId)))}
                 disabled={listFilterActive}
               >{t('remoteRuleSets.expand_all')}</Button>
@@ -816,11 +763,6 @@ export function RemoteRuleSets() {
                   ? t('remoteRuleSets.search_results', { setCount: visibleSetCount, strategyCount: visibleSections.length })
                   : t('remoteRuleSets.browse_hint')}
               </div>
-              {pendingSourceHealthResult && (
-                <div className={styles.sourceHealthBatchResult} role="status">
-                  {t('remoteRuleSets.validate_pending_sources_result', pendingSourceHealthResult)}
-                </div>
-              )}
               <div className={styles.statusFilters} aria-label={t('remoteRuleSets.status_filter_label')}>
                 <button
                   type="button"
@@ -1193,25 +1135,9 @@ export function RemoteRuleSets() {
                   {t('remoteRuleSets.source_override_input_errors_blocked', { count: sourceOverrideInputErrorCount })}
                 </div>
               )}
-              {sourceOverrideInputErrorCount === 0 && sourceOverrideSaveRiskCount > 0 && ruleSetConversionPolicy === 'strict' && !formError && (
-                <div className={styles.sourceOverrideStrictRisk} role="alert">
-                  {t('remoteRuleSets.source_override_risk_strict_blocked', { count: sourceOverrideSaveRiskCount })}
-                </div>
-              )}
-              {sourceOverrideInputErrorCount === 0 && sourceOverrideSaveRiskCount > 0 && ruleSetConversionPolicy === 'compatible' && (
+              {sourceOverrideInputErrorCount === 0 && sourceOverrideSaveRiskCount > 0 && (
                 <div className={styles.sourceOverrideCompatibleRisk}>
                   <p>{t('remoteRuleSets.source_override_risk_compatible', { count: sourceOverrideSaveRiskCount })}</p>
-                  <label className={styles.sourceOverrideRiskConfirmation}>
-                    <input
-                      type="checkbox"
-                      checked={sourceOverrideRiskAcknowledged}
-                      onChange={event => {
-                        setSourceOverrideRiskAcknowledged(event.target.checked)
-                        if (event.target.checked) setFormError('')
-                      }}
-                    />
-                    <span>{t('remoteRuleSets.source_override_risk_acknowledge')}</span>
-                  </label>
                 </div>
               )}
               <div className={styles.sourceOverrideGrid}>

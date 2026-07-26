@@ -47,10 +47,8 @@ describe('subscription route helpers', () => {
     ])).toBe('upload=110; download=220; total=4000; expire=1500')
   })
 
-  it('falls back to a stable default when sources have no cached userinfo', () => {
-    expect(buildSubscriptionUserInfoHeader([baseSource])).toBe(
-      'upload=0; download=0; total=10737418240; expire=4099680000'
-    )
+  it('omits userinfo when sources do not provide it', () => {
+    expect(buildSubscriptionUserInfoHeader([baseSource])).toBeUndefined()
   })
 
   it('uses the canonical public filename for sing-box subscriptions', () => {

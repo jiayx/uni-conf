@@ -10,7 +10,11 @@ vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api')
   return {
     ...actual,
-    api: { ...actual.api, auth: { check: vi.fn() } },
+    api: {
+      ...actual.api,
+      auth: { check: vi.fn() },
+      system: { initialize: vi.fn(async () => ({ initialized: true as const })) },
+    },
   }
 })
 

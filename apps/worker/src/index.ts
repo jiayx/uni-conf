@@ -12,11 +12,11 @@ import remoteRuleSetsRouter from './routes/remote-rule-sets'
 import dashboardRouter from './routes/dashboard'
 import settingsRouter from './routes/settings'
 import dataRouter from './routes/data'
+import initializationRouter from './routes/initialization'
 import { exportRouter } from './routes/export'
 import { subscriptionRouter } from './routes/subscription'
 import type { Env } from './types'
 import { refreshDueSources } from './services/source-auto-refresh'
-import { SCHEDULED_PENDING_HEALTH_BATCH_LIMIT, validatePendingRuleSetSources } from './services/remote-rule-set-health'
 import { kvRateLimit } from './middleware/rate-limit'
 
 type AppVariables = { requestId: string }
@@ -110,6 +110,7 @@ app.route('/api/export', exportRouter)
 app.route('/api/dashboard', dashboardRouter)
 app.route('/api/settings', settingsRouter)
 app.route('/api/data', dataRouter)
+app.route('/api/initialize', initializationRouter)
 
 // Public subscription endpoint (no /api prefix)
 app.route('/', subscriptionRouter)
@@ -144,37 +145,6 @@ export default {
       environment: env.ENVIRONMENT,
     }, result.failedCount > 0 ? 'error' : 'log')
 
-    const healthStartedAt = Date.now()
-    if (result.skipped) {
-      logEvent('remote_rule_set_health_refresh', {
-        checkedCount: 0,
-        remainingCount: 0,
-        skipped: true,
-        durationMs: Date.now() - healthStartedAt,
-        environment: env.ENVIRONMENT,
-      })
-      return
-    }
-    try {
-      const health = await validatePendingRuleSetSources(env.DB, SCHEDULED_PENDING_HEALTH_BATCH_LIMIT)
-      logEvent('remote_rule_set_health_refresh', {
-        checkedCount: health.checkedCount,
-        remainingCount: health.remainingCount,
-        skipped: false,
-        durationMs: Date.now() - healthStartedAt,
-        environment: env.ENVIRONMENT,
-      })
-    } catch (error) {
-      logEvent('remote_rule_set_health_refresh', {
-        checkedCount: 0,
-        remainingCount: 0,
-        skipped: false,
-        failed: true,
-        error: error instanceof Error ? error.message : String(error),
-        durationMs: Date.now() - healthStartedAt,
-        environment: env.ENVIRONMENT,
-      }, 'error')
-    }
   },
 } satisfies ExportedHandler<Env>
 

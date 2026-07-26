@@ -346,17 +346,6 @@ export interface RemoteRuleSetSourceHealthSnapshot extends RemoteRuleSetSourceHe
   stale: boolean;
 }
 
-export interface RemoteRuleSetPendingHealthItem {
-  ruleSetId: string;
-  health: RemoteRuleSetSourceHealthSnapshot;
-}
-
-export interface RemoteRuleSetPendingHealthBatchResult {
-  results: RemoteRuleSetPendingHealthItem[];
-  checkedCount: number;
-  remainingCount: number;
-}
-
 export type RemoteRuleSetConversionMode = 'direct' | 'converted' | 'unsupported';
 
 export type RemoteRuleSetConversionIssueReason =
@@ -634,11 +623,6 @@ export interface ExportResult {
   artifactValidation: ExportArtifactValidationResult;
   readiness: ExportDownloadReadiness;
 }
-
-export type ExportReadinessResult = Pick<
-  ExportResult,
-  'format' | 'capabilityProfile' | 'warnings' | 'artifactValidation' | 'readiness'
->;
 
 export interface ExportCapabilityProfile {
   id: 'uni-conf-exporter';

@@ -733,9 +733,9 @@ function RuleCompatibilityPreview({
   if (!preview || (type !== 'MATCH' && !payload.trim())) return null
 
   return (
-    <section className={styles.compatibilityPreview} aria-labelledby="manual-rule-compatibility-title">
+    <details className={styles.compatibilityPreview}>
+      <summary id="manual-rule-compatibility-title">{t('rules.compatibility_preview_title')}</summary>
       <div className={styles.compatibilityHeader}>
-        <strong id="manual-rule-compatibility-title">{t('rules.compatibility_preview_title')}</strong>
         <span>{t('rules.compatibility_preview_desc')}</span>
       </div>
       <div className={styles.compatibilityGrid}>
@@ -778,7 +778,7 @@ function RuleCompatibilityPreview({
           )
         })}
       </div>
-    </section>
+    </details>
   )
 }
 

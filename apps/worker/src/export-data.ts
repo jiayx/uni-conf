@@ -17,7 +17,6 @@ import {
   mapRemoteRuleSet,
   mapRule,
   mapSource,
-  now,
 } from './db/helpers'
 import {
   applyRoutingPolicyGroupLinks,
@@ -25,7 +24,6 @@ import {
 } from './services/routing-policy-groups'
 import { enabledNodeRowsQuery } from './services/enabled-node-rows'
 import { getAppSettings } from './services/app-settings'
-import { ensureZeroSetupDefaults } from './services/zero-setup'
 import { applyCollectionTransforms } from './services/collection-transforms'
 import { listSourceHealthSnapshots } from './services/remote-rule-set-health'
 
@@ -71,8 +69,6 @@ export async function buildExportData(
   config?: ExportConfig,
   requestedFormat?: ExportConfig['format']
 ): Promise<ExportData> {
-  const ts = now()
-  await ensureZeroSetupDefaults(db, ts)
   const settings = await getAppSettings(db)
 
   const allNodeRows = await selectRows(db, enabledNodeRowsQuery())

@@ -2,8 +2,6 @@ import type {
   CompatibilityWarning,
   DnsMode,
   ExportFormat,
-  RemoteRuleSet,
-  RemoteRuleSetValidationResult,
 } from '@uni-conf/types';
 import {
   getExportClientCapabilities,
@@ -19,10 +17,8 @@ import {
 import type { ExportData } from '../export-data';
 import { nodeToSubscriptionUri } from '../generators/node-subscription';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
-import { isSafeRemoteHttpUrl, safeRemoteFetch, SafeRemoteUrlError } from './safe-remote-fetch';
+import { isSafeRemoteHttpUrl } from './safe-remote-fetch';
 import { resolveConvertibleRuleSetTarget } from './rule-set-conversion';
-import { mapWithConcurrency } from './async-pool';
-import { buildPrivateCacheKey } from './private-cache-key';
 
 interface ExportValidationOptions {
   dnsMode?: DnsMode;
@@ -50,226 +46,6 @@ export function resolveExportWarnings(
     ...readinessWarnings,
     ...validateExportCompatibility(data, format, options),
   ];
-}
-
-const RULE_SET_REACHABILITY_SUCCESS_KV_TTL_SECONDS = 3600;
-const RULE_SET_REACHABILITY_FAILURE_KV_TTL_SECONDS = 60;
-const RULE_SET_REACHABILITY_LIVE_CHECK_LIMIT = 6;
-const RULE_SET_REACHABILITY_TIMEOUT_MS = 6000;
-const RULE_SET_REACHABILITY_ATTEMPTS = 2;
-
-type RuleSetReachabilityFailure =
-  | { kind: 'http'; status: number }
-  | { kind: 'network' | 'timeout' | 'security' };
-
-type RuleSetReachabilityResult =
-  | { reachable: true }
-  | { reachable: false; failure: RuleSetReachabilityFailure };
-
-export async function validateRemoteRuleSetReachability(
-  data: ExportData,
-  format: ExportFormat,
-  options: {
-    fetcher?: typeof fetch;
-    timeoutMs?: number;
-    kv?: KVNamespace;
-    successKvTtlSeconds?: number;
-    failureKvTtlSeconds?: number;
-    concurrency?: number;
-    maxChecks?: number;
-  } = {}
-): Promise<CompatibilityWarning[]> {
-  if (isNodeOnlyExportFormat(format)) return [];
-
-  const fetcher = options.fetcher ?? fetch;
-  const timeoutMs = options.timeoutMs ?? RULE_SET_REACHABILITY_TIMEOUT_MS;
-  const kv = options.kv;
-  const successKvTtlSeconds = options.successKvTtlSeconds ?? RULE_SET_REACHABILITY_SUCCESS_KV_TTL_SECONDS;
-  const failureKvTtlSeconds = options.failureKvTtlSeconds ?? RULE_SET_REACHABILITY_FAILURE_KV_TTL_SECONDS;
-  const checks = data.remoteSets.flatMap((ruleSet, index) => {
-    const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
-    const supported = resolved && (
-      isRuleSetFormatCompatible(format, resolved.format)
-      || resolveConvertibleRuleSetTarget(resolved.format, format) !== null
-    );
-    if (!resolved || !supported || !isDownloadableHttpUrl(resolved.url)) return [];
-    return [{ ruleSet, url: resolved.url, index }];
-  });
-
-  const warningsByIndex = new Map<number, CompatibilityWarning>();
-  const pendingChecks = checks.filter(({ ruleSet, url, index }) => {
-    const health = findFreshSourceHealth(ruleSet, url);
-    if (!health) return true;
-    if (health.status === 'invalid') {
-      warningsByIndex.set(index, sourceHealthWarning(format, ruleSet, health));
-    }
-    return false;
-  });
-  const maxChecks = Math.max(
-    0,
-    Math.floor(options.maxChecks ?? RULE_SET_REACHABILITY_LIVE_CHECK_LIMIT)
-  );
-  const selectedUrls = new Set<string>();
-  const selectedChecks = pendingChecks.filter(({ url }) => {
-    if (selectedUrls.has(url)) return true;
-    if (selectedUrls.size >= maxChecks) return false;
-    selectedUrls.add(url);
-    return true;
-  });
-  const deferredCount = pendingChecks.length - selectedChecks.length;
-  const inFlightByUrl = new Map<string, Promise<RuleSetReachabilityResult>>();
-  const results = await mapWithConcurrency(selectedChecks, options.concurrency ?? 6, async ({ ruleSet, url, index }): Promise<{
-    index: number;
-    warning: CompatibilityWarning | null;
-  }> => {
-    let reachability = inFlightByUrl.get(url);
-    if (!reachability) {
-      reachability = getCachedRuleSetReachability(kv, successKvTtlSeconds, failureKvTtlSeconds, url, () =>
-        canFetchRemoteRuleSet(fetcher, url, timeoutMs)
-      );
-      inFlightByUrl.set(url, reachability);
-    }
-    const result = await reachability;
-    return {
-      index,
-      warning: result.reachable ? null : unreachableRuleSetWarning(format, ruleSet, result.failure),
-    };
-  });
-
-  for (const result of results) {
-    if (result.warning) warningsByIndex.set(result.index, result.warning);
-  }
-  const warnings = [...warningsByIndex.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([, warning]) => warning);
-  if (deferredCount > 0) {
-    warnings.push({
-      client: format,
-      level: 'partial',
-      message: `为控制预览等待时间，本次有 ${deferredCount} 个规则集未实时探测；自动刷新开启时后台健康检查会继续处理，也可在分流策略页手动检查`,
-      messageEn: `${deferredCount} rule set${deferredCount === 1 ? ' was' : 's were'} deferred from live probing to keep preview latency bounded. Background health checks continue when automatic refresh is enabled, or you can check them manually on the Routing page.`,
-      remediation: { target: 'remote-rule-sets' },
-    });
-  }
-  return warnings;
-}
-
-function findFreshSourceHealth(
-  ruleSet: RemoteRuleSet,
-  url: string
-): RemoteRuleSetValidationResult | undefined {
-  const health = ruleSet.sourceHealth;
-  if (
-    !health
-    || health.stale
-    || !Number.isFinite(Date.parse(health.expiresAt))
-    || Date.parse(health.expiresAt) <= Date.now()
-  ) {
-    return undefined;
-  }
-  if (health.defaultSource.url === url) return health.defaultSource;
-  return health.sourceOverrides.find(item => item.result.url === url)?.result;
-}
-
-function sourceHealthWarning(
-  format: ExportFormat,
-  ruleSet: RemoteRuleSet,
-  health: RemoteRuleSetValidationResult
-): CompatibilityWarning {
-  const issue = health.issues.find(item => item.severity === 'error') ?? health.issues[0];
-  return {
-    client: format,
-    level: 'partial',
-    message: `远程规则集 "${ruleSet.name}" 最近一次健康检查失败${issue ? `：${issue.message}` : ''}`,
-    messageEn: `The latest health check failed for remote rule set "${ruleSet.name}"${issue ? `: ${issue.messageEn}` : '.'}`,
-    remediation: { target: 'remote-rule-sets', id: ruleSet.id },
-  };
-}
-
-function unreachableRuleSetWarning(
-  format: ExportFormat,
-  ruleSet: RemoteRuleSet,
-  failure: RuleSetReachabilityFailure
-): CompatibilityWarning {
-  const details = describeReachabilityFailure(failure);
-  return {
-    client: format,
-    level: 'partial',
-    message: `远程规则集 "${ruleSet.name}" ${details.message}`,
-    messageEn: `Remote rule set "${ruleSet.name}" ${details.messageEn}`,
-    remediation: { target: 'remote-rule-sets', id: ruleSet.id },
-  };
-}
-
-function describeReachabilityFailure(failure: RuleSetReachabilityFailure): {
-  message: string;
-  messageEn: string;
-} {
-  if (failure.kind === 'http') {
-    return {
-      message: `当前无法下载：远端返回 HTTP ${failure.status}`,
-      messageEn: `cannot be downloaded right now: the remote server returned HTTP ${failure.status}.`,
-    };
-  }
-  if (failure.kind === 'timeout') {
-    return {
-      message: '暂时无法确认可用性：请求超时，请稍后重试',
-      messageEn: 'could not be confirmed because the request timed out. Retry later.',
-    };
-  }
-  if (failure.kind === 'security') {
-    return {
-      message: '无法下载：地址或重定向未通过远程访问安全校验',
-      messageEn: 'cannot be downloaded because its URL or redirect failed remote-access safety validation.',
-    };
-  }
-  return {
-    message: '暂时无法确认可用性：网络连接失败，请稍后重试',
-    messageEn: 'could not be confirmed because of a temporary network failure. Retry later.',
-  };
-}
-
-async function getCachedRuleSetReachability(
-  kv: KVNamespace | undefined,
-  successKvTtlSeconds: number,
-  failureKvTtlSeconds: number,
-  url: string,
-  check: () => Promise<RuleSetReachabilityResult>
-): Promise<RuleSetReachabilityResult> {
-  if (!kv) return check();
-
-  const key = await buildPrivateCacheKey('rule-set-reachable', 2, url);
-  const cached = await kv.get(key);
-  const cachedResult = parseCachedReachabilityResult(cached);
-  if (cachedResult) return cachedResult;
-
-  const result = await check();
-  await kv.put(key, JSON.stringify(result), {
-    expirationTtl: result.reachable ? successKvTtlSeconds : failureKvTtlSeconds,
-  });
-  return result;
-}
-
-function parseCachedReachabilityResult(value: string | null): RuleSetReachabilityResult | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value) as RuleSetReachabilityResult;
-    if (parsed.reachable === true) return { reachable: true };
-    if (
-      parsed.reachable === false
-      && (
-        parsed.failure.kind === 'network'
-        || parsed.failure.kind === 'timeout'
-        || parsed.failure.kind === 'security'
-        || (parsed.failure.kind === 'http' && Number.isInteger(parsed.failure.status))
-      )
-    ) {
-      return parsed;
-    }
-  } catch {
-    // A malformed or obsolete cache entry should be treated as a cache miss.
-  }
-  return null;
 }
 
 export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
@@ -668,23 +444,6 @@ function validateRuleCompatibility(data: ExportData, format: ExportFormat): Comp
           reason: resolution.reason,
         },
       });
-    } else if (compatibility === 'convert') {
-      warnings.push({
-        code: 'rule-converted',
-        ruleId: rule.id,
-        client: format,
-        level: 'convert',
-        message: `规则 ${rule.type},${rule.payload} 将等价转换为 ${resolution.type},${resolution.payload}`,
-        messageEn: `Rule ${rule.type},${rule.payload} will be converted to the semantics-equivalent ${resolution.type},${resolution.payload}.`,
-        remediation: { target: 'rules', id: rule.id },
-        transformation: {
-          resource: 'rule',
-          action: 'convert',
-          source: formatRuleDiagnostic(rule.type, rule.payload),
-          target: formatRuleDiagnostic(resolution.type, resolution.payload),
-          reason: resolution.reason,
-        },
-      });
     } else if (compatibility === 'partial') {
       warnings.push({
         code: 'rule-partial',
@@ -723,26 +482,6 @@ function validateRuleCompatibility(data: ExportData, format: ExportFormat): Comp
     }
   }
 
-  const matchIndex = enabledRules.findIndex((rule) => rule.type === 'MATCH');
-  if (matchIndex !== -1 && matchIndex !== enabledRules.length - 1) {
-    warnings.push({
-      code: 'rule-reordered',
-      ruleId: enabledRules[matchIndex]?.id,
-      client: format,
-      level: 'partial',
-      message: 'MATCH 规则不是最后一条，导出时会把 MATCH 放到最后',
-      messageEn: 'MATCH rule is not last and will be moved to the end during export.',
-      remediation: { target: 'rules', id: enabledRules[matchIndex]?.id },
-      transformation: {
-        resource: 'rule',
-        action: 'reorder',
-        source: 'MATCH',
-        target: 'MATCH',
-        reason: 'final-rule-order',
-      },
-    });
-  }
-
   return warnings;
 }
 
@@ -771,19 +510,10 @@ function validateRemoteRuleSetCompatibility(data: ExportData, format: ExportForm
   const warnings: CompatibilityWarning[] = [];
   for (const ruleSet of data.remoteSets) {
     const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
-    const conversionTarget = resolved
-      ? resolveConvertibleRuleSetTarget(resolved.format, format)
-      : null;
-    if (conversionTarget) {
-      warnings.push({
-        code: 'remote-rule-set-conversion-planned',
-        client: format,
-        level: 'convert',
-        message: `远程规则集 "${ruleSet.name}" 将从 ${resolved!.format} 自动转换为 ${conversionTarget}；预检会报告实际保留和跳过数量`,
-        messageEn: `Remote rule set "${ruleSet.name}" will be converted from ${resolved!.format} to ${conversionTarget}; preflight reports the exact kept and skipped counts.`,
-        remediation: { target: 'remote-rule-sets', id: ruleSet.id },
-      });
-    } else if (!resolved || !isRuleSetFormatCompatible(format, resolved.format)) {
+    const convertible = resolved
+      ? resolveConvertibleRuleSetTarget(resolved.format, format) !== null
+      : false;
+    if (!convertible && (!resolved || !isRuleSetFormatCompatible(format, resolved.format))) {
       warnings.push({
         code: 'remote-rule-set-unsupported',
         client: format,
@@ -840,80 +570,4 @@ function formatDnsMode(dnsMode: DnsMode): string {
 
 function isDownloadableHttpUrl(value: string): boolean {
   return isSafeRemoteHttpUrl(value);
-}
-
-async function canFetchRemoteRuleSet(
-  fetcher: typeof fetch,
-  url: string,
-  timeoutMs: number
-): Promise<RuleSetReachabilityResult> {
-  const attemptTimeoutMs = Math.max(1, Math.floor(timeoutMs / RULE_SET_REACHABILITY_ATTEMPTS));
-  let result: RuleSetReachabilityResult = {
-    reachable: false,
-    failure: { kind: 'network' },
-  };
-  for (let attempt = 0; attempt < RULE_SET_REACHABILITY_ATTEMPTS; attempt++) {
-    result = await probeRemoteRuleSet(fetcher, url, attemptTimeoutMs);
-    if (result.reachable || !isTransientReachabilityFailure(result.failure)) return result;
-  }
-  return result;
-}
-
-async function probeRemoteRuleSet(
-  fetcher: typeof fetch,
-  url: string,
-  timeoutMs: number
-): Promise<RuleSetReachabilityResult> {
-  const startedAt = Date.now();
-  const head = await fetchWithTimeout(fetcher, url, { method: 'HEAD' }, timeoutMs);
-  if ('failure' in head) return { reachable: false, failure: head.failure };
-  if (isReachableResponse(head.response)) return { reachable: true };
-  if (![405, 403, 501].includes(head.response.status)) {
-    return { reachable: false, failure: { kind: 'http', status: head.response.status } };
-  }
-
-  const remainingMs = timeoutMs - (Date.now() - startedAt);
-  if (remainingMs <= 0) return { reachable: false, failure: { kind: 'timeout' } };
-  const get = await fetchWithTimeout(fetcher, url, {
-    method: 'GET',
-    headers: { Range: 'bytes=0-0' },
-  }, remainingMs);
-  if ('failure' in get) return { reachable: false, failure: get.failure };
-  return isReachableResponse(get.response)
-    ? { reachable: true }
-    : { reachable: false, failure: { kind: 'http', status: get.response.status } };
-}
-
-async function fetchWithTimeout(
-  fetcher: typeof fetch,
-  url: string,
-  init: RequestInit,
-  timeoutMs: number
-): Promise<{ response: Response } | { failure: RuleSetReachabilityFailure }> {
-  try {
-    return { response: await safeRemoteFetch(fetcher, url, init, { timeoutMs }) };
-  } catch (error) {
-    if (error instanceof SafeRemoteUrlError) return { failure: { kind: 'security' } };
-    if (isAbortError(error)) return { failure: { kind: 'timeout' } };
-    return { failure: { kind: 'network' } };
-  }
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
-
-function isTransientReachabilityFailure(failure: RuleSetReachabilityFailure): boolean {
-  return failure.kind === 'network'
-    || failure.kind === 'timeout'
-    || (failure.kind === 'http' && (
-      failure.status === 408
-      || failure.status === 425
-      || failure.status === 429
-      || failure.status >= 500
-    ));
-}
-
-function isReachableResponse(response: Response): boolean {
-  return response.status >= 200 && response.status < 400;
 }

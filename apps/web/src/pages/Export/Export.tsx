@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
@@ -21,9 +21,6 @@ import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
 import { countContentLines, INLINE_CONTENT_PREVIEW_LIMITS } from '@/core/export/content-preview'
 import { writeClipboardText } from '@/core/clipboard/write-text'
-import { compatibilityWarningMessage } from '@/core/export/compatibility-warning'
-import { compatibilityRemediationAction } from '@/core/export/compatibility-remediation'
-import { deriveExportReadiness, type ExportReadiness } from '@/core/export/readiness'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
@@ -32,7 +29,7 @@ import {
   getExportClientCapabilities,
   getExportSubscriptionFilename,
 } from '@uni-conf/shared'
-import type { CompatibilityWarning, ExportArtifactValidationIssue, ExportConfig, ExportDownloadReadiness, ExportFormat, ExportReadinessResult, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
+import type { CompatibilityWarning, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
 import styles from './Export.module.css'
 
 const BASE_URL = window.location.origin
@@ -85,19 +82,12 @@ export function Export() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [checkingId, setCheckingId] = useState<string | null>(null)
-  const [validationById, setValidationById] = useState<Record<string, ExportValidationState>>({})
-  const [defaultReadinessByFormat, setDefaultReadinessByFormat] = useState<Partial<Record<ExportFormat, DefaultFormatReadinessState>>>({})
-  const [pendingQuickAction, setPendingQuickAction] = useState<string | null>(null)
   const [previewModal, setPreviewModal] = useState<PreviewModalState | null>(null)
   const [revealedUrlScopes, setRevealedUrlScopes] = useState<Set<string>>(() => new Set())
   const selectedFormatCapabilities = getExportClientCapabilities(form.format)
   const formDirty = showModal && !formValuesEqual(form, initialForm)
   const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
   const previewRequestRef = useRef(0)
-  const defaultReadinessGenerationRef = useRef(0)
-  const defaultReadinessCacheRef = useRef(new Map<ExportFormat, DefaultFormatReadinessState & { status: 'ready' }>())
-  const defaultReadinessRequestRef = useRef(new Map<ExportFormat, Promise<DefaultFormatReadinessState>>())
 
   const load = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true)
@@ -117,10 +107,6 @@ export function Export() {
       setRemoteSets(nextRemoteSets)
       if (nextSettings) setGlobalRuleSetConversionPolicy(nextSettings.ruleSetConversionPolicy)
       setRevealedUrlScopes(new Set())
-      setDefaultReadinessByFormat({})
-      defaultReadinessGenerationRef.current += 1
-      defaultReadinessCacheRef.current.clear()
-      defaultReadinessRequestRef.current.clear()
     } catch (error) {
       setDownloadError(error)
     } finally {
@@ -231,11 +217,6 @@ export function Export() {
     setActionNotice(null)
     try {
       await api.export.deleteConfig(config.id)
-      setValidationById(current => {
-        const next = { ...current }
-        delete next[config.id]
-        return next
-      })
       await load(false)
     } catch (error) {
       setDownloadError(error)
@@ -244,9 +225,8 @@ export function Export() {
     }
   }
 
-  const toggleUrlVisibility = async (scope: string) => {
+  const toggleUrlVisibility = (scope: string) => {
     const revealed = revealedUrlScopes.has(scope)
-    if (!revealed && !(await confirmAction({ description: t('export.reveal_url_confirm') }))) return
     setRevealedUrlScopes(current => {
       const next = new Set(current)
       if (revealed) next.delete(scope)
@@ -313,64 +293,6 @@ export function Export() {
     await handleDownloadFormat(config, config.format)
   }
 
-  const rememberDefaultReadiness = (result: ExportReadinessResult): DefaultFormatReadinessState & { status: 'ready' } => {
-    const next: DefaultFormatReadinessState & { status: 'ready' } = {
-      status: 'ready',
-      readiness: deriveExportReadiness(result),
-      result,
-    }
-    defaultReadinessCacheRef.current.set(result.format, next)
-    setDefaultReadinessByFormat(current => ({ ...current, [result.format]: next }))
-    return next
-  }
-
-  const inspectDefaultFormat = (format: ExportFormat): Promise<DefaultFormatReadinessState> => {
-    const cached = defaultReadinessCacheRef.current.get(format)
-    if (cached) return Promise.resolve(cached)
-    const activeRequest = defaultReadinessRequestRef.current.get(format)
-    if (activeRequest) return activeRequest
-
-    const generation = defaultReadinessGenerationRef.current
-    setDefaultReadinessByFormat(current => ({ ...current, [format]: { status: 'loading' } }))
-    const request = api.export.readinessFormat(format)
-      .then(result => {
-        if (generation !== defaultReadinessGenerationRef.current) return { status: 'error', error: t('dashboard.readiness_unknown_desc') } as const
-        return rememberDefaultReadiness(result)
-      })
-      .catch(error => {
-        const next = { status: 'error', error: (error as Error).message } as const
-        if (generation === defaultReadinessGenerationRef.current) {
-          setDefaultReadinessByFormat(current => ({ ...current, [format]: next }))
-        }
-        return next
-      })
-      .finally(() => {
-        if (defaultReadinessRequestRef.current.get(format) === request) {
-          defaultReadinessRequestRef.current.delete(format)
-        }
-      })
-    defaultReadinessRequestRef.current.set(format, request)
-    return request
-  }
-
-  const handleDefaultCopy = async (format: ExportFormat, url: string, actionKey: string) => {
-    setPendingQuickAction(`${actionKey}:copy`)
-    setDownloadError(null)
-    const state = await inspectDefaultFormat(format)
-    if (state.status === 'ready' && state.readiness.status !== 'blocked') await copyUrl(url, actionKey)
-    setPendingQuickAction(null)
-  }
-
-  const handleDefaultDownload = async (config: ExportConfig, format: ExportFormat, actionKey: string) => {
-    setPendingQuickAction(`${actionKey}:download`)
-    setDownloadError(null)
-    const state = await inspectDefaultFormat(format)
-    setPendingQuickAction(null)
-    if (state.status === 'ready' && state.readiness.status !== 'blocked') {
-      await handleDownloadFormat(config, format)
-    }
-  }
-
   const openFullPreview = (format: ExportFormat, configId?: string) => {
     const params = new URLSearchParams({ format })
     if (configId) params.set('configId', configId)
@@ -389,7 +311,6 @@ export function Export() {
     try {
       const result = await api.export.previewFormat(format, configId)
       if (previewRequestRef.current !== requestId) return
-      if (configId == null) rememberDefaultReadiness(result)
       setPreviewModal({
         key,
         title,
@@ -408,33 +329,6 @@ export function Export() {
       setPreviewModal(previous
         ? { ...previous, refreshing: false, refreshError: error }
         : { key, title, format, configId, status: 'error', error })
-    }
-  }
-
-  const handleValidate = async (config: ExportConfig) => {
-    setCheckingId(config.id)
-    setValidationById(current => ({
-      ...current,
-      [config.id]: { status: 'checking' },
-    }))
-    try {
-      const result = await api.export.previewFormat(config.format, config.id)
-      setValidationById(current => ({
-        ...current,
-        [config.id]: {
-          status: 'ready',
-          warnings: result.warnings ?? [],
-          lineCount: countContentLines(result.content),
-          readiness: result.readiness,
-        },
-      }))
-    } catch (e) {
-      setValidationById(current => ({
-        ...current,
-        [config.id]: { status: 'error', error: (e as Error).message },
-      }))
-    } finally {
-      setCheckingId(null)
     }
   }
 
@@ -522,7 +416,7 @@ export function Export() {
               <div className={styles.urlRow}>
                 <div className={styles.urlLabelRow}>
                   <span className={styles.urlLabel}>{t('export.quick_links_label')}</span>
-                  <Button variant="ghost" size="sm" onClick={() => void toggleUrlVisibility(defaultConfig.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUrlVisibility(defaultConfig.id)}>
                     {t(revealedUrlScopes.has(defaultConfig.id) ? 'export.hide_urls' : 'export.reveal_urls')}
                   </Button>
                 </div>
@@ -531,9 +425,6 @@ export function Export() {
                     const filename = getExportSubscriptionFilename(item.value)
                     const subUrl = `${BASE_URL}/sub/${defaultConfig.token}/${filename}`
                     const actionKey = `${defaultConfig.id}:${item.value}`
-                    const readinessState = defaultReadinessByFormat[item.value]
-                    const readinessChecking = readinessState?.status === 'loading'
-                    const readinessBlocked = readinessState?.status === 'ready' && readinessState.readiness.status === 'blocked'
                     return (
                       <div key={item.value} className={styles.quickFormatRow}>
                         <strong className={styles.quickFormatName}>{t(`export.formats.${item.value}`)}</strong>
@@ -547,21 +438,19 @@ export function Export() {
                           >{t('common.preview')}</Button>
                           <Button
                             variant="ghost" size="sm"
-                            disabled={!defaultConfig.enabled || readinessChecking || readinessBlocked}
-                            loading={pendingQuickAction === `${actionKey}:copy`}
-                            onClick={() => void handleDefaultCopy(item.value, subUrl, actionKey)}
+                            disabled={!defaultConfig.enabled}
+                            onClick={() => void copyUrl(subUrl, actionKey)}
                           >{copied === actionKey ? t('common.copied') : t('common.copy')}</Button>
                           <Button
                             variant="secondary"
                             size="sm"
-                            disabled={!defaultConfig.enabled || readinessChecking || readinessBlocked}
-                            loading={downloadingId === actionKey || pendingQuickAction === `${actionKey}:download`}
-                            onClick={() => void handleDefaultDownload(defaultConfig, item.value, actionKey)}
+                            disabled={!defaultConfig.enabled}
+                            loading={downloadingId === actionKey}
+                            onClick={() => void handleDownloadFormat(defaultConfig, item.value)}
                           >
                             {t('common.download')}
                           </Button>
                         </div>
-                        {readinessState && <DefaultFormatReadiness state={readinessState} format={item.value} />}
                       </div>
                     )
                   })}
@@ -574,8 +463,6 @@ export function Export() {
             const filename = getExportSubscriptionFilename(cfg.format)
             const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
             const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets, t)
-            const validation = validationById[cfg.id]
-            const knownBlocked = validation?.status === 'ready' && !validation.readiness.ready
             return (
               <Card key={cfg.id} className={styles.configCard}>
                 <div className={styles.configHeader}>
@@ -606,18 +493,12 @@ export function Export() {
                     <Button
                       variant="secondary" size="sm"
                       disabled={!cfg.enabled || deletingId === cfg.id}
-                      loading={checkingId === cfg.id}
-                      onClick={() => void handleValidate(cfg)}
-                    >{t('export.validate')}</Button>
-                    <Button
-                      variant="secondary" size="sm"
-                      disabled={!cfg.enabled || deletingId === cfg.id}
                       loading={previewModal?.key === `${cfg.id}:${cfg.format}` && previewModal.status === 'loading'}
                       onClick={() => void handlePreviewFormat(`${cfg.id}:${cfg.format}`, `${cfg.name} · ${t(`export.formats.${cfg.format}`)}`, cfg.format, cfg.id)}
                     >{t('common.preview')}</Button>
                     <Button
                       variant="secondary" size="sm"
-                      disabled={!cfg.enabled || knownBlocked || deletingId === cfg.id}
+                      disabled={!cfg.enabled || deletingId === cfg.id}
                       loading={downloadingId === `${cfg.id}:${cfg.format}`}
                       onClick={() => void handleDownload(cfg)}
                     >{t('common.download')}</Button>
@@ -643,17 +524,16 @@ export function Export() {
                   <span className={styles.urlLabel}>{t('export.subscription_url')}</span>
                   <div className={styles.urlBox}>
                     <code className={styles.urlCode}>{revealedUrlScopes.has(cfg.id) ? subUrl : maskSubscriptionTokenUrl(subUrl)}</code>
-                    <Button variant="ghost" size="sm" onClick={() => void toggleUrlVisibility(cfg.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUrlVisibility(cfg.id)}>
                       {t(revealedUrlScopes.has(cfg.id) ? 'export.hide_url' : 'export.reveal_url')}
                     </Button>
                     <Button
                       variant="ghost" size="sm"
-                      disabled={!cfg.enabled || knownBlocked}
+                      disabled={!cfg.enabled}
                       onClick={() => void copyUrl(subUrl, cfg.id)}
                     >{copied === cfg.id ? t('common.copied') : t('common.copy')}</Button>
                   </div>
                 </div>
-                {validation && <ExportValidationResult validation={validation} />}
               </Card>
             )
           })}
@@ -808,11 +688,6 @@ export function Export() {
   )
 }
 
-type ExportValidationState =
-  | { status: 'checking' }
-  | { status: 'ready'; warnings: CompatibilityWarning[]; lineCount: number; readiness: ExportDownloadReadiness }
-  | { status: 'error'; error: string }
-
 type PreviewModalState =
   | { key: string; title: string; format: ExportFormat; configId?: string; status: 'loading' }
   | {
@@ -829,64 +704,6 @@ type PreviewModalState =
       refreshError?: string
     }
   | { key: string; title: string; format: ExportFormat; configId?: string; status: 'error'; error: string }
-
-type DefaultFormatReadinessState =
-  | { status: 'loading' }
-  | { status: 'ready'; readiness: ExportReadiness; result: ExportReadinessResult }
-  | { status: 'error'; error: string }
-
-function DefaultFormatReadiness({ state, format }: { state: DefaultFormatReadinessState; format: ExportFormat }) {
-  const { t, i18n } = useTranslation()
-
-  if (state.status === 'loading') {
-    return (
-      <div className={`${styles.quickReadiness} ${styles.quickReadinessChecking}`} role="status">
-        <strong>{t('dashboard.readiness_checking')}</strong>
-        <span>{t('dashboard.readiness_checking_desc')}</span>
-      </div>
-    )
-  }
-
-  if (state.status === 'error') {
-    return (
-      <div className={`${styles.quickReadiness} ${styles.quickReadinessUnknown}`} role="status">
-        <div>
-          <strong>{t('dashboard.readiness_unknown')}</strong>
-          <span>{state.error || t('dashboard.readiness_unknown_desc')}</span>
-        </div>
-        <Link to={`/preview?format=${format}`}>{t('dashboard.readiness_details')}</Link>
-      </div>
-    )
-  }
-
-  const firstWarning = state.result.readiness.blockingWarnings[0] ?? state.result.warnings[0]
-  const firstIssue: ExportArtifactValidationIssue | undefined = state.result.artifactValidation.issues[0]
-  const remediationAction = firstWarning ? compatibilityRemediationAction(firstWarning) : null
-  const visibleIssue = firstWarning
-    ? compatibilityWarningMessage(firstWarning, i18n.resolvedLanguage)
-    : firstIssue
-      ? (i18n.resolvedLanguage?.startsWith('zh') ? firstIssue.message : firstIssue.messageEn)
-      : undefined
-  const status = state.readiness.status
-  const description = visibleIssue ?? t(`dashboard.readiness_${status}_desc`, {
-    partial: state.readiness.summary.partial,
-    convert: state.readiness.summary.convert,
-    unsupported: state.result.readiness.blockingWarnings.length,
-  })
-
-  return (
-    <div className={`${styles.quickReadiness} ${styles[`quickReadiness_${status}`]}`} role="status">
-      <div>
-        <strong>{t(`dashboard.readiness_${status}`)}</strong>
-        <span>{description}</span>
-      </div>
-      <div className={styles.quickReadinessActions}>
-        {remediationAction && <Link to={remediationAction.to}>{t(remediationAction.labelKey)}</Link>}
-        <Link to={`/preview?format=${format}`}>{t('dashboard.readiness_details')}</Link>
-      </div>
-    </div>
-  )
-}
 
 function PreviewModalContent({
   preview,
@@ -987,48 +804,6 @@ function PreviewModalContent({
         {...INLINE_CONTENT_PREVIEW_LIMITS}
       />
     </>
-  )
-}
-
-function ExportValidationResult({ validation }: { validation: ExportValidationState }) {
-  const { t } = useTranslation()
-
-  if (validation.status === 'checking') {
-    return <div className={styles.validation}>{t('export.validation_checking')}</div>
-  }
-
-  if (validation.status === 'error') {
-    return (
-      <div className={`${styles.validation} ${styles.validationBlocked}`}>
-        <strong>{t('export.validation_blocked')}</strong>
-        <span>{validation.error}</span>
-      </div>
-    )
-  }
-
-  const summary = summarizeExportWarnings(validation.warnings)
-  const visibleWarnings = validation.warnings.slice(0, 3)
-
-  return (
-    <div className={`${styles.validation} ${validation.readiness.ready ? styles.validationReady : styles.validationBlocked}`}>
-      <strong>{validation.readiness.ready ? t('export.validation_ready') : t('export.validation_blocked')}</strong>
-      <span>{t('export.validation_summary_with_lines', {
-        summary: exportWarningSummaryText(summary, t, validation.readiness),
-        lineCount: validation.lineCount,
-      })}</span>
-      {visibleWarnings.length > 0 && (
-        <div className={styles.validationWarnings}>
-          {visibleWarnings.map((warning, index) => (
-            <CompatibilityWarningNotice key={`${warning.level}-${index}`} warning={warning} className={styles.validationWarning} />
-          ))}
-          {validation.warnings.length > visibleWarnings.length && (
-            <div className={styles.validationMore}>
-              {t('export.validation_more', { count: validation.warnings.length - visibleWarnings.length })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   )
 }
 

@@ -155,24 +155,6 @@ describe('collections route helpers', () => {
     expect(isManagedAutoNodeCollectionNotes(null)).toBe(false)
   })
 
-  it('initializes zero-setup defaults before listing collections', async () => {
-    const db = createCollectionRouteMockDb()
-
-    const response = await collectionsApp.request('/', {}, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
-  })
-
-  it('initializes zero-setup defaults before previewing a collection', async () => {
-    const db = createCollectionRouteMockDb()
-
-    const response = await collectionsApp.request('/collection-1/preview', {}, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
-  })
-
   it('initializes zero-setup defaults after creating a collection', async () => {
     const db = createCollectionRouteMockDb()
 

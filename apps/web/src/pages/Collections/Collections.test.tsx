@@ -57,17 +57,16 @@ describe('Collections node previews', () => {
     void i18n.changeLanguage('en')
   })
 
-  it('loads manual groups initially but keeps automatic groups lazy until expanded', async () => {
+  it('loads every node group preview only after expansion', async () => {
     const user = userEvent.setup()
     render(<Collections />)
 
-    await waitFor(() => expect(mocks.previewCollection).toHaveBeenCalledWith('manual-1'))
-    expect(mocks.previewCollection).toHaveBeenCalledTimes(1)
+    expect(mocks.previewCollection).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Toggle node preview for HK Auto' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' })).toHaveAttribute('aria-expanded', 'false')
 
-    await user.click(screen.getByRole('button', { name: 'Toggle node preview for HK Auto' }))
-    await waitFor(() => expect(mocks.previewCollection).toHaveBeenCalledWith('auto-hk'))
+    await user.click(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' }))
+    await waitFor(() => expect(mocks.previewCollection).toHaveBeenCalledWith('manual-1'))
     expect(mocks.previewCollection).not.toHaveBeenCalledWith('auto-jp')
   })
 

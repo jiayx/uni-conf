@@ -24,24 +24,20 @@ describe('api client', () => {
 
   it('requires declared export formats at every generated-config API boundary', () => {
     expectTypeOf(api.export.previewFormat).parameter(0).toEqualTypeOf<ExportFormat>()
-    expectTypeOf(api.export.readinessFormat).parameter(0).toEqualTypeOf<ExportFormat>()
     expectTypeOf(api.export.downloadFormat).parameter(0).toEqualTypeOf<ExportFormat>()
   })
 
-  it('encodes export profile IDs in preview, readiness, and download URLs', async () => {
+  it('encodes export profile IDs in preview and download URLs', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ success: true, data: {} }))
       .mockResolvedValueOnce(jsonResponse({ success: true, data: {} }))
       .mockResolvedValueOnce(new Response('config', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.export.previewFormat('singbox', 'profile/a b')
-    await api.export.readinessFormat('singbox', 'profile/a b')
     await api.export.downloadFormat('singbox', 'profile/a b')
 
     expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
       '/api/export/preview/singbox?configId=profile%2Fa%20b',
-      '/api/export/readiness/singbox?configId=profile%2Fa%20b',
       '/api/export/download/singbox?configId=profile%2Fa%20b',
     ])
   })
@@ -277,7 +273,6 @@ describe('api client', () => {
     await api.remoteRuleSets.update('remote-1', { enabled: false })
     await api.remoteRuleSets.validate('remote-1')
     await api.remoteRuleSets.validateAllSources('remote-1')
-    await api.remoteRuleSets.validatePendingSources()
     await api.remoteRuleSets.validateSource({ url: 'https://example.com/egern.yaml', targetFormat: 'egern', behavior: 'domain' })
     await api.remoteRuleSets.validateSources([
       { url: 'https://example.com/egern.yaml', targetFormat: 'egern', behavior: 'domain' },
@@ -291,7 +286,6 @@ describe('api client', () => {
     await api.export.deleteConfig('export-1')
     await api.export.resetToken('export-1')
     await api.export.previewFormat('singbox', 'export-1')
-    await api.export.readinessFormat('singbox', 'export-1')
     await api.settings.get()
     await api.settings.update({ language: 'en' })
     await api.settings.importData({ version: 4 })
@@ -317,11 +311,9 @@ describe('api client', () => {
     expect(calls).toContainEqual(['/api/remote-rule-sets/batch', 'POST'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/validate', 'POST'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/validate-all', 'POST'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/validate-pending', 'POST'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/validate-source', 'POST'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/validate-sources', 'POST'])
     expect(calls).toContainEqual(['/api/export/preview/singbox?configId=export-1', 'GET'])
-    expect(calls).toContainEqual(['/api/export/readiness/singbox?configId=export-1', 'GET'])
     expect(calls).toContainEqual(['/api/data/import', 'POST'])
     expect(calls).toContainEqual(['/api/data', 'DELETE'])
   })

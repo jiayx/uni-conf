@@ -23,29 +23,19 @@ const stats: DashboardStats = {
 }
 
 describe('deriveDashboardAttention', () => {
-  it('aggregates persisted source, rule-set, and export problems without counting healthy state', () => {
-    expect(deriveDashboardAttention(stats, {
-      status: 'blocked',
-      issueCount: 3,
-      remediationTo: '/rules?edit=rule-1',
-      previewTo: '/preview?format=singbox',
-    })).toEqual([
+  it('reports persisted failures without turning unknown health into work', () => {
+    expect(deriveDashboardAttention(stats)).toEqual([
       { id: 'source_refresh', severity: 'warning', count: 2, to: '/sources?attention=refresh' },
       { id: 'rule_source_invalid', severity: 'error', count: 1, to: '/remote-rule-sets?attention=1' },
-      { id: 'rule_source_review', severity: 'warning', count: 3, to: '/remote-rule-sets?attention=1' },
-      { id: 'export_blocked', severity: 'error', count: 3, to: '/rules?edit=rule-1' },
     ])
   })
 
-  it('prioritizes a paused public profile over transient readiness state', () => {
+  it('reports a paused public profile', () => {
     expect(deriveDashboardAttention({
       ...stats,
       sourceRefreshFailureCount: 0,
       ruleSetHealth: undefined,
       defaultExportEnabled: false,
-    }, {
-      status: 'unknown',
-      previewTo: '/preview',
     })).toEqual([
       { id: 'export_paused', severity: 'error', count: 1, to: '/export' },
     ])
@@ -58,9 +48,6 @@ describe('deriveDashboardAttention', () => {
       ruleSetHealth: {
         total: 1, valid: 1, warning: 0, invalid: 0, stale: 0, pending: 0,
       },
-    }, {
-      status: 'ready',
-      previewTo: '/preview',
     })).toEqual([])
   })
 })

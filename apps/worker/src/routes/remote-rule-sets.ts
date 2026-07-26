@@ -15,13 +15,12 @@ import { validateRemoteRuleSetContent } from '../services/remote-rule-set-valida
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
 import { getConvertedRemoteRuleSet, resolveRuleSetConversionIssues, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
 import { mapWithConcurrency } from '../services/async-pool'
-import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources, validatePendingRuleSetSources } from '../services/remote-rule-set-health'
+import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now())
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM remote_rule_sets ORDER BY sort_order ASC, created_at ASC'
@@ -210,11 +209,6 @@ app.post('/:id/validate-all', async (c) => {
   return c.json({ success: true, data: result })
 })
 
-app.post('/validate-pending', async (c) => {
-  const result = await validatePendingRuleSetSources(c.env.DB)
-  return c.json({ success: true, data: result })
-})
-
 app.post('/:id/conversion-preview', async (c) => {
   const body: { targetFormat?: unknown } = await c.req.json<{ targetFormat?: unknown }>().catch(() => ({}))
   if (!isRuleSetPreviewTarget(body.targetFormat)) {
@@ -302,7 +296,6 @@ app.post('/:id/conversion-preview', async (c) => {
 })
 
 app.get('/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now())
 
   const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
     .bind(c.req.param('id'))

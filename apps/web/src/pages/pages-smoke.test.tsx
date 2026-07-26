@@ -48,7 +48,7 @@ vi.mock('@/lib/api', async () => {
       groups: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn() },
       rules: { list: vi.fn(async () => []) },
       remoteRuleSets: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
-      export: { listConfigs: vi.fn(async () => []), previewFormat: vi.fn(), readinessFormat: vi.fn(), downloadFormat: vi.fn(), createConfig: vi.fn(), updateConfig: vi.fn(), deleteConfig: vi.fn() },
+      export: { listConfigs: vi.fn(async () => []), previewFormat: vi.fn(), downloadFormat: vi.fn(), createConfig: vi.fn(), updateConfig: vi.fn(), deleteConfig: vi.fn() },
     },
   }
 })

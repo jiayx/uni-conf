@@ -9,8 +9,6 @@ import { DNS_MODE_PRESETS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROU
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
-  const ts = now()
-  await ensureZeroSetupDefaults(c.env.DB, ts)
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })
 })

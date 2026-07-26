@@ -24,7 +24,6 @@ const BUILTIN_GROUP_NAMES = new Set<string>([
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
 app.get('/', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM groups ORDER BY sort_order ASC, created_at ASC'
@@ -160,7 +159,6 @@ app.post('/', async (c) => {
 // ─── Get group ────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
     .bind(c.req.param('id'))

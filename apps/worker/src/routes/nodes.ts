@@ -40,7 +40,6 @@ const NODE_BATCH_SQL_CHUNK_SIZE = 90;
 // ─── List nodes with filtering/pagination ─────────────────────────────────────
 
 app.get('/', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const query = c.req.query();
   const sourceId = query.sourceId;
@@ -295,7 +294,6 @@ function chunkValues<T>(values: T[], size: number): T[][] {
 // ─── Get node ─────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
     .bind(c.req.param('id'))

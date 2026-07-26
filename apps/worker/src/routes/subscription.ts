@@ -144,7 +144,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'X-UniConf-Error-Code': 'export_not_ready',
-        'Subscription-Userinfo': buildSubscriptionUserInfoHeader(exportData.sources),
+        ...subscriptionUserInfoHeaders(exportData.sources),
       },
     })
   }
@@ -159,7 +159,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'X-UniConf-Error-Code': 'conversion_incomplete',
-        'Subscription-Userinfo': buildSubscriptionUserInfoHeader(exportData.sources),
+        ...subscriptionUserInfoHeaders(exportData.sources),
       },
     })
   }
@@ -185,7 +185,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'X-UniConf-Error-Code': 'artifact_invalid',
-        'Subscription-Userinfo': buildSubscriptionUserInfoHeader(exportData.sources),
+        ...subscriptionUserInfoHeaders(exportData.sources),
       },
     })
   }
@@ -195,13 +195,13 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
       'Content-Type': rendered.contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Subscription-Userinfo': buildSubscriptionUserInfoHeader(exportData.sources),
+      ...subscriptionUserInfoHeaders(exportData.sources),
       'X-UniConf-Capability-Profile': serializeExportCapabilityProfile(format),
     },
   })
 })
 
-export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string {
+export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string | undefined {
   const summary = sources.reduce(
     (acc, source) => ({
       upload: acc.upload + (source.uploadBytes ?? 0),
@@ -212,28 +212,34 @@ export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string 
         : acc.expire === undefined
           ? source.expireTime
           : Math.min(acc.expire, source.expireTime),
-      hasAny: acc.hasAny
-        || source.uploadBytes !== undefined
-        || source.downloadBytes !== undefined
-        || source.totalBytes !== undefined
-        || source.expireTime !== undefined,
+      hasUpload: acc.hasUpload || source.uploadBytes !== undefined,
+      hasDownload: acc.hasDownload || source.downloadBytes !== undefined,
+      hasTotal: acc.hasTotal || source.totalBytes !== undefined,
+      hasExpire: acc.hasExpire || source.expireTime !== undefined,
     }),
     {
       upload: 0,
       download: 0,
       total: 0,
       expire: undefined as number | undefined,
-      hasAny: false,
+      hasUpload: false,
+      hasDownload: false,
+      hasTotal: false,
+      hasExpire: false,
     }
   )
 
-  if (!summary.hasAny) {
-    return 'upload=0; download=0; total=10737418240; expire=4099680000'
-  }
+  const fields: string[] = []
+  if (summary.hasUpload) fields.push(`upload=${summary.upload}`)
+  if (summary.hasDownload) fields.push(`download=${summary.download}`)
+  if (summary.hasTotal) fields.push(`total=${summary.total}`)
+  if (summary.hasExpire && summary.expire !== undefined) fields.push(`expire=${summary.expire}`)
+  return fields.length > 0 ? fields.join('; ') : undefined
+}
 
-  const total = summary.total > 0 ? summary.total : 10737418240
-  const expire = summary.expire ?? 4099680000
-  return `upload=${summary.upload}; download=${summary.download}; total=${total}; expire=${expire}`
+function subscriptionUserInfoHeaders(sources: ProxySource[]): Record<string, string> {
+  const value = buildSubscriptionUserInfoHeader(sources)
+  return value ? { 'Subscription-Userinfo': value } : {}
 }
 
 export function buildRuleSetConversionBaseUrl(requestUrl: string, token: string): string {

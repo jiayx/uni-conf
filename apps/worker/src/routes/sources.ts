@@ -35,7 +35,6 @@ const app = new Hono<{ Bindings: Env }>();
 // ─── List all sources ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const { results } = await c.env.DB.prepare(
     `SELECT id, name, type, url, format, enabled, node_count, last_updated,
@@ -540,7 +539,6 @@ app.post('/imports/:runId/undo', async (c) => {
 // ─── Get source ───────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now());
 
   const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
     .bind(c.req.param('id'))
