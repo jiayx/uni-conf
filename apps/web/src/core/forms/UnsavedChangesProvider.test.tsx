@@ -5,7 +5,7 @@ import { createMemoryRouter, Link, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { Button } from '@/components/ui/Button/Button'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import i18n from '@/i18n'
 import { useUnsavedChangesGuard } from './use-unsaved-changes'
 import { UnsavedChangesProvider } from './UnsavedChangesProvider'
@@ -27,18 +27,15 @@ function Editor() {
 function ModalEditor() {
   const [open, setOpen] = useState(true)
   const [value, setValue] = useState('draft')
-  const confirmDiscard = useUnsavedChangesGuard(open && value !== '')
-  const requestClose = async () => {
-    if (await confirmDiscard()) setOpen(false)
-  }
+  const dirty = open && value !== ''
+  useUnsavedChangesGuard(dirty)
   return (
     <Modal
       open={open}
-      onOpenChange={nextOpen => {
-        if (!nextOpen) void requestClose()
-      }}
+      dirty={dirty}
+      onOpenChange={setOpen}
       title="Editor"
-      footer={<Button onClick={() => void requestClose()}>Cancel edit</Button>}
+      footer={<ModalClose><Button>Cancel edit</Button></ModalClose>}
     >
       <label>
         Draft
@@ -102,7 +99,7 @@ describe('UnsavedChangesProvider', () => {
     expect(dirtyEvent.defaultPrevented).toBe(true)
   })
 
-  it('keeps the underlying editor open when its discard dialog is cancelled', async () => {
+  it('keeps the underlying editor open when its inline discard prompt is cancelled', async () => {
     const router = createMemoryRouter([{
       path: '/',
       element: (
@@ -117,10 +114,10 @@ describe('UnsavedChangesProvider', () => {
     render(<RouterProvider router={router} />)
 
     await user.click(screen.getByRole('button', { name: 'Cancel edit' }))
-    const confirmation = await screen.findByRole('dialog', { name: 'Unsaved changes' })
-    await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
-
-    expect(screen.getByRole('dialog', { name: 'Editor' })).toBeInTheDocument()
+    const editor = screen.getByRole('dialog', { name: 'Editor' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(editor).getByRole('alert')).toHaveTextContent('Unsaved changes')
+    await user.click(within(editor).getByRole('button', { name: 'Continue editing' }))
     expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('draft')
   })
 })

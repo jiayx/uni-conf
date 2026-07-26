@@ -210,7 +210,6 @@ describe('Nodes filters', () => {
   })
 
   it('keeps a changed manual node form open when discard is cancelled', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
     render(<MemoryRouter><Nodes /></MemoryRouter>)
 
@@ -218,12 +217,11 @@ describe('Nodes filters', () => {
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Draft Node')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Your current edits have not been saved. Discard them and leave?',
-    )
-    expect(screen.getByRole('dialog', { name: 'Manual Entry' })).toBeInTheDocument()
+    const editor = screen.getByRole('dialog', { name: 'Manual Entry' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(editor).getByRole('alert')).toHaveTextContent('Unsaved changes')
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Draft Node')
-    confirmSpy.mockRestore()
+    await user.click(within(editor).getByRole('button', { name: 'Continue editing' }))
   })
 })
 

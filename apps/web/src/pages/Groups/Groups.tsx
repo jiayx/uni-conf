@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
 import { Badge } from '@/components/ui/Badge/Badge'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
@@ -79,7 +79,7 @@ export function Groups() {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingPreferenceId, setSavingPreferenceId] = useState<string | null>(null)
   const formDirty = showModal && !formValuesEqual(form, initialForm)
-  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
+  useUnsavedChangesGuard(formDirty)
 
   useEffect(() => {
     void fetchGroups()
@@ -188,8 +188,7 @@ export function Groups() {
 
   useRequestedEdit(groups.filter(group => !group.isBuiltin), openEdit)
 
-  const closeFormModal = async () => {
-    if (!(await confirmDiscardForm())) return
+  const closeFormModal = () => {
     setShowModal(false)
     setEditingGroup(null)
     setFormError(null)
@@ -590,15 +589,16 @@ export function Groups() {
 
       <Modal
         open={showModal}
+        dirty={formDirty}
         onOpenChange={open => {
-          if (!open) void closeFormModal()
+          if (!open) closeFormModal()
         }}
         title={editingGroup ? t('common.edit') : t('groups.new')}
         size="lg"
         closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={formSaving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button>
           </>
         }

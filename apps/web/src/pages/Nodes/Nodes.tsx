@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button/Button'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import { Input } from '@/components/ui/Input/Input'
 import {
@@ -82,7 +82,7 @@ export function Nodes() {
   const [actionError, setActionError] = useState<unknown>(null)
   const [rowAction, setRowAction] = useState<{ id: string; type: 'toggle' | 'delete' } | null>(null)
   const formDirty = showModal && !formValuesEqual({ form, uriInput }, initialEditor)
-  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
+  useUnsavedChangesGuard(formDirty)
 
   useEffect(() => { void fetchNodes(); void fetchSources() }, [fetchNodes, fetchSources])
   useEffect(() => {
@@ -223,8 +223,7 @@ export function Nodes() {
 
   useRequestedEdit(nodes.filter(node => node.isManual), openEdit)
 
-  const closeFormModal = async () => {
-    if (!(await confirmDiscardForm())) return
+  const closeFormModal = () => {
     setShowModal(false)
     setEditingNode(null)
     setEditingRequested(false)
@@ -494,13 +493,14 @@ export function Nodes() {
 
       <Modal
         open={showModal}
+        dirty={formDirty}
         onOpenChange={open => {
-          if (!open) void closeFormModal()
+          if (!open) closeFormModal()
         }}
         title={editingRequested ? t('nodes.edit_manual') : t('nodes.add_manual')}
         closeDisabled={formSaving || detailLoading}
         footer={<>
-          <Button variant="secondary" disabled={formSaving || detailLoading} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+          <ModalClose><Button variant="secondary" disabled={formSaving || detailLoading}>{t('common.cancel')}</Button></ModalClose>
           <Button
             loading={formSaving}
             disabled={detailLoading || (editingRequested && !editingNode)}

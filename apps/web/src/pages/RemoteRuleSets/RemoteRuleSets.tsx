@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card/Card'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
 import { Input } from '@/components/ui/Input/Input'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { getRemoteRuleSetCompatibilityMode } from '@/core/remote-rules/compatibility'
@@ -149,7 +149,7 @@ export function RemoteRuleSets() {
   const conversionRequestId = useRef(0)
   const sourceOverrideRequestIds = useRef<Partial<Record<RemoteRuleSetSourceOverrideTarget, number>>>({})
   const formDirty = showModal && !formValuesEqual(form, initialForm)
-  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
+  useUnsavedChangesGuard(formDirty)
 
   useEffect(() => {
     let cancelled = false
@@ -338,8 +338,7 @@ export function RemoteRuleSets() {
     )
   }, REQUESTED_EDIT_PARAMS)
 
-  const closeFormModal = async () => {
-    if (!(await confirmDiscardForm())) return
+  const closeFormModal = () => {
     setShowModal(false)
     setEditingSet(null)
     setFormError('')
@@ -1121,15 +1120,16 @@ export function RemoteRuleSets() {
 
       <Modal
         open={showModal}
+        dirty={formDirty}
         onOpenChange={open => {
-          if (!open) void closeFormModal()
+          if (!open) closeFormModal()
         }}
         title={editingManagedSet
           ? t('remoteRuleSets.configure_managed_sources_title', { name: editingSet?.name ?? '' })
           : editingSet ? t('remoteRuleSets.edit_supplement') : t('remoteRuleSets.add_supplement')}
         footer={
           <>
-            <Button variant="secondary" disabled={saving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={saving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={saving} onClick={() => void handleSave()}>{t('common.save')}</Button>
           </>
         }

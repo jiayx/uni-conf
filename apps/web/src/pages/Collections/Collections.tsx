@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
@@ -198,8 +198,8 @@ export function Collections() {
   )
   const autoSelectionMissingType = selectedAutoTypes.size === 0
     && (selectedAutoCountries.size > 0 || selectedAutoTags.size > 0)
-  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
-  const confirmDiscardAutoEditor = useUnsavedChangesGuard(autoEditorDirty)
+  useUnsavedChangesGuard(formDirty)
+  useUnsavedChangesGuard(autoEditorDirty)
 
   useEffect(() => {
     void fetchCollections()
@@ -381,15 +381,13 @@ export function Collections() {
     setShowModal(true)
   }
 
-  const closeFormModal = async () => {
-    if (!(await confirmDiscardForm())) return
+  const closeFormModal = () => {
     setShowModal(false)
     setEditingCollection(null)
     setFormError(null)
   }
 
-  const closeAutoModal = async () => {
-    if (!(await confirmDiscardAutoEditor())) return
+  const closeAutoModal = () => {
     setShowAutoModal(false)
     setAutoError(null)
   }
@@ -625,15 +623,16 @@ export function Collections() {
 
       <Modal
         open={showModal}
+        dirty={formDirty}
         onOpenChange={open => {
-          if (!open) void closeFormModal()
+          if (!open) closeFormModal()
         }}
         title={editingCollection ? t('common.edit') : t('collections.new')}
         size="lg"
         closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={formSaving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button>
           </>
         }
@@ -734,15 +733,16 @@ export function Collections() {
       </Modal>
       <Modal
         open={showAutoModal}
+        dirty={autoEditorDirty}
         onOpenChange={open => {
-          if (!open) void closeAutoModal()
+          if (!open) closeAutoModal()
         }}
         title={t('collections.auto_generate_title')}
         size="lg"
         closeDisabled={autoApplying}
         footer={
           <>
-            <Button variant="secondary" disabled={autoApplying} onClick={() => void closeAutoModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={autoApplying}>{t('common.cancel')}</Button></ModalClose>
             <Button
               loading={autoApplying}
               disabled={autoSelectionMissingType}

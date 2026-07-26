@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Badge } from '@/components/ui/Badge/Badge'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
@@ -96,8 +96,8 @@ export function Rules() {
   const [reordering, setReordering] = useState(false)
   const formDirty = showModal && !formValuesEqual(form, initialForm)
   const batchDirty = showBatchModal && (batchText !== '' || batchTargetGroupId !== initialBatchTargetGroupId)
-  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
-  const confirmDiscardBatch = useUnsavedChangesGuard(batchDirty)
+  useUnsavedChangesGuard(formDirty)
+  useUnsavedChangesGuard(batchDirty)
 
   useEffect(() => {
     void fetchRules()
@@ -218,15 +218,13 @@ export function Rules() {
     setShowBatchModal(true)
   }
 
-  const closeFormModal = async () => {
-    if (!(await confirmDiscardForm())) return
+  const closeFormModal = () => {
     setShowModal(false)
     setEditingRule(null)
     setFormError(null)
   }
 
-  const closeBatchModal = async () => {
-    if (!(await confirmDiscardBatch())) return
+  const closeBatchModal = () => {
     setShowBatchModal(false)
     setBatchText('')
     setBatchError(null)
@@ -539,14 +537,15 @@ export function Rules() {
 
       <Modal
         open={showModal}
+        dirty={formDirty}
         onOpenChange={open => {
-          if (!open) void closeFormModal()
+          if (!open) closeFormModal()
         }}
         title={editingRule ? t('rules.edit') : t('rules.new')}
         closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={formSaving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button>
           </>
         }
@@ -593,15 +592,16 @@ export function Rules() {
 
       <Modal
         open={showBatchModal}
+        dirty={batchDirty}
         onOpenChange={open => {
-          if (!open) void closeBatchModal()
+          if (!open) closeBatchModal()
         }}
         title={t('rules.batch_add')}
         size="lg"
         closeDisabled={batchSaving}
         footer={
           <>
-            <Button variant="secondary" disabled={batchSaving} onClick={() => void closeBatchModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={batchSaving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={batchSaving} onClick={() => void handleBatchImport()}>{t('common.save')}</Button>
           </>
         }

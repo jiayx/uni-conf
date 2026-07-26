@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { Sources } from './Sources'
@@ -221,7 +221,6 @@ describe('Sources import flow', () => {
 
   it('protects edited subscription fields from an accidental close', async () => {
     store.sources = [makeSource()]
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
     render(<MemoryRouter><Sources /></MemoryRouter>)
 
@@ -231,12 +230,11 @@ describe('Sources import flow', () => {
     await user.type(url, 'https://new.example/sub')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Your current edits have not been saved. Discard them and leave?',
-    )
-    expect(screen.getByRole('dialog', { name: 'Edit - Airport' })).toBeInTheDocument()
+    const editor = screen.getByRole('dialog', { name: 'Edit - Airport' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(editor).getByRole('alert')).toHaveTextContent('Unsaved changes')
     expect(url).toHaveValue('https://new.example/sub')
-    confirmSpy.mockRestore()
+    await user.click(within(editor).getByRole('button', { name: 'Continue editing' }))
   })
 
   it('keeps a partial-import warning visible after closing the modal', async () => {

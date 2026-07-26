@@ -142,7 +142,6 @@ describe('Rules filters', () => {
   })
 
   it('validates semantic payloads before single or batch API calls', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     render(<MemoryRouter><Rules /></MemoryRouter>)
 
@@ -158,6 +157,7 @@ describe('Rules filters', () => {
     expect(stores.rules.addRule).not.toHaveBeenCalled()
 
     await user.click(within(editor).getByRole('button', { name: 'Cancel' }))
+    await user.click(within(editor).getByRole('button', { name: 'Discard changes' }))
     await user.click(screen.getByRole('button', { name: 'Batch Add Manual Rules' }))
     await user.type(screen.getByRole('textbox', { name: 'Rule Text' }), 'IP-CIDR,999.1.1.1/24,DIRECT')
     await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -166,7 +166,6 @@ describe('Rules filters', () => {
       'Line 1: Enter a valid IPv4 CIDR, such as 10.0.0.0/8.',
     )
     expect(stores.rules.batchAddRules).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
   })
 
   it('previews exact target-client conversions and omissions before saving', async () => {
@@ -201,7 +200,6 @@ describe('Rules filters', () => {
   })
 
   it('keeps unsaved rule edits until discarding is confirmed', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
     render(<MemoryRouter><Rules /></MemoryRouter>)
 
@@ -210,16 +208,18 @@ describe('Rules filters', () => {
     await user.type(within(editor).getByLabelText('Match Value'), 'example.com')
     await user.click(within(editor).getByRole('button', { name: 'Cancel' }))
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Your current edits have not been saved. Discard them and leave?',
-    )
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(editor).getByRole('alert')).toHaveTextContent('Unsaved changes')
     expect(editor).toBeInTheDocument()
     expect(within(editor).getByLabelText('Match Value')).toHaveValue('example.com')
 
-    confirmSpy.mockReturnValue(true)
+    await user.click(within(editor).getByRole('button', { name: 'Continue editing' }))
+    expect(within(editor).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(editor).getByLabelText('Match Value')).toHaveValue('example.com')
+
     await user.click(within(editor).getByRole('button', { name: 'Cancel' }))
+    await user.click(within(editor).getByRole('button', { name: 'Discard changes' }))
     expect(screen.queryByRole('dialog', { name: 'Add Manual Rule' })).not.toBeInTheDocument()
-    confirmSpy.mockRestore()
   })
 
   it('keeps the batch dialog open and shows an API failure', async () => {

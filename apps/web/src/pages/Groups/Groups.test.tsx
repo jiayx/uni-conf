@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import {
@@ -134,7 +134,6 @@ describe('Groups information hierarchy', () => {
   })
 
   it('preserves a changed custom policy when discard is cancelled', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
     render(<MemoryRouter><Groups /></MemoryRouter>)
 
@@ -144,12 +143,11 @@ describe('Groups information hierarchy', () => {
     await user.type(name, 'Draft Policy')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Your current edits have not been saved. Discard them and leave?',
-    )
-    expect(screen.getByRole('dialog', { name: 'Edit' })).toBeInTheDocument()
+    const editor = screen.getByRole('dialog', { name: 'Edit' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(within(editor).getByRole('alert')).toHaveTextContent('Unsaved changes')
     expect(name).toHaveValue('Draft Policy')
-    confirmSpy.mockRestore()
+    await user.click(within(editor).getByRole('button', { name: 'Continue editing' }))
   })
 })
 

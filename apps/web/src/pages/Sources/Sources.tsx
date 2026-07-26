@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { Badge } from '@/components/ui/Badge/Badge'
 import { Card } from '@/components/ui/Card/Card'
@@ -135,8 +135,8 @@ export function Sources() {
     || Object.keys(conflictResolutions).length > 0
   )
   const canAddSources = parseSubscriptionUrls(form.url).length > 0
-  const confirmDiscardSourceForm = useUnsavedChangesGuard(sourceFormDirty)
-  const confirmDiscardImportForm = useUnsavedChangesGuard(importFormDirty)
+  useUnsavedChangesGuard(sourceFormDirty)
+  useUnsavedChangesGuard(importFormDirty)
   const refreshAttentionMode = searchParams.get('attention') === 'refresh'
   const refreshFailureSources = sources.filter(source =>
     Boolean(refreshErrors[source.id] || source.lastRefreshError)
@@ -386,11 +386,6 @@ export function Sources() {
     setInitialImportForm(EMPTY_IMPORT_FORM)
   }
 
-  const requestCloseImportModal = async () => {
-    if (!(await confirmDiscardImportForm())) return
-    closeImportModal()
-  }
-
   const handleToggle = async (source: ProxySource) => {
     setRowAction({ id: source.id, type: 'toggle' })
     setActionError(null)
@@ -506,8 +501,7 @@ export function Sources() {
     setShowImportModal(true)
   }
 
-  const closeSourceFormModal = async (kind: 'add' | 'edit') => {
-    if (!(await confirmDiscardSourceForm())) return
+  const closeSourceFormModal = (kind: 'add' | 'edit') => {
     if (kind === 'add') setShowAddModal(false)
     else {
       setShowEditModal(false)
@@ -758,14 +752,15 @@ export function Sources() {
 
       <Modal
         open={showAddModal}
+        dirty={sourceFormDirty}
         onOpenChange={open => {
-          if (!open) void closeSourceFormModal('add')
+          if (!open) closeSourceFormModal('add')
         }}
         title={t('sources.add_url')}
         closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" disabled={formSaving} onClick={() => void closeSourceFormModal('add')}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={formSaving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={formSaving} disabled={!canAddSources} onClick={() => void handleAdd()}>{t('sources.save_and_generate')}</Button>
           </>
         }
@@ -852,14 +847,15 @@ export function Sources() {
 
       <Modal
         open={showEditModal}
+        dirty={sourceFormDirty}
         onOpenChange={open => {
-          if (!open) void closeSourceFormModal('edit')
+          if (!open) closeSourceFormModal('edit')
         }}
         title={t('common.edit') + ' - ' + editingSource?.name}
         closeDisabled={formSaving}
         footer={
           <>
-            <Button variant="secondary" disabled={formSaving} onClick={() => void closeSourceFormModal('edit')}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary" disabled={formSaving}>{t('common.cancel')}</Button></ModalClose>
             <Button loading={formSaving} onClick={() => void handleUpdate()}>{t('common.save')}</Button>
           </>
         }
@@ -932,15 +928,16 @@ export function Sources() {
 
       <Modal
         open={showImportModal}
+        dirty={importFormDirty}
         onOpenChange={(open) => {
-          if (!open) void requestCloseImportModal()
+          if (!open) closeImportModal()
         }}
         title={nodeRetryRun
           ? t('sources.import_node_retry_title')
           : structuredRetryRun ? t('sources.import_retry_title') : t('sources.import_config')}
         footer={
           <>
-            <Button variant="secondary" onClick={() => void requestCloseImportModal()}>{t('common.cancel')}</Button>
+            <ModalClose><Button variant="secondary">{t('common.cancel')}</Button></ModalClose>
             <Button
               loading={importing}
               disabled={Boolean(!structuredRetryRun && !nodeRetryRun && importPreview && importForm.nodeImportMode === 'new-only' && importPreview.diff.nodes.counts.new === 0)}

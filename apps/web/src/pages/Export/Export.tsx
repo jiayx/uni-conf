@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
 import { Badge } from '@/components/ui/Badge/Badge'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
@@ -85,7 +85,7 @@ export function Export() {
   const [revealedUrlScopes, setRevealedUrlScopes] = useState<Set<string>>(() => new Set())
   const selectedFormatCapabilities = getExportClientCapabilities(form.format)
   const formDirty = showModal && !formValuesEqual(form, initialForm)
-  const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
+  useUnsavedChangesGuard(formDirty)
   const previewRequestRef = useRef(0)
 
   const load = useCallback(async (showLoading = true) => {
@@ -165,8 +165,7 @@ export function Export() {
 
   useRequestedEdit(configs.filter(config => config.id !== DEFAULT_EXPORT_CONFIG_ID), openEdit)
 
-  const closeFormModal = async () => {
-    if (!(await confirmDiscardForm())) return
+  const closeFormModal = () => {
     setShowModal(false)
     setEditingId(null)
     setForm(EMPTY_FORM)
@@ -548,12 +547,13 @@ export function Export() {
       )}
       <Modal
         open={showModal}
+        dirty={formDirty}
         onOpenChange={open => {
-          if (!open) void closeFormModal()
+          if (!open) closeFormModal()
         }}
         title={editingId ? t('export.edit_config') : t('export.new_config')}
         closeDisabled={formSaving}
-        footer={<><Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button><Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button></>}
+        footer={<><ModalClose><Button variant="secondary" disabled={formSaving}>{t('common.cancel')}</Button></ModalClose><Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button></>}
       >
         {formError != null && <ErrorNotice error={formError} className={styles.error} />}
         <Input label={t('export.name_optional')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('export.name_placeholder')} />

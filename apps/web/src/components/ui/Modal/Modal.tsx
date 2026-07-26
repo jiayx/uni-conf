@@ -1,6 +1,7 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useTranslation } from 'react-i18next'
+import { Button } from '../Button/Button'
 import styles from './Modal.module.css'
 
 interface ModalProps {
@@ -12,6 +13,7 @@ interface ModalProps {
   footer?: ReactNode
   size?: 'sm' | 'md' | 'lg'
   closeDisabled?: boolean
+  dirty?: boolean
 }
 
 export function Modal({
@@ -23,14 +25,29 @@ export function Modal({
   footer,
   size = 'md',
   closeDisabled = false,
+  dirty = false,
 }: ModalProps) {
   const { t } = useTranslation()
   const hasBody = children != null
   const contentRef = useRef<HTMLDivElement>(null)
+  const [discardRequested, setDiscardRequested] = useState(false)
+
+  useEffect(() => {
+    if (!open || !dirty) setDiscardRequested(false)
+  }, [dirty, open])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && closeDisabled) return
+    if (!nextOpen && dirty) {
+      setDiscardRequested(true)
+      return
+    }
     onOpenChange(nextOpen)
+  }
+
+  const discardAndClose = () => {
+    setDiscardRequested(false)
+    onOpenChange(false)
   }
 
   return (
@@ -60,9 +77,32 @@ export function Modal({
             </Dialog.Close>
           </div>
           {hasBody && <div className={styles.body}>{children}</div>}
-          {footer && <div className={styles.footer}>{footer}</div>}
+          {(footer || discardRequested) && (
+            <div className={styles.footer}>
+              {discardRequested ? (
+                <div className={styles.discardPrompt} role="alert">
+                  <div className={styles.discardMessage}>
+                    <strong>{t('common.unsaved_changes_title')}</strong>
+                    <span>{t('common.unsaved_changes_close_confirm')}</span>
+                  </div>
+                  <div className={styles.discardActions}>
+                    <Button variant="secondary" autoFocus onClick={() => setDiscardRequested(false)}>
+                      {t('common.continue_editing')}
+                    </Button>
+                    <Button variant="danger" onClick={discardAndClose}>
+                      {t('common.discard_changes')}
+                    </Button>
+                  </div>
+                </div>
+              ) : footer}
+            </div>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
   )
+}
+
+export function ModalClose({ children }: { children: ReactElement }) {
+  return <Dialog.Close asChild>{children}</Dialog.Close>
 }
