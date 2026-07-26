@@ -5,6 +5,7 @@ import { useState } from 'react'
 import i18n from '@/i18n'
 import { ConfirmDialogProvider } from './ConfirmDialog'
 import { useConfirmDialog } from './useConfirmDialog'
+import modalStyles from '../Modal/Modal.module.css'
 
 function Harness() {
   const confirm = useConfirmDialog()
@@ -32,6 +33,8 @@ describe('ConfirmDialog', () => {
     const dialog = screen.getByRole('dialog', { name: 'Delete item' })
     expect(dialog).toHaveTextContent('This cannot be undone.')
     expect(dialog).toHaveAccessibleDescription('This cannot be undone.')
+    expect(dialog).toHaveClass(modalStyles.noBody)
+    expect(dialog.querySelector(`.${modalStyles.body}`)).not.toBeInTheDocument()
     expect(screen.getByText('pending')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))

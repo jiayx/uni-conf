@@ -9,7 +9,7 @@ interface ModalProps {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  children: ReactNode
+  children?: ReactNode
   footer?: ReactNode
   size?: 'sm' | 'md' | 'lg'
   closeDisabled?: boolean
@@ -26,6 +26,7 @@ export function Modal({
   closeDisabled = false,
 }: ModalProps) {
   const { t } = useTranslation()
+  const hasBody = children != null
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && closeDisabled) return
@@ -36,7 +37,7 @@ export function Modal({
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className={styles.overlay} />
-        <Dialog.Content className={`${styles.content} ${styles[size]}`}>
+        <Dialog.Content className={`${styles.content} ${styles[size]} ${hasBody ? '' : styles.noBody}`}>
           <div className={styles.header}>
             <div>
               <Dialog.Title className={styles.title}>{title}</Dialog.Title>
@@ -50,7 +51,7 @@ export function Modal({
               </Button>
             </Dialog.Close>
           </div>
-          <div className={styles.body}>{children}</div>
+          {hasBody && <div className={styles.body}>{children}</div>}
           {footer && <div className={styles.footer}>{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>

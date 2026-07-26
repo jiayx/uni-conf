@@ -51,9 +51,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
             </Button>
           </>
         }
-      >
-        {null}
-      </Modal>
+      />
     </ConfirmDialogContext.Provider>
   )
 }

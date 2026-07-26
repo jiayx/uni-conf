@@ -667,8 +667,8 @@
     "reveal_url": "Reveal link",
     "hide_url": "Hide link",
     "reset_token": "Reset Token",
-    "pause_link": "Pause Link",
-    "resume_link": "Resume Link",
+    "pause_subscription": "Pause Subscription",
+    "resume_subscription": "Resume Subscription",
     "download": "Download",
     "formats": {
       "mihomo": "Mihomo / Clash / OpenClash",
@@ -725,12 +725,14 @@
     "validation_blocked_summary": "{{unsupported}} blocking issues need attention, with {{partial}} automatic adjustments and {{convert}} conversion notes",
     "validation_summary_with_lines": "{{summary}} · {{lineCount}} preview lines",
     "validation_more": "{{count}} more notices. Open Config Preview for details.",
-    "reset_token_confirm": "Reset subscription token? All existing subscriptions using the old token will be invalidated.",
+    "reset_token_title": "Reset Subscription Token",
+    "reset_token_confirm_named": "Reset the subscription token for export profile “{{name}}”? All existing public links for this profile will be invalidated immediately.",
     "token_reset_success": "Token reset successfully",
-    "pause_confirm": "Pause this public subscription link? Connected clients will receive Not Found until it is resumed.",
-    "link_paused_success": "Public subscription link paused",
-    "link_resumed_success": "Public subscription link resumed",
-    "link_paused_hint": "This public subscription link is paused. Preview, copy, and download actions stay unavailable until it is resumed."
+    "pause_subscription_title": "Pause Public Subscription",
+    "pause_confirm_named": "Pause the public subscription for export profile “{{name}}”? Until resumed, all public links for this profile will return 404 and connected clients cannot refresh.",
+    "link_paused_success": "Public subscription paused",
+    "link_resumed_success": "Public subscription resumed",
+    "link_paused_hint": "The public subscription for this export profile is paused. Preview, copy, and download remain unavailable until it is resumed."
   },
   "preview": {
     "title": "Config Preview",

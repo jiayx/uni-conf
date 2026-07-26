@@ -667,8 +667,8 @@
     "reveal_url": "查看链接",
     "hide_url": "隐藏链接",
     "reset_token": "重置 Token",
-    "pause_link": "暂停链接",
-    "resume_link": "恢复链接",
+    "pause_subscription": "暂停订阅",
+    "resume_subscription": "恢复订阅",
     "download": "下载配置",
     "formats": {
       "mihomo": "Mihomo / Clash / OpenClash",
@@ -725,12 +725,14 @@
     "validation_blocked_summary": "需要处理 {{unsupported}} 个阻塞问题，另有 {{partial}} 个自动调整项、{{convert}} 个格式转换提示",
     "validation_summary_with_lines": "{{summary}} · 预览 {{lineCount}} 行",
     "validation_more": "还有 {{count}} 条提示，请到配置预览查看。",
-    "reset_token_confirm": "确认重置订阅 Token？所有使用旧 Token 的订阅将失效。",
+    "reset_token_title": "重置订阅 Token",
+    "reset_token_confirm_named": "确认重置导出档案“{{name}}”的订阅 Token？该档案现有的所有公开链接将立即失效。",
     "token_reset_success": "Token 已重置",
-    "pause_confirm": "确认暂停这个公开订阅链接？恢复前，已连接的客户端将收到链接不存在。",
-    "link_paused_success": "公开订阅链接已暂停",
-    "link_resumed_success": "公开订阅链接已恢复",
-    "link_paused_hint": "这个公开订阅链接已暂停；恢复前不可预览、复制或下载。"
+    "pause_subscription_title": "暂停公开订阅",
+    "pause_confirm_named": "确认暂停导出档案“{{name}}”的公开订阅？恢复前，该档案的所有公开链接都会返回 404，已连接的客户端将无法刷新。",
+    "link_paused_success": "公开订阅已暂停",
+    "link_resumed_success": "公开订阅已恢复",
+    "link_paused_hint": "此导出档案的公开订阅已暂停；恢复前不可预览、复制或下载。"
   },
   "preview": {
     "title": "配置预览",

@@ -114,4 +114,16 @@ describe('Export', () => {
     await user.click(screen.getAllByRole('button', { name: /Hide/ }).at(-1)!)
     expect(screen.queryByText(/mobile-token/)).not.toBeInTheDocument()
   })
+
+  it('names the affected export profile in subscription and token confirmations', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const user = userEvent.setup()
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    await user.click((await screen.findAllByRole('button', { name: 'Pause Subscription' })).at(-1)!)
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/Mobile.*all public links/s))
+
+    await user.click(screen.getAllByRole('button', { name: 'Reset Token' }).at(-1)!)
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/Mobile.*all existing public links/is))
+  })
 })

@@ -236,8 +236,12 @@ export function Export() {
   }
 
   const handleResetToken = async (config: ExportConfig) => {
+    const profileName = config.id === DEFAULT_EXPORT_CONFIG_ID
+      ? t('export.default_profile_name')
+      : config.name
     if (!(await confirmAction({
-      description: t('export.reset_token_confirm'),
+      title: t('export.reset_token_title'),
+      description: t('export.reset_token_confirm_named', { name: profileName }),
       confirmLabel: t('export.reset_token'),
       danger: true,
     }))) return
@@ -257,9 +261,13 @@ export function Export() {
 
   const handleToggleEnabled = async (config: ExportConfig) => {
     const nextEnabled = !config.enabled
+    const profileName = config.id === DEFAULT_EXPORT_CONFIG_ID
+      ? t('export.default_profile_name')
+      : config.name
     if (!nextEnabled && !(await confirmAction({
-      description: t('export.pause_confirm'),
-      confirmLabel: t('export.pause_link'),
+      title: t('export.pause_subscription_title'),
+      description: t('export.pause_confirm_named', { name: profileName }),
+      confirmLabel: t('export.pause_subscription'),
       danger: true,
     }))) return
     setTogglingId(config.id)
@@ -403,7 +411,7 @@ export function Export() {
                     size="sm"
                     loading={togglingId === defaultConfig.id}
                     onClick={() => void handleToggleEnabled(defaultConfig)}
-                  >{t(defaultConfig.enabled ? 'export.pause_link' : 'export.resume_link')}</Button>
+                  >{t(defaultConfig.enabled ? 'export.pause_subscription' : 'export.resume_subscription')}</Button>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -483,7 +491,7 @@ export function Export() {
                       disabled={deletingId === cfg.id}
                       loading={togglingId === cfg.id}
                       onClick={() => void handleToggleEnabled(cfg)}
-                    >{t(cfg.enabled ? 'export.pause_link' : 'export.resume_link')}</Button>
+                    >{t(cfg.enabled ? 'export.pause_subscription' : 'export.resume_subscription')}</Button>
                     <Button variant="secondary" size="sm" disabled={deletingId === cfg.id} onClick={() => openEdit(cfg)}>
                       {t('common.edit')}
                     </Button>
