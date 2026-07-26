@@ -209,7 +209,7 @@ export function Collections() {
 
   useEffect(() => {
     const missingIds = collections
-      .filter(collection => isAutoNodeGroup(collection)
+      .filter(collection => isManagedNodeGroup(collection)
         ? expandedAutoPreviewIds.has(collection.id)
         : expandedManualPreviewIds.has(collection.id))
       .map(collection => collection.id)
@@ -244,7 +244,7 @@ export function Collections() {
   }, [collections, expandedAutoPreviewIds, expandedManualPreviewIds, loadingPreviewIds, previewCollection, previews, requestedPreviewIds])
 
   const togglePreview = (collection: NodeCollection) => {
-    if (isAutoNodeGroup(collection)) {
+    if (isManagedNodeGroup(collection)) {
       setExpandedAutoPreviewIds(current => toggleSet(current, collection.id))
     } else {
       setExpandedManualPreviewIds(current => toggleSet(current, collection.id))
@@ -1102,6 +1102,10 @@ function isAutoNodeGroup(collection: NodeCollection): boolean {
 function isDefaultNodePool(collection: NodeCollection): boolean {
   return collection.id === DEFAULT_NODE_POOL_COLLECTION_ID
     || collection.notes?.startsWith(DEFAULT_NODE_POOL_PREFIX) === true
+}
+
+function isManagedNodeGroup(collection: NodeCollection): boolean {
+  return isAutoNodeGroup(collection) || isDefaultNodePool(collection)
 }
 
 function isGeneratedGroupType(value: string | undefined): value is GeneratedGroupType {

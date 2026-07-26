@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { NodeCollectionSummary } from '@uni-conf/types'
-import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared'
+import {
+  AUTO_NODE_GROUP_PREFIX,
+  DEFAULT_NODE_POOL_COLLECTION_ID,
+  DEFAULT_NODE_POOL_PREFIX,
+} from '@uni-conf/shared'
 import i18n from '@/i18n'
 import { Collections } from './Collections'
 
@@ -22,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 const collections: NodeCollectionSummary[] = [
   makeCollection('auto-hk', 'HK Auto', 3, `${AUTO_NODE_GROUP_PREFIX} country:HK:url-test`),
   makeCollection('auto-jp', 'JP Auto', 5, `${AUTO_NODE_GROUP_PREFIX} country:JP:url-test`),
+  makeCollection(DEFAULT_NODE_POOL_COLLECTION_ID, 'Default Node Pool', 8, DEFAULT_NODE_POOL_PREFIX),
   makeCollection('manual-1', 'Work Nodes', 2),
 ]
 
@@ -70,6 +75,10 @@ describe('Collections node previews', () => {
     await waitFor(() => expect(mocks.previewCollection).toHaveBeenCalledWith('manual-1'))
     expect(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' })).toHaveTextContent('2 nodesCollapse')
     expect(mocks.previewCollection).not.toHaveBeenCalledWith('auto-jp')
+
+    await user.click(screen.getByRole('button', { name: 'Toggle node preview for Default Node Pool' }))
+    await waitFor(() => expect(mocks.previewCollection).toHaveBeenCalledWith(DEFAULT_NODE_POOL_COLLECTION_ID))
+    expect(screen.getByRole('button', { name: 'Toggle node preview for Default Node Pool' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('keeps the edit dialog and original values available when atomic save fails', async () => {

@@ -58,8 +58,8 @@
 .ruleRow { display: grid; grid-template-columns: 1.5rem minmax(7rem, 1fr) minmax(8rem, 1fr) minmax(8rem, 1.2fr) auto; gap: 0.5rem; align-items: center; }
 .section .ruleRow + .ruleRow { margin-top: 0.5rem; }
 .ruleToggle { display: flex; align-items: center; justify-content: center; }
-.preview { padding: 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-.previewEmpty { color: var(--color-text-tertiary); font-size: 0.8125rem; }
+.preview { min-width: 0; }
+.previewEmpty { padding: 0.25rem 0; color: var(--color-text-tertiary); font-size: 0.8125rem; }
 .previewError { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; color: var(--color-error); font-size: 0.8125rem; }
 .previewError button { border: 0; background: transparent; color: var(--color-accent); font: inherit; cursor: pointer; }
 .previewTableWrap { max-height: 18rem; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
