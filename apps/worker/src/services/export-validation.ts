@@ -19,7 +19,7 @@ import {
 import type { ExportData } from '../export-data';
 import { nodeToSubscriptionUri } from '../generators/node-subscription';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
-import { isSafeRemoteHttpUrl, safeRemoteFetch } from './safe-remote-fetch';
+import { isSafeRemoteHttpUrl, safeRemoteFetch, SafeRemoteUrlError } from './safe-remote-fetch';
 import { resolveConvertibleRuleSetTarget } from './rule-set-conversion';
 import { mapWithConcurrency } from './async-pool';
 import { buildPrivateCacheKey } from './private-cache-key';
@@ -52,8 +52,19 @@ export function resolveExportWarnings(
   ];
 }
 
-const RULE_SET_REACHABILITY_KV_TTL_SECONDS = 3600;
+const RULE_SET_REACHABILITY_SUCCESS_KV_TTL_SECONDS = 3600;
+const RULE_SET_REACHABILITY_FAILURE_KV_TTL_SECONDS = 60;
 const RULE_SET_REACHABILITY_LIVE_CHECK_LIMIT = 6;
+const RULE_SET_REACHABILITY_TIMEOUT_MS = 6000;
+const RULE_SET_REACHABILITY_ATTEMPTS = 2;
+
+type RuleSetReachabilityFailure =
+  | { kind: 'http'; status: number }
+  | { kind: 'network' | 'timeout' | 'security' };
+
+type RuleSetReachabilityResult =
+  | { reachable: true }
+  | { reachable: false; failure: RuleSetReachabilityFailure };
 
 export async function validateRemoteRuleSetReachability(
   data: ExportData,
@@ -62,7 +73,8 @@ export async function validateRemoteRuleSetReachability(
     fetcher?: typeof fetch;
     timeoutMs?: number;
     kv?: KVNamespace;
-    kvTtlSeconds?: number;
+    successKvTtlSeconds?: number;
+    failureKvTtlSeconds?: number;
     concurrency?: number;
     maxChecks?: number;
   } = {}
@@ -70,9 +82,10 @@ export async function validateRemoteRuleSetReachability(
   if (isNodeOnlyExportFormat(format)) return [];
 
   const fetcher = options.fetcher ?? fetch;
-  const timeoutMs = options.timeoutMs ?? 2500;
+  const timeoutMs = options.timeoutMs ?? RULE_SET_REACHABILITY_TIMEOUT_MS;
   const kv = options.kv;
-  const kvTtlSeconds = options.kvTtlSeconds ?? RULE_SET_REACHABILITY_KV_TTL_SECONDS;
+  const successKvTtlSeconds = options.successKvTtlSeconds ?? RULE_SET_REACHABILITY_SUCCESS_KV_TTL_SECONDS;
+  const failureKvTtlSeconds = options.failureKvTtlSeconds ?? RULE_SET_REACHABILITY_FAILURE_KV_TTL_SECONDS;
   const checks = data.remoteSets.flatMap((ruleSet, index) => {
     const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
     const supported = resolved && (
@@ -104,22 +117,22 @@ export async function validateRemoteRuleSetReachability(
     return true;
   });
   const deferredCount = pendingChecks.length - selectedChecks.length;
-  const inFlightByUrl = new Map<string, Promise<boolean>>();
+  const inFlightByUrl = new Map<string, Promise<RuleSetReachabilityResult>>();
   const results = await mapWithConcurrency(selectedChecks, options.concurrency ?? 6, async ({ ruleSet, url, index }): Promise<{
     index: number;
     warning: CompatibilityWarning | null;
   }> => {
     let reachability = inFlightByUrl.get(url);
     if (!reachability) {
-      reachability = getCachedRuleSetReachability(kv, kvTtlSeconds, url, () =>
+      reachability = getCachedRuleSetReachability(kv, successKvTtlSeconds, failureKvTtlSeconds, url, () =>
         canFetchRemoteRuleSet(fetcher, url, timeoutMs)
       );
       inFlightByUrl.set(url, reachability);
     }
-    const reachable = await reachability;
+    const result = await reachability;
     return {
       index,
-      warning: reachable ? null : unreachableRuleSetWarning(format, ruleSet),
+      warning: result.reachable ? null : unreachableRuleSetWarning(format, ruleSet, result.failure),
     };
   });
 
@@ -175,39 +188,88 @@ function sourceHealthWarning(
 
 function unreachableRuleSetWarning(
   format: ExportFormat,
-  ruleSet: RemoteRuleSet
+  ruleSet: RemoteRuleSet,
+  failure: RuleSetReachabilityFailure
 ): CompatibilityWarning {
+  const details = describeReachabilityFailure(failure);
   return {
     client: format,
     level: 'partial',
-    message: `远程规则集 "${ruleSet.name}" 当前无法下载，请检查规则集地址或稍后重试`,
-    messageEn: `Remote rule set "${ruleSet.name}" cannot be downloaded right now. Check the rule set URL or retry later.`,
+    message: `远程规则集 "${ruleSet.name}" ${details.message}`,
+    messageEn: `Remote rule set "${ruleSet.name}" ${details.messageEn}`,
     remediation: { target: 'remote-rule-sets', id: ruleSet.id },
   };
 }
 
-/**
- * Rule set reachability only depends on an external URL, not on any UniConf data,
- * so a KV-cached result (unlike a rendered export) can never go stale in a way that
- * serves a user the wrong proxy config - worst case is a warning lagging by up to
- * kvTtlSeconds after a remote host recovers.
- */
+function describeReachabilityFailure(failure: RuleSetReachabilityFailure): {
+  message: string;
+  messageEn: string;
+} {
+  if (failure.kind === 'http') {
+    return {
+      message: `当前无法下载：远端返回 HTTP ${failure.status}`,
+      messageEn: `cannot be downloaded right now: the remote server returned HTTP ${failure.status}.`,
+    };
+  }
+  if (failure.kind === 'timeout') {
+    return {
+      message: '暂时无法确认可用性：请求超时，请稍后重试',
+      messageEn: 'could not be confirmed because the request timed out. Retry later.',
+    };
+  }
+  if (failure.kind === 'security') {
+    return {
+      message: '无法下载：地址或重定向未通过远程访问安全校验',
+      messageEn: 'cannot be downloaded because its URL or redirect failed remote-access safety validation.',
+    };
+  }
+  return {
+    message: '暂时无法确认可用性：网络连接失败，请稍后重试',
+    messageEn: 'could not be confirmed because of a temporary network failure. Retry later.',
+  };
+}
+
 async function getCachedRuleSetReachability(
   kv: KVNamespace | undefined,
-  kvTtlSeconds: number,
+  successKvTtlSeconds: number,
+  failureKvTtlSeconds: number,
   url: string,
-  check: () => Promise<boolean>
-): Promise<boolean> {
+  check: () => Promise<RuleSetReachabilityResult>
+): Promise<RuleSetReachabilityResult> {
   if (!kv) return check();
 
-  const key = await buildPrivateCacheKey('rule-set-reachable', 1, url);
+  const key = await buildPrivateCacheKey('rule-set-reachable', 2, url);
   const cached = await kv.get(key);
-  if (cached === 'true') return true;
-  if (cached === 'false') return false;
+  const cachedResult = parseCachedReachabilityResult(cached);
+  if (cachedResult) return cachedResult;
 
-  const reachable = await check();
-  await kv.put(key, reachable ? 'true' : 'false', { expirationTtl: kvTtlSeconds });
-  return reachable;
+  const result = await check();
+  await kv.put(key, JSON.stringify(result), {
+    expirationTtl: result.reachable ? successKvTtlSeconds : failureKvTtlSeconds,
+  });
+  return result;
+}
+
+function parseCachedReachabilityResult(value: string | null): RuleSetReachabilityResult | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as RuleSetReachabilityResult;
+    if (parsed.reachable === true) return { reachable: true };
+    if (
+      parsed.reachable === false
+      && (
+        parsed.failure.kind === 'network'
+        || parsed.failure.kind === 'timeout'
+        || parsed.failure.kind === 'security'
+        || (parsed.failure.kind === 'http' && Number.isInteger(parsed.failure.status))
+      )
+    ) {
+      return parsed;
+    }
+  } catch {
+    // A malformed or obsolete cache entry should be treated as a cache miss.
+  }
+  return null;
 }
 
 export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
@@ -784,19 +846,42 @@ async function canFetchRemoteRuleSet(
   fetcher: typeof fetch,
   url: string,
   timeoutMs: number
-): Promise<boolean> {
+): Promise<RuleSetReachabilityResult> {
+  const attemptTimeoutMs = Math.max(1, Math.floor(timeoutMs / RULE_SET_REACHABILITY_ATTEMPTS));
+  let result: RuleSetReachabilityResult = {
+    reachable: false,
+    failure: { kind: 'network' },
+  };
+  for (let attempt = 0; attempt < RULE_SET_REACHABILITY_ATTEMPTS; attempt++) {
+    result = await probeRemoteRuleSet(fetcher, url, attemptTimeoutMs);
+    if (result.reachable || !isTransientReachabilityFailure(result.failure)) return result;
+  }
+  return result;
+}
+
+async function probeRemoteRuleSet(
+  fetcher: typeof fetch,
+  url: string,
+  timeoutMs: number
+): Promise<RuleSetReachabilityResult> {
   const startedAt = Date.now();
   const head = await fetchWithTimeout(fetcher, url, { method: 'HEAD' }, timeoutMs);
-  if (isReachableResponse(head)) return true;
-  if (head && ![405, 403, 501].includes(head.status)) return false;
+  if ('failure' in head) return { reachable: false, failure: head.failure };
+  if (isReachableResponse(head.response)) return { reachable: true };
+  if (![405, 403, 501].includes(head.response.status)) {
+    return { reachable: false, failure: { kind: 'http', status: head.response.status } };
+  }
 
   const remainingMs = timeoutMs - (Date.now() - startedAt);
-  if (remainingMs <= 0) return false;
+  if (remainingMs <= 0) return { reachable: false, failure: { kind: 'timeout' } };
   const get = await fetchWithTimeout(fetcher, url, {
     method: 'GET',
     headers: { Range: 'bytes=0-0' },
   }, remainingMs);
-  return isReachableResponse(get);
+  if ('failure' in get) return { reachable: false, failure: get.failure };
+  return isReachableResponse(get.response)
+    ? { reachable: true }
+    : { reachable: false, failure: { kind: 'http', status: get.response.status } };
 }
 
 async function fetchWithTimeout(
@@ -804,15 +889,31 @@ async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs: number
-): Promise<Response | null> {
+): Promise<{ response: Response } | { failure: RuleSetReachabilityFailure }> {
   try {
-    return await safeRemoteFetch(fetcher, url, init, { timeoutMs });
-  } catch {
-    return null;
+    return { response: await safeRemoteFetch(fetcher, url, init, { timeoutMs }) };
+  } catch (error) {
+    if (error instanceof SafeRemoteUrlError) return { failure: { kind: 'security' } };
+    if (isAbortError(error)) return { failure: { kind: 'timeout' } };
+    return { failure: { kind: 'network' } };
   }
 }
 
-function isReachableResponse(response: Response | null): boolean {
-  if (!response) return false;
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+function isTransientReachabilityFailure(failure: RuleSetReachabilityFailure): boolean {
+  return failure.kind === 'network'
+    || failure.kind === 'timeout'
+    || (failure.kind === 'http' && (
+      failure.status === 408
+      || failure.status === 425
+      || failure.status === 429
+      || failure.status >= 500
+    ));
+}
+
+function isReachableResponse(response: Response): boolean {
   return response.status >= 200 && response.status < 400;
 }

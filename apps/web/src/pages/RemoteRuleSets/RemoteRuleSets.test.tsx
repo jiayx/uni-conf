@@ -682,7 +682,7 @@ describe('RemoteRuleSets content validation', () => {
 
     expect(egernUrl).toHaveValue('https://manual.example.com/games.yaml')
     expect(singboxUrl).toHaveValue(
-      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/singbox/version5/games.srs'
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/games.srs'
     )
     expect(screen.getByText('Filled 6 known repository sources. Review and validate them before saving.')).toBeInTheDocument()
 

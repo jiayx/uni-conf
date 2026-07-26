@@ -718,6 +718,42 @@ describe('export validation', () => {
     }));
   });
 
+  it('retries a transient network failure before warning', async () => {
+    let fetchCount = 0;
+    const fetcher = async () => {
+      fetchCount++;
+      if (fetchCount === 1) throw new TypeError('fetch failed');
+      return new Response('', { status: 200 });
+    };
+
+    const warnings = await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy')],
+    }), 'mihomo', { fetcher });
+
+    expect(fetchCount).toBe(2);
+    expect(warnings).toEqual([]);
+  });
+
+  it('reports a timeout separately after retrying it once', async () => {
+    let fetchCount = 0;
+    const fetcher = async () => {
+      fetchCount++;
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      throw error;
+    };
+
+    const warnings = await validateRemoteRuleSetReachability(makeExportData({
+      remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
+    }), 'mihomo', { fetcher });
+
+    expect(fetchCount).toBe(2);
+    expect(warnings).toContainEqual(expect.objectContaining({
+      message: expect.stringContaining('请求超时'),
+      messageEn: expect.stringContaining('request timed out'),
+    }));
+  });
+
   it('falls back to ranged GET when a remote rule set host does not support HEAD', async () => {
     const calls: Array<{ url: string; method?: string; range?: string | null }> = [];
     const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
@@ -890,11 +926,12 @@ describe('export validation', () => {
 
   it('caches a reachable rule set result in KV and skips re-fetching on the next call', async () => {
     let fetchCount = 0;
+    const cacheTtls: number[] = [];
     const fetcher = async () => {
       fetchCount++;
       return new Response('', { status: 200 });
     };
-    const kv = createMockKv();
+    const kv = createMockKv(ttl => cacheTtls.push(ttl));
 
     await validateRemoteRuleSetReachability(makeExportData({
       remoteSets: [makeRemoteSet('remote-1', 'proxy')],
@@ -907,15 +944,17 @@ describe('export validation', () => {
 
     expect(fetchCount).toBe(1);
     expect(warnings).toEqual([]);
+    expect(cacheTtls).toEqual([3600]);
   });
 
   it('caches an unreachable rule set result in KV and keeps warning without re-fetching', async () => {
     let fetchCount = 0;
+    const cacheTtls: number[] = [];
     const fetcher = async () => {
       fetchCount++;
       return new Response('', { status: 404 });
     };
-    const kv = createMockKv();
+    const kv = createMockKv(ttl => cacheTtls.push(ttl));
 
     await validateRemoteRuleSetReachability(makeExportData({
       remoteSets: [makeRemoteSet('remote-1', 'proxy', { name: 'Ads' })],
@@ -931,6 +970,7 @@ describe('export validation', () => {
       level: 'partial',
       message: expect.stringContaining('Ads'),
     }));
+    expect(cacheTtls).toEqual([60]);
   });
 
   it('warns when the export format cannot include managed DNS settings', () => {
@@ -1166,12 +1206,13 @@ function makeSourceHealth(
   };
 }
 
-function createMockKv(): KVNamespace {
+function createMockKv(onPut?: (expirationTtl: number) => void): KVNamespace {
   const store = new Map<string, string>();
   return {
     get: async (key: string) => store.get(key) ?? null,
-    put: async (key: string, value: string) => {
+    put: async (key: string, value: string, options?: { expirationTtl?: number }) => {
       store.set(key, value);
+      if (options?.expirationTtl !== undefined) onPut?.(options.expirationTtl);
     },
   } as unknown as KVNamespace;
 }

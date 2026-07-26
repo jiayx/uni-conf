@@ -1476,8 +1476,8 @@ const NATIVE_NODE_PATTERNS: RegExp[] = [
   /\b(native|native\s*ip|local\s*ip)\b/i,
 ];
 
-const QUIXOTIC_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset';
-const QUIXOTIC_MASTER_RAW_BASE = 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master';
+const QUIXOTIC_RAW_BASE = 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset';
+const QUIXOTIC_MASTER_RAW_BASE = 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master';
 
 const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; ruleSetFormat: string }> = {
   mihomo: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
@@ -1517,7 +1517,7 @@ export function inferQuixoticRuleSetSourceFromUrl(rawUrl: string): { id: string;
     const prefix = '/QuixoticHeart/rule-set/raw/refs/heads/ruleset/';
     if (pathname.toLowerCase().startsWith(prefix.toLowerCase())) repositoryPath = pathname.slice(prefix.length);
   } else if (hostname === 'raw.githubusercontent.com') {
-    const prefix = '/QuixoticHeart/rule-set/ruleset/';
+    const prefix = '/QuixoticHeart/rule-set/refs/heads/ruleset/';
     if (pathname.toLowerCase().startsWith(prefix.toLowerCase())) repositoryPath = pathname.slice(prefix.length);
   }
   if (!repositoryPath) return null;

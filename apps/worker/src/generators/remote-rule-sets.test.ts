@@ -399,14 +399,14 @@ describe('remote rule set generators', () => {
       expect.objectContaining({
         tag: 'AI',
         format: 'binary',
-        url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/singbox/version5/ai.srs',
+        url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/ai.srs',
       })
     );
 
     const surge = generateSurge([], groupRows, ruleRows, [
       { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id },
     ]);
-    expect(surge).toContain('RULE-SET,https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/surge/ai.list,DIRECT');
+    expect(surge).toContain('RULE-SET,https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/surge/ai.list,DIRECT');
   });
 
   it('skips unsupported local rules for INI-style clients', () => {

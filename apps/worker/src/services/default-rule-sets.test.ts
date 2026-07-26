@@ -23,7 +23,7 @@ describe('default remote rule sets', () => {
       behavior: 'classical',
     });
     expect(inserted.find((item) => item.presetId === 'fake-ip-filter')).toMatchObject({
-      url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list',
+      url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master/custom/domain/fake-ip-filter.list',
       behavior: 'domain',
       targetGroupId: 'builtin-direct',
     });
@@ -374,7 +374,7 @@ describe('default remote rule sets', () => {
 
     expect(inserted).toContainEqual({
       operation: 'update',
-      url: 'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list',
+      url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master/custom/domain/fake-ip-filter.list',
       format: 'mihomo',
       behavior: 'domain',
       id: 'preset-fake-ip-filter',
