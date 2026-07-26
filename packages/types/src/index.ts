@@ -208,6 +208,10 @@ export interface NodeCollection {
   updatedAt: string;
 }
 
+export interface NodeCollectionSummary extends NodeCollection {
+  nodeCount: number;
+}
+
 export interface ProxyGroup {
   id: string;
   name: string;

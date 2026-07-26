@@ -8,6 +8,8 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   line-height: 1;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .default { background: rgba(136, 136, 170, 0.15); color: var(--color-text-secondary); }
 .success { background: rgba(16, 185, 129, 0.15); color: #10b981; }

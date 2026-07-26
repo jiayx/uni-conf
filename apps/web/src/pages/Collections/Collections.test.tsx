@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { NodeCollection } from '@uni-conf/types'
+import type { NodeCollectionSummary } from '@uni-conf/types'
 import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared'
 import i18n from '@/i18n'
 import { Collections } from './Collections'
@@ -19,10 +19,10 @@ const mocks = vi.hoisted(() => ({
   })),
 }))
 
-const collections: NodeCollection[] = [
-  makeCollection('auto-hk', 'HK Auto', `${AUTO_NODE_GROUP_PREFIX} country:HK:url-test`),
-  makeCollection('auto-jp', 'JP Auto', `${AUTO_NODE_GROUP_PREFIX} country:JP:url-test`),
-  makeCollection('manual-1', 'Work Nodes'),
+const collections: NodeCollectionSummary[] = [
+  makeCollection('auto-hk', 'HK Auto', 3, `${AUTO_NODE_GROUP_PREFIX} country:HK:url-test`),
+  makeCollection('auto-jp', 'JP Auto', 5, `${AUTO_NODE_GROUP_PREFIX} country:JP:url-test`),
+  makeCollection('manual-1', 'Work Nodes', 2),
 ]
 
 vi.mock('@/store/collections.store', () => ({
@@ -64,9 +64,11 @@ describe('Collections node previews', () => {
     expect(mocks.previewCollection).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Toggle node preview for HK Auto' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Toggle node preview for HK Auto' })).toHaveTextContent('3 nodesExpand')
 
     await user.click(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' }))
     await waitFor(() => expect(mocks.previewCollection).toHaveBeenCalledWith('manual-1'))
+    expect(screen.getByRole('button', { name: 'Toggle node preview for Work Nodes' })).toHaveTextContent('2 nodesCollapse')
     expect(mocks.previewCollection).not.toHaveBeenCalledWith('auto-jp')
   })
 
@@ -138,9 +140,9 @@ describe('Collections node previews', () => {
   })
 })
 
-function makeCollection(id: string, name: string, notes?: string): NodeCollection {
+function makeCollection(id: string, name: string, nodeCount: number, notes?: string): NodeCollectionSummary {
   return {
     id, name, sourceIds: [], nodeIds: [], filters: [], renames: [], dedup: 'name', sort: 'country',
-    enabled: true, notes, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    enabled: true, nodeCount, notes, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
   }
 }

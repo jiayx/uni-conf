@@ -3,7 +3,8 @@
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
 .card { display: flex; flex-direction: column; gap: 0.875rem; }
 .cardHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.cardTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
+.cardHeader > div { min-width: 0; }
+.cardTitle { overflow-wrap: anywhere; font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
 .cardNotes { margin-top: 0.25rem; font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
 .cardMeta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .cardActions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -58,7 +59,6 @@
 .section .ruleRow + .ruleRow { margin-top: 0.5rem; }
 .ruleToggle { display: flex; align-items: center; justify-content: center; }
 .preview { padding: 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-.previewHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.8125rem; color: var(--color-text-secondary); margin-bottom: 0.5rem; }
 .previewEmpty { color: var(--color-text-tertiary); font-size: 0.8125rem; }
 .previewError { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; color: var(--color-error); font-size: 0.8125rem; }
 .previewError button { border: 0; background: transparent; color: var(--color-accent); font: inherit; cursor: pointer; }

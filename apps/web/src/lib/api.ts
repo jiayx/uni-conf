@@ -9,6 +9,7 @@ import type {
   SourceStructuredRetryResult,
   ProxyNode,
   NodeCollection,
+  NodeCollectionSummary,
   ProxyGroup,
   ProxyRule,
   RemoteRuleSet,
@@ -236,7 +237,7 @@ async function listAllNodes(params?: Omit<NodeListParams, 'page' | 'pageSize'>):
 // ============================================================
 
 const collections = {
-  list: (): Promise<NodeCollection[]> => get('/collections'),
+  list: (): Promise<NodeCollectionSummary[]> => get('/collections'),
   get: (id: string): Promise<NodeCollection> => get(`/collections/${pathSegment(id)}`),
   create: (data: Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>): Promise<NodeCollection> =>
     post('/collections', data),

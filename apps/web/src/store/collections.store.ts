@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import type { NodeCollection, ProxyNode } from '@uni-conf/types'
+import type { NodeCollection, NodeCollectionSummary, ProxyNode } from '@uni-conf/types'
 import { api } from '@/lib/api'
 
 interface CollectionsState {
-  collections: NodeCollection[]
+  collections: NodeCollectionSummary[]
   previews: Record<string, ProxyNode[]>
   loading: boolean
   error: unknown | null
@@ -32,12 +32,16 @@ export const useCollectionsStore = create<CollectionsState>((set) => ({
 
   addCollection: async (data) => {
     const collection = await api.collections.create(data)
-    set(s => ({ collections: [...s.collections, collection] }))
+    set(s => ({ collections: [...s.collections, { ...collection, nodeCount: 0 }] }))
   },
 
   updateCollection: async (id, data) => {
     const updated = await api.collections.update(id, data)
-    set(s => ({ collections: s.collections.map(c => (c.id === id ? updated : c)) }))
+    set(s => ({
+      collections: s.collections.map(collection =>
+        collection.id === id ? { ...updated, nodeCount: collection.nodeCount } : collection
+      ),
+    }))
   },
 
   deleteCollection: async (id) => {

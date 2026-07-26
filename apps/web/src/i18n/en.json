@@ -255,10 +255,9 @@
     "raw_config": "Raw Config"
   },
   "collections": {
-    "preview_nodes": "Node preview",
-    "preview_on_demand": "Expand to load",
     "preview_count": "{{count}} nodes",
-    "preview_status": "Nodes: {{status}}",
+    "expand": "Expand",
+    "collapse": "Collapse",
     "preview_loading": "Loading matching nodes...",
     "preview_empty": "No nodes match this group.",
     "preview_retry": "Retry",

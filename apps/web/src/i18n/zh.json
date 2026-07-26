@@ -255,10 +255,9 @@
     "raw_config": "原始配置"
   },
   "collections": {
-    "preview_nodes": "节点预览",
-    "preview_on_demand": "展开后加载",
     "preview_count": "{{count}} 个节点",
-    "preview_status": "节点：{{status}}",
+    "expand": "展开",
+    "collapse": "收起",
     "preview_loading": "正在加载匹配节点...",
     "preview_empty": "当前组合没有匹配节点",
     "preview_retry": "重试",

@@ -544,6 +544,7 @@ export function Collections() {
             const previewExpanded = managedNodeGroup
               ? expandedAutoPreviewIds.has(collection.id)
               : expandedManualPreviewIds.has(collection.id)
+            const nodeCount = previews[collection.id]?.length ?? collection.nodeCount
             return <Card key={collection.id} className={styles.card}>
               <div className={styles.cardHeader}>
                 <div>
@@ -579,8 +580,8 @@ export function Collections() {
                 aria-controls={`collection-preview-${collection.id}`}
                 onClick={() => togglePreview(collection)}
               >
-                <span>{t('collections.preview_nodes')}</span>
-                <span>{previews[collection.id] ? t('collections.preview_count', { count: previews[collection.id].length }) : t('collections.preview_on_demand')}</span>
+                <span>{t('collections.preview_count', { count: nodeCount })}</span>
+                <span>{previewExpanded ? t('collections.collapse') : t('collections.expand')}</span>
               </button>
 
               {previewExpanded && (
@@ -989,9 +990,6 @@ function PreviewList({
   const { t } = useTranslation()
   return (
     <div className={styles.preview}>
-      <div className={styles.previewHeader}>
-        <span>{t('collections.preview_status', { status: loading ? t('common.loading') : t('collections.preview_count', { count: nodes.length }) })}</span>
-      </div>
       {error ? (
         <div className={styles.previewError} role="alert">
           <span>{error}</span>

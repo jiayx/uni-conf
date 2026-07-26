@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { jsonStringify, mapCollection, mapGroup, mapNode, newId, now } from '../db/helpers';
-import type { NodeCollection, NodeFilter, NodeRename, ProxyGroup } from '@uni-conf/types';
+import type {
+  NodeCollection,
+  NodeCollectionSummary,
+  NodeFilter,
+  NodeRename,
+  ProxyGroup,
+  ProxyNode,
+} from '@uni-conf/types';
 import { AUTO_NODE_GROUP_PREFIX, DEFAULT_HEALTH_CHECK, DEFAULT_NODE_POOL_PREFIX } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows';
@@ -28,8 +35,17 @@ app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM collections ORDER BY created_at DESC'
   ).all<Record<string, unknown>>();
+  const collections = results.map(mapCollection);
+  const { results: nodeRows } = await c.env.DB.prepare(
+    enabledNodeRowsQuery()
+  ).all<Record<string, unknown>>();
+  const nodes = nodeRows.map(mapNode);
+  const summaries: NodeCollectionSummary[] = collections.map(collection => ({
+    ...collection,
+    nodeCount: countCollectionNodes(nodes, collection),
+  }));
 
-  return c.json({ success: true, data: results.map(mapCollection) });
+  return c.json({ success: true, data: summaries });
 });
 
 // ─── Create collection ────────────────────────────────────────────────────────
@@ -641,6 +657,18 @@ export function isManagedNodeCollectionNotes(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const text = value.trim();
   return text.startsWith(AUTO_NODE_GROUP_PREFIX) || text.startsWith(DEFAULT_NODE_POOL_PREFIX);
+}
+
+export function countCollectionNodes(nodes: ProxyNode[], collection: NodeCollection): number {
+  let candidates = nodes;
+  if (collection.nodeIds.length > 0) {
+    const nodeIds = new Set(collection.nodeIds);
+    candidates = nodes.filter(node => nodeIds.has(node.id));
+  } else if (collection.sourceIds.length > 0) {
+    const sourceIds = new Set(collection.sourceIds);
+    candidates = nodes.filter(node => sourceIds.has(node.sourceId));
+  }
+  return applyCollectionTransforms(candidates, collection).length;
 }
 
 function normalizeOptionalText(value: unknown): string | undefined {

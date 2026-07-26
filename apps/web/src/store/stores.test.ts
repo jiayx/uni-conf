@@ -37,7 +37,7 @@ describe('Zustand API stores', () => {
   })
 
   it('covers collection fetch, mutations, preview, and error state', async () => {
-    vi.mocked(api.collections.list).mockResolvedValue([collection])
+    vi.mocked(api.collections.list).mockResolvedValue([{ ...collection, nodeCount: 1 }])
     vi.mocked(api.collections.create).mockResolvedValue(collection)
     vi.mocked(api.collections.update).mockResolvedValue({ ...collection, name: 'Updated' })
     vi.mocked(api.collections.preview).mockResolvedValue([node])

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import collectionsApp, {
+  countCollectionNodes,
   isManagedAutoNodeCollectionNotes,
   validateCollectionWithGroupInput,
   validateCollectionWrite,
 } from './collections'
+import type { NodeCollection, ProxyNode } from '@uni-conf/types'
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(async () => ({
@@ -155,6 +157,29 @@ describe('collections route helpers', () => {
     expect(isManagedAutoNodeCollectionNotes(null)).toBe(false)
   })
 
+  it('counts transformed nodes within the collection scope', () => {
+    const nodes = [
+      makeNode('node-1', 'source-1', 'HK 01'),
+      makeNode('node-2', 'source-1', 'HK 01'),
+      makeNode('node-3', 'source-2', 'JP 01'),
+    ]
+    const collection: NodeCollection = {
+      id: 'collection-1',
+      name: 'Source 1',
+      sourceIds: ['source-1'],
+      nodeIds: [],
+      filters: [],
+      renames: [],
+      dedup: 'name',
+      sort: 'name',
+      enabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    expect(countCollectionNodes(nodes, collection)).toBe(1)
+  })
+
   it('initializes zero-setup defaults after creating a collection', async () => {
     const db = createCollectionRouteMockDb()
 
@@ -265,6 +290,30 @@ describe('collections route helpers', () => {
     expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
   })
 })
+
+function makeNode(id: string, sourceId: string, name: string): ProxyNode {
+  return {
+    id,
+    sourceId,
+    name,
+    protocol: 'ss',
+    server: `${id}.example.com`,
+    port: 443,
+    enabled: true,
+    tags: [],
+    rawConfig: {},
+    parsedConfig: {
+      protocol: 'ss',
+      server: `${id}.example.com`,
+      port: 443,
+      password: 'secret',
+      extra: { method: 'aes-128-gcm' },
+    },
+    isManual: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+}
 
 function createCollectionRouteMockDb(): D1Database {
   const stored = new Map<string, Record<string, unknown>>([
