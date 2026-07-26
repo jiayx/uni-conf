@@ -282,6 +282,7 @@
     "group_type_select": "Manual Select",
     "group_type_url_test": "URL Test",
     "group_type_fallback": "Fallback",
+    "group_type_required": "Select at least one node group type when countries/regions or tag pools are selected.",
     "auto_generate_title": "Auto Generate Node Groups",
     "include_flag": "Include flag emoji in names",
     "recognized_countries": "Recognized Countries/Regions",

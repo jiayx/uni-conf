@@ -5,7 +5,6 @@ import {
   buildAutoNodeGroupTypeSettingsPatch,
   buildAutoNodeTagSuggestions,
   parseAutoNodeGroupKey,
-  rebuildAutoNodeGroupKeysForTypes,
   normalizeAutoNodeGroupTypeSelection,
   toggleAutoNodeGroupTypeSelection,
 } from './auto-node-settings'
@@ -78,18 +77,6 @@ describe('auto node group settings helpers', () => {
       type: 'fallback',
       key: 'tag:streaming:fallback',
     })
-  })
-
-  it('rebuilds country and tag auto node group keys when selected types change', () => {
-    expect([...rebuildAutoNodeGroupKeysForTypes(
-      ['country:US:url-test', 'tag:streaming:url-test'],
-      ['select', 'fallback']
-    )]).toEqual([
-      'country:US:select',
-      'country:US:fallback',
-      'tag:streaming:select',
-      'tag:streaming:fallback',
-    ])
   })
 
   it('builds default auto node group keys from country and tag suggestions', () => {

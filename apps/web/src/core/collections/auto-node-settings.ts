@@ -3,8 +3,6 @@ import {
   AUTO_NODE_TAG_GROUPS,
   makeCountryAutoNodeGroupKey,
   makeTagAutoNodeGroupKey,
-  parseAutoNodeGroupKey,
-  type AutoNodeGroupMarker,
 } from '@uni-conf/shared'
 import type { AppSettingsPatch, AutoNodeGroupType, ProxyNode } from '@uni-conf/types'
 
@@ -110,30 +108,4 @@ export function buildAutoNodeGroupKeysForSuggestions({
     }
   }
   return keys
-}
-
-export function rebuildAutoNodeGroupKeysForTypes(
-  source: Iterable<string>,
-  types: Iterable<AutoNodeGroupType>
-): Set<string> {
-  const selectedTypes = new Set(types)
-  const parsedMarkers = [...source]
-    .map(key => parseAutoNodeGroupKey(key))
-    .filter((marker): marker is AutoNodeGroupMarker => Boolean(marker))
-  const countries = new Set(parsedMarkers.map(marker => marker.countryCode).filter((value): value is string => Boolean(value)))
-  const tagKeys = new Set(parsedMarkers.map(marker => marker.tagKey).filter((value): value is string => Boolean(value)))
-  const next = new Set<string>()
-
-  for (const countryCode of countries) {
-    for (const type of selectedTypes) {
-      next.add(makeCountryAutoNodeGroupKey(countryCode, type))
-    }
-  }
-  for (const tagKey of tagKeys) {
-    for (const type of selectedTypes) {
-      next.add(makeTagAutoNodeGroupKey(tagKey, type))
-    }
-  }
-
-  return next
 }

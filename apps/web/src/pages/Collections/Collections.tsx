@@ -19,10 +19,7 @@ import {
   buildAutoNodeGroupSettingsPatch,
   buildAutoNodeGroupKeysForSuggestions,
   buildAutoNodeTagSuggestions,
-  makeCountryAutoNodeGroupKey,
-  makeTagAutoNodeGroupKey,
   parseAutoNodeGroupKey,
-  rebuildAutoNodeGroupKeysForTypes,
   type AutoNodeGroupMarker,
 } from '@/core/collections/auto-node-settings'
 import {
@@ -52,7 +49,8 @@ type CollectionForm = Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>
 type GeneratedGroupType = Extract<GroupType, 'select' | 'url-test' | 'fallback'>
 
 interface AutoEditorSnapshot {
-  autoKeys: string[]
+  autoCountries: string[]
+  autoTags: string[]
   autoTypes: GeneratedGroupType[]
   sourceGroupKeys: string[]
   includeFlag: boolean
@@ -125,13 +123,15 @@ function createEmptyForm(): CollectionForm {
 }
 
 function createAutoEditorSnapshot(
-  autoKeys: Set<string>,
+  autoCountries: Set<string>,
+  autoTags: Set<string>,
   autoTypes: Set<GeneratedGroupType>,
   sourceGroupKeys: Set<string>,
   includeFlag: boolean,
 ): AutoEditorSnapshot {
   return {
-    autoKeys: [...autoKeys].sort(),
+    autoCountries: [...autoCountries].sort(),
+    autoTags: [...autoTags].sort(),
     autoTypes: [...autoTypes].sort(),
     sourceGroupKeys: [...sourceGroupKeys].sort(),
     includeFlag,
@@ -170,7 +170,8 @@ export function Collections() {
   const [expandedManualPreviewIds, setExpandedManualPreviewIds] = useState<Set<string>>(() => new Set())
   const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({})
   const [showAutoModal, setShowAutoModal] = useState(false)
-  const [selectedAutoKeys, setSelectedAutoKeys] = useState<Set<string>>(() => new Set())
+  const [selectedAutoCountries, setSelectedAutoCountries] = useState<Set<string>>(() => new Set())
+  const [selectedAutoTags, setSelectedAutoTags] = useState<Set<string>>(() => new Set())
   const [selectedAutoTypes, setSelectedAutoTypes] = useState<Set<GeneratedGroupType>>(() => new Set(['url-test']))
   const [selectedSourceGroupKeys, setSelectedSourceGroupKeys] = useState<Set<string>>(() => new Set())
   const [autoNamesIncludeFlag, setAutoNamesIncludeFlag] = useState(true)
@@ -178,16 +179,24 @@ export function Collections() {
   const [manualGroupType, setManualGroupType] = useState<GeneratedGroupType>('url-test')
   const [initialManualGroupType, setInitialManualGroupType] = useState<GeneratedGroupType>('url-test')
   const [initialAutoEditor, setInitialAutoEditor] = useState<AutoEditorSnapshot>(() =>
-    createAutoEditorSnapshot(new Set(), new Set(['url-test']), new Set(), true)
+    createAutoEditorSnapshot(new Set(), new Set(), new Set(['url-test']), new Set(), true)
   )
   const formDirty = showModal && (
     !formValuesEqual(form, initialForm)
     || manualGroupType !== initialManualGroupType
   )
   const autoEditorDirty = showAutoModal && !formValuesEqual(
-    createAutoEditorSnapshot(selectedAutoKeys, selectedAutoTypes, selectedSourceGroupKeys, autoNamesIncludeFlag),
+    createAutoEditorSnapshot(
+      selectedAutoCountries,
+      selectedAutoTags,
+      selectedAutoTypes,
+      selectedSourceGroupKeys,
+      autoNamesIncludeFlag,
+    ),
     initialAutoEditor,
   )
+  const autoSelectionMissingType = selectedAutoTypes.size === 0
+    && (selectedAutoCountries.size > 0 || selectedAutoTags.size > 0)
   const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
   const confirmDiscardAutoEditor = useUnsavedChangesGuard(autoEditorDirty)
 
@@ -273,23 +282,6 @@ export function Collections() {
     () => buildSourceGroupSuggestions(sources, nodes, collections),
     [collections, nodes, sources]
   )
-  const selectedAutoCountries = useMemo(
-    () => new Set(
-      [...selectedAutoKeys]
-        .map(key => parseAutoNodeGroupKey(key)?.countryCode)
-        .filter((countryCode): countryCode is string => Boolean(countryCode))
-    ),
-    [selectedAutoKeys]
-  )
-  const selectedAutoTags = useMemo(
-    () => new Set(
-      [...selectedAutoKeys]
-        .map(key => parseAutoNodeGroupKey(key)?.tagKey)
-        .filter((tagKey): tagKey is string => Boolean(tagKey))
-    ),
-    [selectedAutoKeys]
-  )
-
   const openCreate = () => {
     const nextForm = createEmptyForm()
     setEditingCollection(null)
@@ -326,9 +318,14 @@ export function Collections() {
                 types: configuredTypes.length > 0 ? configuredTypes : (['url-test'] as GeneratedGroupType[]),
               }))
       const defaultTypes = new Set<GeneratedGroupType>(configuredTypes.filter(isGeneratedGroupType))
+      const defaultCountries = new Set<string>()
+      const defaultTags = new Set<string>()
       for (const key of defaultKeys) {
         const marker = parseAutoNodeGroupKey(key)
-        if (marker) defaultTypes.add(marker.type)
+        if (!marker) continue
+        defaultTypes.add(marker.type)
+        if (marker.countryCode) defaultCountries.add(marker.countryCode)
+        if (marker.tagKey) defaultTags.add(marker.tagKey)
       }
       const nextTypes: Set<GeneratedGroupType> = defaultTypes.size > 0
         ? defaultTypes
@@ -336,12 +333,14 @@ export function Collections() {
             ? new Set<GeneratedGroupType>(['url-test'])
             : new Set<GeneratedGroupType>())
       const nextSourceGroupKeys = new Set<string>()
-      setSelectedAutoKeys(defaultKeys)
+      setSelectedAutoCountries(defaultCountries)
+      setSelectedAutoTags(defaultTags)
       setSelectedAutoTypes(nextTypes)
       setSelectedSourceGroupKeys(nextSourceGroupKeys)
       setAutoNamesIncludeFlag(settings.autoNodeGroupIncludeFlag)
       setInitialAutoEditor(createAutoEditorSnapshot(
-        defaultKeys,
+        defaultCountries,
+        defaultTags,
         nextTypes,
         nextSourceGroupKeys,
         settings.autoNodeGroupIncludeFlag,
@@ -467,19 +466,23 @@ export function Collections() {
   }
 
   const toggleAutoType = (type: GeneratedGroupType) => {
-    setSelectedAutoTypes(currentTypes => {
-      const nextTypes = toggleSet(currentTypes, type)
-      setSelectedAutoKeys(currentKeys => rebuildAutoNodeGroupKeysForTypes(currentKeys, nextTypes))
-      return nextTypes
-    })
+    setSelectedAutoTypes(currentTypes => toggleSet(currentTypes, type))
   }
 
   const applyAutoGenerate = async () => {
+    if (autoSelectionMissingType) {
+      setAutoError(new Error(t('collections.group_type_required')))
+      return
+    }
     setAutoApplying(true)
     setAutoError(null)
     try {
       const selectedTypes = [...selectedAutoTypes]
-      const selectedKeys = [...selectedAutoKeys]
+      const selectedKeys = buildAutoNodeGroupKeysForSuggestions({
+        countryCodes: selectedAutoCountries,
+        tagKeys: selectedAutoTags,
+        types: selectedAutoTypes,
+      })
 
       const updatedSettings = await api.settings.update(buildAutoNodeGroupSettingsPatch({
         selectedTypes,
@@ -736,7 +739,13 @@ export function Collections() {
         footer={
           <>
             <Button variant="secondary" disabled={autoApplying} onClick={() => void closeAutoModal()}>{t('common.cancel')}</Button>
-            <Button loading={autoApplying} onClick={() => void applyAutoGenerate()}>{t('common.apply')}</Button>
+            <Button
+              loading={autoApplying}
+              disabled={autoSelectionMissingType}
+              onClick={() => void applyAutoGenerate()}
+            >
+              {t('common.apply')}
+            </Button>
           </>
         }
       >
@@ -764,6 +773,9 @@ export function Collections() {
               />
               <span>{t('collections.include_flag')}</span>
             </label>
+            {autoSelectionMissingType && (
+              <div className={styles.inlineEmpty}>{t('collections.group_type_required')}</div>
+            )}
           </div>
           <div className={styles.autoSection}>
             <div className={styles.sectionHeader}>{t('collections.recognized_countries')}</div>
@@ -776,7 +788,7 @@ export function Collections() {
                     <input
                       type="checkbox"
                       checked={selectedAutoCountries.has(item.countryCode)}
-                      onChange={() => setSelectedAutoKeys(current => toggleCountryKeys(current, item.countryCode, selectedAutoTypes))}
+                      onChange={() => setSelectedAutoCountries(current => toggleSet(current, item.countryCode))}
                     />
                     <span className={styles.autoSuggestionMain}>{item.label}</span>
                     <span className={styles.autoSuggestionMeta}>{t('collections.node_count', { count: item.count })}</span>
@@ -796,7 +808,7 @@ export function Collections() {
                     <input
                       type="checkbox"
                       checked={selectedAutoTags.has(item.key)}
-                      onChange={() => setSelectedAutoKeys(current => toggleTagKeys(current, item.key, selectedAutoTypes))}
+                      onChange={() => setSelectedAutoTags(current => toggleSet(current, item.key))}
                     />
                     <span className={styles.autoSuggestionMain}>{item.label}</span>
                     <span className={styles.autoSuggestionMeta}>{t('collections.node_count', { count: item.count })}</span>
@@ -1104,40 +1116,6 @@ function toggleSet<T>(source: Set<T>, value: T): Set<T> {
     next.delete(value)
   } else {
     next.add(value)
-  }
-  return next
-}
-
-function toggleCountryKeys(
-  source: Set<string>,
-  countryCode: string,
-  types: Set<GeneratedGroupType>
-): Set<string> {
-  const next = new Set(source)
-  const countryKeys = GENERATED_GROUP_TYPES.map(type => makeCountryAutoNodeGroupKey(countryCode, type.value))
-  const hasCountry = countryKeys.some(key => next.has(key))
-  for (const key of countryKeys) next.delete(key)
-  if (!hasCountry && types.size > 0) {
-    for (const type of types) {
-      next.add(makeCountryAutoNodeGroupKey(countryCode, type))
-    }
-  }
-  return next
-}
-
-function toggleTagKeys(
-  source: Set<string>,
-  tagKey: string,
-  types: Set<GeneratedGroupType>
-): Set<string> {
-  const next = new Set(source)
-  const tagKeys = GENERATED_GROUP_TYPES.map(type => makeTagAutoNodeGroupKey(tagKey, type.value))
-  const hasTag = tagKeys.some(key => next.has(key))
-  for (const key of tagKeys) next.delete(key)
-  if (!hasTag && types.size > 0) {
-    for (const type of types) {
-      next.add(makeTagAutoNodeGroupKey(tagKey, type))
-    }
   }
   return next
 }

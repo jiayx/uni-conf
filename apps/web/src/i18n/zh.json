@@ -282,6 +282,7 @@
     "group_type_select": "手动选择",
     "group_type_url_test": "自动测速",
     "group_type_fallback": "故障转移",
+    "group_type_required": "已选择国家/地区或标签节点池时，至少选择一种节点组类型。",
     "auto_generate_title": "自动生成节点组",
     "include_flag": "名称包含旗帜 Emoji",
     "recognized_countries": "可识别国家/地区",
