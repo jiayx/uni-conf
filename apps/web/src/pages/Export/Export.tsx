@@ -25,7 +25,6 @@ import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import {
-  EXPORT_CAPABILITY_PROFILE_REVISION,
   getExportClientCapabilities,
   getExportSubscriptionFilename,
 } from '@uni-conf/shared'
@@ -557,12 +556,6 @@ export function Export() {
         footer={<><Button variant="secondary" disabled={formSaving} onClick={() => void closeFormModal()}>{t('common.cancel')}</Button><Button loading={formSaving} onClick={() => void handleSave()}>{t('common.save')}</Button></>}
       >
         {formError != null && <ErrorNotice error={formError} className={styles.error} />}
-        <div className={styles.defaultScopeHint}>
-          <div className={styles.defaultScopeTitle}>{t('export.default_full_title')}</div>
-          <div className={styles.defaultScopeText}>
-            {t('export.default_full_text')}
-          </div>
-        </div>
         <Input label={t('export.name_optional')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('export.name_placeholder')} />
         <div>
           <label className={styles.selectLabel} htmlFor="export-profile-format">{t('export.format')}</label>
@@ -570,19 +563,15 @@ export function Export() {
             {EXPORT_FORMAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
           <div className={styles.formatCapabilityHint}>
-            {t('export.format_capability_profile_hint', {
-              revision: EXPORT_CAPABILITY_PROFILE_REVISION,
-            })}
-            {' '}
-            {t('export.format_node_capability_hint', {
-              count: selectedFormatCapabilities.nodeProtocols.length,
-              protocols: selectedFormatCapabilities.nodeProtocols.join(', '),
-            })}
-            {' '}
             {selectedFormatCapabilities.outputKind === 'node-subscription'
-              ? t('export.format_node_subscription_hint')
-              : t('export.format_dns_capability_hint', {
-                  modes: selectedFormatCapabilities.managedDnsModes.join(' / '),
+              ? t('export.format_node_subscription_capability_hint', {
+                  protocols: selectedFormatCapabilities.nodeProtocols.join(', '),
+                })
+              : t('export.format_full_config_capability_hint', {
+                  protocols: selectedFormatCapabilities.nodeProtocols.join(', '),
+                  dnsModes: selectedFormatCapabilities.managedDnsModes
+                    .map(mode => t(`settings.dns_${mode.replace('-', '_')}`))
+                    .join(' / '),
                 })}
           </div>
         </div>

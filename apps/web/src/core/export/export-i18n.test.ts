@@ -27,8 +27,8 @@ const REQUIRED_EXPORT_KEYS = [
   'edit_config',
   'empty_title',
   'empty_description',
-  'default_full_title',
-  'default_full_text',
+  'format_full_config_capability_hint',
+  'format_node_subscription_capability_hint',
   'advanced_scope',
   'scope_collections',
   'scope_groups',
@@ -47,7 +47,7 @@ const REQUIRED_EXPORT_KEYS = [
 ]
 
 describe('export i18n keys', () => {
-  it('has labels for default complete-export guidance', () => {
+  it('has labels for actionable export controls and capability guidance', () => {
     for (const locale of ['zh', 'en']) {
       const messages = readMessages(locale)
       for (const key of REQUIRED_EXPORT_KEYS) {

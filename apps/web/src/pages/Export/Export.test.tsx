@@ -126,4 +126,15 @@ describe('Export', () => {
     await user.click(screen.getAllByRole('button', { name: 'Reset Token' }).at(-1)!)
     expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/Mobile.*all existing public links/is))
   })
+
+  it('shows guidance that changes with the selected export format', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'New Advanced Export Profile' }))
+    expect(screen.getByText(/Exportable node protocols:/)).toHaveTextContent(/Available DNS strategies:/)
+
+    await user.selectOptions(screen.getByLabelText('Export Format'), 'nodes_base64')
+    expect(screen.getByText(/Exports nodes only/)).toHaveTextContent(/without DNS, policy groups, or routing rules/)
+  })
 })
