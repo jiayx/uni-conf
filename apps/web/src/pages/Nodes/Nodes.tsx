@@ -27,7 +27,12 @@ import {
   PROTOCOL_FORM_FIELDS,
   PROXY_PROTOCOL_REGISTRY,
 } from '@uni-conf/types'
-import { MAX_NODE_BATCH_SELECTION, MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared'
+import {
+  COUNTRY_FLAG_MAP,
+  detectCountry,
+  MAX_NODE_BATCH_SELECTION,
+  MAX_NODE_SEARCH_LENGTH,
+} from '@uni-conf/shared'
 import type { ProtocolFieldDefinition, ProxyNode, ProxyProtocol } from '@uni-conf/types'
 import styles from './Nodes.module.css'
 
@@ -45,7 +50,6 @@ const EMPTY_FORM = {
   protocol: 'ss' as ProxyProtocol,
   server: '',
   port: 443,
-  country: '',
   countryCode: '',
   enabled: true,
   notes: '',
@@ -53,7 +57,7 @@ const EMPTY_FORM = {
 }
 
 export function Nodes() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
   const { nodes, loading, error: loadError, fetchNodes, addNode, updateNode, setNodesEnabled, deleteNode } = useNodesStore()
@@ -115,6 +119,15 @@ export function Nodes() {
   const selectableVisibleIds = visibleIds.slice(0, MAX_NODE_BATCH_SELECTION)
   const allVisibleSelected = selectableVisibleIds.length > 0 && selectableVisibleIds.every(id => selectedIds.has(id))
   const protocolFields = PROTOCOL_FORM_FIELDS[form.protocol] as readonly ProtocolFieldDefinition[]
+  const detectedCountry = detectCountry(form.name)
+  const regionNames = new Intl.DisplayNames([i18n.resolvedLanguage ?? i18n.language], { type: 'region' })
+  const countryOptions = COUNTRY_FLAG_MAP
+    .map(([flag, country, code]) => ({
+      code,
+      country,
+      label: `${flag} ${regionNames.of(code) ?? country} (${code})`,
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label, i18n.resolvedLanguage ?? i18n.language))
 
   const resetFilters = () => {
     setSearch('')
@@ -185,8 +198,7 @@ export function Nodes() {
       protocol: node.protocol,
       server: node.server,
       port: node.port,
-      country: node.country ?? '',
-      countryCode: node.countryCode ?? '',
+      countryCode: detectedCountryMatchesNode(node) ? '' : node.countryCode ?? '',
       enabled: node.enabled,
       notes: node.notes ?? '',
       extra: {
@@ -246,14 +258,18 @@ export function Nodes() {
       if (!editingRequested && uri) {
         await addNode({ uri, sourceId: 'manual' })
       } else {
+        const selectedCountry = countryOptions.find(option => option.code === form.countryCode)
+        const country = selectedCountry
+          ? { country: selectedCountry.country, countryCode: selectedCountry.code }
+          : detectedCountry
         const payload = {
           sourceId: editingNode?.sourceId ?? 'manual',
           name: form.name,
           protocol: form.protocol,
           server: form.server,
           port: form.port,
-          country: form.country.trim(),
-          countryCode: form.countryCode.trim(),
+          country: country?.country ?? '',
+          countryCode: country?.countryCode ?? '',
           enabled: form.enabled,
           tags: editingNode?.tags ?? [],
           notes: form.notes.trim(),
@@ -545,8 +561,27 @@ export function Nodes() {
             ))}
           </div>
         )}
-        <Input label={t('nodes.country')} value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} />
-        <Input label={t('nodes.country_code')} value={form.countryCode} onChange={e => setForm(f => ({ ...f, countryCode: e.target.value.toUpperCase() }))} />
+        <div className={styles.protocolPicker}>
+          <label className={styles.selectLabel} htmlFor="manual-node-country">{t('nodes.country')}</label>
+          <select
+            id="manual-node-country"
+            className={styles.filterSelect}
+            value={form.countryCode}
+            onChange={e => setForm(f => ({ ...f, countryCode: e.target.value }))}
+          >
+            <option value="">
+              {detectedCountry
+                ? t('nodes.country_auto_detected', {
+                    country: `${regionNames.of(detectedCountry.countryCode) ?? detectedCountry.country} (${detectedCountry.countryCode})`,
+                  })
+                : t('nodes.country_auto')}
+            </option>
+            {countryOptions.map(option => (
+              <option key={option.code} value={option.code}>{option.label}</option>
+            ))}
+          </select>
+          <div className={styles.helperText}>{t('nodes.country_hint')}</div>
+        </div>
         <Input label={t('common.notes')} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         <label className={styles.checkboxRow}>
           <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
@@ -556,6 +591,11 @@ export function Nodes() {
       </Modal>
     </div>
   )
+}
+
+function detectedCountryMatchesNode(node: ProxyNode): boolean {
+  const detected = detectCountry(node.name)
+  return detected?.countryCode === node.countryCode
 }
 
 function ProtocolFieldInput({

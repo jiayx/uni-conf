@@ -88,6 +88,45 @@ describe('Nodes filters', () => {
     expect(within(dialog).getByRole('combobox', { name: 'Protocol' })).toHaveValue('ss')
   })
 
+  it('detects the country from a manual node name and allows one-field override', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter initialEntries={['/nodes?create=1']}><Nodes /></MemoryRouter>)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Manual Entry' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), '🇩🇪 Frankfurt Premium')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Server' }), 'de.example.com')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Protocol' }), 'socks5')
+
+    const country = within(dialog).getByRole('combobox', { name: 'Country/Region' })
+    expect(country).toHaveValue('')
+    expect(within(country).getByRole('option', { name: 'Auto-detect: Germany (DE)' })).toBeInTheDocument()
+
+    await user.selectOptions(country, 'JP')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(stores.nodes.addNode).toHaveBeenCalledWith(expect.objectContaining({
+      name: '🇩🇪 Frankfurt Premium',
+      country: 'Japan',
+      countryCode: 'JP',
+    }))
+  })
+
+  it('saves the country detected from a manual node name', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter initialEntries={['/nodes?create=1']}><Nodes /></MemoryRouter>)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Manual Entry' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Singapore Edge')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Server' }), 'sg.example.com')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Protocol' }), 'socks5')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(stores.nodes.addNode).toHaveBeenCalledWith(expect.objectContaining({
+      country: 'Singapore',
+      countryCode: 'SG',
+    }))
+  })
+
   it('searches server and source names and explains an empty filtered result', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Nodes /></MemoryRouter>)

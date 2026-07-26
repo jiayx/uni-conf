@@ -1375,6 +1375,15 @@ export function detectCountry(name: string): CountryInfo | null {
     }
   }
 
+  for (const [, country, code] of COUNTRY_FLAG_MAP) {
+    if (new RegExp(`\\b${escapeRegExp(country)}\\b`, 'i').test(name)) {
+      return { country, countryCode: code };
+    }
+    if (new RegExp(`(?:^|[\\s|｜_\\-[（(])${code}(?=$|[\\s|｜_\\-)）])`).test(name)) {
+      return { country, countryCode: code };
+    }
+  }
+
   return null;
 }
 
@@ -1405,6 +1414,10 @@ export function countryCodeToFlag(countryCode: string): string | undefined {
 
 function toGlobalRegExp(pattern: RegExp): RegExp {
   return new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function detectTrafficMultiplier(name: string): TrafficMultiplierInfo | null {
