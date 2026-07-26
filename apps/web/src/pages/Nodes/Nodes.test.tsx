@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import type { ProxyNode } from '@uni-conf/types'
@@ -80,8 +80,12 @@ describe('Nodes filters', () => {
   it('opens manual entry directly from the dashboard setup link', async () => {
     render(<MemoryRouter initialEntries={['/nodes?create=1']}><Nodes /></MemoryRouter>)
 
-    expect(await screen.findByRole('dialog', { name: 'Manual Entry' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Node URI' })).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Manual Entry' })
+    expect(within(dialog).getByRole('textbox', { name: 'Node URI' })).toBeInTheDocument()
+    expect(within(dialog).getByText(/detect its protocol and connection settings/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('group', { name: 'Common protocols' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('group', { name: 'Other protocols' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Protocol' })).toHaveValue('ss')
   })
 
   it('searches server and source names and explains an empty filtered result', async () => {

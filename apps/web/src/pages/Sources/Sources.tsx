@@ -772,10 +772,6 @@ export function Sources() {
         }
       >
         {formError != null && <ErrorNotice error={formError} className={styles.formError} />}
-        <div className={styles.quickHint}>
-          <div className={styles.quickHintTitle}>{t('sources.quick_hint_title')}</div>
-          <div className={styles.quickHintText}>{t('sources.quick_hint_text')}</div>
-        </div>
         <label className={styles.textareaField}>
           <span>{t('sources.url')}</span>
           <textarea

@@ -16,16 +16,17 @@ import {
   getMissingRequiredManualNodeFields,
   type ManualNodeExtraValue,
 } from '@/core/nodes/manual-node-config'
-import {
-  MANUAL_NODE_URI_HELP_TEXT,
-  MANUAL_NODE_URI_PLACEHOLDER,
-} from '@/core/nodes/manual-node-uri-help'
+import { MANUAL_NODE_URI_PLACEHOLDER } from '@/core/nodes/manual-node-uri-help'
 import { useNodesStore } from '@/store/nodes.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { api } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
-import { MAINSTREAM_PROXY_PROTOCOLS, PROTOCOL_FORM_FIELDS } from '@uni-conf/types'
+import {
+  MAINSTREAM_PROXY_PROTOCOLS,
+  PROTOCOL_FORM_FIELDS,
+  PROXY_PROTOCOL_REGISTRY,
+} from '@uni-conf/types'
 import { MAX_NODE_BATCH_SELECTION, MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared'
 import type { ProtocolFieldDefinition, ProxyNode, ProxyProtocol } from '@uni-conf/types'
 import styles from './Nodes.module.css'
@@ -36,6 +37,9 @@ const PROTOCOL_COLORS: Record<string, 'purple' | 'info' | 'success' | 'warning' 
 }
 
 const PROTOCOL_OPTIONS: ProxyProtocol[] = [...MAINSTREAM_PROXY_PROTOCOLS]
+const COMMON_PROTOCOLS = ['ss', 'vmess', 'vless', 'trojan', 'hysteria2', 'tuic'] satisfies ProxyProtocol[]
+const COMMON_PROTOCOL_SET = new Set<ProxyProtocol>(COMMON_PROTOCOLS)
+const OTHER_PROTOCOLS = PROTOCOL_OPTIONS.filter(protocol => !COMMON_PROTOCOL_SET.has(protocol))
 const EMPTY_FORM = {
   name: '',
   protocol: 'ss' as ProxyProtocol,
@@ -505,17 +509,27 @@ export function Nodes() {
               rows={4}
             />
             <div className={styles.helperText}>
-              {MANUAL_NODE_URI_HELP_TEXT}
+              {t('nodes.uri_hint')}
             </div>
-            <div className={styles.divider}><span>{t('nodes.or')}</span></div>
+            <div className={styles.divider}><span>{t('nodes.manual_fields')}</span></div>
           </div>
         )}
         <Input label={t('common.name')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <div>
+        <div className={styles.protocolPicker}>
           <label className={styles.selectLabel} htmlFor="manual-node-protocol">{t('nodes.protocol')}</label>
           <select id="manual-node-protocol" className={styles.filterSelect} value={form.protocol} onChange={e => setForm(f => ({ ...f, protocol: e.target.value as ProxyProtocol, extra: {} }))}>
-            {PROTOCOL_OPTIONS.map(protocol => <option key={protocol} value={protocol}>{protocol.toUpperCase()}</option>)}
+            <optgroup label={t('nodes.common_protocols')}>
+              {COMMON_PROTOCOLS.map(protocol => (
+                <option key={protocol} value={protocol}>{PROXY_PROTOCOL_REGISTRY[protocol].label}</option>
+              ))}
+            </optgroup>
+            <optgroup label={t('nodes.other_protocols')}>
+              {OTHER_PROTOCOLS.map(protocol => (
+                <option key={protocol} value={protocol}>{PROXY_PROTOCOL_REGISTRY[protocol].label}</option>
+              ))}
+            </optgroup>
           </select>
+          <div className={styles.helperText}>{t('nodes.protocol_picker_hint')}</div>
         </div>
         <Input label={t('nodes.server')} value={form.server} onChange={e => setForm(f => ({ ...f, server: e.target.value }))} />
         <Input label={t('nodes.port')} type="number" min="1" max="65535" value={form.port} onChange={e => setForm(f => ({ ...f, port: Number(e.target.value) }))} />
