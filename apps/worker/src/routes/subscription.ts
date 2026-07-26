@@ -164,7 +164,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
   const rendered = renderExportData(exportData, format, {
-    dnsMode: settings.dnsMode,
+    dnsMode: config.dnsMode,
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, token),
   })
   if (!rendered) {

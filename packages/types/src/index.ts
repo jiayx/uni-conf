@@ -415,6 +415,7 @@ export interface ExportConfig {
   id: string;
   name: string;
   format: ExportFormat;
+  dnsMode?: DnsMode;
   token: string; // for /sub/:token/:format URLs
   enabled: boolean;
   includeCollectionIds: string[];
@@ -455,7 +456,6 @@ export interface AppSettings {
   unmatchedTrafficPolicy: UnmatchedTrafficPolicy;
   routingPolicyTemplate: RoutingPolicyTemplateId;
   routingOutletPreferences?: Record<string, string>;
-  dnsMode: DnsMode;
   exportNodeNamingMode: ExportNodeNamingMode;
   defaultExportToken?: string;
   // Feature flags

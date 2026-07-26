@@ -721,7 +721,7 @@ rule-providers:
         success: boolean
         data: { version: number; containsSensitiveData: boolean; tables: Record<string, Record<string, unknown>[]> }
       }
-      expect(backup).toMatchObject({ success: true, data: { version: 4, containsSensitiveData: true } })
+      expect(backup).toMatchObject({ success: true, data: { version: 5, containsSensitiveData: true } })
       expect((backup.data.tables.nodes ?? []).length).toBeGreaterThanOrEqual(2)
       expect((backup.data.tables.export_configs ?? []).some(row => row.token === defaultConfig!.token)).toBe(true)
       expect((backup.data.tables.remote_rule_sets ?? []).some(row => (
@@ -787,19 +787,18 @@ rule-providers:
   // slightly beyond two minutes when Web and Worker suites share CI resources.
   }, 180000)
 
-  it('preserves disjoint concurrent settings patches and independent DNS selection', async () => {
+  it('preserves disjoint concurrent settings patches', async () => {
     const baseline = await request('/api/settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         language: 'zh',
         routingPolicyTemplate: 'router',
-        dnsMode: 'smart',
       }),
     })
     expect(baseline.status).toBe(200)
 
-    const [languageResponse, dnsResponse] = await Promise.all([
+    const [languageResponse, namingResponse] = await Promise.all([
       request('/api/settings', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
@@ -808,19 +807,19 @@ rule-providers:
       request('/api/settings', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ dnsMode: 'fake-ip' }),
+        body: JSON.stringify({ exportNodeNamingMode: 'region_sequence' }),
       }),
     ])
     expect(languageResponse.status).toBe(200)
-    expect(dnsResponse.status).toBe(200)
+    expect(namingResponse.status).toBe(200)
 
     const concurrentSettings = await (await request('/api/settings')).json() as {
-      data: { language: string; routingPolicyTemplate: string; dnsMode: string }
+      data: { language: string; routingPolicyTemplate: string; exportNodeNamingMode: string }
     }
     expect(concurrentSettings.data).toMatchObject({
       language: 'en',
       routingPolicyTemplate: 'router',
-      dnsMode: 'fake-ip',
+      exportNodeNamingMode: 'region_sequence',
     })
 
     const sameTemplate = await request('/api/settings', {
@@ -830,7 +829,7 @@ rule-providers:
     })
     expect(sameTemplate.status).toBe(200)
     await expect(sameTemplate.json()).resolves.toMatchObject({
-      data: { routingPolicyTemplate: 'router', dnsMode: 'fake-ip' },
+      data: { routingPolicyTemplate: 'router', exportNodeNamingMode: 'region_sequence' },
     })
 
     const changedTemplate = await request('/api/settings', {
@@ -840,7 +839,7 @@ rule-providers:
     })
     expect(changedTemplate.status).toBe(200)
     await expect(changedTemplate.json()).resolves.toMatchObject({
-      data: { routingPolicyTemplate: 'common', dnsMode: 'fake-ip' },
+      data: { routingPolicyTemplate: 'common', exportNodeNamingMode: 'region_sequence' },
     })
   }, 30000)
 

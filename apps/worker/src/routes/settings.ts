@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings, AppSettingsPatch, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
+import type { AppSettings, AppSettingsPatch, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
-import { DNS_MODE_PRESETS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import { isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -54,7 +54,6 @@ const UNMATCHED_TRAFFIC_POLICIES: ReadonlySet<UnmatchedTrafficPolicy> = new Set(
 const ROUTING_POLICY_TEMPLATE_IDS: ReadonlySet<RoutingPolicyTemplateId> = new Set(
   ROUTING_POLICY_TEMPLATES.map((template) => template.id as RoutingPolicyTemplateId)
 )
-const DNS_MODES: ReadonlySet<DnsMode> = new Set(DNS_MODE_PRESETS.map((preset) => preset.id as DnsMode))
 const EXPORT_NODE_NAMING_MODES: ReadonlySet<ExportNodeNamingMode> = new Set([
   'original',
   'region_sequence',
@@ -68,7 +67,6 @@ const SETTINGS_PATCH_KEYS: ReadonlySet<string> = new Set([
   'unmatchedTrafficPolicy',
   'routingPolicyTemplate',
   'routingOutletPreferences',
-  'dnsMode',
   'exportNodeNamingMode',
   'defaultExportToken',
   'showCompatibilityWarnings',
@@ -108,7 +106,6 @@ export function buildSettingsUpdate(body: AppSettingsPatch, ts: string): Setting
       body.routingOutletPreferences === null ? null : JSON.stringify(body.routingOutletPreferences),
     )
   }
-  if (body.dnsMode !== undefined) set('dns_mode', body.dnsMode)
   if (body.exportNodeNamingMode !== undefined) set('export_node_naming_mode', body.exportNodeNamingMode)
   if (body.defaultExportToken !== undefined) {
     set('default_export_token', normalizeDefaultExportToken(body.defaultExportToken) ?? null)
@@ -169,7 +166,6 @@ export function validateSettingsPatch(value: unknown): string | null {
       return 'invalid routing outlet preferences'
     }
   }
-  if (body.dnsMode !== undefined && !DNS_MODES.has(body.dnsMode)) return 'invalid DNS mode'
   if (body.exportNodeNamingMode !== undefined && !EXPORT_NODE_NAMING_MODES.has(body.exportNodeNamingMode)) {
     return 'invalid export node naming mode'
   }

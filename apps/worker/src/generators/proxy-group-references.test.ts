@@ -381,6 +381,9 @@ describe('proxy group references', () => {
       dns: Record<string, unknown>;
       experimental: { cache_file: { store_fakeip: boolean } };
     }
+    const compatible = JSON.parse(generateSingboxJson([], [], [], [], {}, { dnsMode: 'compatible' })) as {
+      dns: { servers: Array<{ tag: string }>; rules?: unknown; final: string };
+    }
 
     expect(smart.log).toMatchObject({ level: 'warn', timestamp: true })
     expect(smart.dns.fakeip).toBeUndefined()
@@ -403,6 +406,9 @@ describe('proxy group references', () => {
       expect.objectContaining({ rule_set: 'geosite-geolocation-!cn', action: 'route', server: 'proxyDns' }),
     ])
     expect(smart.dns.rules.every(rule => rule.outbound === undefined)).toBe(true)
+    expect(compatible.dns.servers).toEqual([expect.objectContaining({ tag: 'localDns' })])
+    expect(compatible.dns.rules).toBeUndefined()
+    expect(compatible.dns.final).toBe('localDns')
     expect(smart.route.default_domain_resolver).toBe('localDns')
     expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)

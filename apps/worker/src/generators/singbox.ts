@@ -53,6 +53,23 @@ export function generateSingboxJson(
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
 function buildDns(mode: DnsMode, proxyDetour: string): object {
+  if (mode === 'compatible') {
+    return {
+      servers: [
+        {
+          type: 'https',
+          tag: 'localDns',
+          server: '223.5.5.5',
+          path: '/dns-query',
+          detour: 'direct',
+        },
+      ],
+      final: 'localDns',
+      independent_cache: true,
+      strategy: 'prefer_ipv4',
+    };
+  }
+
   const dns: Record<string, unknown> = {
     servers: [
       {
@@ -81,7 +98,7 @@ function buildDns(mode: DnsMode, proxyDetour: string): object {
         server: 'proxyDns',
       },
     ],
-    final: mode === 'compatible' ? 'localDns' : 'proxyDns',
+    final: 'proxyDns',
     independent_cache: true,
     strategy: 'prefer_ipv4',
   };

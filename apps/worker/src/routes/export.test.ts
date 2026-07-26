@@ -3,6 +3,7 @@ import {
   isValidExportFormat,
   resolveExportConfigName,
   resolveExportConfigUpdateName,
+  resolveExportDnsMode,
   validateExportConfigSelection,
 } from './export'
 
@@ -30,6 +31,14 @@ describe('export route helpers', () => {
     expect(isValidExportFormat('nodes_raw')).toBe(true)
     expect(isValidExportFormat('sing-box')).toBe(false)
     expect(isValidExportFormat('yaml')).toBe(false)
+  })
+
+  it('resolves DNS strategy from the selected export format', () => {
+    expect(resolveExportDnsMode('mihomo')).toBe('smart')
+    expect(resolveExportDnsMode('mihomo', 'fake-ip')).toBe('fake-ip')
+    expect(resolveExportDnsMode('surge')).toBe('compatible')
+    expect(resolveExportDnsMode('surge', 'smart')).toBeUndefined()
+    expect(resolveExportDnsMode('nodes_raw')).toBeUndefined()
   })
 
   it('normalizes export config include lists', () => {

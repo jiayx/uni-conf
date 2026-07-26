@@ -8,14 +8,14 @@ import type { AppSettings } from '@uni-conf/types'
 import { MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
 
 const settings = vi.hoisted((): AppSettings => ({
-  language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyTemplate: 'common', dnsMode: 'smart',
+  language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyTemplate: 'common',
   exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true,
   ruleSetConversionPolicy: 'compatible',
   autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],
   autoNodeGroupIncludeFlag: true,
 }))
 const actions = vi.hoisted(() => Object.fromEntries([
-  'setLanguage', 'setTheme', 'setDnsMode', 'setExportNodeNamingMode', 'setShowCompatibilityWarnings',
+  'setLanguage', 'setTheme', 'setExportNodeNamingMode', 'setShowCompatibilityWarnings',
   'setRuleSetConversionPolicy',
   'setEnableAutoRefresh', 'setAutoRefreshInterval', 'setAutoNodeGroupsEnabled', 'setAutoNodeGroupTypes',
   'setAutoNodeGroupIncludeFlag', 'applySettings',
@@ -47,7 +47,7 @@ describe('Settings data safety', () => {
 
   it('validates an uploaded backup before destructive restore', async () => {
     vi.mocked(api.settings.validateImportData).mockResolvedValue({
-      version: 4, totalRows: 4, tables: { sources: 1, nodes: 3 }, containsSensitiveData: true,
+      version: 5, totalRows: 4, tables: { sources: 1, nodes: 3 }, containsSensitiveData: true,
     })
     vi.mocked(api.settings.importData).mockResolvedValue(undefined)
     const user = userEvent.setup()
@@ -55,7 +55,7 @@ describe('Settings data safety', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     await waitForImportReady()
 
-    await user.upload(input, new File([JSON.stringify({ version: 4, tables: {} })], 'backup.json', { type: 'application/json' }))
+    await user.upload(input, new File([JSON.stringify({ version: 5, tables: {} })], 'backup.json', { type: 'application/json' }))
 
     expect(api.settings.validateImportData).toHaveBeenCalledOnce()
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('4 rows'))
@@ -95,7 +95,7 @@ describe('Settings data safety', () => {
 
   it('keeps restore failures diagnosable and does not reload settings after a rejected import', async () => {
     vi.mocked(api.settings.validateImportData).mockResolvedValue({
-      version: 4, totalRows: 1, tables: { sources: 1 }, containsSensitiveData: true,
+      version: 5, totalRows: 1, tables: { sources: 1 }, containsSensitiveData: true,
     })
     vi.mocked(api.settings.importData).mockRejectedValueOnce(
       new ApiError('Backup restore failed', 409, 'backup_conflict', 'request-backup-1'),
@@ -105,7 +105,7 @@ describe('Settings data safety', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     await waitForImportReady()
 
-    await user.upload(input, new File([JSON.stringify({ version: 4, tables: {} })], 'backup.json', { type: 'application/json' }))
+    await user.upload(input, new File([JSON.stringify({ version: 5, tables: {} })], 'backup.json', { type: 'application/json' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Backup restore failed')
     expect(screen.getByText('backup_conflict · request-backup-1')).toBeInTheDocument()
@@ -217,12 +217,10 @@ describe('Settings data safety', () => {
     expect(screen.getByText('settings_unavailable · request-settings-2')).toBeInTheDocument()
   })
 
-  it('explains the actual scope of DNS strategy and automatic refresh', async () => {
+  it('explains the actual scope of automatic refresh', async () => {
     render(<Settings />)
 
-    expect(await screen.findByText('Default DNS Strategy')).toBeInTheDocument()
-    expect(screen.getByText(/full Mihomo, Clash, Stash, and sing-box configs/)).toBeInTheDocument()
-    expect(screen.getByText('Auto refresh subscriptions')).toBeInTheDocument()
+    expect(await screen.findByText('Auto refresh subscriptions')).toBeInTheDocument()
     expect(screen.getByText(/only refreshes remote subscriptions/)).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: 'Default subscription refresh interval (minutes)' })).toBeInTheDocument()
   })

@@ -184,6 +184,10 @@ CREATE TABLE IF NOT EXISTS export_configs (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   format TEXT NOT NULL,
+  dns_mode TEXT CHECK (
+    dns_mode IS NULL
+    OR dns_mode IN ('compatible', 'smart', 'fake-ip')
+  ),
   token TEXT NOT NULL UNIQUE,
   enabled INTEGER NOT NULL DEFAULT 1,
   include_collection_ids TEXT NOT NULL DEFAULT '[]',
@@ -212,7 +216,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   ),
   routing_policy_template TEXT NOT NULL DEFAULT 'common',
   routing_outlet_preferences TEXT,
-  dns_mode TEXT NOT NULL DEFAULT 'smart',
   export_node_naming_mode TEXT NOT NULL DEFAULT 'smart',
   default_export_token TEXT,
   show_compatibility_warnings INTEGER NOT NULL DEFAULT 1,

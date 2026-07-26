@@ -5,13 +5,6 @@ import { describe, expect, it } from 'vitest'
 const i18nDir = join(process.cwd(), 'src/i18n')
 
 const REQUIRED_SETTINGS_KEYS = [
-  'dns_mode',
-  'dns_compatible',
-  'dns_compatible_desc',
-  'dns_smart',
-  'dns_smart_desc',
-  'dns_fake_ip',
-  'dns_fake_ip_desc',
   'export_node_naming',
   'naming_smart',
   'naming_smart_desc',
@@ -30,7 +23,7 @@ const REQUIRED_SETTINGS_KEYS = [
 ]
 
 describe('settings i18n keys', () => {
-  it('has labels for DNS and automatic node-group zero-setup controls', () => {
+  it('has labels for automatic node-group zero-setup controls', () => {
     for (const locale of ['zh', 'en']) {
       const messages = readMessages(locale)
       for (const key of REQUIRED_SETTINGS_KEYS) {

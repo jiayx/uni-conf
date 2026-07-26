@@ -6,7 +6,9 @@
 .configCard { display: flex; flex-direction: column; gap: 1rem; }
 .configHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .configName { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.375rem; }
-.configActions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.configActions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.inlineSelect { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-secondary); font-size: 0.8125rem; }
+.inlineSelect select { max-width: 9rem; padding: 0.375rem 1.75rem 0.375rem 0.625rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-primary); font: inherit; }
 .badges { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.5rem; }
 .scopeText { font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
 .disabledNotice { padding: 0.625rem 0.75rem; border-radius: var(--radius-md); background: var(--color-error-subtle); color: var(--color-error); font-size: 0.8125rem; line-height: 1.45; }

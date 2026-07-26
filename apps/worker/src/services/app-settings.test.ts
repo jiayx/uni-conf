@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeAutoNodeGroupTypes,
   normalizeBooleanDefault,
-  normalizeDnsMode,
   normalizeExportNodeNamingMode,
   normalizeLanguage,
   normalizeOptionalString,
@@ -33,7 +32,6 @@ describe('app settings normalization', () => {
     expect(normalizeTheme('dark')).toBe('dark')
     expect(normalizeUnmatchedTrafficPolicy('unknown')).toBe('proxy')
     expect(normalizeUnmatchedTrafficPolicy('direct')).toBe('direct')
-    expect(normalizeDnsMode('unknown')).toBe('smart')
     expect(normalizeRoutingPolicyTemplate('unknown')).toBe('common')
     expect(normalizeRoutingPolicyTemplate('router')).toBe('router')
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')

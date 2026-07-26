@@ -1,10 +1,9 @@
 import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
+import type { AppSettings, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
 const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
 const UNMATCHED_TRAFFIC_POLICIES = new Set<UnmatchedTrafficPolicy>(['proxy', 'direct']);
-const DNS_MODES = new Set<DnsMode>(['compatible', 'smart', 'fake-ip']);
 const ROUTING_POLICY_TEMPLATE_IDS = new Set<AppSettings['routingPolicyTemplate']>(
   ROUTING_POLICY_TEMPLATES.map((template) => template.id as AppSettings['routingPolicyTemplate'])
 );
@@ -32,7 +31,6 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     unmatchedTrafficPolicy: normalizeUnmatchedTrafficPolicy(row.unmatched_traffic_policy),
     routingPolicyTemplate: normalizeRoutingPolicyTemplate(row.routing_policy_template),
     routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
-    dnsMode: normalizeDnsMode(row.dns_mode),
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
     defaultExportToken: normalizeOptionalString(row.default_export_token),
     showCompatibilityWarnings: normalizeBooleanDefault(row.show_compatibility_warnings, true),
@@ -44,10 +42,6 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     autoNodeGroupKeys: normalizeOptionalStringList(row.auto_node_group_keys),
     autoNodeGroupIncludeFlag: normalizeBooleanDefault(row.auto_node_group_include_flag, true),
   };
-}
-
-export function normalizeDnsMode(value: unknown): DnsMode {
-  return typeof value === 'string' && DNS_MODES.has(value as DnsMode) ? value as DnsMode : 'smart';
 }
 
 export function normalizeLanguage(value: unknown): Language {

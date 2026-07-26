@@ -288,7 +288,7 @@ describe('api client', () => {
     await api.export.previewFormat('singbox', 'export-1')
     await api.settings.get()
     await api.settings.update({ language: 'en' })
-    await api.settings.importData({ version: 4 })
+    await api.settings.importData({ version: 5 })
     await api.settings.clearData()
 
     const calls = fetchMock.mock.calls.map(call => [call[0], call[1]?.method])

@@ -36,6 +36,7 @@ const configs: ExportConfig[] = [{
   id: 'default-mihomo',
   name: 'Default',
   format: 'mihomo',
+  dnsMode: 'smart',
   token: 'default-token',
   enabled: true,
   includeCollectionIds: [],
@@ -48,6 +49,7 @@ const configs: ExportConfig[] = [{
   id: 'advanced-1',
   name: 'Mobile',
   format: 'singbox',
+  dnsMode: 'fake-ip',
   token: 'mobile-token',
   enabled: true,
   includeCollectionIds: [],
@@ -102,6 +104,19 @@ describe('Export', () => {
 
     expect(api.export.previewFormat).toHaveBeenCalledWith('singbox', 'advanced-1')
     expect(await screen.findByRole('dialog', { name: /Mobile/ })).toBeInTheDocument()
+  })
+
+  it('updates the default export DNS strategy directly from its card', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.export.updateConfig).mockResolvedValue({
+      ...configs[0]!,
+      dnsMode: 'fake-ip',
+    })
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    await user.selectOptions(await screen.findByLabelText('DNS Strategy'), 'fake-ip')
+
+    expect(api.export.updateConfig).toHaveBeenCalledWith('default-mihomo', { dnsMode: 'fake-ip' })
   })
 
   it('reveals and hides a subscription URL without a confirmation step', async () => {

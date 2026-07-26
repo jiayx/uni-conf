@@ -165,7 +165,6 @@ describe('settings store', () => {
     const state = useSettingsStore.getState()
     state.setLanguage('en')
     state.setTheme('dark')
-    state.setDnsMode('fake-ip')
     state.setExportNodeNamingMode('original')
     state.setShowCompatibilityWarnings(false)
     state.setEnableAutoRefresh(false)

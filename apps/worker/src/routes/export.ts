@@ -12,13 +12,14 @@ import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { findBlockingExportWarning, resolveExportWarnings } from '../services/export-validation'
 import { exportArtifactWarnings, validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
-import type { CompatibilityWarning, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
+import type { CompatibilityWarning, DnsMode, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
 import { buildRuleSetConversionBaseUrl } from './subscription'
 import { preflightRuleSetConversions } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import {
   getExportCapabilityProfile,
+  getExportClientCapabilities,
   getExportSubscriptionFilename,
   isExportSubscriptionFormat,
   serializeExportCapabilityProfile,
@@ -45,14 +46,20 @@ exportRouter.post('/configs', async (c) => {
   const id = newId()
   const token = generateExportToken()
   const ts = now()
+  const format = body.format ?? 'mihomo'
+  const dnsMode = resolveExportDnsMode(format, body.dnsMode)
+  if (body.dnsMode !== undefined && dnsMode === undefined) {
+    return c.json({ success: false, error: 'DNS mode is not supported by this export format' }, 400)
+  }
 
   await c.env.DB.prepare(
-    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO export_configs (id, name, format, dns_mode, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     resolveExportConfigName(body.name, body.format),
-    body.format ?? 'mihomo',
+    format,
+    dnsMode ?? null,
     token,
     body.enabled !== false ? 1 : 0,
     JSON.stringify(selection.includeCollectionIds),
@@ -114,11 +121,11 @@ exportRouter.put('/configs/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
   if (
     id === DEFAULT_EXPORT_CONFIG_ID
-    && Object.keys(body).some(field => field !== 'enabled')
+    && Object.keys(body).some(field => field !== 'enabled' && field !== 'dnsMode')
   ) {
     return c.json({
       success: false,
-      error: 'Default export config only allows enabled state updates',
+      error: 'Default export config only allows enabled state and DNS mode updates',
     }, 403)
   }
   if (body.format !== undefined && !isValidExportFormat(body.format)) {
@@ -127,6 +134,16 @@ exportRouter.put('/configs/:id', async (c) => {
   const selection = validateExportConfigSelection(body)
   if (!selection.valid) {
     return c.json({ success: false, error: selection.error }, 400)
+  }
+  const existingConfig = mapExportConfig(existing as Record<string, unknown>)
+  const nextFormat = body.format ?? existingConfig.format
+  const requestedDnsMode = body.dnsMode ?? existingConfig.dnsMode
+  let nextDnsMode = resolveExportDnsMode(nextFormat, requestedDnsMode)
+  if (body.dnsMode !== undefined && nextDnsMode === undefined) {
+    return c.json({ success: false, error: 'DNS mode is not supported by this export format' }, 400)
+  }
+  if (body.dnsMode === undefined && requestedDnsMode !== undefined && nextDnsMode === undefined) {
+    nextDnsMode = resolveExportDnsMode(nextFormat)
   }
 
   const fields: string[] = []
@@ -141,6 +158,10 @@ exportRouter.put('/configs/:id', async (c) => {
     ))
   }
   if (body.format !== undefined) { fields.push('format = ?'); values.push(body.format) }
+  if (body.dnsMode !== undefined || body.format !== undefined) {
+    fields.push('dns_mode = ?')
+    values.push(nextDnsMode ?? null)
+  }
   if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0) }
   if (body.includeCollectionIds !== undefined) { fields.push('include_collection_ids = ?'); values.push(JSON.stringify(selection.includeCollectionIds)) }
   if (body.includeGroupIds !== undefined) { fields.push('include_group_ids = ?'); values.push(JSON.stringify(selection.includeGroupIds)) }
@@ -220,7 +241,7 @@ async function inspectExport(
     policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
   })
   const rendered = renderExportData(exportData, format, {
-    dnsMode: settings.dnsMode,
+    dnsMode: resolveExportDnsMode(format, config.dnsMode),
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
   })
   if (!rendered) return null
@@ -289,7 +310,7 @@ exportRouter.get('/download/:format', async (c) => {
     }, 409)
   }
   const rendered = renderExportData(exportData, format, {
-    dnsMode: settings.dnsMode,
+    dnsMode: resolveExportDnsMode(format, config.dnsMode),
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
   })
   if (!rendered) {
@@ -333,6 +354,16 @@ async function resolveConfig(c: Context<{ Bindings: Env }>) {
 
 export function isValidExportFormat(value: unknown): value is ExportFormat {
   return isExportSubscriptionFormat(value)
+}
+
+export function resolveExportDnsMode(
+  format: ExportFormat,
+  requested?: DnsMode,
+): DnsMode | undefined {
+  const supported = getExportClientCapabilities(format).managedDnsModes as readonly DnsMode[]
+  if (supported.length === 0) return undefined
+  if (requested !== undefined) return supported.includes(requested) ? requested : undefined
+  return supported.includes('smart') ? 'smart' : supported[0]
 }
 
 type ExportSelectionValidation =

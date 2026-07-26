@@ -28,15 +28,33 @@ import {
   getExportClientCapabilities,
   getExportSubscriptionFilename,
 } from '@uni-conf/shared'
-import type { CompatibilityWarning, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
+import type { CompatibilityWarning, DnsMode, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
 import styles from './Export.module.css'
 
 const BASE_URL = window.location.origin
 const DEFAULT_EXPORT_CONFIG_ID = 'default-mihomo'
 
+function supportedDnsModes(format: ExportFormat): readonly DnsMode[] {
+  return getExportClientCapabilities(format).managedDnsModes as readonly DnsMode[]
+}
+
+function defaultDnsMode(format: ExportFormat): DnsMode | undefined {
+  const modes = supportedDnsModes(format)
+  return modes.includes('smart') ? 'smart' : modes[0]
+}
+
+function dnsNameKey(mode: DnsMode): string {
+  return `export.dns_${mode.replace('-', '_')}`
+}
+
+function dnsDescriptionKey(mode: DnsMode): string {
+  return `${dnsNameKey(mode)}_desc`
+}
+
 interface ExportForm {
   name: string
   format: ExportFormat
+  dnsMode?: DnsMode
   enabled: boolean
   includeCollectionIds: string[]
   includeGroupIds: string[]
@@ -48,6 +66,7 @@ interface ExportForm {
 const EMPTY_FORM: ExportForm = {
   name: '',
   format: 'mihomo',
+  dnsMode: 'smart',
   enabled: true,
   includeCollectionIds: [],
   includeGroupIds: [],
@@ -81,6 +100,7 @@ export function Export() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [updatingDnsId, setUpdatingDnsId] = useState<string | null>(null)
   const [previewModal, setPreviewModal] = useState<PreviewModalState | null>(null)
   const [revealedUrlScopes, setRevealedUrlScopes] = useState<Set<string>>(() => new Set())
   const selectedFormatCapabilities = getExportClientCapabilities(form.format)
@@ -131,6 +151,7 @@ export function Export() {
     const nextForm: ExportForm = {
       name: t('export.copy_name', { name: config.name }),
       format: config.format,
+      dnsMode: config.dnsMode ?? defaultDnsMode(config.format),
       enabled: config.enabled,
       includeCollectionIds: [...config.includeCollectionIds],
       includeGroupIds: [...config.includeGroupIds],
@@ -149,6 +170,7 @@ export function Export() {
     const nextForm: ExportForm = {
       name: config.name,
       format: config.format,
+      dnsMode: config.dnsMode ?? defaultDnsMode(config.format),
       enabled: config.enabled,
       includeCollectionIds: config.includeCollectionIds,
       includeGroupIds: config.includeGroupIds,
@@ -177,6 +199,7 @@ export function Export() {
     const payload = {
       name: form.name,
       format: form.format,
+      dnsMode: form.dnsMode,
       enabled: form.enabled,
       includeCollectionIds: form.includeCollectionIds,
       includeGroupIds: form.includeGroupIds,
@@ -353,11 +376,29 @@ export function Export() {
     setForm(f => ({
       ...f,
       format,
+      dnsMode: supportedDnsModes(format).includes(f.dnsMode as DnsMode)
+        ? f.dnsMode
+        : defaultDnsMode(format),
       includeRemoteSetIds: f.includeRemoteSetIds.filter(id => {
         const remoteSet = remoteSets.find(item => item.id === id)
         return remoteSet ? isRemoteRuleSetCompatible(format, remoteSet) : false
       }),
     }))
+  }
+
+  const handleDefaultDnsMode = async (config: ExportConfig, dnsMode: DnsMode) => {
+    setUpdatingDnsId(config.id)
+    setDownloadError(null)
+    setActionNotice(null)
+    try {
+      await api.export.updateConfig(config.id, { dnsMode })
+      setActionNotice(t('export.dns_updated'))
+      await load(false)
+    } catch (error) {
+      setDownloadError(error)
+    } finally {
+      setUpdatingDnsId(null)
+    }
   }
 
   const defaultConfig = configs.find(cfg => cfg.id === DEFAULT_EXPORT_CONFIG_ID)
@@ -404,6 +445,21 @@ export function Export() {
                   <div className={styles.scopeText}>{exportConfigScopeSummary(defaultConfig, collections, groups, rules, remoteSets, t)}</div>
                 </div>
                 <div className={styles.configActions}>
+                  <label className={styles.inlineSelect}>
+                    <span>{t('export.dns_mode')}</span>
+                    <select
+                      value={defaultConfig.dnsMode ?? 'smart'}
+                      disabled={updatingDnsId === defaultConfig.id}
+                      onChange={event => void handleDefaultDnsMode(
+                        defaultConfig,
+                        event.target.value as DnsMode,
+                      )}
+                    >
+                      {supportedDnsModes(defaultConfig.format).map(mode => (
+                        <option key={mode} value={mode}>{t(dnsNameKey(mode))}</option>
+                      ))}
+                    </select>
+                  </label>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -476,6 +532,9 @@ export function Export() {
                     <div className={styles.configName}>{cfg.name}</div>
                     <div className={styles.badges}>
                       <Badge variant="purple">{cfg.format.toUpperCase()}</Badge>
+                      {cfg.dnsMode && (
+                        <Badge variant="info">{t('export.dns_badge', { mode: t(dnsNameKey(cfg.dnsMode)) })}</Badge>
+                      )}
                       <Badge variant={cfg.enabled ? 'success' : 'default'}>{cfg.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
                       <Badge variant={conversionPolicyBadgeVariant(cfg.ruleSetConversionPolicy)}>
                         {conversionPolicyLabel(cfg.ruleSetConversionPolicy)}
@@ -570,11 +629,41 @@ export function Export() {
               : t('export.format_full_config_capability_hint', {
                   protocols: selectedFormatCapabilities.nodeProtocols.join(', '),
                   dnsModes: selectedFormatCapabilities.managedDnsModes
-                    .map(mode => t(`settings.dns_${mode.replace('-', '_')}`))
+                    .map(mode => t(dnsNameKey(mode as DnsMode)))
                     .join(' / '),
                 })}
           </div>
         </div>
+        {selectedFormatCapabilities.managedDnsModes.length > 1 && (
+          <div>
+            <label className={styles.selectLabel} htmlFor="export-profile-dns-mode">
+              {t('export.dns_mode')}
+            </label>
+            <select
+              id="export-profile-dns-mode"
+              className={styles.select}
+              value={form.dnsMode ?? defaultDnsMode(form.format)}
+              onChange={event => setForm(current => ({
+                ...current,
+                dnsMode: event.target.value as DnsMode,
+              }))}
+            >
+              {selectedFormatCapabilities.managedDnsModes.map(mode => (
+                <option key={mode} value={mode}>{t(dnsNameKey(mode as DnsMode))}</option>
+              ))}
+            </select>
+            {form.dnsMode && (
+              <div className={styles.formatCapabilityHint}>{t(dnsDescriptionKey(form.dnsMode))}</div>
+            )}
+          </div>
+        )}
+        {selectedFormatCapabilities.managedDnsModes.length === 1 && (
+          <div className={styles.formatCapabilityHint}>
+            {t('export.dns_fixed_hint', {
+              mode: t(dnsNameKey(selectedFormatCapabilities.managedDnsModes[0] as DnsMode)),
+            })}
+          </div>
+        )}
         <div>
           <label className={styles.selectLabel} htmlFor="export-profile-conversion-policy">
             {t('export.conversion_policy')}

@@ -35,7 +35,6 @@ vi.mock('../services/export-artifact-validation', () => ({
 
 vi.mock('../services/app-settings', () => ({
   getAppSettings: vi.fn(async () => ({
-    dnsMode: 'smart',
     showCompatibilityWarnings: true,
   })),
 }))
@@ -45,6 +44,7 @@ vi.mock('../services/default-export-config', () => ({
     id: 'default-config',
     name: 'Default',
     format: 'mihomo',
+    dnsMode: 'smart',
     token: 'token',
     enabled: true,
     includeCollectionIds: [],
@@ -62,10 +62,10 @@ describe('export download readiness', () => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
     vi.mocked(getAppSettings).mockResolvedValue({
-      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible',
+      showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible',
     } as AppSettings)
     vi.mocked(ensureDefaultExportConfig).mockResolvedValue({
-      id: 'default-config', name: 'Default', format: 'mihomo', token: 'token', enabled: true,
+      id: 'default-config', name: 'Default', format: 'mihomo', dnsMode: 'smart', token: 'token', enabled: true,
       includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [],
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     })
@@ -74,6 +74,7 @@ describe('export download readiness', () => {
       id: 'config-1',
       name: 'Default',
       format: 'mihomo',
+      dnsMode: 'smart',
       token: 'token',
       enabled: true,
       includeCollectionIds: [],
@@ -226,7 +227,7 @@ describe('export download readiness', () => {
 
   it('blocks partial authenticated and public conversions in strict completeness mode', async () => {
     vi.mocked(getAppSettings).mockResolvedValue({
-      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+      showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
     } as AppSettings)
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
@@ -275,7 +276,7 @@ describe('export download readiness', () => {
     expect(strictDownload.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
 
     vi.mocked(getAppSettings).mockResolvedValue({
-      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+      showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
     } as AppSettings)
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       ...strictProfile,
@@ -409,7 +410,7 @@ describe('export download readiness', () => {
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'nodes_raw',
-      expect.objectContaining({ dnsMode: 'smart' })
+      expect.objectContaining({ dnsMode: undefined })
     )
   })
 
@@ -470,7 +471,7 @@ describe('export download readiness', () => {
 
   it('enforces strict completeness again at the token-scoped converted rule-set endpoint', async () => {
     vi.mocked(getAppSettings).mockResolvedValue({
-      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+      showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
     } as AppSettings)
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
@@ -492,7 +493,7 @@ describe('export download readiness', () => {
 
   it('lets a compatible profile override global strict mode at the converted rule-set endpoint', async () => {
     vi.mocked(getAppSettings).mockResolvedValue({
-      dnsMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
+      showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
     } as AppSettings)
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       id: 'compatible-profile',

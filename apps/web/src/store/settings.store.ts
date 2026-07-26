@@ -1,12 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared'
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 
 interface SettingsState extends AppSettings {
   setLanguage: (lang: Language) => void
   setTheme: (theme: ThemePreference) => void
-  setDnsMode: (dnsMode: DnsMode) => void
   setExportNodeNamingMode: (exportNodeNamingMode: ExportNodeNamingMode) => void
   setShowCompatibilityWarnings: (showCompatibilityWarnings: boolean) => void
   setRuleSetConversionPolicy: (ruleSetConversionPolicy: RuleSetConversionPolicy) => void
@@ -26,7 +25,6 @@ export const useSettingsStore = create<SettingsState>()(
       theme: 'system',
       unmatchedTrafficPolicy: 'proxy',
       routingPolicyTemplate: 'common',
-      dnsMode: 'smart',
       exportNodeNamingMode: 'smart',
       showCompatibilityWarnings: true,
       ruleSetConversionPolicy: 'compatible',
@@ -44,10 +42,6 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (theme) => {
         set({ theme })
         get().applyTheme(theme)
-      },
-
-      setDnsMode: (dnsMode) => {
-        set({ dnsMode })
       },
 
       setExportNodeNamingMode: (exportNodeNamingMode) => {

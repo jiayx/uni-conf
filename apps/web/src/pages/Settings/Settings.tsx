@@ -10,8 +10,8 @@ import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-nod
 import { api } from '@/lib/api'
 import { clearStoredApiKey } from '@/lib/auth'
 import { useSettingsStore } from '@/store/settings.store'
-import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DNS_MODE_PRESETS, MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
-import type { AppSettingsPatch, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
+import type { AppSettingsPatch, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; nameKey: string; descriptionKey: string }> = [
@@ -42,7 +42,6 @@ export function Settings() {
   const {
     language,
     theme,
-    dnsMode,
     exportNodeNamingMode,
     showCompatibilityWarnings,
     ruleSetConversionPolicy,
@@ -96,10 +95,6 @@ export function Settings() {
 
   const handleTheme = (nextTheme: ThemePreference) => {
     void persistSettings({ theme: nextTheme })
-  }
-
-  const handleDnsMode = (nextDnsMode: DnsMode) => {
-    void persistSettings({ dnsMode: nextDnsMode })
   }
 
   const handleExportNodeNamingMode = (nextMode: ExportNodeNamingMode) => {
@@ -274,28 +269,6 @@ export function Settings() {
             </button>
           ))}
         </div>
-      </Card>
-
-      {/* DNS */}
-      <Card id="dns" className={styles.section}>
-        <h2 className={styles.sectionTitle}>{t('settings.dns_mode')}</h2>
-        <div className={styles.optionGroup}>
-          {DNS_MODE_PRESETS.map(preset => (
-            <button
-              key={preset.id}
-              type="button"
-              className={`${styles.optionBtn} ${dnsMode === preset.id ? styles.active : ''}`}
-              onClick={() => handleDnsMode(preset.id)}
-              disabled={interactionLocked}
-              aria-pressed={dnsMode === preset.id}
-              title={t(dnsDescriptionKey(preset.id))}
-            >
-              {t(dnsNameKey(preset.id))}
-            </button>
-          ))}
-        </div>
-        <div className={styles.hint}>{t(dnsDescriptionKey(dnsMode))}</div>
-        <div className={styles.hint}>{t('settings.dns_scope_hint')}</div>
       </Card>
 
       <Card className={styles.section}>
@@ -525,12 +498,4 @@ function MoonIcon() {
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
     </svg>
   )
-}
-
-function dnsNameKey(mode: DnsMode): string {
-  return `settings.dns_${mode.replace('-', '_')}`
-}
-
-function dnsDescriptionKey(mode: DnsMode): string {
-  return `settings.dns_${mode.replace('-', '_')}_desc`
 }

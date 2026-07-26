@@ -155,7 +155,6 @@ function createZeroSetupDb(patch: {
       theme: 'system',
       routing_policy_template: patch.routingPolicyTemplate ?? 'common',
       routing_outlet_preferences: null,
-      dns_mode: 'smart',
       export_node_naming_mode: 'smart',
       default_export_token: null,
       show_compatibility_warnings: 1,

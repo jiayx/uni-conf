@@ -20,7 +20,6 @@ describe('settings route helpers', () => {
         'builtin-ai': 'auto:country:US:url-test',
         'builtin-streaming': 'group:builtin-auto-select',
       },
-      dnsMode: 'smart',
       exportNodeNamingMode: 'source_region_sequence',
       autoNodeGroupsEnabled: true,
       autoNodeGroupTypes: ['url-test', 'fallback'],
@@ -48,7 +47,6 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:US' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:USA:url-test' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:us:url-test' } })).toBe('invalid routing outlet preferences')
-    expect(validateSettingsPatch({ dnsMode: 'system' as never })).toBe('invalid DNS mode')
     expect(validateSettingsPatch({ exportNodeNamingMode: 'random' as never })).toBe('invalid export node naming mode')
     expect(validateSettingsPatch({ autoNodeGroupTypes: ['url-test', 'random' as never] })).toBe('invalid auto node group type')
     expect(validateSettingsPatch({ autoNodeGroupKeys: ['US:url-test'] })).toBe('invalid auto node group key')
@@ -71,16 +69,10 @@ describe('settings route helpers', () => {
 
   it('updates only fields present in an unrelated settings patch', () => {
     const language = buildSettingsUpdate({ language: 'en' }, '2026-07-24T00:00:00.000Z')
-    const dns = buildSettingsUpdate({ dnsMode: 'fake-ip' }, '2026-07-24T00:00:01.000Z')
 
     expect(language.sql).toContain('language = ?')
     expect(language.sql).not.toContain('theme = ?')
-    expect(language.sql).not.toContain('dns_mode = ?')
     expect(language.values).toEqual(['en', '2026-07-24T00:00:00.000Z'])
-
-    expect(dns.sql).toContain('dns_mode = ?')
-    expect(dns.sql).not.toContain('language = ?')
-    expect(dns.values).toEqual(['fake-ip', '2026-07-24T00:00:01.000Z'])
   })
 
   it('updates a routing template independently from other settings', () => {
@@ -102,17 +94,6 @@ describe('settings route helpers', () => {
 
     expect(update.sql).toContain('unmatched_traffic_policy = ?')
     expect(update.values).toEqual(['direct', '2026-07-24T00:00:00.000Z'])
-  })
-
-  it('updates routing and DNS together only when both are explicitly provided', () => {
-    const update = buildSettingsUpdate(
-      { routingPolicyTemplate: 'router', dnsMode: 'smart' },
-      '2026-07-24T00:00:00.000Z',
-    )
-
-    expect(update.sql).toContain('routing_policy_template = ?')
-    expect(update.sql).toContain('dns_mode = ?')
-    expect(update.values).toEqual(['router', 'smart', '2026-07-24T00:00:00.000Z'])
   })
 
   it('serializes nullable and structured settings without carrying stale values', () => {
