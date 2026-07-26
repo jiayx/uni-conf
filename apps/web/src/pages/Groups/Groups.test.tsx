@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import {
@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   deleteGroup: vi.fn(async () => undefined),
   reorderGroups: vi.fn(async () => undefined),
   applySettings: vi.fn(),
+  updateSettings: vi.fn(),
 }))
 
 const outlet = makeGroup(GLOBAL_NODE_OUTLET_GROUP_IDS[0]!, 'Node Select', false, [])
@@ -53,7 +54,7 @@ vi.mock('@/lib/api', async () => {
       settings: {
         ...actual.api.settings,
         get: vi.fn(async () => settings),
-        update: vi.fn(async () => settings),
+        update: mocks.updateSettings,
       },
       remoteRuleSets: {
         ...actual.api.remoteRuleSets,
@@ -80,23 +81,22 @@ vi.mock('@/lib/api', async () => {
 describe('Groups information hierarchy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.updateSettings.mockResolvedValue(settings)
     void i18n.changeLanguage('en')
   })
 
-  it('keeps foundation details and per-group outlet controls collapsed until requested', async () => {
+  it('keeps foundation details collapsed and exposes the default outlet directly', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Groups /></MemoryRouter>)
 
     const foundation = await screen.findByText('Foundation Targets and Node Outlets')
     expect(foundation.closest('details')).not.toHaveAttribute('open')
-    expect(screen.queryByLabelText('Default outlet for AI')).not.toBeInTheDocument()
-
-    const toggle = screen.getByRole('button', { name: /^Default outlet/ })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await user.click(toggle)
-
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText('Default outlet for AI')).toBeInTheDocument()
+    const outlet = screen.getByRole('combobox', { name: 'Default outlet' })
+    expect(outlet).toBeVisible()
+    await user.selectOptions(outlet, 'global:node-select')
+    await waitFor(() => expect(mocks.updateSettings).toHaveBeenCalledWith({
+      routingOutletPreferences: { 'builtin-ai': 'global:node-select' },
+    }))
     expect(document.querySelector('[aria-pressed="true"]')).toBeInTheDocument()
   })
 

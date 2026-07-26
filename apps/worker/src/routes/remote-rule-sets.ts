@@ -17,6 +17,7 @@ import { getConvertedRemoteRuleSet, resolveRuleSetConversionIssues, resolveRuleS
 import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
+import { listSourceRemoteRuleSets } from '../services/source-rule-sets'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -36,9 +37,12 @@ app.post('/', async (c) => {
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400)
   }
-  const createInput = requireCreateRemoteRuleSet(validation)
+  let createInput = requireCreateRemoteRuleSet(validation)
   const ts = now()
   await ensureZeroSetupDefaults(c.env.DB, ts)
+  const resolvedInput = await resolveLinkedSourceRuleSet(c.env.DB, createInput)
+  if (!resolvedInput) return c.json({ success: false, error: 'subscription source rule set is missing or unsupported' }, 400)
+  createInput = resolvedInput
   if (!(await isEnabledTargetGroup(c.env.DB, createInput.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
@@ -46,8 +50,8 @@ app.post('/', async (c) => {
   const id = newId()
   await c.env.DB.prepare(
     `INSERT INTO remote_rule_sets
-      (id, name, url, format, behavior, preset_source, preset_id, source_overrides, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, name, url, format, behavior, preset_source, preset_id, source_overrides, source_id, source_rule_set_key, source_missing, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -58,6 +62,8 @@ app.post('/', async (c) => {
       null,
       null,
       JSON.stringify(createInput.sourceOverrides),
+      createInput.sourceId ?? null,
+      createInput.sourceRuleSetKey ?? null,
       createInput.targetGroupId,
       createInput.updateInterval,
       createInput.enabled ? 1 : 0,
@@ -92,7 +98,12 @@ app.post('/batch', async (c) => {
     if (!validation.valid) {
       return c.json({ success: false, error: `invalid remote rule set at index ${index}: ${validation.error}` }, 400)
     }
-    const createInput = requireCreateRemoteRuleSet(validation)
+    let createInput = requireCreateRemoteRuleSet(validation)
+    const resolvedInput = await resolveLinkedSourceRuleSet(c.env.DB, createInput)
+    if (!resolvedInput) {
+      return c.json({ success: false, error: `subscription source rule set is missing or unsupported at index ${index}` }, 400)
+    }
+    createInput = resolvedInput
     if (!enabledTargetGroupIds.has(createInput.targetGroupId)) {
       return c.json({ success: false, error: `target group is disabled or missing: ${createInput.targetGroupId}` }, 400)
     }
@@ -100,8 +111,8 @@ app.post('/batch', async (c) => {
     createdIds.push(id)
     await c.env.DB.prepare(
       `INSERT INTO remote_rule_sets
-        (id, name, url, format, behavior, preset_source, preset_id, source_overrides, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, name, url, format, behavior, preset_source, preset_id, source_overrides, source_id, source_rule_set_key, source_missing, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
@@ -112,6 +123,8 @@ app.post('/batch', async (c) => {
         null,
         null,
         JSON.stringify(createInput.sourceOverrides),
+        createInput.sourceId ?? null,
+        createInput.sourceRuleSetKey ?? null,
         createInput.targetGroupId,
         createInput.updateInterval,
         createInput.enabled ? 1 : 0,
@@ -425,6 +438,8 @@ type RemoteRuleSetWriteValidation =
       format?: RuleSetFormat
       behavior?: RuleSetBehavior
       sourceOverrides?: RemoteRuleSetSourceOverrides
+      sourceId?: string
+      sourceRuleSetKey?: string
       targetGroupId?: string
       updateInterval?: number
       enabled?: boolean
@@ -440,6 +455,8 @@ type CreateRemoteRuleSetInput = Extract<RemoteRuleSetWriteValidation, { valid: t
   format: RuleSetFormat
   behavior: RuleSetBehavior
   sourceOverrides: RemoteRuleSetSourceOverrides
+  sourceId?: string
+  sourceRuleSetKey?: string
   targetGroupId: string
   updateInterval: number
   enabled: boolean
@@ -450,6 +467,23 @@ function requireCreateRemoteRuleSet(
   validation: Extract<RemoteRuleSetWriteValidation, { valid: true }>
 ): CreateRemoteRuleSetInput {
   return validation as CreateRemoteRuleSetInput
+}
+
+async function resolveLinkedSourceRuleSet(
+  db: D1Database,
+  input: CreateRemoteRuleSetInput,
+): Promise<CreateRemoteRuleSetInput | null> {
+  if (!input.sourceId || !input.sourceRuleSetKey) return input
+  const candidates = await listSourceRemoteRuleSets(db, input.sourceId)
+  const candidate = candidates?.find(item => item.key === input.sourceRuleSetKey)
+  if (!candidate) return null
+  return {
+    ...input,
+    url: candidate.url,
+    format: candidate.format,
+    behavior: candidate.behavior,
+    updateInterval: candidate.updateInterval,
+  }
 }
 
 function attachSourceHealth(ruleSet: RemoteRuleSet, sourceHealth?: RemoteRuleSetSourceHealthSnapshot): RemoteRuleSet {
@@ -479,7 +513,7 @@ export function validateRemoteRuleSetWrite(
   body: Partial<RemoteRuleSet>,
   options: { create: boolean }
 ): RemoteRuleSetWriteValidation {
-  const booleanError = validateOptionalBooleanFields(body, ['enabled'])
+  const booleanError = validateOptionalBooleanFields(body, ['enabled', 'sourceMissing'])
   if (booleanError) return { valid: false, error: booleanError }
 
   const name = normalizeOptionalText(body.name)
@@ -506,6 +540,11 @@ export function validateRemoteRuleSetWrite(
   if (sourceOverrides === null) {
     return { valid: false, error: 'sourceOverrides must contain public http(s) URLs for supported target clients' }
   }
+  const sourceId = normalizeOptionalText(body.sourceId)
+  const sourceRuleSetKey = normalizeOptionalText(body.sourceRuleSetKey)
+  if (options.create && Boolean(sourceId) !== Boolean(sourceRuleSetKey)) {
+    return { valid: false, error: 'sourceId and sourceRuleSetKey must be provided together' }
+  }
 
   const targetGroupId = normalizeOptionalText(body.targetGroupId)
   if (!options.create && body.targetGroupId !== undefined && !targetGroupId) {
@@ -528,6 +567,8 @@ export function validateRemoteRuleSetWrite(
     format: body.format,
     behavior: body.behavior,
     sourceOverrides: options.create ? sourceOverrides ?? {} : sourceOverrides,
+    sourceId: options.create ? sourceId : undefined,
+    sourceRuleSetKey: options.create ? sourceRuleSetKey : undefined,
     targetGroupId: options.create ? targetGroupId ?? DEFAULT_RULE_TARGET_GROUP_ID : targetGroupId,
     updateInterval: options.create ? updateInterval ?? 24 : updateInterval,
     enabled: options.create ? body.enabled !== false : body.enabled,

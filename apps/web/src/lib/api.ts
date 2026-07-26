@@ -7,6 +7,7 @@ import type {
   SourceImportRun,
   SourceNodeRetryResult,
   SourceStructuredRetryResult,
+  SourceRemoteRuleSetCandidate,
   ProxyNode,
   NodeCollection,
   NodeCollectionSummary,
@@ -145,6 +146,8 @@ const sources = {
   update: (id: string, data: Partial<ProxySource>): Promise<ProxySource> => put(`/sources/${pathSegment(id)}`, data),
   remove: (id: string): Promise<void> => del(`/sources/${pathSegment(id)}`),
   refresh: (id: string): Promise<SourceRefreshResult> => post(`/sources/${pathSegment(id)}/refresh`),
+  listRuleSets: (id: string): Promise<SourceRemoteRuleSetCandidate[]> =>
+    get(`/sources/${pathSegment(id)}/rule-sets`),
 }
 
 const system = {

@@ -78,7 +78,6 @@ export function Groups() {
   const [outletPreferences, setOutletPreferences] = useState<Record<string, string>>({})
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingPreferenceId, setSavingPreferenceId] = useState<string | null>(null)
-  const [expandedPreferenceIds, setExpandedPreferenceIds] = useState<Set<string>>(() => new Set())
   const formDirty = showModal && !formValuesEqual(form, initialForm)
   const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
 
@@ -506,7 +505,6 @@ export function Groups() {
         <div className={styles.list}>
           {visibleGroups.map(group => {
             const customIndex = customRoutingGroups.findIndex(item => item.id === group.id)
-            const preferenceExpanded = expandedPreferenceIds.has(group.id)
             const preferredOutlet = outletPreferences[group.id]
             return (
               <Card key={group.id} className={styles.groupCard}>
@@ -537,40 +535,24 @@ export function Groups() {
                     <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
                     {group.isBuiltin && <Badge variant="default">{t('groups.builtin_label')}</Badge>}
                     <Badge variant="purple">{t('groups.auto_outlet_candidates')}</Badge>
+                    {group.groupIds.length > 0 && (
+                      <label className={styles.preferenceInline}>
+                        <span>{t('groups.default_outlet')}</span>
+                        <select
+                          className={styles.preferenceSelect}
+                          value={preferredOutlet ?? ''}
+                          onChange={event => void handleOutletPreference(group, event.target.value)}
+                          disabled={savingPreferenceId === group.id}
+                        >
+                          <option value="">{t('groups.system_recommended', { outlet: getGroupName(groups, group.groupIds[0]) })}</option>
+                          {group.groupIds.map(id => (
+                            <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                   </div>
                   <div className={styles.summary}>{describeRoutingGroupMembers(group, t)}</div>
-                  {group.groupIds.length > 0 && (
-                    <div className={styles.preferenceDisclosure}>
-                      <button
-                        type="button"
-                        className={styles.preferenceToggle}
-                        aria-expanded={preferenceExpanded}
-                        aria-controls={`group-preference-${group.id}`}
-                        onClick={() => setExpandedPreferenceIds(current => toggleSet(current, group.id))}
-                      >
-                        <span>{t('groups.default_outlet')}</span>
-                        <strong>{preferredOutlet
-                          ? getOutletNameByRef(groups, preferredOutlet)
-                          : t('groups.system_recommended_short', { outlet: getGroupName(groups, group.groupIds[0]) })}</strong>
-                      </button>
-                      {preferenceExpanded && (
-                        <label id={`group-preference-${group.id}`} className={styles.preferenceRow}>
-                          <span>{t('groups.default_outlet_for', { name: group.name })}</span>
-                          <select
-                            className={styles.preferenceSelect}
-                            value={preferredOutlet ?? ''}
-                            onChange={event => void handleOutletPreference(group, event.target.value)}
-                            disabled={savingPreferenceId === group.id}
-                          >
-                            <option value="">{t('groups.system_recommended', { outlet: getGroupName(groups, group.groupIds[0]) })}</option>
-                            {group.groupIds.map(id => (
-                              <option key={id} value={getOutletRef(groups, id)}>{getGroupName(groups, id)}</option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </div>
-                  )}
                 </div>
                 {!group.isBuiltin && (
                   <div className={styles.cardActions}>
@@ -706,15 +688,4 @@ function getGroupName(groups: ProxyGroup[], id: string | undefined): string {
 
 function getOutletRef(groups: ProxyGroup[], id: string): string {
   return groups.find(group => group.id === id)?.outletRef ?? `group:${id}`
-}
-
-function getOutletNameByRef(groups: ProxyGroup[], outletRef: string): string {
-  return groups.find(group => group.outletRef === outletRef || `group:${group.id}` === outletRef)?.name ?? outletRef
-}
-
-function toggleSet<T>(source: Set<T>, value: T): Set<T> {
-  const next = new Set(source)
-  if (next.has(value)) next.delete(value)
-  else next.add(value)
-  return next
 }

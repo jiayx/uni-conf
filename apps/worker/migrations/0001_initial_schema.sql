@@ -150,6 +150,9 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   preset_source TEXT,
   preset_id TEXT,
   source_overrides TEXT NOT NULL DEFAULT '{}',
+  source_id TEXT,
+  source_rule_set_key TEXT,
+  source_missing INTEGER NOT NULL DEFAULT 0,
   target_group_id TEXT NOT NULL,
   update_interval INTEGER NOT NULL DEFAULT 24,
   enabled INTEGER NOT NULL DEFAULT 1,
@@ -158,10 +161,14 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   notes TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY (target_group_id) REFERENCES groups(id)
+  FOREIGN KEY (target_group_id) REFERENCES groups(id),
+  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_remote_rule_sets_sort_order ON remote_rule_sets(sort_order);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_rule_sets_source_key
+  ON remote_rule_sets(source_id, source_rule_set_key)
+  WHERE source_id IS NOT NULL AND source_rule_set_key IS NOT NULL;
 
 -- Operational health snapshots are intentionally separate from configuration backups.
 CREATE TABLE IF NOT EXISTS remote_rule_set_source_health (

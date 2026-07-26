@@ -33,7 +33,19 @@ import {
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
   resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport,
 } from '@uni-conf/shared'
-import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationInput, RemoteRuleSetValidationResult, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
+import type {
+  ExportFormat,
+  ProxySource,
+  RemoteRuleSet,
+  RemoteRuleSetConversionPreview,
+  RemoteRuleSetSourceHealthResult,
+  RemoteRuleSetSourceOverrideTarget,
+  RemoteRuleSetSourceValidationInput,
+  RemoteRuleSetValidationResult,
+  RuleSetBehavior,
+  RuleSetFormat,
+  SourceRemoteRuleSetCandidate,
+} from '@uni-conf/types'
 import styles from './RemoteRuleSets.module.css'
 
 type RemoteSetForm = Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>
@@ -102,6 +114,7 @@ export function RemoteRuleSets() {
   const confirmAction = useConfirmDialog()
   const { groups, fetchGroups } = useGroupsStore()
   const [sets, setSets] = useState<RemoteRuleSet[]>([])
+  const [sources, setSources] = useState<ProxySource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown | null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -109,6 +122,10 @@ export function RemoteRuleSets() {
   const [form, setForm] = useState<RemoteSetForm>(() => createEmptyForm())
   const [initialForm, setInitialForm] = useState<RemoteSetForm>(() => createEmptyForm())
   const [selectedPresetId, setSelectedPresetId] = useState('')
+  const [selectedSourceId, setSelectedSourceId] = useState('')
+  const [sourceCandidates, setSourceCandidates] = useState<SourceRemoteRuleSetCandidate[]>([])
+  const [loadingSourceCandidates, setLoadingSourceCandidates] = useState(false)
+  const [sourceCandidateError, setSourceCandidateError] = useState('')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [togglingGroupId, setTogglingGroupId] = useState<string | null>(null)
@@ -141,6 +158,11 @@ export function RemoteRuleSets() {
       .catch(e => { if (!cancelled) setError(e) })
       .finally(() => { if (!cancelled) setLoading(false) })
     void fetchGroups()
+    void api.sources.list()
+      .then(result => {
+        if (!cancelled) setSources(result.filter(source => source.type !== 'manual'))
+      })
+      .catch(e => { if (!cancelled) setError(e) })
     return () => { cancelled = true }
   }, [fetchGroups])
 
@@ -195,6 +217,7 @@ export function RemoteRuleSets() {
   const editingManagedSet = Boolean(editingSet && !canEditRemoteRuleSet(editingSet))
   const editingPresetId = editingSet?.presetSource === 'quixotic' ? editingSet.presetId : undefined
   const formPresetId = (form.presetId ?? selectedPresetId) || editingPresetId
+  const formSourceLinked = Boolean(form.sourceId && form.sourceRuleSetKey)
   const inferredQuixoticSource = formPresetId
     ? { id: formPresetId, format: form.format }
     : inferQuixoticRuleSetSourceFromUrl(form.url)
@@ -260,6 +283,9 @@ export function RemoteRuleSets() {
     setForm(nextForm)
     setInitialForm(nextForm)
     setSelectedPresetId('')
+    setSelectedSourceId('')
+    setSourceCandidates([])
+    setSourceCandidateError('')
     setFormError('')
     setValidateAfterDiscovery(false)
     setSourceOverridesExpanded(false)
@@ -288,6 +314,9 @@ export function RemoteRuleSets() {
     setForm(nextForm)
     setInitialForm(nextForm)
     setSelectedPresetId(set.presetSource === 'quixotic' ? set.presetId ?? '' : '')
+    setSelectedSourceId(set.sourceId ?? '')
+    setSourceCandidates([])
+    setSourceCandidateError('')
     setFormError('')
     setValidateAfterDiscovery(false)
     setSourceOverridesExpanded(Boolean(focusTarget))
@@ -323,9 +352,22 @@ export function RemoteRuleSets() {
   }
 
   const applyPreset = (presetId: string, format = form.format) => {
+    setSelectedSourceId('')
+    setSourceCandidates([])
+    setSourceCandidateError('')
     setSelectedPresetId(presetId)
     const preset = QUIXOTIC_RULE_SET_PRESETS.find(item => item.id === presetId)
-    if (!preset) return
+    if (!preset) {
+      setForm(current => ({
+        ...current,
+        sourceId: undefined,
+        sourceRuleSetKey: undefined,
+        sourceMissing: false,
+        presetSource: undefined,
+        presetId: undefined,
+      }))
+      return
+    }
 
     resetSourceOverrideValidations()
 
@@ -343,6 +385,64 @@ export function RemoteRuleSets() {
       enabled: true,
       sortOrder: resolveQuixoticRuleSetSortOrder(preset.id),
       notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
+      sourceId: undefined,
+      sourceRuleSetKey: undefined,
+      sourceMissing: false,
+    }))
+  }
+
+  const handleSourceOptionChange = async (value: string) => {
+    if (!value.startsWith('source:')) {
+      applyPreset(value)
+      return
+    }
+    const sourceId = value.slice('source:'.length)
+    setSelectedPresetId('')
+    setSelectedSourceId(sourceId)
+    setSourceCandidates([])
+    setSourceCandidateError('')
+    setForm(current => ({
+      ...current,
+      name: '',
+      url: '',
+      sourceOverrides: {},
+      presetSource: undefined,
+      presetId: undefined,
+      sourceId: undefined,
+      sourceRuleSetKey: undefined,
+      sourceMissing: false,
+    }))
+    setLoadingSourceCandidates(true)
+    try {
+      setSourceCandidates(await api.sources.listRuleSets(sourceId))
+    } catch (candidateError) {
+      setSourceCandidateError(candidateError instanceof Error ? candidateError.message : String(candidateError))
+    } finally {
+      setLoadingSourceCandidates(false)
+    }
+  }
+
+  const applySourceCandidate = (key: string) => {
+    const candidate = sourceCandidates.find(item => item.key === key)
+    if (!candidate) return
+    const upstreamTarget = candidate.upstreamTarget?.toUpperCase()
+    const targetGroupId = upstreamTarget
+      ? targetGroups.find(group => group.name.toUpperCase() === upstreamTarget)?.id ?? defaultTargetGroupId
+      : defaultTargetGroupId
+    setForm(current => ({
+      ...current,
+      name: candidate.name,
+      url: candidate.url,
+      format: candidate.format,
+      behavior: candidate.behavior,
+      targetGroupId,
+      updateInterval: candidate.updateInterval,
+      sourceId: selectedSourceId,
+      sourceRuleSetKey: candidate.key,
+      sourceMissing: false,
+      presetSource: undefined,
+      presetId: undefined,
+      notes: '',
     }))
   }
 
@@ -375,6 +475,9 @@ export function RemoteRuleSets() {
       format: formPayload.format,
       behavior: formPayload.behavior,
       sourceOverrides: formPayload.sourceOverrides,
+      sourceId: formPayload.sourceId,
+      sourceRuleSetKey: formPayload.sourceRuleSetKey,
+      sourceMissing: formPayload.sourceMissing,
       targetGroupId: formPayload.targetGroupId,
       updateInterval: formPayload.updateInterval,
       enabled: formPayload.enabled,
@@ -879,6 +982,12 @@ export function RemoteRuleSets() {
                       <Badge variant="info">{ruleSetBadgeLabel(set, t)}</Badge>
                       <Badge variant="default">{ruleSetBehaviorLabel(set.behavior, t)}</Badge>
                       <Badge variant="default">{set.updateInterval}h</Badge>
+                      {set.sourceId && !set.sourceMissing && (
+                        <Badge variant="success">{t('remoteRuleSets.subscription_linked')}</Badge>
+                      )}
+                      {set.sourceMissing && (
+                        <Badge variant="warning">{t('remoteRuleSets.subscription_missing')}</Badge>
+                      )}
                       {hasSourceOverrides && (
                         <Badge variant="success">{t('remoteRuleSets.source_override_badge', { count: Object.keys(set.sourceOverrides).length })}</Badge>
                       )}
@@ -1028,9 +1137,21 @@ export function RemoteRuleSets() {
         {formError && <div className={styles.formError} role="alert">{formError}</div>}
         {!editingSet && (
           <div className={styles.presetSection}>
-            <label className={styles.label} htmlFor="remote-rule-set-preset">{t('remoteRuleSets.preset_label')}</label>
-            <select id="remote-rule-set-preset" className={styles.select} value={selectedPresetId} onChange={e => applyPreset(e.target.value)}>
+            <label className={styles.label} htmlFor="remote-rule-set-preset">{t('remoteRuleSets.source_selection_label')}</label>
+            <select
+              id="remote-rule-set-preset"
+              className={styles.select}
+              value={selectedSourceId ? `source:${selectedSourceId}` : selectedPresetId}
+              onChange={e => void handleSourceOptionChange(e.target.value)}
+            >
               <option value="">{t('remoteRuleSets.manual_url_option')}</option>
+              {sources.length > 0 && (
+                <optgroup label={t('remoteRuleSets.subscription_sources')}>
+                  {sources.map(source => (
+                    <option key={source.id} value={`source:${source.id}`}>{source.name}</option>
+                  ))}
+                </optgroup>
+              )}
               {Object.entries(presetsByCategory).map(([category, presets]) => (
                 <optgroup key={category} label={PRESET_CATEGORY_LABELS[category as QuixoticRuleSetPreset['category']] ?? category}>
                   {presets.map(preset => (
@@ -1042,6 +1163,39 @@ export function RemoteRuleSets() {
             <div className={styles.helperText}>
               {t('remoteRuleSets.preset_help')}
             </div>
+            {selectedSourceId && (
+              <div>
+                <label className={styles.label} htmlFor="remote-rule-set-source-candidate">
+                  {t('remoteRuleSets.subscription_rule_set')}
+                </label>
+                <select
+                  id="remote-rule-set-source-candidate"
+                  className={styles.select}
+                  value={form.sourceRuleSetKey ?? ''}
+                  disabled={loadingSourceCandidates}
+                  onChange={event => applySourceCandidate(event.target.value)}
+                >
+                  <option value="">{loadingSourceCandidates
+                    ? t('common.loading')
+                    : t('remoteRuleSets.select_subscription_rule_set')}</option>
+                  {sourceCandidates.map(candidate => {
+                    const alreadyAdded = sets.some(set =>
+                      set.sourceId === selectedSourceId && set.sourceRuleSetKey === candidate.key
+                    )
+                    return (
+                      <option key={candidate.key} value={candidate.key} disabled={alreadyAdded}>
+                        {candidate.name} · {candidate.upstreamTarget ?? t('remoteRuleSets.unreferenced')}
+                        {alreadyAdded ? ` · ${t('remoteRuleSets.already_added')}` : ''}
+                      </option>
+                    )
+                  })}
+                </select>
+                {sourceCandidateError && <div className={styles.formError} role="alert">{sourceCandidateError}</div>}
+                {!loadingSourceCandidates && !sourceCandidateError && sourceCandidates.length === 0 && (
+                  <div className={styles.helperText}>{t('remoteRuleSets.no_subscription_rule_sets')}</div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {editingManagedSet ? (
@@ -1058,6 +1212,16 @@ export function RemoteRuleSets() {
             <div className={styles.helperText}>{t(editingManagedSet
               ? 'remoteRuleSets.managed_preset_source_help'
               : 'remoteRuleSets.preset_source_help', { presetId: formPresetId })}</div>
+          </div>
+        ) : formSourceLinked ? (
+          <div>
+            <label className={styles.label}>{t('remoteRuleSets.source_label')}</label>
+            <div className={styles.helperText}>
+              {t('remoteRuleSets.subscription_source_linked', {
+                source: sources.find(source => source.id === form.sourceId)?.name ?? form.sourceId,
+                ruleSet: form.sourceRuleSetKey,
+              })}
+            </div>
           </div>
         ) : (
           <>
@@ -1189,7 +1353,9 @@ export function RemoteRuleSets() {
                 {targetGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
             </div>
-            <Input label={t('remoteRuleSets.update_interval')} type="number" min="1" value={form.updateInterval} onChange={e => setFormValue('updateInterval', Number(e.target.value), setForm)} />
+            {!formSourceLinked && (
+              <Input label={t('remoteRuleSets.update_interval')} type="number" min="1" value={form.updateInterval} onChange={e => setFormValue('updateInterval', Number(e.target.value), setForm)} />
+            )}
             <Input label={t('common.notes')} value={form.notes ?? ''} onChange={e => setFormValue('notes', e.target.value, setForm)} />
             <label className={styles.checkboxRow}>
               <input type="checkbox" checked={form.enabled} onChange={e => setFormValue('enabled', e.target.checked, setForm)} />
@@ -1543,6 +1709,7 @@ function ruleSetNeedsAttention(
   compatibilityTarget: ExportFormat | '',
 ): boolean {
   if (!targetEnabled || !set.enabled) return false
+  if (set.sourceMissing) return true
   if (validation && validation.status !== 'valid') return true
   if (sourceHealth) {
     if ('stale' in sourceHealth && sourceHealth.stale) return true

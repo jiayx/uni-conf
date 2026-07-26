@@ -269,6 +269,17 @@ export type RuleSetBehavior = 'domain' | 'ipcidr' | 'classical';
 export type RemoteRuleSetSourceOverrideTarget = Exclude<ExportFormat, 'nodes_base64' | 'nodes_raw'>;
 export type RemoteRuleSetSourceOverrides = Partial<Record<RemoteRuleSetSourceOverrideTarget, string>>;
 
+export interface SourceRemoteRuleSetCandidate {
+  key: string;
+  name: string;
+  url: string;
+  format: RuleSetFormat;
+  behavior: RuleSetBehavior;
+  updateInterval: number;
+  upstreamTarget?: string;
+  referenced: boolean;
+}
+
 export interface RemoteRuleSet {
   id: string;
   name: string;
@@ -278,6 +289,9 @@ export interface RemoteRuleSet {
   presetSource?: 'quixotic' | 'uni-conf';
   presetId?: string;
   sourceOverrides: RemoteRuleSetSourceOverrides;
+  sourceId?: string;
+  sourceRuleSetKey?: string;
+  sourceMissing?: boolean;
   sourceHealth?: RemoteRuleSetSourceHealthSnapshot;
   targetGroupId: string;
   updateInterval: number; // hours

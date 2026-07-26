@@ -29,7 +29,7 @@ const TABLE_COLUMNS = {
   collections: ['id', 'name', 'source_ids', 'node_ids', 'filters', 'renames', 'dedup', 'sort', 'sort_country_order', 'enabled', 'notes', 'created_at', 'updated_at'],
   groups: ['id', 'name', 'type', 'collection_ids', 'group_ids', 'builtins', 'test_url', 'interval', 'tolerance', 'lazy', 'enabled', 'sort_order', 'is_builtin', 'created_at', 'updated_at'],
   rules: ['id', 'name', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'notes', 'compatibility', 'created_at', 'updated_at'],
-  remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'preset_source', 'preset_id', 'source_overrides', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'last_updated', 'notes', 'created_at', 'updated_at'],
+  remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'preset_source', 'preset_id', 'source_overrides', 'source_id', 'source_rule_set_key', 'source_missing', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'last_updated', 'notes', 'created_at', 'updated_at'],
   export_configs: ['id', 'name', 'format', 'token', 'enabled', 'include_collection_ids', 'include_group_ids', 'include_rule_ids', 'include_remote_set_ids', 'rule_set_conversion_policy', 'extra_config', 'created_at', 'updated_at'],
   app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_template', 'routing_outlet_preferences', 'dns_mode', 'export_node_naming_mode', 'default_export_token', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_keys', 'auto_node_group_include_flag', 'updated_at'],
   source_import_runs: ['id', 'source_id', 'source_name', 'format', 'node_import_mode', 'status', 'node_count', 'added_count', 'updated_count', 'skipped_existing_count', 'rule_count', 'remote_rule_set_count', 'skipped_rule_count', 'conflict_count', 'refresh_error', 'structured_error', 'structured_changes', 'created_at', 'completed_at', 'undone_at'],
@@ -44,7 +44,7 @@ const NON_NULL_COLUMNS = {
   collections: ['id', 'name', 'source_ids', 'node_ids', 'filters', 'renames', 'dedup', 'sort', 'enabled', 'created_at', 'updated_at'],
   groups: ['id', 'name', 'type', 'collection_ids', 'group_ids', 'builtins', 'enabled', 'sort_order', 'is_builtin', 'created_at', 'updated_at'],
   rules: ['id', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'compatibility', 'created_at', 'updated_at'],
-  remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'source_overrides', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'created_at', 'updated_at'],
+  remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'source_overrides', 'source_missing', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'created_at', 'updated_at'],
   export_configs: ['id', 'name', 'format', 'token', 'enabled', 'include_collection_ids', 'include_group_ids', 'include_rule_ids', 'include_remote_set_ids', 'created_at', 'updated_at'],
   app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_template', 'dns_mode', 'export_node_naming_mode', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_include_flag', 'updated_at'],
   source_import_runs: ['id', 'source_name', 'format', 'node_import_mode', 'status', 'node_count', 'added_count', 'updated_count', 'skipped_existing_count', 'rule_count', 'remote_rule_set_count', 'skipped_rule_count', 'conflict_count', 'structured_changes', 'created_at'],
@@ -311,6 +311,14 @@ function validateBackupRelations(tables: ExportPayload): string | undefined {
   for (const [index, row] of tables.source_import_runs.entries()) {
     if (row.source_id != null && (typeof row.source_id !== 'string' || !sourceIds.has(row.source_id))) {
       return `source_import_runs[${index}] references a missing source`
+    }
+  }
+  for (const [index, row] of tables.remote_rule_sets.entries()) {
+    if (row.source_id != null && (typeof row.source_id !== 'string' || !sourceIds.has(row.source_id))) {
+      return `remote_rule_sets[${index}] references a missing source`
+    }
+    if (row.source_id != null && (typeof row.source_rule_set_key !== 'string' || !row.source_rule_set_key.trim())) {
+      return `remote_rule_sets[${index}].source_rule_set_key must identify the linked source rule set`
     }
   }
 

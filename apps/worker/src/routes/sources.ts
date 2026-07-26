@@ -29,6 +29,10 @@ import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
 import { isSafeRemoteHttpUrl, safeRemoteFetch } from '../services/safe-remote-fetch';
 import { validateOptionalBooleanFields } from '../services/request-validation';
+import {
+  listSourceRemoteRuleSets,
+  syncSourceLinkedRemoteRuleSets,
+} from '../services/source-rule-sets';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -538,6 +542,12 @@ app.post('/imports/:runId/undo', async (c) => {
 
 // ─── Get source ───────────────────────────────────────────────────────────────
 
+app.get('/:id/rule-sets', async (c) => {
+  const candidates = await listSourceRemoteRuleSets(c.env.DB, c.req.param('id'));
+  if (candidates === null) return c.json({ success: false, error: 'Source not found' }, 404);
+  return c.json({ success: true, data: candidates });
+});
+
 app.get('/:id', async (c) => {
 
   const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
@@ -670,6 +680,11 @@ export async function deleteSourceById(db: D1Database, id: string, ts = now()): 
   }
   await db.batch([
     ...restoreStatements,
+    db.prepare(
+      `UPDATE remote_rule_sets
+       SET source_id = NULL, source_missing = 1, updated_at = ?
+       WHERE source_id = ?`
+    ).bind(ts, id),
     db.prepare('DELETE FROM rules WHERE notes = ?').bind(marker),
     db.prepare('DELETE FROM remote_rule_sets WHERE notes = ?').bind(marker),
     db.prepare('DELETE FROM nodes WHERE source_id = ?').bind(id),
@@ -878,7 +893,9 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
     if (err instanceof SourceRefreshError) throw err;
     throw new SourceRefreshError(`Failed to fetch URL: ${String(err)}`, 502);
   }
-  await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, now());
+  const ts = now();
+  await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, ts);
+  await syncSourceLinkedRemoteRuleSets(db, id, ts);
 
   return applyParsedSourceContent(db, id, rawContent, subscriptionInfo, row.format);
 }
@@ -898,6 +915,7 @@ export async function importSourceFromContent(
   const ts = now();
   // Preserve the raw content even if parsing below fails to find usable nodes.
   await cacheFetchedSourceContent(db, id, rawContent, {}, ts);
+  await syncSourceLinkedRemoteRuleSets(db, id, ts);
   return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput, options);
 }
 

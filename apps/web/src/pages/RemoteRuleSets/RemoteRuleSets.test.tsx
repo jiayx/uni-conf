@@ -25,9 +25,15 @@ vi.mock('@/lib/api', async () => {
     ...actual,
     api: {
       ...actual.api,
+      sources: {
+        ...actual.api.sources,
+        list: vi.fn(),
+        listRuleSets: vi.fn(),
+      },
       remoteRuleSets: {
         ...actual.api.remoteRuleSets,
         list: vi.fn(),
+        create: vi.fn(),
         update: vi.fn(),
         validate: vi.fn(),
         validateAllSources: vi.fn(),
@@ -62,6 +68,8 @@ describe('RemoteRuleSets content validation', () => {
       createdAt: '2026-07-14T00:00:00.000Z',
       updatedAt: '2026-07-14T00:00:00.000Z',
     }])
+    vi.mocked(api.sources.list).mockResolvedValue([])
+    vi.mocked(api.sources.listRuleSets).mockResolvedValue([])
     vi.mocked(api.remoteRuleSets.validate).mockResolvedValue({
       status: 'warning',
       checkedAt: '2026-07-14T00:00:00.000Z',
@@ -441,7 +449,7 @@ describe('RemoteRuleSets content validation', () => {
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: 'Add Supplemental Rule Set' }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Add from rule set library' }), 'ai')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Rule set source' }), 'ai')
     await user.click(screen.getByText('Target-native sources (optional)'))
 
     expect(screen.getByRole('textbox', { name: 'sing-box native rule-set URL' })).toBeInTheDocument()
@@ -454,10 +462,64 @@ describe('RemoteRuleSets content validation', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Add Supplemental Rule Set' }))
 
-    expect(screen.getByRole('combobox', { name: 'Add from rule set library' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Rule set source' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Rule Set Format' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Match Content' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Use After Match' })).toBeInTheDocument()
+  })
+
+  it('creates a supplemental rule set linked to a subscription provider', async () => {
+    vi.mocked(api.sources.list).mockResolvedValue([{
+      id: 'source-1',
+      name: 'Full Config',
+      type: 'url',
+      url: 'https://subscription.example.com/config.yaml',
+      format: 'mihomo',
+      enabled: true,
+      nodeCount: 3,
+      tags: [],
+      groups: [],
+      createdAt: '2026-07-26T00:00:00.000Z',
+      updatedAt: '2026-07-26T00:00:00.000Z',
+    }])
+    vi.mocked(api.sources.listRuleSets).mockResolvedValue([{
+      key: 'streaming',
+      name: 'streaming',
+      url: 'https://rules.example.com/streaming.yaml',
+      format: 'mihomo',
+      behavior: 'classical',
+      updateInterval: 2,
+      upstreamTarget: 'PROXY',
+      referenced: true,
+    }])
+    vi.mocked(api.remoteRuleSets.create).mockImplementation(async payload => ({
+      id: 'source-streaming',
+      ...payload,
+      sourceMissing: false,
+      createdAt: '2026-07-26T00:00:00.000Z',
+      updatedAt: '2026-07-26T00:00:00.000Z',
+    }))
+    const user = userEvent.setup()
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Add Supplemental Rule Set' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Rule set source' }), 'source:source-1')
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: 'Subscription rule set' }),
+      'streaming',
+    )
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.remoteRuleSets.create).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'streaming',
+      url: 'https://rules.example.com/streaming.yaml',
+      format: 'mihomo',
+      behavior: 'classical',
+      sourceId: 'source-1',
+      sourceRuleSetKey: 'streaming',
+      targetGroupId: 'builtin-proxy',
+      updateInterval: 2,
+    })))
   })
 
   it('validates a target-native source before saving it', async () => {
