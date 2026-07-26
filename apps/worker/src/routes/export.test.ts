@@ -34,7 +34,10 @@ describe('export route helpers', () => {
   })
 
   it('resolves DNS strategy from the selected export format', () => {
-    expect(resolveExportDnsMode('mihomo')).toBe('smart')
+    expect(resolveExportDnsMode('mihomo')).toBe('fake-ip')
+    expect(resolveExportDnsMode('clash')).toBe('fake-ip')
+    expect(resolveExportDnsMode('stash')).toBe('fake-ip')
+    expect(resolveExportDnsMode('singbox')).toBe('smart')
     expect(resolveExportDnsMode('mihomo', 'fake-ip')).toBe('fake-ip')
     expect(resolveExportDnsMode('surge')).toBe('compatible')
     expect(resolveExportDnsMode('surge', 'smart')).toBeUndefined()

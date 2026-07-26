@@ -1191,6 +1191,14 @@ export function supportsManagedDnsMode(
   return (EXPORT_CLIENT_CAPABILITIES[format].managedDnsModes as readonly ManagedDnsMode[]).includes(mode);
 }
 
+export function getDefaultManagedDnsMode(
+  format: ExportSubscriptionFormat
+): ManagedDnsMode | undefined {
+  if (format === 'mihomo' || format === 'clash' || format === 'stash') return 'fake-ip';
+  if (format === 'singbox') return 'smart';
+  return EXPORT_CLIENT_CAPABILITIES[format].managedDnsModes[0];
+}
+
 export function getCompatibleRuleSetFormats(format: ExportSubscriptionFormat): RuleSetFormat[] {
   return [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats];
 }

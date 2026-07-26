@@ -676,7 +676,6 @@
     "dns_fake_ip_desc": "Use synthetic addresses to intercept domain resolution on clients that support Fake-IP.",
     "dns_fixed_hint": "This format only supports “{{mode}}”; it is applied automatically with no extra setup.",
     "dns_badge": "DNS: {{mode}}",
-    "dns_updated": "Default export DNS strategy updated",
     "conversion_policy": "Rule-set conversion policy",
     "conversion_policy_inherit": "Inherit global setting",
     "conversion_policy_hint_inherit": "Follow the global policy in Settings; changes there automatically affect this profile.",

@@ -676,7 +676,6 @@
     "dns_fake_ip_desc": "使用虚拟地址接管域名解析，适合支持 Fake-IP 的客户端。",
     "dns_fixed_hint": "该格式仅支持“{{mode}}”，导出时会自动使用，无需额外配置。",
     "dns_badge": "DNS：{{mode}}",
-    "dns_updated": "默认导出的 DNS 策略已更新",
     "conversion_policy": "规则集转换策略",
     "conversion_policy_inherit": "继承全局设置",
     "conversion_policy_hint_inherit": "跟随“设置”中的全局策略；全局设置变化时，此档案会同步变化。",

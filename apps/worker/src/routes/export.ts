@@ -12,18 +12,20 @@ import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { findBlockingExportWarning, resolveExportWarnings } from '../services/export-validation'
 import { exportArtifactWarnings, validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
-import type { CompatibilityWarning, DnsMode, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
+import type { CompatibilityWarning, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
 import { buildRuleSetConversionBaseUrl } from './subscription'
 import { preflightRuleSetConversions } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import {
   getExportCapabilityProfile,
-  getExportClientCapabilities,
   getExportSubscriptionFilename,
   isExportSubscriptionFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
+import { resolveExportDnsMode } from '../services/export-dns'
+
+export { resolveExportDnsMode } from '../services/export-dns'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -121,11 +123,11 @@ exportRouter.put('/configs/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
   if (
     id === DEFAULT_EXPORT_CONFIG_ID
-    && Object.keys(body).some(field => field !== 'enabled' && field !== 'dnsMode')
+    && Object.keys(body).some(field => field !== 'enabled')
   ) {
     return c.json({
       success: false,
-      error: 'Default export config only allows enabled state and DNS mode updates',
+      error: 'Default export config only allows enabled state updates',
     }, 403)
   }
   if (body.format !== undefined && !isValidExportFormat(body.format)) {
@@ -273,7 +275,7 @@ exportRouter.get('/preview/:format', async (c) => {
   if (!isValidExportFormat(format)) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
-  const config = await resolveConfig(c)
+  const config = await resolveConfig(c, format)
   if (config instanceof Response) return config
   const result = await inspectExport(c, format, config)
   if (!result) return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
@@ -287,7 +289,7 @@ exportRouter.get('/download/:format', async (c) => {
     c.header('X-UniConf-Error-Code', 'export_format_invalid')
     return c.json({ success: false, code: 'export_format_invalid', error: `Unsupported format: ${format}` }, 400)
   }
-  const config = await resolveConfig(c)
+  const config = await resolveConfig(c, format)
   if (config instanceof Response) return config
   const settings = await getAppSettings(c.env.DB)
   const exportData = await buildExportData(c.env.DB, config, format)
@@ -338,7 +340,7 @@ exportRouter.get('/download/:format', async (c) => {
   })
 })
 
-async function resolveConfig(c: Context<{ Bindings: Env }>) {
+async function resolveConfig(c: Context<{ Bindings: Env }>, format: ExportFormat) {
   const configId = c.req.query('configId')
   if (!configId) {
     const config = await ensureDefaultExportConfig(c.env.DB, now())
@@ -349,21 +351,14 @@ async function resolveConfig(c: Context<{ Bindings: Env }>) {
   const config = await getExportConfigById(c.env.DB, configId)
   if (!config) return c.json({ success: false, error: 'Export config not found' }, 404)
   if (!config.enabled) return c.json({ success: false, error: 'Export config is disabled' }, 403)
+  if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== format) {
+    return c.json({ success: false, error: 'Export profile does not support this format' }, 400)
+  }
   return config
 }
 
 export function isValidExportFormat(value: unknown): value is ExportFormat {
   return isExportSubscriptionFormat(value)
-}
-
-export function resolveExportDnsMode(
-  format: ExportFormat,
-  requested?: DnsMode,
-): DnsMode | undefined {
-  const supported = getExportClientCapabilities(format).managedDnsModes as readonly DnsMode[]
-  if (supported.length === 0) return undefined
-  if (requested !== undefined) return supported.includes(requested) ? requested : undefined
-  return supported.includes('smart') ? 'smart' : supported[0]
 }
 
 type ExportSelectionValidation =

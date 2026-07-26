@@ -20,7 +20,6 @@ const REQUIRED_EXPORT_KEYS = [
   'dns_fake_ip_desc',
   'dns_fixed_hint',
   'dns_badge',
-  'dns_updated',
   'conversion_policy',
   'conversion_policy_inherit',
   'conversion_policy_hint_inherit',

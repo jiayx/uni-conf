@@ -40,11 +40,11 @@ vi.mock('../services/app-settings', () => ({
 }))
 
 vi.mock('../services/default-export-config', () => ({
+  DEFAULT_EXPORT_CONFIG_ID: 'default-mihomo',
   ensureDefaultExportConfig: vi.fn(async () => ({
-    id: 'default-config',
+    id: 'default-mihomo',
     name: 'Default',
     format: 'mihomo',
-    dnsMode: 'smart',
     token: 'token',
     enabled: true,
     includeCollectionIds: [],
@@ -65,16 +65,15 @@ describe('export download readiness', () => {
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible',
     } as AppSettings)
     vi.mocked(ensureDefaultExportConfig).mockResolvedValue({
-      id: 'default-config', name: 'Default', format: 'mihomo', dnsMode: 'smart', token: 'token', enabled: true,
+      id: 'default-mihomo', name: 'Default', format: 'mihomo', token: 'token', enabled: true,
       includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [],
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     })
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [] }))
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
-      id: 'config-1',
+      id: 'default-mihomo',
       name: 'Default',
       format: 'mihomo',
-      dnsMode: 'smart',
       token: 'token',
       enabled: true,
       includeCollectionIds: [],
@@ -434,6 +433,46 @@ describe('export download readiness', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-cache, no-store, must-revalidate')
     expect(response.headers.get('X-UniConf-Error-Code')).toBe('subscription_unavailable')
     await expect(response.text()).resolves.toContain('not found or disabled')
+    expect(buildExportData).not.toHaveBeenCalled()
+  })
+
+  it('only serves an advanced export profile in its configured format', async () => {
+    const advancedProfile = {
+      id: 'mobile-singbox',
+      name: 'Mobile',
+      format: 'singbox' as const,
+      dnsMode: 'smart' as const,
+      token: 'mobile-token',
+      enabled: true,
+      includeCollectionIds: [],
+      includeGroupIds: [],
+      includeRuleIds: [],
+      includeRemoteSetIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    vi.mocked(getExportConfigById).mockResolvedValue(advancedProfile)
+    vi.mocked(getEnabledExportConfigByToken).mockResolvedValue(advancedProfile)
+
+    const admin = await exportRouter.request(
+      '/download/mihomo?configId=mobile-singbox',
+      {},
+      { DB: createMockDb() },
+    )
+    const publicSubscription = await subscriptionRouter.request(
+      '/sub/mobile-token/mihomo.yaml',
+      {},
+      { DB: createMockDb() },
+    )
+
+    expect(admin.status).toBe(400)
+    await expect(admin.json()).resolves.toMatchObject({
+      success: false,
+      error: 'Export profile does not support this format',
+    })
+    expect(publicSubscription.status).toBe(404)
+    expect(publicSubscription.headers.get('X-UniConf-Error-Code')).toBe('subscription_format_mismatch')
+    expect(publicSubscription.headers.get('Cache-Control')).toBe('no-cache, no-store, must-revalidate')
     expect(buildExportData).not.toHaveBeenCalled()
   })
 
@@ -808,7 +847,7 @@ describe('export download readiness', () => {
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'nodes_base64',
-      expect.objectContaining({ dnsMode: 'smart' })
+      expect.objectContaining({ dnsMode: undefined })
     )
   })
 

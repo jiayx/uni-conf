@@ -36,7 +36,6 @@ const configs: ExportConfig[] = [{
   id: 'default-mihomo',
   name: 'Default',
   format: 'mihomo',
-  dnsMode: 'smart',
   token: 'default-token',
   enabled: true,
   includeCollectionIds: [],
@@ -106,19 +105,6 @@ describe('Export', () => {
     expect(await screen.findByRole('dialog', { name: /Mobile/ })).toBeInTheDocument()
   })
 
-  it('updates the default export DNS strategy directly from its card', async () => {
-    const user = userEvent.setup()
-    vi.mocked(api.export.updateConfig).mockResolvedValue({
-      ...configs[0]!,
-      dnsMode: 'fake-ip',
-    })
-    render(<MemoryRouter><Export /></MemoryRouter>)
-
-    await user.selectOptions(await screen.findByLabelText('DNS Strategy'), 'fake-ip')
-
-    expect(api.export.updateConfig).toHaveBeenCalledWith('default-mihomo', { dnsMode: 'fake-ip' })
-  })
-
   it('reveals and hides a subscription URL without a confirmation step', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
@@ -148,6 +134,7 @@ describe('Export', () => {
 
     await user.click(await screen.findByRole('button', { name: 'New Advanced Export Profile' }))
     expect(screen.getByText(/Exportable node protocols:/)).toHaveTextContent(/Available DNS strategies:/)
+    expect(screen.getByLabelText('DNS Strategy')).toHaveValue('fake-ip')
 
     await user.selectOptions(screen.getByLabelText('Export Format'), 'nodes_base64')
     expect(screen.getByText(/Exports nodes only/)).toHaveTextContent(/without DNS, policy groups, or routing rules/)

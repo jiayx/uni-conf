@@ -48,21 +48,38 @@ export function Preview() {
   )
   const canUseConfig = Boolean(content && readiness.ready && previewError == null && !loading)
   const contentLineCount = useMemo(() => countContentLines(content), [content])
+  const selectedConfig = useMemo(
+    () => configs.find(config => config.id === configId),
+    [configId, configs],
+  )
 
   const selectFormat = (nextFormat: ExportFormat) => {
     if (nextFormat === format) return
     const next = new URLSearchParams(searchParams)
     next.set('format', nextFormat)
+    if (selectedConfig && selectedConfig.format !== nextFormat) next.delete('configId')
     setSearchParams(next)
   }
 
   const selectConfig = (nextConfigId: string) => {
     if (nextConfigId === configId) return
     const next = new URLSearchParams(searchParams)
-    if (nextConfigId) next.set('configId', nextConfigId)
-    else next.delete('configId')
+    const nextConfig = configs.find(config => config.id === nextConfigId)
+    if (nextConfig) {
+      next.set('configId', nextConfigId)
+      next.set('format', nextConfig.format)
+    } else {
+      next.delete('configId')
+    }
     setSearchParams(next)
   }
+
+  useEffect(() => {
+    if (!selectedConfig || selectedConfig.format === format) return
+    const next = new URLSearchParams(searchParams)
+    next.set('format', selectedConfig.format)
+    setSearchParams(next, { replace: true })
+  }, [format, searchParams, selectedConfig, setSearchParams])
 
   const loadConfigs = useCallback(async () => {
     setConfigsLoading(true)

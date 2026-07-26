@@ -13,6 +13,8 @@ import {
 import type { ExportFormat, ProxySource } from '@uni-conf/types'
 import { getConvertedRemoteRuleSet, preflightRuleSetConversions, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
+import { DEFAULT_EXPORT_CONFIG_ID } from '../services/default-export-config'
+import { resolveExportDnsMode } from '../services/export-dns'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -45,6 +47,13 @@ subscriptionRouter.get('/sub/:token/rules/:ruleSetId/:filename', async (c) => {
       : null
   if (!exportFormat) {
     return convertedRuleSetError('Unknown export format context', 400, 'conversion_export_format_invalid')
+  }
+  if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== exportFormat) {
+    return convertedRuleSetError(
+      'Export profile does not support this format',
+      404,
+      'subscription_format_mismatch',
+    )
   }
   const exportData = await buildExportData(c.env.DB, config, exportFormat)
   const ruleSet = exportData.remoteSets.find((item) => item.id === c.req.param('ruleSetId') && item.enabled)
@@ -133,6 +142,16 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
       },
     })
   }
+  if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== format) {
+    return new Response('# Subscription format does not match this export profile\n', {
+      status: 404,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-UniConf-Error-Code': 'subscription_format_mismatch',
+      },
+    })
+  }
 
   const exportData = await buildExportData(c.env.DB, config, format)
   const settings = await getAppSettings(c.env.DB)
@@ -164,7 +183,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
   const rendered = renderExportData(exportData, format, {
-    dnsMode: config.dnsMode,
+    dnsMode: resolveExportDnsMode(format, config.dnsMode),
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, token),
   })
   if (!rendered) {

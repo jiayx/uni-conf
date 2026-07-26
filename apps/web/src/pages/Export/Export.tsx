@@ -25,6 +25,7 @@ import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import {
+  getDefaultManagedDnsMode,
   getExportClientCapabilities,
   getExportSubscriptionFilename,
 } from '@uni-conf/shared'
@@ -39,8 +40,7 @@ function supportedDnsModes(format: ExportFormat): readonly DnsMode[] {
 }
 
 function defaultDnsMode(format: ExportFormat): DnsMode | undefined {
-  const modes = supportedDnsModes(format)
-  return modes.includes('smart') ? 'smart' : modes[0]
+  return getDefaultManagedDnsMode(format)
 }
 
 function dnsNameKey(mode: DnsMode): string {
@@ -66,7 +66,7 @@ interface ExportForm {
 const EMPTY_FORM: ExportForm = {
   name: '',
   format: 'mihomo',
-  dnsMode: 'smart',
+  dnsMode: 'fake-ip',
   enabled: true,
   includeCollectionIds: [],
   includeGroupIds: [],
@@ -100,7 +100,6 @@ export function Export() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [updatingDnsId, setUpdatingDnsId] = useState<string | null>(null)
   const [previewModal, setPreviewModal] = useState<PreviewModalState | null>(null)
   const [revealedUrlScopes, setRevealedUrlScopes] = useState<Set<string>>(() => new Set())
   const selectedFormatCapabilities = getExportClientCapabilities(form.format)
@@ -386,21 +385,6 @@ export function Export() {
     }))
   }
 
-  const handleDefaultDnsMode = async (config: ExportConfig, dnsMode: DnsMode) => {
-    setUpdatingDnsId(config.id)
-    setDownloadError(null)
-    setActionNotice(null)
-    try {
-      await api.export.updateConfig(config.id, { dnsMode })
-      setActionNotice(t('export.dns_updated'))
-      await load(false)
-    } catch (error) {
-      setDownloadError(error)
-    } finally {
-      setUpdatingDnsId(null)
-    }
-  }
-
   const defaultConfig = configs.find(cfg => cfg.id === DEFAULT_EXPORT_CONFIG_ID)
   const advancedConfigs = configs.filter(cfg => cfg.id !== DEFAULT_EXPORT_CONFIG_ID)
   const inheritedConversionPolicyLabel = globalRuleSetConversionPolicy
@@ -445,21 +429,6 @@ export function Export() {
                   <div className={styles.scopeText}>{exportConfigScopeSummary(defaultConfig, collections, groups, rules, remoteSets, t)}</div>
                 </div>
                 <div className={styles.configActions}>
-                  <label className={styles.inlineSelect}>
-                    <span>{t('export.dns_mode')}</span>
-                    <select
-                      value={defaultConfig.dnsMode ?? 'smart'}
-                      disabled={updatingDnsId === defaultConfig.id}
-                      onChange={event => void handleDefaultDnsMode(
-                        defaultConfig,
-                        event.target.value as DnsMode,
-                      )}
-                    >
-                      {supportedDnsModes(defaultConfig.format).map(mode => (
-                        <option key={mode} value={mode}>{t(dnsNameKey(mode))}</option>
-                      ))}
-                    </select>
-                  </label>
                   <Button
                     variant="secondary"
                     size="sm"

@@ -240,7 +240,7 @@ describe('Preview artifact validation', () => {
     expect(screen.getByText('singbox capability profile r17')).toBeInTheDocument()
   })
 
-  it('keeps the selected client and export profile in the address bar', async () => {
+  it('binds an advanced export profile to its target client in the address bar', async () => {
     vi.mocked(api.export.listConfigs).mockResolvedValue([{
       id: 'advanced-1',
       name: 'Mobile',
@@ -277,24 +277,27 @@ describe('Preview artifact validation', () => {
     const singboxTab = screen.getByRole('button', { name: 'sing-box' })
     const mihomoTab = screen.getByRole('button', { name: 'Mihomo / Clash / OpenClash' })
     expect(mihomoTab).toHaveAttribute('aria-pressed', 'true')
-    await user.click(singboxTab)
-
-    expect(await screen.findByTestId('location-search')).toHaveTextContent(
-      '?attention=1&format=singbox',
-    )
-    expect(singboxTab).toHaveAttribute('aria-pressed', 'true')
-    expect(mihomoTab).toHaveAttribute('aria-pressed', 'false')
 
     const selector = await screen.findByRole('combobox', { name: 'Export profile' })
     await user.selectOptions(selector, 'advanced-1')
 
-    expect(screen.getByTestId('location-search')).toHaveTextContent(
-      '?attention=1&format=singbox&configId=advanced-1',
-    )
+    const locationSearch = await screen.findByTestId('location-search')
+    expect(locationSearch).toHaveTextContent('attention=1')
+    expect(locationSearch).toHaveTextContent('format=singbox')
+    expect(locationSearch).toHaveTextContent('configId=advanced-1')
+    expect(singboxTab).toHaveAttribute('aria-pressed', 'true')
+    expect(mihomoTab).toHaveAttribute('aria-pressed', 'false')
     await waitFor(() => expect(api.export.previewFormat).toHaveBeenCalledWith(
       'singbox',
       'advanced-1',
     ))
+
+    await user.click(mihomoTab)
+
+    expect(screen.getByTestId('location-search')).toHaveTextContent(
+      '?attention=1&format=mihomo',
+    )
+    expect(selector).toHaveValue('')
   })
 
   it('reports and retries export-profile loading without blocking the default preview', async () => {
