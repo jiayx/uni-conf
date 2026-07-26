@@ -19,7 +19,6 @@ const REQUIRED_GROUP_KEYS = [
   'empty_description',
   'auto_members_title',
   'auto_members_text',
-  'routing_group_summary',
 ]
 
 describe('group i18n keys', () => {

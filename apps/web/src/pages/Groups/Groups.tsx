@@ -501,28 +501,12 @@ export function Groups() {
         </details>
       )}
       {loading && visibleGroups.length === 0 ? <div className={styles.loading}>{t('common.loading')}</div> : (
-        <div className={styles.list}>
+        <div className={styles.list} role={visibleGroups.length > 0 ? 'list' : undefined}>
           {visibleGroups.map(group => {
             const customIndex = customRoutingGroups.findIndex(item => item.id === group.id)
             const preferredOutlet = outletPreferences[group.id]
             return (
-              <Card key={group.id} className={styles.groupCard}>
-                {!group.isBuiltin && (
-                  <div className={styles.orderControls}>
-                    <Button variant="ghost" size="sm" disabled={reordering || customIndex <= 0} onClick={() => void moveCustomGroup(group.id, -1)} title={t('common.move_up')}>
-                      <ArrowUpIcon />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={reordering || customIndex < 0 || customIndex === customRoutingGroups.length - 1}
-                      onClick={() => void moveCustomGroup(group.id, 1)}
-                      title={t('common.move_down')}
-                    >
-                      <ArrowDownIcon />
-                    </Button>
-                  </div>
-                )}
+              <Card key={group.id} className={styles.groupCard} role="listitem">
                 <div className={styles.cardMain}>
                   <div className={styles.cardTop}>
                     <div className={styles.groupName}>{group.name}</div>
@@ -551,39 +535,58 @@ export function Groups() {
                       </label>
                     )}
                   </div>
-                  <div className={styles.summary}>{describeRoutingGroupMembers(group, t)}</div>
                 </div>
                 {!group.isBuiltin && (
-                  <div className={styles.cardActions}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      loading={rowAction?.id === group.id && rowAction.type === 'toggle'}
-                      disabled={rowAction?.id === group.id}
-                      onClick={() => void handleToggleEnabled(group)}
-                    >
-                      {group.enabled ? t('common.disable') : t('common.enable')}
-                    </Button>
-                    <Button variant="ghost" size="sm" disabled={rowAction?.id === group.id} onClick={() => openEdit(group)}>
-                      {t('common.edit')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      loading={rowAction?.id === group.id && rowAction.type === 'delete'}
-                      disabled={rowAction?.id === group.id}
-                      aria-label={t('groups.delete_group', { name: group.name })}
-                      title={t('groups.delete_group', { name: group.name })}
-                      onClick={() => void handleDelete(group)}
-                    >
-                      <TrashIcon />
-                    </Button>
+                  <div className={styles.cardFooter}>
+                    <div className={styles.orderControls}>
+                      <Button variant="ghost" size="sm" disabled={reordering || customIndex <= 0} onClick={() => void moveCustomGroup(group.id, -1)} title={t('common.move_up')}>
+                        <ArrowUpIcon />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={reordering || customIndex < 0 || customIndex === customRoutingGroups.length - 1}
+                        onClick={() => void moveCustomGroup(group.id, 1)}
+                        title={t('common.move_down')}
+                      >
+                        <ArrowDownIcon />
+                      </Button>
+                    </div>
+                    <div className={styles.cardActions}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={rowAction?.id === group.id && rowAction.type === 'toggle'}
+                        disabled={rowAction?.id === group.id}
+                        onClick={() => void handleToggleEnabled(group)}
+                      >
+                        {group.enabled ? t('common.disable') : t('common.enable')}
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={rowAction?.id === group.id} onClick={() => openEdit(group)}>
+                        {t('common.edit')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={rowAction?.id === group.id && rowAction.type === 'delete'}
+                        disabled={rowAction?.id === group.id}
+                        aria-label={t('groups.delete_group', { name: group.name })}
+                        title={t('groups.delete_group', { name: group.name })}
+                        onClick={() => void handleDelete(group)}
+                      >
+                        <TrashIcon />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </Card>
             )
           })}
-          {visibleGroups.length === 0 && <EmptyState title={t('groups.empty_title')} description={t('groups.empty_description')} action={{ label: t('groups.new'), onClick: openCreate }} />}
+          {visibleGroups.length === 0 && (
+            <div className={styles.emptyGridItem}>
+              <EmptyState title={t('groups.empty_title')} description={t('groups.empty_description')} action={{ label: t('groups.new'), onClick: openCreate }} />
+            </div>
+          )}
         </div>
       )}
 
@@ -674,11 +677,6 @@ function describeFoundationGroup(group: ProxyGroup, t: (key: string) => string):
   if (group.name === '自动选择') return t('groups.foundation_auto_select_desc')
   if (group.name === '故障切换') return t('groups.foundation_fallback_desc')
   return t('groups.foundation_default_desc')
-}
-
-function describeRoutingGroupMembers(group: ProxyGroup, t: (key: string) => string): string {
-  if (group.name === 'PROXY') return t('groups.routing_proxy_summary')
-  return t('groups.routing_group_summary')
 }
 
 function getGroupName(groups: ProxyGroup[], id: string | undefined): string {

@@ -420,8 +420,6 @@
     "foundation_auto_select_desc": "Automatically chooses the lowest-latency node from the default usable node pool.",
     "foundation_fallback_desc": "Falls back to another node from the default usable node pool when the current one fails.",
     "foundation_default_desc": "System built-in foundation outlet.",
-    "routing_proxy_summary": "Default proxy outlet. It aggregates rule foundations, global node outlets, and available node groups.",
-    "routing_group_summary": "Automatically includes foundation outlets, global node outlets, and available node groups.",
     "type_select": "Manual Select",
     "type_url_test": "URL Test",
     "type_fallback": "Fallback",

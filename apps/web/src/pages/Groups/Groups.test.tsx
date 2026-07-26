@@ -91,6 +91,9 @@ describe('Groups information hierarchy', () => {
 
     const foundation = await screen.findByText('Foundation Targets and Node Outlets')
     expect(foundation.closest('details')).not.toHaveAttribute('open')
+    const businessCards = screen.getByRole('list')
+    expect(within(businessCards).getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.queryByText('Automatically includes foundation outlets, global node outlets, and available node groups.')).not.toBeInTheDocument()
     const outlet = screen.getByRole('combobox', { name: 'Default outlet' })
     expect(outlet).toBeVisible()
     await user.selectOptions(outlet, 'global:node-select')

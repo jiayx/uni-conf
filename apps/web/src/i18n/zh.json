@@ -420,8 +420,6 @@
     "foundation_auto_select_desc": "从默认节点池里按延迟自动选择节点，作为默认代理出口的优先候选。",
     "foundation_fallback_desc": "从默认节点池里做故障切换，当前节点不可用时自动切到下一个。",
     "foundation_default_desc": "系统内置基础出口。",
-    "routing_proxy_summary": "默认代理出口，自动聚合规则基础、全局节点出口和可用节点组。",
-    "routing_group_summary": "自动包含基础出口、全局节点出口和可用节点组。",
     "type_select": "手动选择",
     "type_url_test": "自动测速",
     "type_fallback": "故障转移",
