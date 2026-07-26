@@ -49,9 +49,6 @@
 .effectiveRow summary span,
 .effectiveRowStatic span { white-space: nowrap; }
 .effectiveRow summary span, .effectiveRowStatic span { font-size: 0.75rem; }
-.effectiveRowStatic {
-  border-color: rgba(124,58,237,0.35); background: var(--color-accent-subtle);
-}
 .effectiveRuleSets {
   padding-top: 0.5rem; color: var(--color-text-secondary); font-size: 0.75rem; line-height: 1.45;
 }
