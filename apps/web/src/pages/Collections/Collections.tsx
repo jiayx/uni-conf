@@ -31,7 +31,11 @@ import {
   mapUpstreamGroupType,
 } from '@/core/collections/source-group-suggestions'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
-import { AUTO_NODE_GROUP_PREFIX } from '@uni-conf/shared'
+import {
+  AUTO_NODE_GROUP_PREFIX,
+  DEFAULT_NODE_POOL_COLLECTION_ID,
+  DEFAULT_NODE_POOL_PREFIX,
+} from '@uni-conf/shared'
 import type {
   DedupStrategy,
   FilterOperator,
@@ -531,14 +535,18 @@ export function Collections() {
       ) : (
         <div className={styles.grid}>
           {collections.map(collection => {
-            const previewExpanded = isAutoNodeGroup(collection)
+            const autoNodeGroup = isAutoNodeGroup(collection)
+            const defaultNodePool = isDefaultNodePool(collection)
+            const managedNodeGroup = autoNodeGroup || defaultNodePool
+            const previewExpanded = managedNodeGroup
               ? expandedAutoPreviewIds.has(collection.id)
               : expandedManualPreviewIds.has(collection.id)
             return <Card key={collection.id} className={styles.card}>
               <div className={styles.cardHeader}>
                 <div>
                   <div className={styles.cardTitle}>{collection.name}</div>
-                  {collection.notes && !isAutoNodeGroup(collection) && <div className={styles.cardNotes}>{collection.notes}</div>}
+                  {defaultNodePool && <div className={styles.cardNotes}>{t('collections.default_pool_description')}</div>}
+                  {collection.notes && !managedNodeGroup && <div className={styles.cardNotes}>{collection.notes}</div>}
                 </div>
                 <Badge variant={collection.enabled ? 'success' : 'default'}>
                   {collection.enabled ? t('common.enabled') : t('common.disabled')}
@@ -547,7 +555,13 @@ export function Collections() {
 
               <div className={styles.cardMeta}>
                 <Badge variant="info">{scopeText(collection, t)}</Badge>
-                <Badge variant={isAutoNodeGroup(collection) ? 'success' : 'default'}>{isAutoNodeGroup(collection) ? t('collections.auto_label') : t('collections.manual_label')}</Badge>
+                <Badge variant={managedNodeGroup ? 'success' : 'default'}>
+                  {defaultNodePool
+                    ? t('collections.system_label')
+                    : autoNodeGroup
+                      ? t('collections.auto_label')
+                      : t('collections.manual_label')}
+                </Badge>
                 <Badge variant="default">{sortLabel(collection.sort, t)}</Badge>
                 <Badge variant="default">{dedupLabel(collection.dedup, t)}</Badge>
                 {collection.filters.length > 0 && <Badge variant="warning">{t('collections.filter_count', { count: collection.filters.length })}</Badge>}
@@ -579,7 +593,7 @@ export function Collections() {
               )}
 
               <div className={styles.cardActions}>
-                {!isAutoNodeGroup(collection) && (
+                {!managedNodeGroup && (
                   <>
                     <Button variant="ghost" size="sm" onClick={() => openEdit(collection)}>
                       {t('common.edit')}
@@ -1073,6 +1087,11 @@ function parseAutoNodeGroupMarker(notes?: string): AutoNodeGroupMarker | null {
 
 function isAutoNodeGroup(collection: NodeCollection): boolean {
   return parseAutoNodeGroupMarker(collection.notes) !== null
+}
+
+function isDefaultNodePool(collection: NodeCollection): boolean {
+  return collection.id === DEFAULT_NODE_POOL_COLLECTION_ID
+    || collection.notes?.startsWith(DEFAULT_NODE_POOL_PREFIX) === true
 }
 
 function isGeneratedGroupType(value: string | undefined): value is GeneratedGroupType {

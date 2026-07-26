@@ -228,7 +228,7 @@ INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES ('singleton', datetim
 INSERT OR IGNORE INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at) VALUES
   (
     'builtin-default-node-pool',
-    '默认可用节点',
+    '默认节点池',
     '[]',
     '[]',
     '[{"id":"default-exclude-high-multiplier","field":"tag","operator":"not_in","value":["high-multiplier"],"enabled":true}]',

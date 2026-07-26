@@ -85,14 +85,14 @@ async function ensureDefaultNodePoolCollection(db: D1Database, ts: string): Prom
     .prepare(
       `INSERT OR IGNORE INTO collections
         (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
-       VALUES (?, '默认可用节点', '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
+       VALUES (?, '默认节点池', '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
     )
     .bind(DEFAULT_NODE_POOL_COLLECTION_ID, filters, DEFAULT_NODE_POOL_PREFIX, ts, ts)
     .run();
   await db
     .prepare(
       `UPDATE collections SET
-        name = '默认可用节点', source_ids = '[]', node_ids = '[]',
+        name = '默认节点池', source_ids = '[]', node_ids = '[]',
         filters = ?, renames = '[]', dedup = 'full_config', sort = 'name',
         sort_country_order = '[]', enabled = 1, notes = ?, updated_at = ?
        WHERE id = ?`

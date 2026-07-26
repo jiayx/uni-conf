@@ -271,6 +271,8 @@
     "empty_description": "Node groups define node filters and selection behavior, then become outlet candidates for business routing groups.",
     "auto_label": "Auto",
     "manual_label": "Manual",
+    "system_label": "System managed",
+    "default_pool_description": "Used by All Nodes, Node Select, Auto Select, and Fallback; high-multiplier nodes are excluded automatically.",
     "filter_count": "{{count}} filters",
     "rename_count": "{{count}} renames",
     "delete_confirm": "Delete this node group?",

@@ -21,7 +21,7 @@ describe('zero setup defaults integration', () => {
     expect(db.state.collections.map((row) => row.name).sort()).toEqual([
       'Native Auto',
       'Streaming Auto',
-      '默认可用节点',
+      '默认节点池',
       '🇭🇰 HK Auto',
       '🇺🇸 US Auto',
     ]);
@@ -103,7 +103,7 @@ describe('zero setup defaults integration', () => {
 
     await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
 
-    expect(db.state.collections.map((row) => row.name)).toEqual(['默认可用节点']);
+    expect(db.state.collections.map((row) => row.name)).toEqual(['默认节点池']);
     const defaultNodePool = db.state.collections[0];
     expect(defaultNodePool?.id).toBe('builtin-default-node-pool');
     expect(parseFilters(defaultNodePool?.filters)).toContainEqual(expect.objectContaining({
@@ -298,7 +298,7 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
     if (!state.collections.some((row) => row.id === args[0])) {
       state.collections.push({
         id: args[0],
-        name: '默认可用节点',
+        name: '默认节点池',
         source_ids: '[]',
         node_ids: '[]',
         filters: args[1],
@@ -314,11 +314,11 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
     }
     return;
   }
-  if (sql.includes('UPDATE collections SET') && sql.includes("name = '默认可用节点'")) {
+  if (sql.includes('UPDATE collections SET') && sql.includes("name = '默认节点池'")) {
     const row = state.collections.find((item) => item.id === args[3]);
     if (row) {
       Object.assign(row, {
-        name: '默认可用节点',
+        name: '默认节点池',
         source_ids: '[]',
         node_ids: '[]',
         filters: args[0],

@@ -119,7 +119,7 @@ function createScopedDb(): D1Database {
       nodeRow('node-disabled-source', 'US Disabled 01', 'us-disabled.example.com', 'US', [], 'source-disabled'),
     ],
     collections: [
-      collectionRow('builtin-default-node-pool', '默认可用节点'),
+      collectionRow('builtin-default-node-pool', '默认节点池'),
       collectionRow('collection-us', 'US Auto', 'US'),
       collectionRow('collection-hk', 'HK Auto', 'HK'),
     ],
