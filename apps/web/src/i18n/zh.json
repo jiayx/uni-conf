@@ -382,7 +382,7 @@
     "effective_policy_title": "当前实际分流",
     "effective_policy_meta": "以下规则集和最终兜底会进入导出配置。",
     "effective_rule_set_count": "{{count}} 个规则集",
-    "unmatched_traffic": "其他未匹配流量",
+    "unmatched_traffic": "未匹配流量",
     "business_group_count": "{{count}} 个业务组",
     "foundation_only": "仅基础目标",
     "rule_foundation": "规则基础",

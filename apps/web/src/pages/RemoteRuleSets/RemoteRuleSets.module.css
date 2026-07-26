@@ -54,6 +54,16 @@
 }
 .sectionSwitch:has(input:disabled) { cursor: wait; opacity: 0.72; }
 .card { display: flex; flex-direction: column; gap: 0.875rem; }
+.cardInactive {
+  border-color: var(--color-border); background: var(--color-surface2);
+}
+.cardInactive .cardTitle,
+.cardInactive .meta,
+.cardInactive .url,
+.cardInactive .notes {
+  opacity: 0.52;
+  filter: grayscale(0.45);
+}
 .cardHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .cardTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .enableSwitch {

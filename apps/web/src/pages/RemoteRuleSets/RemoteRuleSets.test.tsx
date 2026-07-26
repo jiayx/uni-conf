@@ -774,6 +774,18 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.getByText('1 matching rule sets across 1 policies')).toBeInTheDocument()
   })
 
+  it('places active rule sets before inactive rule sets within a target', async () => {
+    vi.mocked(api.remoteRuleSets.list).mockResolvedValue([
+      { ...makeRuleSet('inactive-first', 'Inactive First', 'builtin-proxy'), enabled: false, sortOrder: 0 },
+      { ...makeRuleSet('active-second', 'Active Second', 'builtin-proxy'), sortOrder: 999 },
+    ])
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    const active = await screen.findByText('Active Second')
+    const inactive = screen.getByText('Inactive First')
+    expect(active.compareDocumentPosition(inactive) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  })
+
   it('summarizes and filters rule sets by target-client compatibility', async () => {
     vi.mocked(api.remoteRuleSets.list).mockResolvedValue([
       makeRuleSet('native-mihomo', 'Native Mihomo', 'builtin-proxy', 'mihomo'),

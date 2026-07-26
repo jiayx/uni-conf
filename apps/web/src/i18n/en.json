@@ -382,7 +382,7 @@
     "effective_policy_title": "Effective routing",
     "effective_policy_meta": "These rule sets and the final fallback will be included in exports.",
     "effective_rule_set_count": "{{count}} rule sets",
-    "unmatched_traffic": "Other unmatched traffic",
+    "unmatched_traffic": "Unmatched traffic",
     "business_group_count": "{{count}} business groups",
     "foundation_only": "Foundation only",
     "rule_foundation": "Rule foundations",

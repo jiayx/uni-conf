@@ -860,8 +860,9 @@ export function RemoteRuleSets() {
                   const hasSourceOverrides = Object.keys(set.sourceOverrides).length > 0
                   const sourceHealth = sourceHealthById[set.id] ?? set.sourceHealth
                   const sourceHealthStale = Boolean(sourceHealth && 'stale' in sourceHealth && sourceHealth.stale)
+                  const effective = section.targetEnabled && set.enabled
                   return (
-                  <Card key={set.id} className={styles.card}>
+                  <Card key={set.id} className={`${styles.card} ${effective ? '' : styles.cardInactive}`}>
                     <div className={styles.cardHeader}>
                       <label className={styles.enableSwitch}>
                         <input
@@ -1478,8 +1479,19 @@ function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: strin
   }
 
   return [...sections.values()]
-    .map(section => ({ ...section, sets: section.sets.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)) }))
-    .sort((a, b) => (orderById.get(a.groupId) ?? 9999) - (orderById.get(b.groupId) ?? 9999) || a.groupName.localeCompare(b.groupName))
+    .map(section => ({
+      ...section,
+      sets: section.sets.sort((a, b) =>
+        Number(b.enabled) - Number(a.enabled)
+        || a.sortOrder - b.sortOrder
+        || a.name.localeCompare(b.name)
+      ),
+    }))
+    .sort((a, b) =>
+      Number(b.targetEnabled) - Number(a.targetEnabled)
+      || (orderById.get(a.groupId) ?? 9999) - (orderById.get(b.groupId) ?? 9999)
+      || a.groupName.localeCompare(b.groupName)
+    )
 }
 
 function filterRuleSetSections<T extends { groupName: string; sets: RemoteRuleSet[] }>(sections: T[], query: string): T[] {
