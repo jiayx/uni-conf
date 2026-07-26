@@ -1,12 +1,14 @@
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticTargetGroup,
+  isManagedRuleSetActiveForUnmatchedPolicy,
   QUIXOTIC_RULE_SET_PRESETS,
   resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
 } from '@uni-conf/shared';
 import { newId } from '../db/helpers';
 import type { RemoteRuleSet } from '@uni-conf/types';
+import type { UnmatchedTrafficPolicy } from '@uni-conf/types';
 
 type PresetSource = NonNullable<RemoteRuleSet['presetSource']>;
 type TargetGroupInfo = { id: string; enabled: boolean };
@@ -37,7 +39,11 @@ const UNI_CONF_REMOTE_RULE_SET_PRESETS: Array<{
   },
 ];
 
-export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): Promise<void> {
+export async function ensureDefaultRemoteRuleSets(
+  db: D1Database,
+  ts: string,
+  unmatchedTrafficPolicy: UnmatchedTrafficPolicy = 'proxy'
+): Promise<void> {
   const groups = await listGroupsByName(db);
   const existingPresets = await listExistingPresetRows(db);
   const healthInvalidationIds = new Set<string>();
@@ -50,7 +56,11 @@ export async function ensureDefaultRemoteRuleSets(db: D1Database, ts: string): P
       const behavior = resolveQuixoticRuleSetBehavior(preset.id);
       const notes = `QuixoticHeart/rule-set:${preset.id} ${preset.description}`;
       if (!targetGroup) return disableExistingPreset(db, existing, notes, ts);
-      const state = resolveManagedPresetState(existing, targetGroup.enabled, notes);
+      const state = resolveManagedPresetState(
+        existing,
+        targetGroup.enabled && isManagedRuleSetActiveForUnmatchedPolicy(preset.id, unmatchedTrafficPolicy),
+        notes
+      );
       if (existing) {
         if (
           existing.url === url

@@ -297,8 +297,7 @@ export function generateLoon(
 
 function defaultPolicy(groups: Array<Record<string, unknown>>): string {
   return String(
-    groups.find(group => String(group['name']) === '漏网之鱼')?.['name']
-      ?? groups.find(group => String(group['name']) === 'PROXY')?.['name']
+    groups.find(group => String(group['name']) === 'PROXY')?.['name']
       ?? groups[0]?.['name']
       ?? 'PROXY'
   )

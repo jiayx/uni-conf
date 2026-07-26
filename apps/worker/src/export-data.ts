@@ -92,7 +92,7 @@ export async function buildExportData(
   )
 
   const exportGroupIds = new Set(groupRows.map((row) => String(row.id)))
-  const ruleRows = filterRowsByTargetGroup(
+  const configuredRuleRows = filterRowsByTargetGroup(
     await selectRows(
       db,
       'SELECT * FROM rules WHERE enabled = 1 ORDER BY sort_order ASC',
@@ -100,6 +100,26 @@ export async function buildExportData(
     ),
     exportGroupIds
   )
+  const finalTargetGroupId = settings.unmatchedTrafficPolicy === 'direct'
+    ? 'builtin-direct'
+    : 'builtin-proxy'
+  const ruleRows = [
+    ...configuredRuleRows.filter((row) => String(row.type) !== 'MATCH'),
+    {
+      id: 'builtin-unmatched-traffic',
+      name: 'Unmatched traffic',
+      type: 'MATCH',
+      payload: '',
+      no_resolve: 0,
+      target_group_id: finalTargetGroupId,
+      enabled: 1,
+      sort_order: Number.MAX_SAFE_INTEGER,
+      notes: 'Managed by unmatched traffic policy',
+      compatibility: '[]',
+      created_at: '',
+      updated_at: '',
+    },
+  ]
   const remoteSetRows = filterRowsByTargetGroup(
     await selectRows(
       db,

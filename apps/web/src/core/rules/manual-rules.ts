@@ -21,7 +21,6 @@ export const MANUAL_RULE_TYPES: RuleType[] = [
   'PROTOCOL',
   'NETWORK',
   'RULE-SET',
-  'MATCH',
 ]
 
 export interface ManualRulesParseResult {
@@ -110,9 +109,8 @@ function parseManualRuleLineWithIssue(
     return { rule: null, reason: 'unsupported-type', detail: rawType || '—' }
   }
 
-  const isMatch = type === 'MATCH'
-  const payload = isMatch ? '' : parts[1] ?? ''
-  if (!isMatch && !payload) {
+  const payload = parts[1] ?? ''
+  if (!payload) {
     return { rule: null, reason: 'missing-payload', detail: type }
   }
   const payloadValidation = validateAndNormalizeRulePayload(type, payload)
@@ -120,7 +118,7 @@ function parseManualRuleLineWithIssue(
     return { rule: null, reason: 'invalid-payload', detail: payloadValidation.code }
   }
 
-  const targetIndex = isMatch ? 1 : 2
+  const targetIndex = 2
   const rawTarget = parts[targetIndex] ?? ''
   const targetIsOption = rawTarget.toLowerCase() === 'no-resolve'
   let targetGroupId = fallbackTargetGroupId

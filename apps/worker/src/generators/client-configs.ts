@@ -958,8 +958,7 @@ function isNativeOutletGroup(group: Row): boolean {
 
 function defaultPolicy(groups: Row[]): string {
   return String(
-    groups.find((group) => String(group['name']) === '漏网之鱼')?.['name']
-      ?? groups.find((group) => String(group['name']) === 'PROXY')?.['name']
+    groups.find((group) => String(group['name']) === 'PROXY')?.['name']
       ?? groups[0]?.['name']
       ?? 'DIRECT'
   )

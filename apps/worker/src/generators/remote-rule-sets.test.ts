@@ -30,14 +30,6 @@ const directGroup: ProxyGroup = {
   builtins: [],
 };
 
-const finalGroup: ProxyGroup = {
-  ...proxyGroup,
-  id: 'group-final',
-  name: '漏网之鱼',
-  type: 'select',
-  builtins: [],
-};
-
 const matchRule: ProxyRule = {
   id: 'rule-match',
   type: 'MATCH',
@@ -249,14 +241,14 @@ describe('remote rule set generators', () => {
     expect(content).toContain('url: "https://example.com/telegram.list"');
   });
 
-  it('uses the catch-all policy group when MATCH is not configured', () => {
-    const mihomo = generateMihomoYaml([], [proxyGroup, finalGroup], [], []);
-    expect(mihomo).toContain('  - MATCH,漏网之鱼');
+  it('uses PROXY when a final rule is not configured', () => {
+    const mihomo = generateMihomoYaml([], [proxyGroup], [], []);
+    expect(mihomo).toContain('  - MATCH,PROXY');
 
-    const singbox = JSON.parse(generateSingboxJson([], [proxyGroup, finalGroup], [], [])) as {
+    const singbox = JSON.parse(generateSingboxJson([], [proxyGroup], [], [])) as {
       route: { final: string };
     };
-    expect(singbox.route.final).toBe('漏网之鱼');
+    expect(singbox.route.final).toBe('PROXY');
   });
 
   it('routes sing-box remote rule sets and uses MATCH as final outbound', () => {

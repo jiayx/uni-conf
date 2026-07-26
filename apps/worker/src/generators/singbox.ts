@@ -634,8 +634,7 @@ function buildRoute(
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string {
-  const group = groups.find((item) => item.name === '漏网之鱼')
-    ?? groups.find((item) => item.name === 'PROXY')
+  const group = groups.find((item) => item.name === 'PROXY')
     ?? groups[0];
   return group ? resolveSingboxGroupName(group) : 'direct';
 }

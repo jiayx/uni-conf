@@ -26,7 +26,7 @@ import {
   ROUTING_POLICY_TEMPLATES,
   RULE_TARGET_FOUNDATION_GROUP_IDS,
 } from '@uni-conf/shared'
-import type { GroupType, ProxyGroup, RoutingPolicyTemplateId } from '@uni-conf/types'
+import type { GroupType, ProxyGroup, RemoteRuleSet, RoutingPolicyTemplateId, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
 type GroupForm = Omit<ProxyGroup, 'id' | 'createdAt' | 'updatedAt'>
@@ -73,6 +73,8 @@ export function Groups() {
   const [rowAction, setRowAction] = useState<{ id: string; type: 'toggle' | 'delete' } | null>(null)
   const [reordering, setReordering] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
+  const [unmatchedTrafficPolicy, setUnmatchedTrafficPolicy] = useState<UnmatchedTrafficPolicy>('proxy')
+  const [ruleSets, setRuleSets] = useState<RemoteRuleSet[]>([])
   const [outletPreferences, setOutletPreferences] = useState<Record<string, string>>({})
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingPreferenceId, setSavingPreferenceId] = useState<string | null>(null)
@@ -85,9 +87,11 @@ export function Groups() {
     void api.settings.get()
       .then(settings => {
         setActiveTemplate(settings.routingPolicyTemplate)
+        setUnmatchedTrafficPolicy(settings.unmatchedTrafficPolicy)
         setOutletPreferences(settings.routingOutletPreferences ?? {})
       })
       .catch(setActionError)
+    void api.remoteRuleSets.list().then(setRuleSets).catch(setActionError)
   }, [fetchGroups])
 
   const visibleGroups = useMemo(
@@ -135,6 +139,23 @@ export function Groups() {
     })),
     [activeTemplate]
   )
+  const effectivePolicyRows = useMemo(() => {
+    const enabledGroupIds = new Set(groups.filter(group => group.enabled).map(group => group.id))
+    const effectiveSets = ruleSets.filter(set => set.enabled && enabledGroupIds.has(set.targetGroupId))
+    const targetNames = [
+      'PROXY',
+      'DIRECT',
+      'REJECT',
+      ...activeTemplateConfig.groupNames,
+    ]
+    return targetNames.map(name => {
+      const group = groups.find(item => item.name === name)
+      return {
+        name,
+        ruleSets: group ? effectiveSets.filter(set => set.targetGroupId === group.id).map(set => set.name) : [],
+      }
+    }).filter(row => row.ruleSets.length > 0)
+  }, [activeTemplateConfig, groups, ruleSets])
   const openCreate = () => {
     const nextForm = createEmptyForm(visibleGroups.length)
     setEditingGroup(null)
@@ -235,7 +256,22 @@ export function Groups() {
       applySettings(updated)
       setActiveTemplate(updated.routingPolicyTemplate)
       setOutletPreferences(updated.routingOutletPreferences ?? {})
-      await fetchGroups()
+      await Promise.all([fetchGroups(), api.remoteRuleSets.list().then(setRuleSets)])
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  const handleUnmatchedTrafficPolicyChange = async (policy: UnmatchedTrafficPolicy) => {
+    setSavingTemplate(true)
+    setActionError(null)
+    try {
+      const updated = await api.settings.update({ unmatchedTrafficPolicy: policy })
+      applySettings(updated)
+      setUnmatchedTrafficPolicy(updated.unmatchedTrafficPolicy)
+      await Promise.all([fetchGroups(), api.remoteRuleSets.list().then(setRuleSets)])
     } catch (error) {
       setActionError(error)
     } finally {
@@ -324,12 +360,41 @@ export function Groups() {
       <section className={styles.templatePanel}>
         <div className={styles.templateHeader}>
           <div>
+            <div className={styles.templateTitle}>{t('groups.base_policy_title')}</div>
+            <div className={styles.templateMeta}>{t('groups.base_policy_meta')}</div>
+          </div>
+        </div>
+        <div className={styles.basePolicyGrid}>
+          {(['proxy', 'direct'] as const).map(policy => (
+            <button
+              key={policy}
+              type="button"
+              className={`${styles.templateItem} ${unmatchedTrafficPolicy === policy ? styles.templateItemActive : ''}`}
+              aria-pressed={unmatchedTrafficPolicy === policy}
+              onClick={() => void handleUnmatchedTrafficPolicyChange(policy)}
+              disabled={savingTemplate}
+            >
+              <div className={styles.templateItemTop}>
+                <span className={styles.templateName}>{t(`groups.base_policy_${policy}_name`)}</span>
+                {unmatchedTrafficPolicy === policy && <Badge variant="success">{t('common.current')}</Badge>}
+              </div>
+              <div className={styles.templateDesc}>{t(`groups.base_policy_${policy}_desc`)}</div>
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className={styles.templatePanel}>
+        <div className={styles.templateHeader}>
+          <div>
             <div className={styles.templateTitle}>{t('groups.template_title')}</div>
             <div className={styles.templateMeta}>{t('groups.template_meta')}</div>
           </div>
           <Button
             variant="secondary"
-            onClick={() => void fetchGroups()}
+            onClick={() => void Promise.all([
+              fetchGroups(),
+              api.remoteRuleSets.list().then(setRuleSets),
+            ]).catch(setActionError)}
             loading={loading}
             disabled={savingTemplate || savingPreferenceId !== null || reordering}
           >
@@ -382,6 +447,27 @@ export function Groups() {
               </Badge>
             ))
           )}
+        </div>
+      </section>
+      <section className={styles.effectivePanel}>
+        <div>
+          <div className={styles.templateTitle}>{t('groups.effective_policy_title')}</div>
+          <div className={styles.templateMeta}>{t('groups.effective_policy_meta')}</div>
+        </div>
+        <div className={styles.effectiveRows}>
+          {effectivePolicyRows.map(row => (
+            <details key={row.name} className={styles.effectiveRow}>
+              <summary>
+                <strong>{row.name}</strong>
+                <span>{t('groups.effective_rule_set_count', { count: row.ruleSets.length })}</span>
+              </summary>
+              <div className={styles.effectiveRuleSets}>{row.ruleSets.join(' / ')}</div>
+            </details>
+          ))}
+          <div className={styles.effectiveRowStatic}>
+            <strong>{t('groups.unmatched_traffic')}</strong>
+            <span>→ {unmatchedTrafficPolicy === 'proxy' ? 'PROXY' : 'DIRECT'}</span>
+          </div>
         </div>
       </section>
       {foundationSections.length > 0 && (

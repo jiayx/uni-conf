@@ -65,15 +65,6 @@ const groupRows = [
     is_builtin: 1,
   },
   {
-    id: 'builtin-final',
-    name: '漏网之鱼',
-    type: 'select',
-    collection_ids: '[]',
-    group_ids: '["builtin-proxy"]',
-    enabled: 1,
-    is_builtin: 1,
-  },
-  {
     id: 'builtin-direct',
     name: 'DIRECT',
     type: 'direct',
@@ -241,7 +232,7 @@ describe('routing policy group sync', () => {
   });
 
   it.each([
-    ['minimal', ['PROXY', 'DIRECT', 'REJECT', '全部节点', '节点选择', '自动选择', '故障切换', '漏网之鱼']],
+    ['minimal', ['PROXY', 'DIRECT', 'REJECT', '全部节点', '节点选择', '自动选择', '故障切换']],
     [
       'common',
       [
@@ -260,7 +251,6 @@ describe('routing policy group sync', () => {
         'GOOGLE',
         'APPLE',
         'MICROSOFT',
-        '漏网之鱼',
       ],
     ],
     [
@@ -279,7 +269,6 @@ describe('routing policy group sync', () => {
         'DEVELOPER',
         'APPLE',
         'MICROSOFT',
-        '漏网之鱼',
       ],
     ],
     [
@@ -297,7 +286,6 @@ describe('routing policy group sync', () => {
         'SOCIAL',
         'APPLE',
         'MICROSOFT',
-        '漏网之鱼',
       ],
     ],
     [
@@ -316,7 +304,6 @@ describe('routing policy group sync', () => {
         'GOOGLE',
         'APPLE',
         'MICROSOFT',
-        '漏网之鱼',
       ],
     ],
     [
@@ -337,7 +324,6 @@ describe('routing policy group sync', () => {
         'GOOGLE',
         'APPLE',
         'MICROSOFT',
-        '漏网之鱼',
         'CRYPTO',
         'GAMING',
         'DEVELOPER',
@@ -382,7 +368,6 @@ describe('routing policy group sync', () => {
       '节点选择',
       '自动选择',
       '故障切换',
-      '漏网之鱼',
       'AI',
       'STREAMING',
       'TELEGRAM',
@@ -422,7 +407,6 @@ describe('routing policy group sync', () => {
       'builtin-streaming',
       'builtin-github',
       'builtin-telegram',
-      'builtin-final',
       'custom-downloads',
     ]);
   });
@@ -435,7 +419,6 @@ describe('routing policy group sync', () => {
       'builtin-streaming',
       'builtin-github',
       'builtin-telegram',
-      'builtin-final',
       'custom-downloads',
     ];
 
@@ -453,9 +436,6 @@ describe('routing policy group sync', () => {
     );
     expect(rows.find((row) => row.id === 'builtin-telegram')?.group_ids).toBe(
       '["sg-auto","hk-auto","jp-auto","us-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","streaming-auto","native-auto"]'
-    );
-    expect(rows.find((row) => row.id === 'builtin-final')?.group_ids).toBe(
-      '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
     );
     expect(rows.find((row) => row.id === 'custom-downloads')?.group_ids).toBe(
       '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'

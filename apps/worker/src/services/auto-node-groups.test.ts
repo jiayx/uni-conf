@@ -197,6 +197,7 @@ function makeSettings(patch: Partial<AppSettings>): AppSettings {
   return {
     language: 'zh',
     theme: 'system',
+    unmatchedTrafficPolicy: 'proxy',
     routingPolicyTemplate: 'common',
     dnsMode: 'smart',
     exportNodeNamingMode: 'smart',

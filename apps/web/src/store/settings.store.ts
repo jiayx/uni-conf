@@ -24,6 +24,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       language: 'zh',
       theme: 'system',
+      unmatchedTrafficPolicy: 'proxy',
       routingPolicyTemplate: 'common',
       dnsMode: 'smart',
       exportNodeNamingMode: 'smart',

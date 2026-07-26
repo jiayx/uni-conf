@@ -43,6 +43,22 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'steam')?.sortOrder).toBe(110);
   });
 
+  it('activates only the base rule family required by the unmatched traffic policy', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({ existingPresets: [], inserted });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z', 'direct');
+
+    expect(inserted.find((item) => item.presetId === 'cn')).toMatchObject({
+      enabled: 0,
+      notes: expect.stringContaining(SYSTEM_DISABLED_NOTE),
+    });
+    expect(inserted.find((item) => item.presetId === 'proxy')).toMatchObject({ enabled: 1 });
+    expect(inserted.find((item) => item.presetId === 'gfw')).toMatchObject({ enabled: 1 });
+    expect(inserted.find((item) => item.presetId === 'private')).toMatchObject({ enabled: 1 });
+    expect(inserted.find((item) => item.presetId === 'adrules')).toMatchObject({ enabled: 1 });
+  });
+
   it('keeps managed rule set sort order aligned with the default routing pipeline', () => {
     const orderedPresetIds = [
       'private',
@@ -95,8 +111,11 @@ describe('default remote rule sets', () => {
         format: 'mihomo',
         behavior: resolveQuixoticRuleSetBehavior(preset.id),
         target_group_id: expectedTargetGroupId(preset.id),
-        enabled: 1,
+        enabled: ['gfw', 'proxy', 'tld-proxy'].includes(preset.id) ? 0 : 1,
         sort_order: resolveQuixoticRuleSetSortOrder(preset.id),
+        notes: ['gfw', 'proxy', 'tld-proxy'].includes(preset.id)
+          ? `QuixoticHeart/rule-set:${preset.id} ${preset.description}\n${SYSTEM_DISABLED_NOTE}`
+          : `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
       })).concat({
         id: 'preset-telegram',
         preset_source: 'uni-conf',
@@ -107,6 +126,7 @@ describe('default remote rule sets', () => {
         target_group_id: 'builtin-telegram',
         enabled: 1,
         sort_order: 50,
+        notes: 'UniConf built-in: MetaCubeX/meta-rules-dat geosite telegram domain list',
       }),
       inserted,
     });
@@ -563,7 +583,6 @@ function listGroups() {
     { id: 'builtin-crypto', name: 'Crypto', enabled: 1 },
     { id: 'builtin-gaming', name: 'Gaming', enabled: 1 },
     { id: 'builtin-developer', name: 'Developer', enabled: 1 },
-    { id: 'builtin-final', name: '漏网之鱼', enabled: 1 },
     { id: 'builtin-direct', name: 'DIRECT', enabled: 1 },
     { id: 'builtin-reject', name: 'REJECT', enabled: 1 },
   ];
@@ -585,7 +604,6 @@ function expectedTargetGroupId(presetId: string): string {
     Crypto: 'builtin-crypto',
     Gaming: 'builtin-gaming',
     Developer: 'builtin-developer',
-    '漏网之鱼': 'builtin-final',
     DIRECT: 'builtin-direct',
     REJECT: 'builtin-reject',
   };

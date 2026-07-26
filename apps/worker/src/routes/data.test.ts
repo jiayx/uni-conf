@@ -486,6 +486,7 @@ function appSettingsRow(): Record<string, unknown> {
     id: 'singleton',
     language: 'zh',
     theme: 'system',
+    unmatched_traffic_policy: 'proxy',
     routing_policy_template: 'common',
     routing_outlet_preferences: null,
     dns_mode: 'smart',

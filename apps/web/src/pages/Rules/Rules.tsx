@@ -246,7 +246,7 @@ export function Rules() {
       notes: form.notes?.trim() ?? '',
     }
 
-    if (payload.type !== 'MATCH' && !payload.payload) {
+    if (!payload.payload) {
       setFormError(t('rules.payload_required'))
       return
     }
@@ -558,7 +558,6 @@ export function Rules() {
           <select id="manual-rule-type" className={styles.select} value={form.type} onChange={e => setForm(current => ({
             ...current,
             type: e.target.value as RuleType,
-            payload: e.target.value === 'MATCH' ? '' : current.payload,
           }))}>
             {MANUAL_RULE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
           </select>
@@ -567,8 +566,7 @@ export function Rules() {
           label={t('rules.payload')}
           value={form.payload}
           onChange={e => setFormValue('payload', e.target.value, setForm)}
-          placeholder={form.type === 'MATCH' ? 'MATCH' : t('rules.payload_placeholder')}
-          disabled={form.type === 'MATCH'}
+          placeholder={t('rules.payload_placeholder')}
         />
         <div>
           <label className={styles.label} htmlFor="manual-rule-target">{t('rules.target')}</label>
@@ -730,7 +728,7 @@ function RuleCompatibilityPreview({
     })
   }, [noResolve, payload, type])
 
-  if (!preview || (type !== 'MATCH' && !payload.trim())) return null
+  if (!preview || !payload.trim()) return null
 
   return (
     <details className={styles.compatibilityPreview}>
@@ -742,7 +740,7 @@ function RuleCompatibilityPreview({
         {preview.map(item => {
           const source = formatRuleExpression(
             type,
-            type === 'MATCH' ? '' : payload.trim(),
+            payload.trim(),
             noResolve,
           )
           const target = item.resolution.level === 'unsupported'

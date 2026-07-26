@@ -200,6 +200,9 @@ CREATE TABLE IF NOT EXISTS app_settings (
   id TEXT PRIMARY KEY DEFAULT 'singleton',
   language TEXT NOT NULL DEFAULT 'zh',
   theme TEXT NOT NULL DEFAULT 'system',
+  unmatched_traffic_policy TEXT NOT NULL DEFAULT 'proxy' CHECK (
+    unmatched_traffic_policy IN ('proxy', 'direct')
+  ),
   routing_policy_template TEXT NOT NULL DEFAULT 'common',
   routing_outlet_preferences TEXT,
   dns_mode TEXT NOT NULL DEFAULT 'smart',
@@ -250,7 +253,6 @@ INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtin
   ('builtin-google',    'Google',    'select',   '[]', '[]', '[]', 1, 6,  1, datetime('now'), datetime('now')),
   ('builtin-apple',     'Apple',     'select',   '[]', '[]', '[]', 1, 7,  1, datetime('now'), datetime('now')),
   ('builtin-microsoft', 'Microsoft', 'select',   '[]', '[]', '[]', 1, 8,  1, datetime('now'), datetime('now')),
-  ('builtin-final',     '漏网之鱼',   'select',   '[]', '[]', '[]', 1, 9,  1, datetime('now'), datetime('now')),
   ('builtin-crypto',    'Crypto',    'select',   '[]', '[]', '[]', 0, 10, 1, datetime('now'), datetime('now')),
   ('builtin-gaming',    'Gaming',    'select',   '[]', '[]', '[]', 0, 11, 1, datetime('now'), datetime('now')),
   ('builtin-developer', 'Developer', 'select',   '[]', '[]', '[]', 0, 12, 1, datetime('now'), datetime('now')),

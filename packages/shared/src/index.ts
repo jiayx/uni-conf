@@ -9,6 +9,7 @@ import type {
   RuleSetFormat as ModelRuleSetFormat,
   RuleType,
   SourceFormat,
+  UnmatchedTrafficPolicy,
 } from '@uni-conf/types';
 
 export interface CountryInfo {
@@ -1603,7 +1604,6 @@ export type InferredRuleSetTargetGroup =
   | 'Crypto'
   | 'Gaming'
   | 'Developer'
-  | '漏网之鱼'
   | 'DIRECT'
   | 'REJECT';
 
@@ -1681,38 +1681,38 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
   {
     id: 'minimal',
     name: '极简模式',
-    description: '适合新手，只启用代理兜底和基础出口，国内直连、广告拦截由预置规则直接命中。',
-    groupNames: ['漏网之鱼'],
+    description: '适合新手，只保留基础出口；未匹配流量由上方基础分流方式决定。',
+    groupNames: [],
   },
   {
     id: 'common',
     name: '默认智能组合',
-    description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Google、Apple、Microsoft 和兜底分流。',
-    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼'],
+    description: '适合大多数用户，为 AI、流媒体、Telegram、社交、GitHub、Google、Apple 和 Microsoft 提供独立分流。',
+    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft'],
   },
   {
     id: 'ai',
     name: 'AI 优先模式',
     description: '优先启用 AI、开发和代码服务分流，适合主要使用 OpenAI、Claude、Gemini、Cursor 或 Copilot 的场景。',
-    groupNames: ['AI', 'GitHub', 'Google', 'Developer', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['AI', 'GitHub', 'Google', 'Developer', 'Apple', 'Microsoft'],
   },
   {
     id: 'streaming',
     name: '流媒体模式',
     description: '优先启用流媒体、社交和 Telegram 分流，适合 Netflix、YouTube、Disney+ 等服务。',
-    groupNames: ['Streaming', 'Telegram', 'Social', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['Streaming', 'Telegram', 'Social', 'Apple', 'Microsoft'],
   },
   {
     id: 'router',
     name: '路由器模式',
     description: '适合 OpenClash、软路由和网关场景，保留常用分流并避免过多业务组。',
-    groupNames: ['Streaming', 'Telegram', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼'],
+    groupNames: ['Streaming', 'Telegram', 'GitHub', 'Google', 'Apple', 'Microsoft'],
   },
   {
     id: 'extended',
     name: '扩展组合',
     description: '在常用组合基础上增加加密货币、游戏和开发服务。',
-    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
+    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', 'Crypto', 'Gaming', 'Developer'],
   },
 ];
 
@@ -1798,6 +1798,33 @@ const PROXY_PRESET_IDS = new Set([
   'iplocation-proxy',
   'talkatone',
 ]);
+
+const DIRECT_WHITELIST_PRESET_IDS = new Set([
+  'apns',
+  'apple-cn',
+  'bilibili',
+  'cdn',
+  'cn',
+  'cncidr',
+  'cncidr-resolve',
+  'dmca',
+  'douyin',
+  'fake-ip-filter',
+  'games-cn',
+  'iplocation-direct',
+  'microsoft-cn',
+  'socialmedia-cn',
+]);
+
+const PROXY_LIST_PRESET_IDS = new Set(['gfw', 'proxy', 'tld-proxy']);
+
+export function isManagedRuleSetActiveForUnmatchedPolicy(
+  presetId: string,
+  policy: UnmatchedTrafficPolicy
+): boolean {
+  if (policy === 'proxy') return !PROXY_LIST_PRESET_IDS.has(presetId);
+  return !DIRECT_WHITELIST_PRESET_IDS.has(presetId);
+}
 
 const CRYPTO_PRESET_IDS = new Set(['crypto']);
 const GITHUB_PRESET_IDS = new Set(['gits']);

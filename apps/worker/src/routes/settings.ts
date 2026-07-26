@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings, AppSettingsPatch, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
+import type { AppSettings, AppSettingsPatch, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
+import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { DNS_MODE_PRESETS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -30,10 +31,13 @@ app.put('/', async (c) => {
   if (autoGroupsChanged) await syncAutoNodeGroups(c.env.DB, ts)
   if (
     autoGroupsChanged
+    || body.unmatchedTrafficPolicy !== undefined
     || body.routingPolicyTemplate !== undefined
     || body.routingOutletPreferences !== undefined
   ) {
     await syncRoutingPolicyGroups(c.env.DB, ts)
+    const effectiveSettings = await getSettings(c.env.DB)
+    await ensureDefaultRemoteRuleSets(c.env.DB, ts, effectiveSettings.unmatchedTrafficPolicy)
   }
 
   const settings = await getSettings(c.env.DB)
@@ -46,6 +50,7 @@ async function getSettings(db: D1Database): Promise<AppSettings> {
 
 const LANGUAGES: ReadonlySet<Language> = new Set(['zh', 'en'])
 const THEMES: ReadonlySet<ThemePreference> = new Set(['system', 'light', 'dark'])
+const UNMATCHED_TRAFFIC_POLICIES: ReadonlySet<UnmatchedTrafficPolicy> = new Set(['proxy', 'direct'])
 const ROUTING_POLICY_TEMPLATE_IDS: ReadonlySet<RoutingPolicyTemplateId> = new Set(
   ROUTING_POLICY_TEMPLATES.map((template) => template.id as RoutingPolicyTemplateId)
 )
@@ -60,6 +65,7 @@ const RULE_SET_CONVERSION_POLICIES: ReadonlySet<RuleSetConversionPolicy> = new S
 const SETTINGS_PATCH_KEYS: ReadonlySet<string> = new Set([
   'language',
   'theme',
+  'unmatchedTrafficPolicy',
   'routingPolicyTemplate',
   'routingOutletPreferences',
   'dnsMode',
@@ -92,6 +98,7 @@ export function buildSettingsUpdate(body: AppSettingsPatch, ts: string): Setting
 
   if (body.language !== undefined) set('language', body.language)
   if (body.theme !== undefined) set('theme', body.theme)
+  if (body.unmatchedTrafficPolicy !== undefined) set('unmatched_traffic_policy', body.unmatchedTrafficPolicy)
 
   if (body.routingPolicyTemplate !== undefined) set('routing_policy_template', body.routingPolicyTemplate)
 
@@ -146,6 +153,9 @@ export function validateSettingsPatch(value: unknown): string | null {
 
   if (body.language !== undefined && !LANGUAGES.has(body.language)) return 'invalid language'
   if (body.theme !== undefined && !THEMES.has(body.theme)) return 'invalid theme'
+  if (body.unmatchedTrafficPolicy !== undefined && !UNMATCHED_TRAFFIC_POLICIES.has(body.unmatchedTrafficPolicy)) {
+    return 'invalid unmatched traffic policy'
+  }
   if (body.routingPolicyTemplate !== undefined && !ROUTING_POLICY_TEMPLATE_IDS.has(body.routingPolicyTemplate)) {
     return 'invalid routing policy template'
   }

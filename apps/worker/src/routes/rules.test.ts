@@ -16,24 +16,17 @@ vi.mock('../services/zero-setup', () => ({
 describe('rules route helpers', () => {
   it('validates rule types from the shared compatibility map', () => {
     expect(isValidRuleType('DOMAIN-SUFFIX')).toBe(true)
-    expect(isValidRuleType('MATCH')).toBe(true)
     expect(isValidRuleType('DOMAIN_SET')).toBe(false)
     expect(isValidRuleType('')).toBe(false)
   })
 
-  it('requires payload except for MATCH rules', () => {
+  it('requires a valid payload', () => {
     expect(validateRuleInput({
       type: 'DOMAIN-SUFFIX',
       payload: 'example.com',
       targetGroupId: 'builtin-proxy',
       noResolve: false,
       enabled: false,
-    })).toBeNull()
-
-    expect(validateRuleInput({
-      type: 'MATCH',
-      payload: '',
-      targetGroupId: 'builtin-proxy',
     })).toBeNull()
 
     expect(validateRuleInput({
@@ -82,9 +75,9 @@ describe('rules route helpers', () => {
   })
 
   it('bounds batch creation input before touching the database', () => {
-    expect(validateRuleBatchCreateInput({ rules: [{ type: 'MATCH', payload: '' }] })).toEqual({
+    expect(validateRuleBatchCreateInput({ rules: [{ type: 'DOMAIN', payload: 'example.com' }] })).toEqual({
       valid: true,
-      rules: [{ type: 'MATCH', payload: '' }],
+      rules: [{ type: 'DOMAIN', payload: 'example.com' }],
     })
     expect(validateRuleBatchCreateInput({ rules: [] })).toEqual({
       valid: false,
@@ -232,7 +225,7 @@ describe('rules route helpers', () => {
       body: JSON.stringify({
         rules: [
           { type: 'DOMAIN-SUFFIX', payload: 'one.example', targetGroupId: 'builtin-proxy' },
-          { type: 'MATCH', payload: '', targetGroupId: 'builtin-direct' },
+          { type: 'DOMAIN', payload: 'two.example', targetGroupId: 'builtin-direct' },
           { type: 'PORT', payload: '8000:9000', targetGroupId: 'builtin-proxy' },
         ],
       }),
@@ -244,7 +237,7 @@ describe('rules route helpers', () => {
     expect(response.status).toBe(201)
     expect(payload.data).toEqual([
       expect.objectContaining({ type: 'DOMAIN-SUFFIX', payload: 'one.example', order: 8, targetGroupId: 'builtin-proxy' }),
-      expect.objectContaining({ type: 'MATCH', payload: '', order: 9, targetGroupId: 'builtin-direct' }),
+      expect.objectContaining({ type: 'DOMAIN', payload: 'two.example', order: 9, targetGroupId: 'builtin-direct' }),
       expect.objectContaining({ type: 'PORT', payload: '8000-9000', order: 10, targetGroupId: 'builtin-proxy' }),
     ])
     expect(db.__batch).toHaveBeenCalledOnce()

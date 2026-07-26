@@ -445,8 +445,7 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string | null {
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string | undefined {
-  const group = groups.find((item) => item.name === '漏网之鱼')
-    ?? groups.find((item) => item.name === 'PROXY')
+  const group = groups.find((item) => item.name === 'PROXY')
     ?? groups[0];
   return group ? resolveMihomoPolicyName(group) : undefined;
 }

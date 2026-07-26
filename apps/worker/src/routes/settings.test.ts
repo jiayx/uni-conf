@@ -14,6 +14,7 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({
       language: 'zh',
       theme: 'system',
+      unmatchedTrafficPolicy: 'proxy',
       routingPolicyTemplate: 'common',
       routingOutletPreferences: {
         'builtin-ai': 'auto:country:US:url-test',
@@ -38,6 +39,7 @@ describe('settings route helpers', () => {
 
   it('rejects invalid enum settings', () => {
     expect(validateSettingsPatch({ language: 'fr' as never })).toBe('invalid language')
+    expect(validateSettingsPatch({ unmatchedTrafficPolicy: 'auto' as never })).toBe('invalid unmatched traffic policy')
     expect(validateSettingsPatch({ routingPolicyTemplate: 'custom' as never })).toBe('invalid routing policy template')
     expect(validateSettingsPatch({ routingOutletPreferences: [] as never })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': '' } })).toBe('invalid routing outlet preferences')
@@ -90,6 +92,16 @@ describe('settings route helpers', () => {
     expect(update.sql).toContain('routing_policy_template = ?')
     expect(update.sql).not.toContain('language = ?')
     expect(update.values).toEqual(['router', '2026-07-24T00:00:00.000Z'])
+  })
+
+  it('updates the unmatched traffic policy independently', () => {
+    const update = buildSettingsUpdate(
+      { unmatchedTrafficPolicy: 'direct' },
+      '2026-07-24T00:00:00.000Z',
+    )
+
+    expect(update.sql).toContain('unmatched_traffic_policy = ?')
+    expect(update.values).toEqual(['direct', '2026-07-24T00:00:00.000Z'])
   })
 
   it('updates routing and DNS together only when both are explicitly provided', () => {

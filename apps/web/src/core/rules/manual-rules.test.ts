@@ -34,14 +34,11 @@ describe('manual rule parsing', () => {
     }))
   })
 
-  it('handles MATCH and ignores invalid or incomplete rules', () => {
+  it('ignores invalid or incomplete rules', () => {
     expect(parseManualRules(`
-      MATCH,PROXY
       UNKNOWN,example.com,PROXY
       DOMAIN-SUFFIX
-    `, 'builtin-direct', groups, 0)).toEqual([
-      expect.objectContaining({ type: 'MATCH', payload: '', targetGroupId: 'builtin-proxy' }),
-    ])
+    `, 'builtin-direct', groups, 0)).toEqual([])
   })
 
   it('reports exact invalid source line numbers for all-or-nothing batch import', () => {
@@ -51,7 +48,7 @@ describe('manual rule parsing', () => {
       UNKNOWN,invalid.example,PROXY
 
       DOMAIN-SUFFIX
-      MATCH,DIRECT
+      DOMAIN,api.example.com,DIRECT
     `, 'builtin-proxy', groups, 20)).toEqual({
       candidateCount: 4,
       invalidLineNumbers: [4, 6],
@@ -61,7 +58,7 @@ describe('manual rule parsing', () => {
       ],
       rules: [
         expect.objectContaining({ payload: 'example.com', order: 20 }),
-        expect.objectContaining({ type: 'MATCH', targetGroupId: 'builtin-direct', order: 23 }),
+        expect.objectContaining({ type: 'DOMAIN', targetGroupId: 'builtin-direct', order: 23 }),
       ],
     })
   })

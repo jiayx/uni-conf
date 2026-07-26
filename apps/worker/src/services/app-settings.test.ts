@@ -11,6 +11,7 @@ import {
   normalizeRoutingPolicyTemplate,
   normalizeRuleSetConversionPolicy,
   normalizeTheme,
+  normalizeUnmatchedTrafficPolicy,
 } from './app-settings'
 
 describe('app settings normalization', () => {
@@ -30,6 +31,8 @@ describe('app settings normalization', () => {
     expect(normalizeLanguage('en')).toBe('en')
     expect(normalizeTheme('sepia')).toBe('system')
     expect(normalizeTheme('dark')).toBe('dark')
+    expect(normalizeUnmatchedTrafficPolicy('unknown')).toBe('proxy')
+    expect(normalizeUnmatchedTrafficPolicy('direct')).toBe('direct')
     expect(normalizeDnsMode('unknown')).toBe('smart')
     expect(normalizeRoutingPolicyTemplate('unknown')).toBe('common')
     expect(normalizeRoutingPolicyTemplate('router')).toBe('router')

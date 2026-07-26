@@ -54,7 +54,6 @@ const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-google', name: 'Google', type: 'select', sortOrder: 6, builtins: [], collectionIds: [] },
   { id: 'builtin-apple', name: 'Apple', type: 'select', sortOrder: 7, builtins: [], collectionIds: [] },
   { id: 'builtin-microsoft', name: 'Microsoft', type: 'select', sortOrder: 8, builtins: [], collectionIds: [] },
-  { id: 'builtin-final', name: '漏网之鱼', type: 'select', sortOrder: 9, builtins: [], collectionIds: [] },
   { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 10, builtins: [], collectionIds: [] },
   { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 11, builtins: [], collectionIds: [] },
   { id: 'builtin-developer', name: 'Developer', type: 'select', sortOrder: 12, builtins: [], collectionIds: [] },

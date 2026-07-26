@@ -6,6 +6,7 @@ import { getAppSettings } from './services/app-settings';
 vi.mock('./services/app-settings', () => ({
   getAppSettings: vi.fn(async () => ({
     exportNodeNamingMode: 'source_region_sequence',
+    unmatchedTrafficPolicy: 'proxy',
   })),
 }));
 
@@ -72,7 +73,23 @@ describe('buildExportData', () => {
     expect(data.rules.map((rule) => [rule.type, rule.payload, rule.targetGroupId])).toEqual([
       ['DOMAIN-SUFFIX', 'lan.example', 'builtin-direct'],
       ['DOMAIN-SUFFIX', 'ads.example', 'builtin-reject'],
+      ['MATCH', '', 'builtin-proxy'],
     ]);
+  });
+
+  it('makes the unmatched traffic setting authoritative over stored MATCH rules', async () => {
+    vi.mocked(getAppSettings).mockResolvedValueOnce({
+      exportNodeNamingMode: 'source_region_sequence',
+      unmatchedTrafficPolicy: 'direct',
+    } as Awaited<ReturnType<typeof getAppSettings>>);
+    const db = createScopedDb();
+
+    const data = await buildExportData(db);
+
+    expect(data.rules.at(-1)).toMatchObject({
+      type: 'MATCH',
+      targetGroupId: 'builtin-direct',
+    });
   });
 });
 

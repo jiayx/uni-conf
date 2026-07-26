@@ -20,7 +20,7 @@ const hooks = vi.hoisted(() => {
   nodes: { nodes: [], loading: false, error: null, fetchNodes: fn(), addNode: fn(), updateNode: fn(), setNodesEnabled: fn(), deleteNode: fn() },
   rules: { rules: [], loading: false, error: null, fetchRules: fn(), addRule: fn(), updateRule: fn(), setRulesEnabled: fn(), deleteRule: fn(), reorderRules: fn(), batchAddRules: fn() },
   sources: { sources: [], loading: false, error: null, refreshResults: {}, refreshErrors: {}, fetchSources: fn(), addSource: fn(), importSource: fn(), updateSource: fn(), deleteSource: fn(), refreshSource: fn() },
-  settings: { language: 'en', theme: 'system', routingPolicyTemplate: 'common', dnsMode: 'smart', exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible', enableAutoRefresh: true, autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'], autoNodeGroupIncludeFlag: true, applySettings: vi.fn() },
+  settings: { language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyTemplate: 'common', dnsMode: 'smart', exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible', enableAutoRefresh: true, autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'], autoNodeGroupIncludeFlag: true, applySettings: vi.fn() },
   })
 })
 
@@ -64,10 +64,10 @@ describe('main page smoke rendering', () => {
     ['Export', Export, 'Config Export'],
     ['Preview', Preview, 'Config Preview'],
     ['Collections', Collections, 'Node Groups'],
-    ['Groups', Groups, 'Policy Templates'],
+    ['Groups', Groups, 'Routing Plan'],
     ['Nodes', Nodes, 'Node List'],
     ['Rules', Rules, 'Manual Traffic Rules'],
-    ['Remote rule sets', RemoteRuleSets, 'Routing Policies'],
+    ['Remote rule sets', RemoteRuleSets, 'Rule Set Management'],
   ] as const) {
     it(`renders ${name} without existing data`, async () => {
       render(<MemoryRouter><Component /></MemoryRouter>)

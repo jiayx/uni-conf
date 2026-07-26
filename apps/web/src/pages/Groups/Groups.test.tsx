@@ -31,7 +31,7 @@ const groups: ProxyGroup[] = [
 ]
 
 const settings: AppSettings = {
-  language: 'en', theme: 'system', routingPolicyTemplate: 'common', dnsMode: 'smart',
+      language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyTemplate: 'common', dnsMode: 'smart',
   exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true,
   ruleSetConversionPolicy: 'compatible',
   autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],
@@ -54,6 +54,24 @@ vi.mock('@/lib/api', async () => {
         ...actual.api.settings,
         get: vi.fn(async () => settings),
         update: vi.fn(async () => settings),
+      },
+      remoteRuleSets: {
+        ...actual.api.remoteRuleSets,
+        list: vi.fn(async () => [{
+          id: 'proxy-list',
+          name: 'Proxy List',
+          url: 'https://example.com/proxy.list',
+          format: 'text' as const,
+          behavior: 'domain' as const,
+          sourceOverrides: {},
+          targetGroupId: RULE_TARGET_FOUNDATION_GROUP_IDS[0]!,
+          updateInterval: 24,
+          enabled: true,
+          sortOrder: 1,
+          compatibility: [],
+          createdAt: '',
+          updatedAt: '',
+        }]),
       },
     },
   }
@@ -80,6 +98,12 @@ describe('Groups information hierarchy', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByLabelText('Default outlet for AI')).toBeInTheDocument()
     expect(document.querySelector('[aria-pressed="true"]')).toBeInTheDocument()
+  })
+
+  it('shows rule sets targeting the base PROXY policy in the effective summary', async () => {
+    render(<MemoryRouter><Groups /></MemoryRouter>)
+
+    expect((await screen.findByText('1 rule sets')).closest('summary')).toHaveTextContent('PROXY')
   })
 
   it('keeps the edit dialog open and shows the write error when saving fails', async () => {

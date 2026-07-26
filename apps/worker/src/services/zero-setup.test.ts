@@ -20,6 +20,9 @@ vi.mock('./default-export-config', () => ({
 vi.mock('./default-rule-sets', () => ({
   ensureDefaultRemoteRuleSets: vi.fn(async () => undefined),
 }));
+vi.mock('./app-settings', () => ({
+  getAppSettings: vi.fn(async () => ({ unmatchedTrafficPolicy: 'proxy' })),
+}));
 
 vi.mock('./routing-policy-groups', () => ({
   syncRoutingPolicyGroups: vi.fn(async () => undefined),
@@ -34,7 +37,7 @@ describe('zero setup defaults', () => {
     expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
     expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
     expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'proxy');
     expect(vi.mocked(syncRoutingPolicyGroups).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(ensureDefaultRemoteRuleSets).mock.invocationCallOrder[0] ?? 0
     );

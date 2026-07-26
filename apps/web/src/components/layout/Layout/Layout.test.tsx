@@ -17,8 +17,8 @@ describe('application layout navigation', () => {
 
     expect(screen.getByText('Dashboard page')).toBeInTheDocument()
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'Dashboard', 'Sources', 'Nodes', 'Node Groups', 'Policy Templates',
-      'Manual Rules', 'Routing Policies', 'Export', 'Settings',
+      'Dashboard', 'Sources', 'Nodes', 'Node Groups', 'Routing Plan',
+      'Manual Rules', 'Rule Set Management', 'Export', 'Settings',
     ])
   })
 

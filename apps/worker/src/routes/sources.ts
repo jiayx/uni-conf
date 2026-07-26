@@ -1589,7 +1589,7 @@ interface StructuredImportExecution {
 const STRUCTURED_RULE_TYPES = new Set<RuleType>([
   'DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX', 'IP-CIDR', 'IP-CIDR6',
   'IP-ASN', 'GEOIP', 'GEOSITE', 'PROCESS-NAME', 'PROCESS-PATH', 'PORT', 'SRC-PORT',
-  'SRC-IP-CIDR', 'PROTOCOL', 'NETWORK', 'IN-TYPE', 'SCRIPT', 'MATCH',
+  'SRC-IP-CIDR', 'PROTOCOL', 'NETWORK', 'IN-TYPE', 'SCRIPT',
 ]);
 
 const CLIENT_SETTING_KEYS = [
@@ -1630,8 +1630,8 @@ export function parseStructuredSourceContent(rawContent: string, format: SourceF
     const type = normalizedType as RuleType;
     const targetIndex = parts.at(-1)?.toLowerCase() === 'no-resolve' ? parts.length - 2 : parts.length - 1;
     const target = parts[targetIndex];
-    const payload = type === 'MATCH' ? '' : parts.slice(1, targetIndex).join(',');
-    if (!target || (type !== 'MATCH' && !payload)) { skippedRules++; continue; }
+    const payload = parts.slice(1, targetIndex).join(',');
+    if (!target || !payload) { skippedRules++; continue; }
     rules.push({ type, payload, target, noResolve: parts.at(-1)?.toLowerCase() === 'no-resolve' });
   }
 

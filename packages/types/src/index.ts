@@ -417,6 +417,7 @@ export interface ExportConfig {
 
 export type Language = 'zh' | 'en';
 export type ThemePreference = 'system' | 'light' | 'dark';
+export type UnmatchedTrafficPolicy = 'proxy' | 'direct';
 export type RoutingPolicyTemplateId =
   | 'empty'
   | 'minimal'
@@ -433,6 +434,7 @@ export type AutoNodeGroupType = 'select' | 'url-test' | 'fallback';
 export interface AppSettings {
   language: Language;
   theme: ThemePreference;
+  unmatchedTrafficPolicy: UnmatchedTrafficPolicy;
   routingPolicyTemplate: RoutingPolicyTemplateId;
   routingOutletPreferences?: Record<string, string>;
   dnsMode: DnsMode;

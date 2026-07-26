@@ -767,8 +767,8 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.getByRole('button', { name: 'Compatibility Preview' })).toBeInTheDocument()
     expect(screen.getByText('Proxy Domains')).toBeInTheDocument()
 
-    await user.clear(screen.getByRole('textbox', { name: 'Find routing policies' }))
-    await user.type(screen.getByRole('textbox', { name: 'Find routing policies' }), 'Netflix')
+    await user.clear(screen.getByRole('textbox', { name: 'Find rule sets' }))
+    await user.type(screen.getByRole('textbox', { name: 'Find rule sets' }), 'Netflix')
     expect(screen.getByText('Netflix')).toBeInTheDocument()
     expect(screen.queryByText('Proxy Domains')).not.toBeInTheDocument()
     expect(screen.getByText('1 matching rule sets across 1 policies')).toBeInTheDocument()

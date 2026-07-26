@@ -349,7 +349,7 @@ app.delete('/:id', async (c) => {
 export default app;
 
 const RULE_TYPES: ReadonlySet<ProxyRule['type']> = new Set(
-  Object.keys(RULE_COMPATIBILITY) as ProxyRule['type'][]
+  (Object.keys(RULE_COMPATIBILITY) as ProxyRule['type'][]).filter(type => type !== 'MATCH')
 );
 
 export function isValidRuleType(value: unknown): value is ProxyRule['type'] {

@@ -1,8 +1,9 @@
 import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
-import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types';
+import type { AppSettings, AutoNodeGroupType, DnsMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
 const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
+const UNMATCHED_TRAFFIC_POLICIES = new Set<UnmatchedTrafficPolicy>(['proxy', 'direct']);
 const DNS_MODES = new Set<DnsMode>(['compatible', 'smart', 'fake-ip']);
 const ROUTING_POLICY_TEMPLATE_IDS = new Set<AppSettings['routingPolicyTemplate']>(
   ROUTING_POLICY_TEMPLATES.map((template) => template.id as AppSettings['routingPolicyTemplate'])
@@ -28,6 +29,7 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
   return {
     language: normalizeLanguage(row.language),
     theme: normalizeTheme(row.theme),
+    unmatchedTrafficPolicy: normalizeUnmatchedTrafficPolicy(row.unmatched_traffic_policy),
     routingPolicyTemplate: normalizeRoutingPolicyTemplate(row.routing_policy_template),
     routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
     dnsMode: normalizeDnsMode(row.dns_mode),
@@ -54,6 +56,12 @@ export function normalizeLanguage(value: unknown): Language {
 
 export function normalizeTheme(value: unknown): ThemePreference {
   return typeof value === 'string' && THEMES.has(value as ThemePreference) ? value as ThemePreference : 'system';
+}
+
+export function normalizeUnmatchedTrafficPolicy(value: unknown): UnmatchedTrafficPolicy {
+  return typeof value === 'string' && UNMATCHED_TRAFFIC_POLICIES.has(value as UnmatchedTrafficPolicy)
+    ? value as UnmatchedTrafficPolicy
+    : 'proxy';
 }
 
 export function normalizeRoutingPolicyTemplate(value: unknown): AppSettings['routingPolicyTemplate'] {
