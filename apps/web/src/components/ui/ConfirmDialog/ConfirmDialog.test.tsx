@@ -35,6 +35,8 @@ describe('ConfirmDialog', () => {
     expect(dialog).toHaveAccessibleDescription('This cannot be undone.')
     expect(dialog).toHaveClass(modalStyles.noBody)
     expect(dialog.querySelector(`.${modalStyles.body}`)).not.toBeInTheDocument()
+    expect(dialog).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveClass(modalStyles.closeButton)
     expect(screen.getByText('pending')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
