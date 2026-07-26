@@ -1,12 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { Badge } from '@/components/ui/Badge/Badge'
-import { summarizeDashboardSourceCreateResults } from '@/core/sources/dashboard-source-create'
-import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { saveExportDownload } from '@/core/export/download-file'
 import { buildQuickSubscriptionLinks } from '@/core/export/quick-subscriptions'
@@ -14,18 +12,16 @@ import { deriveExportReadiness, type ExportReadiness } from '@/core/export/readi
 import { compatibilityRemediationAction } from '@/core/export/compatibility-remediation'
 import { writeClipboardText } from '@/core/clipboard/write-text'
 import {
-  deriveDashboardJourney,
-  type DashboardJourneyReadiness,
-  type DashboardJourneyStage,
-} from '@/core/dashboard/configuration-journey'
-import {
   deriveDashboardAttention,
   type DashboardAttentionItem,
 } from '@/core/dashboard/attention-center'
+import {
+  DASHBOARD_DATA_CHANGED_EVENT,
+  openSetupGuide,
+} from '@/core/onboarding/setup-guide'
 import { api } from '@/lib/api'
 import { useSettingsStore } from '@/store/settings.store'
-import { ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
-import type { CompatibilityWarning, DashboardStats, ExportArtifactValidationIssue, ExportFormat, RoutingPolicyTemplateId } from '@uni-conf/types'
+import type { CompatibilityWarning, DashboardStats, ExportArtifactValidationIssue, ExportFormat } from '@uni-conf/types'
 import styles from './Dashboard.module.css'
 
 type QuickReadinessState =
@@ -41,16 +37,11 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null)
-  const [sourceUrl, setSourceUrl] = useState('')
-  const [sourceError, setSourceError] = useState<string | null>(null)
-  const [creatingSource, setCreatingSource] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null)
   const [selectedQuickFormat, setSelectedQuickFormat] = useState<typeof QUICK_EXPORT_OPTIONS[number]['value']>('mihomo')
   const [quickReadiness, setQuickReadiness] = useState<QuickReadinessState>({ status: 'idle' })
   const [readinessVersion, setReadinessVersion] = useState(0)
-  const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
-  const [savingTemplate, setSavingTemplate] = useState(false)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
 
   const loadStats = async () => {
@@ -73,11 +64,18 @@ export function Dashboard() {
   }, [])
 
   useEffect(() => {
+    const reloadDashboard = () => {
+      void loadStats().catch(cause => setError((cause as Error).message))
+    }
+    window.addEventListener(DASHBOARD_DATA_CHANGED_EVENT, reloadDashboard)
+    return () => window.removeEventListener(DASHBOARD_DATA_CHANGED_EVENT, reloadDashboard)
+  }, [])
+
+  useEffect(() => {
     queueMicrotask(() => {
       void api.settings.get()
         .then(settings => {
           applySettings(settings)
-          setActiveTemplate(settings.routingPolicyTemplate)
           setAutoRefreshEnabled(settings.enableAutoRefresh)
         })
         .catch(e => setError((e as Error).message))
@@ -101,8 +99,7 @@ export function Dashboard() {
   ]
 
   const hasUsableNodes = (stats?.enabledNodeCount ?? 0) > 0
-  const needsSetup = !loading && !hasUsableNodes
-  const canCreateSource = parseSubscriptionUrls(sourceUrl).length > 0
+  const needsFirstSetup = !loading && stats?.sourceCount === 0 && stats.nodeCount === 0
   const quickSubscriptionLinks = buildQuickSubscriptionLinks(
     window.location.origin,
     stats?.defaultExportToken,
@@ -114,25 +111,12 @@ export function Dashboard() {
     : { status: 'loading' as const, format: selectedQuickFormat }
   const exportBlocked = selectedReadiness.status === 'ready' && selectedReadiness.readiness.status === 'blocked'
   const exportChecking = selectedReadiness.status === 'loading'
-  const journeyWarning = selectedReadiness.status === 'ready'
+  const selectedWarning = selectedReadiness.status === 'ready'
     ? selectedReadiness.blockingWarnings[0] ?? selectedReadiness.warnings[0]
     : undefined
-  const journeyRemediation = journeyWarning
-    ? compatibilityRemediationAction(journeyWarning)
+  const selectedRemediation = selectedWarning
+    ? compatibilityRemediationAction(selectedWarning)
     : null
-  const journeyReadiness: DashboardJourneyReadiness = selectedReadiness.status === 'ready'
-    ? selectedReadiness.readiness.status
-    : selectedReadiness.status === 'error'
-      ? 'unknown'
-      : 'checking'
-  const journey = stats
-    ? deriveDashboardJourney(
-        stats,
-        journeyReadiness,
-        journeyRemediation?.to,
-        `/preview?format=${selectedQuickFormat}`,
-      )
-    : []
   const attentionItems = stats
     ? deriveDashboardAttention(stats, {
         status: selectedReadiness.status === 'ready'
@@ -145,7 +129,7 @@ export function Dashboard() {
             || selectedReadiness.warnings.length
             || (selectedReadiness.issue ? 1 : 0)
           : undefined,
-        remediationTo: journeyRemediation?.to,
+        remediationTo: selectedRemediation?.to,
         previewTo: `/preview?format=${selectedQuickFormat}`,
       })
     : []
@@ -186,57 +170,6 @@ export function Dashboard() {
     }
   }
 
-  const createSourceFromDashboard = async (event: FormEvent) => {
-    event.preventDefault()
-    const urls = parseSubscriptionUrls(sourceUrl)
-    if (urls.length === 0) {
-      setSourceError(t('sources.url_required'))
-      return
-    }
-
-    setCreatingSource(true)
-    setSourceError(null)
-    try {
-      const results = await Promise.allSettled(
-        urls.map(url => api.sources.create({
-          url,
-        }))
-      )
-      const summary = summarizeDashboardSourceCreateResults(urls, results)
-
-      setSourceUrl(summary.nextInput)
-      if (summary.error?.kind === 'save-failed') {
-        setSourceError(t('sources.save_failed_count', { count: summary.error.count ?? 0, message: summary.error.message }))
-      } else if (summary.error?.kind === 'refresh-failed') {
-        setSourceError(t('dashboard.source_refresh_failed', { error: summary.error.message }))
-      }
-      await loadStats()
-    } catch (e) {
-      setSourceError((e as Error).message)
-    } finally {
-      setCreatingSource(false)
-    }
-  }
-
-  const selectTemplate = async (templateId: RoutingPolicyTemplateId) => {
-    const template = ROUTING_POLICY_TEMPLATES.find(item => item.id === templateId)
-    setSavingTemplate(true)
-    setError(null)
-    try {
-      const updated = await api.settings.update({
-        routingPolicyTemplate: templateId,
-        dnsMode: template?.recommendedDnsMode,
-      })
-      applySettings(updated)
-      setActiveTemplate(updated.routingPolicyTemplate)
-      await loadStats()
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setSavingTemplate(false)
-    }
-  }
-
   const downloadQuickExport = async (format: typeof QUICK_EXPORT_OPTIONS[number]['value']) => {
     setDownloadingFormat(format)
     setDownloadError(null)
@@ -251,109 +184,17 @@ export function Dashboard() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title={t('dashboard.title')} description={t('dashboard.description')} />
+      <PageHeader
+        title={t('dashboard.title')}
+        description={t('dashboard.description')}
+        actions={needsFirstSetup
+          ? <Button onClick={openSetupGuide}>{t('dashboard.setup_submit')}</Button>
+          : undefined}
+      />
 
       {error && <div className={styles.error}>{error}</div>}
-      {sourceError && <div id="dashboard-source-error" className={styles.inlineError} role="alert">{sourceError}</div>}
       {downloadError && <div className={styles.inlineError} role="alert">{downloadError}</div>}
 
-      {stats && <ConfigurationJourney stages={journey} />}
-      {attentionItems.length > 0 && (
-        <AttentionCenter items={attentionItems} format={selectedQuickFormat} />
-      )}
-
-      {/* Stats */}
-      {loading ? (
-        <Card className={styles.statsLoading} role="status" aria-live="polite">
-          <span className={styles.loadingIndicator} aria-hidden="true" />
-          {t('common.loading')}
-        </Card>
-      ) : stats ? (
-        <div className={styles.statsGrid}>
-          {statCards.map(stat => (
-            <Card key={stat.label} className={`${styles.statCard} ${stat.wide ? styles.wide : ''}`}>
-              <div className={styles.statIcon}>{stat.icon}</div>
-              <div className={styles.statValue}>{stat.value}</div>
-              <div className={styles.statLabel}>{stat.label}</div>
-            </Card>
-          ))}
-        </div>
-      ) : null}
-
-      {stats?.ruleSetHealth && stats.ruleSetHealth.total > 0 && (
-        <Card className={styles.ruleSetHealth}>
-          <div className={styles.ruleSetHealthHeader}>
-            <div>
-              <h2 className={styles.sectionTitle}>{t('dashboard.rule_set_health_title')}</h2>
-              <p className={styles.ruleSetHealthDescription}>
-                {t(autoRefreshEnabled
-                  ? 'dashboard.rule_set_health_auto_on'
-                  : 'dashboard.rule_set_health_auto_off')}
-              </p>
-            </div>
-            <Link to="/remote-rule-sets">{t('dashboard.rule_set_health_manage')}</Link>
-          </div>
-          <div className={styles.ruleSetHealthBadges}>
-            <Badge variant="success">{t('dashboard.rule_set_health_valid', { count: stats.ruleSetHealth.valid })}</Badge>
-            <Badge variant="warning">{t('dashboard.rule_set_health_warning', { count: stats.ruleSetHealth.warning })}</Badge>
-            <Badge variant="error">{t('dashboard.rule_set_health_invalid', { count: stats.ruleSetHealth.invalid })}</Badge>
-            <Badge variant="warning">{t('dashboard.rule_set_health_stale', { count: stats.ruleSetHealth.stale })}</Badge>
-            <Badge variant="default">{t('dashboard.rule_set_health_pending', { count: stats.ruleSetHealth.pending })}</Badge>
-          </div>
-          <div className={styles.ruleSetHealthMeta}>
-            {stats.ruleSetHealth.lastCheckedAt
-              ? t('dashboard.rule_set_health_last_checked', { time: new Date(stats.ruleSetHealth.lastCheckedAt).toLocaleString() })
-              : t('dashboard.rule_set_health_never_checked')}
-          </div>
-        </Card>
-      )}
-
-      {/* Getting Started */}
-      {needsSetup && (
-        <Card className={styles.gettingStarted}>
-          <h2 className={styles.sectionTitle}>{t('dashboard.getting_started')}</h2>
-          <p className={styles.sectionDescription}>{t(
-            (stats?.sourceCount ?? 0) > 0 ? 'dashboard.no_usable_nodes' : 'dashboard.no_data'
-          )}</p>
-          <div className={styles.templatePicker}>
-            <div className={styles.templateHeader}>
-              <div className={styles.templateTitle}>{t('dashboard.template_title')}</div>
-              <div className={styles.templateDesc}>{t('dashboard.template_desc')}</div>
-            </div>
-            <div className={styles.templateOptions}>
-              {ROUTING_POLICY_TEMPLATES.map(template => (
-                <button
-                  key={template.id}
-                  type="button"
-                  className={`${styles.templateOption} ${activeTemplate === template.id ? styles.templateOptionActive : ''}`}
-                  onClick={() => void selectTemplate(template.id)}
-                  disabled={savingTemplate}
-                >
-                  <span>{template.name}</span>
-                  <small>{template.description}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-          <form className={styles.sourceForm} onSubmit={event => void createSourceFromDashboard(event)}>
-            <label className={styles.sourceInput}>
-              <span>{t('sources.url')}</span>
-              <textarea
-                className={styles.textarea}
-                value={sourceUrl}
-                onChange={event => setSourceUrl(event.target.value)}
-                placeholder={t('sources.url_placeholder')}
-                required
-                aria-invalid={Boolean(sourceError)}
-                aria-describedby={sourceError ? 'dashboard-source-error' : undefined}
-              />
-            </label>
-            <Button type="submit" loading={creatingSource} disabled={!canCreateSource}>{t('sources.add_url')}</Button>
-          </form>
-        </Card>
-      )}
-
-      {/* Quick Export */}
       {hasUsableNodes && (
         <Card className={styles.quickExport}>
           <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
@@ -402,47 +243,56 @@ export function Dashboard() {
           </>}
         </Card>
       )}
-    </div>
-  )
-}
 
-function ConfigurationJourney({ stages }: { stages: DashboardJourneyStage[] }) {
-  const { t } = useTranslation()
-  return (
-    <Card className={styles.journey}>
-      <div>
-        <h2 className={styles.sectionTitle}>{t('dashboard.journey_title')}</h2>
-        <p className={styles.journeyDescription}>{t('dashboard.journey_description')}</p>
-      </div>
-      <ol className={styles.journeyStages}>
-        {stages.map((stage, index) => {
-          const badgeVariant = stage.status === 'complete'
-            ? 'success'
-            : stage.status === 'attention'
-              ? 'warning'
-              : stage.status === 'blocked'
-                ? 'error'
-                : stage.status === 'current'
-                  ? 'info'
-                  : 'default'
-          return (
-            <li className={`${styles.journeyStage} ${styles[`journeyStage_${stage.status}`]}`} key={stage.id}>
-              <div className={styles.journeyNumber}>{stage.status === 'complete' ? '✓' : index + 1}</div>
-              <div className={styles.journeyContent}>
-                <div className={styles.journeyHeader}>
-                  <strong>{t(`dashboard.journey_stage_${stage.id}`)}</strong>
-                  <Badge variant={badgeVariant}>{t(`dashboard.journey_status_${stage.status}`)}</Badge>
-                </div>
-                <span>{t(`dashboard.journey_${stage.detail}`)}</span>
-              </div>
-              {stage.status !== 'pending' && (
-                <Link to={stage.to}>{t(stage.status === 'complete' ? 'dashboard.journey_review' : 'dashboard.journey_open')}</Link>
-              )}
-            </li>
-          )
-        })}
-      </ol>
-    </Card>
+      {attentionItems.length > 0 && (
+        <AttentionCenter items={attentionItems} format={selectedQuickFormat} />
+      )}
+
+      {loading ? (
+        <Card className={styles.statsLoading} role="status" aria-live="polite">
+          <span className={styles.loadingIndicator} aria-hidden="true" />
+          {t('common.loading')}
+        </Card>
+      ) : stats ? (
+        <div className={styles.statsGrid}>
+          {statCards.map(stat => (
+            <Card key={stat.label} className={`${styles.statCard} ${stat.wide ? styles.wide : ''}`}>
+              <div className={styles.statIcon}>{stat.icon}</div>
+              <div className={styles.statValue}>{stat.value}</div>
+              <div className={styles.statLabel}>{stat.label}</div>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+
+      {stats?.ruleSetHealth && stats.ruleSetHealth.total > 0 && (
+        <Card className={styles.ruleSetHealth}>
+          <div className={styles.ruleSetHealthHeader}>
+            <div>
+              <h2 className={styles.sectionTitle}>{t('dashboard.rule_set_health_title')}</h2>
+              <p className={styles.ruleSetHealthDescription}>
+                {t(autoRefreshEnabled
+                  ? 'dashboard.rule_set_health_auto_on'
+                  : 'dashboard.rule_set_health_auto_off')}
+              </p>
+            </div>
+            <Link to="/remote-rule-sets">{t('dashboard.rule_set_health_manage')}</Link>
+          </div>
+          <div className={styles.ruleSetHealthBadges}>
+            <Badge variant="success">{t('dashboard.rule_set_health_valid', { count: stats.ruleSetHealth.valid })}</Badge>
+            <Badge variant="warning">{t('dashboard.rule_set_health_warning', { count: stats.ruleSetHealth.warning })}</Badge>
+            <Badge variant="error">{t('dashboard.rule_set_health_invalid', { count: stats.ruleSetHealth.invalid })}</Badge>
+            <Badge variant="warning">{t('dashboard.rule_set_health_stale', { count: stats.ruleSetHealth.stale })}</Badge>
+            <Badge variant="default">{t('dashboard.rule_set_health_pending', { count: stats.ruleSetHealth.pending })}</Badge>
+          </div>
+          <div className={styles.ruleSetHealthMeta}>
+            {stats.ruleSetHealth.lastCheckedAt
+              ? t('dashboard.rule_set_health_last_checked', { time: new Date(stats.ruleSetHealth.lastCheckedAt).toLocaleString() })
+              : t('dashboard.rule_set_health_never_checked')}
+          </div>
+        </Card>
+      )}
+    </div>
   )
 }
 

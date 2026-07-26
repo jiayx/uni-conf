@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
@@ -49,6 +50,7 @@ const EMPTY_FORM = {
 
 export function Nodes() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
   const { nodes, loading, error: loadError, fetchNodes, addNode, updateNode, setNodesEnabled, deleteNode } = useNodesStore()
   const { sources, fetchSources } = useSourcesStore()
@@ -60,7 +62,7 @@ export function Nodes() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [bulkUpdating, setBulkUpdating] = useState(false)
   const [bulkError, setBulkError] = useState<unknown | null>(null)
-  const [showModal, setShowModal] = useState(false)
+  const [showModal, setShowModal] = useState(() => searchParams.get('create') === '1')
   const [editingNode, setEditingNode] = useState<ProxyNode | null>(null)
   const [editingRequested, setEditingRequested] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -75,6 +77,12 @@ export function Nodes() {
   const confirmDiscardForm = useUnsavedChangesGuard(formDirty)
 
   useEffect(() => { void fetchNodes(); void fetchSources() }, [fetchNodes, fetchSources])
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('create')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const sourceNames = new Map(sources.map(source => [source.id, source.name]))
   const getSourceName = (id: string) => sourceNames.get(id) ?? (id === 'manual' ? t('nodes.manual') : id)

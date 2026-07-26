@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sidebar } from '../Sidebar/Sidebar'
 import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog/ConfirmDialog'
+import { SetupGuideDialog } from '@/components/onboarding/SetupGuideDialog/SetupGuideDialog'
 import { UnsavedChangesProvider } from '@/core/forms/UnsavedChangesProvider'
 import styles from './Layout.module.css'
 
@@ -103,6 +104,7 @@ export function Layout() {
             </div>
           </main>
         </div>
+        <SetupGuideDialog />
       </UnsavedChangesProvider>
     </ConfirmDialogProvider>
   )

@@ -140,9 +140,8 @@ describe('Dashboard public export state', () => {
     expect(screen.queryByText(/token-1/)).not.toBeInTheDocument()
     expect(await screen.findByText('Ready to use')).toBeInTheDocument()
     expect(api.export.readinessFormat).toHaveBeenCalledWith('mihomo')
-    expect(screen.getByText('Configuration flow')).toBeInTheDocument()
-    expect(screen.getAllByText('Complete')).toHaveLength(3)
-    expect(screen.getByText('The selected client configuration is structurally valid and ready.')).toBeInTheDocument()
+    expect(screen.getByText('Quick Export')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start setup' })).not.toBeInTheDocument()
   })
 
   it('does not claim a subscription URL was copied when clipboard permission is denied', async () => {
@@ -162,7 +161,7 @@ describe('Dashboard public export state', () => {
     writeText.mockRestore()
   })
 
-  it('keeps the flow visible before setup and makes source input the next step', async () => {
+  it('offers a compact way to reopen setup on an empty overview', async () => {
     vi.mocked(api.dashboard.stats).mockResolvedValue({
       ...stats,
       sourceCount: 0,
@@ -171,32 +170,9 @@ describe('Dashboard public export state', () => {
     })
     render(<MemoryRouter><Dashboard /></MemoryRouter>)
 
-    expect(await screen.findByText('Configuration flow')).toBeInTheDocument()
-    expect(screen.getByText('Add a subscription or manual node before generating a usable configuration.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open next step' })).toHaveAttribute('href', '/sources')
-    expect(screen.getAllByText('Pending')).toHaveLength(2)
+    expect(await screen.findByRole('button', { name: 'Start setup' })).toBeInTheDocument()
+    expect(screen.queryByText('Quick Export')).not.toBeInTheDocument()
     expect(api.export.readinessFormat).not.toHaveBeenCalled()
-  })
-
-  it('only enables zero-setup source creation after detecting a valid URL', async () => {
-    vi.mocked(api.dashboard.stats).mockResolvedValue({
-      ...stats,
-      sourceCount: 0,
-      nodeCount: 0,
-      enabledNodeCount: 0,
-    })
-    const user = userEvent.setup()
-    render(<MemoryRouter><Dashboard /></MemoryRouter>)
-
-    const input = await screen.findByRole('textbox', { name: 'Subscription URL' })
-    const submit = screen.getByRole('button', { name: 'Add URL' })
-    expect(submit).toBeDisabled()
-
-    await user.type(input, 'not a subscription')
-    expect(submit).toBeDisabled()
-
-    await user.type(input, '\nhttps://example.com/sub')
-    expect(submit).toBeEnabled()
   })
 
   it('blocks quick actions when preview diagnostics prove the export is unusable', async () => {
@@ -209,7 +185,6 @@ describe('Dashboard public export state', () => {
     expect(screen.getByRole('button', { name: 'Copy URL' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled()
     expect(screen.getByRole('link', { name: 'View details' })).toHaveAttribute('href', '/preview?format=mihomo')
-    expect(screen.getByText('A compatibility or reference issue must be fixed before export.')).toBeInTheDocument()
   })
 
   it('prioritizes the authoritative blocker over earlier non-blocking notices', async () => {
@@ -238,7 +213,7 @@ describe('Dashboard public export state', () => {
     expect(screen.getByText(graphBlocker.messageEn)).toBeInTheDocument()
     expect(screen.queryByText(cachedWarning.messageEn)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Review nodes' })).toHaveAttribute('href', '/nodes')
-    expect(screen.getByRole('link', { name: 'Open next step' })).toHaveAttribute('href', '/nodes')
+    expect(screen.queryByText('Add your first subscription')).not.toBeInTheDocument()
   })
 
   it('keeps links disabled until the selected format has been checked', async () => {
@@ -269,7 +244,7 @@ describe('Dashboard public export state', () => {
     expect(api.export.readinessFormat).toHaveBeenLastCalledWith('singbox')
   })
 
-  it('preserves the selected client when opening the preview journey step', async () => {
+  it('preserves the selected client in the readiness details link', async () => {
     vi.mocked(api.dashboard.stats).mockResolvedValue({ ...stats, defaultExportEnabled: true })
     vi.mocked(api.export.readinessFormat).mockResolvedValue(exportResult('partial'))
     const user = userEvent.setup()
@@ -279,7 +254,7 @@ describe('Dashboard public export state', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Export Format' }), 'singbox')
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'Open next step' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'View details' })).toHaveAttribute(
         'href',
         '/preview?format=singbox',
       )

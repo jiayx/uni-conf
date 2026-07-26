@@ -77,6 +77,13 @@ describe('Nodes filters', () => {
     expect(screen.getByText('Showing 3 of 3 nodes')).toBeInTheDocument()
   })
 
+  it('opens manual entry directly from the dashboard setup link', async () => {
+    render(<MemoryRouter initialEntries={['/nodes?create=1']}><Nodes /></MemoryRouter>)
+
+    expect(await screen.findByRole('dialog', { name: 'Manual Entry' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Node URI' })).toBeInTheDocument()
+  })
+
   it('searches server and source names and explains an empty filtered result', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Nodes /></MemoryRouter>)
