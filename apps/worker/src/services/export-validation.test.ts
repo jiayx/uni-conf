@@ -87,7 +87,6 @@ describe('export validation', () => {
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
     }), 'mihomo', {
       showCompatibilityWarnings: false,
-      dnsMode: 'smart',
     });
 
     expect(warnings).toContainEqual(expect.objectContaining({
@@ -513,17 +512,16 @@ describe('export validation', () => {
     }));
   });
 
-  it('ignores policy group, rule, remote rule set, and DNS warnings for node-only subscriptions', () => {
+  it('ignores policy group, rule, and remote rule set warnings for node-only subscriptions', () => {
     const warnings = validateExportData(makeExportData({
       groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
       rules: [makeRule('rule-1', 'missing-rule-target', 'PROCESS-NAME', 'Example.app')],
       remoteSets: [makeRemoteSet('bad-url', 'missing-remote-target', { url: './local-rule.yaml', format: 'singbox' })],
-    }), 'nodes_raw', { dnsMode: 'fake-ip' });
+    }), 'nodes_raw');
 
     expect(warnings).not.toContainEqual(expect.objectContaining({ groupId: 'proxy' }));
     expect(warnings).not.toContainEqual(expect.objectContaining({ ruleId: 'rule-1' }));
     expect(warnings).not.toContainEqual(expect.objectContaining({ message: expect.stringContaining('远程规则集') }));
-    expect(warnings).not.toContainEqual(expect.objectContaining({ message: expect.stringContaining('高级 fake-ip') }));
   });
 
   it('accepts WireGuard nodes for node-only subscriptions', () => {
@@ -677,31 +675,6 @@ describe('export validation', () => {
     }));
   });
 
-  it('warns when the export format cannot include managed DNS settings', () => {
-    const warnings = validateExportData(makeExportData(), 'loon', { dnsMode: 'smart' });
-
-    expect(warnings).toContainEqual(expect.objectContaining({
-      client: 'loon',
-      level: 'partial',
-      message: expect.stringContaining('智能防污染'),
-    }));
-  });
-
-  it('does not warn about DNS for formats with managed DNS export support', () => {
-    expect(validateExportData(makeExportData(), 'mihomo', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('高级 fake-ip'),
-    }));
-    expect(validateExportData(makeExportData(), 'singbox', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('高级 fake-ip'),
-    }));
-    expect(validateExportData(makeExportData(), 'stash', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('高级 fake-ip'),
-    }));
-    expect(validateExportData(makeExportData(), 'clash', { dnsMode: 'fake-ip' })).not.toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('高级 fake-ip'),
-    }));
-  });
-
   it('keeps readiness warnings when compatibility warnings are disabled', () => {
     const warnings = resolveExportWarnings(makeExportData({
       nodes: [],
@@ -711,7 +684,6 @@ describe('export validation', () => {
       ],
     }), 'shadowrocket', {
       showCompatibilityWarnings: false,
-      dnsMode: 'fake-ip',
     });
 
     expect(warnings).toEqual(expect.arrayContaining([
@@ -719,9 +691,6 @@ describe('export validation', () => {
     ]));
     expect(warnings).not.toContainEqual(expect.objectContaining({
       message: expect.stringContaining('PROCESS-NAME 不兼容 shadowrocket'),
-    }));
-    expect(warnings).not.toContainEqual(expect.objectContaining({
-      message: expect.stringContaining('高级 fake-ip'),
     }));
   });
 });

@@ -3,7 +3,8 @@ import type { Env } from '../types'
 import type { AppSettings, AppSettingsPatch, DnsMode, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
-import { ensureZeroSetupDefaults } from '../services/zero-setup'
+import { syncAutoNodeGroups } from '../services/auto-node-groups'
+import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { DNS_MODE_PRESETS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -22,7 +23,18 @@ app.put('/', async (c) => {
   const update = buildSettingsUpdate(body, ts)
   await c.env.DB.prepare(update.sql).bind(...update.values).run()
 
-  await ensureZeroSetupDefaults(c.env.DB, ts)
+  const autoGroupsChanged = body.autoNodeGroupsEnabled !== undefined
+    || body.autoNodeGroupTypes !== undefined
+    || body.autoNodeGroupKeys !== undefined
+    || body.autoNodeGroupIncludeFlag !== undefined
+  if (autoGroupsChanged) await syncAutoNodeGroups(c.env.DB, ts)
+  if (
+    autoGroupsChanged
+    || body.routingPolicyTemplate !== undefined
+    || body.routingOutletPreferences !== undefined
+  ) {
+    await syncRoutingPolicyGroups(c.env.DB, ts)
+  }
 
   const settings = await getSettings(c.env.DB)
   return c.json({ success: true, data: settings })
@@ -81,17 +93,7 @@ export function buildSettingsUpdate(body: AppSettingsPatch, ts: string): Setting
   if (body.language !== undefined) set('language', body.language)
   if (body.theme !== undefined) set('theme', body.theme)
 
-  if (body.routingPolicyTemplate !== undefined) {
-    if (body.dnsMode === undefined) {
-      const recommendedDnsMode = ROUTING_POLICY_TEMPLATES.find(
-        template => template.id === body.routingPolicyTemplate
-      )?.recommendedDnsMode
-      if (recommendedDnsMode === undefined) throw new Error('Unknown routing policy template')
-      assignments.push('dns_mode = CASE WHEN routing_policy_template <> ? THEN ? ELSE dns_mode END')
-      values.push(body.routingPolicyTemplate, recommendedDnsMode)
-    }
-    set('routing_policy_template', body.routingPolicyTemplate)
-  }
+  if (body.routingPolicyTemplate !== undefined) set('routing_policy_template', body.routingPolicyTemplate)
 
   if (body.routingOutletPreferences !== undefined) {
     set(
@@ -206,15 +208,6 @@ function normalizeDefaultExportToken(value: unknown): string | null | undefined 
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed ? trimmed : undefined
-}
-
-export function resolveNextDnsMode(current: AppSettings, body: AppSettingsPatch): DnsMode {
-  if (body.dnsMode !== undefined) return body.dnsMode
-  if (body.routingPolicyTemplate === undefined || body.routingPolicyTemplate === current.routingPolicyTemplate) {
-    return current.dnsMode
-  }
-  return ROUTING_POLICY_TEMPLATES.find((template) => template.id === body.routingPolicyTemplate)?.recommendedDnsMode
-    ?? current.dnsMode
 }
 
 function isRoutingOutletPreferenceRef(value: unknown): value is string {

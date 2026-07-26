@@ -273,7 +273,7 @@ describe('RemoteRuleSets content validation', () => {
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
 
     expect(await screen.findByText('Source check expired')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('This result has expired')
+    expect(screen.getByRole('status')).toHaveTextContent('This check result has expired')
     expect(screen.getByRole('button', { name: 'Check all sources again' })).toBeInTheDocument()
     expect(screen.queryByText('Sources need checking')).not.toBeInTheDocument()
   })

@@ -294,6 +294,8 @@ export function Settings() {
             </button>
           ))}
         </div>
+        <div className={styles.hint}>{t(dnsDescriptionKey(dnsMode))}</div>
+        <div className={styles.hint}>{t('settings.dns_scope_hint')}</div>
       </Card>
 
       <Card className={styles.section}>
@@ -387,6 +389,7 @@ export function Settings() {
           />
           <span>{t('settings.show_compat_warnings')}</span>
         </label>
+        <div className={styles.hint}>{t('settings.show_compat_warnings_hint')}</div>
         <label className={styles.toggleRow}>
           <input
             type="checkbox"

@@ -1,6 +1,5 @@
 import type {
   CompatibilityWarning,
-  DnsMode,
   ExportFormat,
 } from '@uni-conf/types';
 import {
@@ -11,7 +10,6 @@ import {
   isRuleSetFormatCompatible,
   resolveRuleForExport,
   supportsRuleNoResolve,
-  supportsManagedDnsMode,
   validateAndNormalizeRulePayload,
 } from '@uni-conf/shared';
 import type { ExportData } from '../export-data';
@@ -20,31 +18,26 @@ import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-res
 import { isSafeRemoteHttpUrl } from './safe-remote-fetch';
 import { resolveConvertibleRuleSetTarget } from './rule-set-conversion';
 
-interface ExportValidationOptions {
-  dnsMode?: DnsMode;
-}
-
 export function validateExportData(
   data: ExportData,
-  format: ExportFormat,
-  options: ExportValidationOptions = {}
+  format: ExportFormat
 ): CompatibilityWarning[] {
   return [
     ...validateExportReadiness(data, format),
-    ...validateExportCompatibility(data, format, options),
+    ...validateExportCompatibility(data, format),
   ];
 }
 
 export function resolveExportWarnings(
   data: ExportData,
   format: ExportFormat,
-  options: { showCompatibilityWarnings: boolean } & ExportValidationOptions
+  options: { showCompatibilityWarnings: boolean }
 ): CompatibilityWarning[] {
   const readinessWarnings = validateExportReadiness(data, format);
   if (!options.showCompatibilityWarnings) return readinessWarnings;
   return [
     ...readinessWarnings,
-    ...validateExportCompatibility(data, format, options),
+    ...validateExportCompatibility(data, format),
   ];
 }
 
@@ -107,8 +100,7 @@ export function findBlockingExportWarning(
 
 export function validateExportCompatibility(
   data: ExportData,
-  format: ExportFormat,
-  options: ExportValidationOptions = {}
+  format: ExportFormat
 ): CompatibilityWarning[] {
   if (isNodeOnlyExportFormat(format)) {
     return validateNodeCompatibility(data, format);
@@ -118,7 +110,6 @@ export function validateExportCompatibility(
     ...validateNodeCompatibility(data, format),
     ...validateRuleCompatibility(data, format),
     ...validateRemoteRuleSetCompatibility(data, format),
-    ...validateDns(format, options.dnsMode),
   ];
 }
 
@@ -548,24 +539,6 @@ function validateRemoteRuleSetUrls(data: ExportData, format: ExportFormat): Comp
     }
   }
   return warnings;
-}
-
-function validateDns(format: ExportFormat, dnsMode: DnsMode | undefined): CompatibilityWarning[] {
-  if (!dnsMode || supportsManagedDnsMode(format, dnsMode)) return [];
-
-  return [{
-    client: format,
-    level: 'partial',
-    message: `当前客户端 ${format} 不支持完整导出 ${formatDnsMode(dnsMode)} DNS，导出时会按客户端能力降级或跳过 DNS 字段`,
-    messageEn: `The ${format} export cannot fully include ${dnsMode} DNS settings. DNS fields will be downgraded or skipped during export.`,
-    remediation: { target: 'settings', section: 'dns' },
-  }];
-}
-
-function formatDnsMode(dnsMode: DnsMode): string {
-  if (dnsMode === 'smart') return '智能防污染';
-  if (dnsMode === 'fake-ip') return '高级 fake-ip';
-  return '兼容优先';
 }
 
 function isDownloadableHttpUrl(value: string): boolean {

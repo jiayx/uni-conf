@@ -1607,7 +1607,6 @@ export interface RoutingPolicyTemplate {
   id: RoutingPolicyTemplateId;
   name: string;
   description: string;
-  recommendedDnsMode: DnsMode;
   groupNames: string[];
 }
 
@@ -1622,18 +1621,18 @@ export interface DnsModePreset {
 export const DNS_MODE_PRESETS: DnsModePreset[] = [
   {
     id: 'compatible',
-    name: '兼容优先',
-    description: '使用传统 redir-host 解析，适合路由器或对 fake-ip 兼容性不确定的客户端。',
+    name: '兼容解析',
+    description: '优先采用客户端兼容性较好的普通解析方式。',
   },
   {
     id: 'smart',
-    name: '智能防污染',
-    description: '默认模式，国内域名优先使用国内 DNS，其他请求使用可信 DNS 并启用污染过滤。',
+    name: '分流解析',
+    description: '国内外域名使用不同的 DNS 上游，降低解析污染风险。',
   },
   {
     id: 'fake-ip',
-    name: '高级 fake-ip',
-    description: '启用 fake-ip 和兼容过滤，适合熟悉 Mihomo 或 sing-box 高级 DNS 行为的用户。',
+    name: 'Fake-IP',
+    description: '使用虚拟地址接管域名解析，适合支持 Fake-IP 的客户端。',
   },
 ];
 
@@ -1664,49 +1663,42 @@ export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
     id: 'empty',
     name: '空组合',
     description: '只保留 PROXY / DIRECT / REJECT 和节点选择能力，所有业务分流策略由用户自己添加。',
-    recommendedDnsMode: 'smart',
     groupNames: [],
   },
   {
     id: 'minimal',
     name: '极简模式',
     description: '适合新手，只启用代理兜底和基础出口，国内直连、广告拦截由预置规则直接命中。',
-    recommendedDnsMode: 'smart',
     groupNames: ['漏网之鱼'],
   },
   {
     id: 'common',
     name: '默认智能组合',
     description: '适合大多数用户，包含 AI、流媒体、Telegram、社交、GitHub、Google、Apple、Microsoft 和兜底分流。',
-    recommendedDnsMode: 'smart',
     groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'ai',
     name: 'AI 优先模式',
     description: '优先启用 AI、开发和代码服务分流，适合主要使用 OpenAI、Claude、Gemini、Cursor 或 Copilot 的场景。',
-    recommendedDnsMode: 'smart',
     groupNames: ['AI', 'GitHub', 'Google', 'Developer', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'streaming',
     name: '流媒体模式',
     description: '优先启用流媒体、社交和 Telegram 分流，适合 Netflix、YouTube、Disney+ 等服务。',
-    recommendedDnsMode: 'smart',
     groupNames: ['Streaming', 'Telegram', 'Social', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'router',
     name: '路由器模式',
     description: '适合 OpenClash、软路由和网关场景，保留常用分流并避免过多业务组。',
-    recommendedDnsMode: 'compatible',
     groupNames: ['Streaming', 'Telegram', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼'],
   },
   {
     id: 'extended',
     name: '扩展组合',
     description: '在常用组合基础上增加加密货币、游戏和开发服务。',
-    recommendedDnsMode: 'smart',
     groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', '漏网之鱼', 'Crypto', 'Gaming', 'Developer'],
   },
 ];

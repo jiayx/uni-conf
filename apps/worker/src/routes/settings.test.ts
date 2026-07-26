@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AppSettings } from '@uni-conf/types'
-import { buildSettingsUpdate, resolveNextDnsMode, validateSettingsPatch } from './settings'
+import { buildSettingsUpdate, validateSettingsPatch } from './settings'
 
 describe('settings route helpers', () => {
   it('rejects non-object, empty, and unknown settings patches', () => {
@@ -68,22 +67,6 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ autoRefreshInterval: Number.NaN })).toBe('invalid auto refresh interval')
   })
 
-  it('derives recommended DNS mode when the routing template changes without an explicit DNS override', () => {
-    expect(resolveNextDnsMode(settings({ routingPolicyTemplate: 'common', dnsMode: 'smart' }), {
-      routingPolicyTemplate: 'router',
-    })).toBe('compatible')
-  })
-
-  it('preserves explicit DNS overrides and unrelated settings updates', () => {
-    expect(resolveNextDnsMode(settings({ routingPolicyTemplate: 'common', dnsMode: 'fake-ip' }), {
-      routingPolicyTemplate: 'router',
-      dnsMode: 'smart',
-    })).toBe('smart')
-    expect(resolveNextDnsMode(settings({ routingPolicyTemplate: 'router', dnsMode: 'fake-ip' }), {
-      language: 'en',
-    })).toBe('fake-ip')
-  })
-
   it('updates only fields present in an unrelated settings patch', () => {
     const language = buildSettingsUpdate({ language: 'en' }, '2026-07-24T00:00:00.000Z')
     const dns = buildSettingsUpdate({ dnsMode: 'fake-ip' }, '2026-07-24T00:00:01.000Z')
@@ -98,32 +81,23 @@ describe('settings route helpers', () => {
     expect(dns.values).toEqual(['fake-ip', '2026-07-24T00:00:01.000Z'])
   })
 
-  it('derives template DNS atomically from the database row without rewriting unrelated fields', () => {
+  it('updates a routing template independently from other settings', () => {
     const update = buildSettingsUpdate(
       { routingPolicyTemplate: 'router' },
       '2026-07-24T00:00:00.000Z',
     )
 
-    expect(update.sql).toContain(
-      'dns_mode = CASE WHEN routing_policy_template <> ? THEN ? ELSE dns_mode END',
-    )
     expect(update.sql).toContain('routing_policy_template = ?')
     expect(update.sql).not.toContain('language = ?')
-    expect(update.values).toEqual([
-      'router',
-      'compatible',
-      'router',
-      '2026-07-24T00:00:00.000Z',
-    ])
+    expect(update.values).toEqual(['router', '2026-07-24T00:00:00.000Z'])
   })
 
-  it('uses an explicit DNS override instead of the template recommendation', () => {
+  it('updates routing and DNS together only when both are explicitly provided', () => {
     const update = buildSettingsUpdate(
       { routingPolicyTemplate: 'router', dnsMode: 'smart' },
       '2026-07-24T00:00:00.000Z',
     )
 
-    expect(update.sql).not.toContain('CASE')
     expect(update.sql).toContain('routing_policy_template = ?')
     expect(update.sql).toContain('dns_mode = ?')
     expect(update.values).toEqual(['router', 'smart', '2026-07-24T00:00:00.000Z'])
@@ -148,21 +122,3 @@ describe('settings route helpers', () => {
     ])
   })
 })
-
-function settings(overrides: Partial<AppSettings> = {}): AppSettings {
-  return {
-    language: 'zh',
-    theme: 'system',
-    routingPolicyTemplate: 'common',
-    dnsMode: 'smart',
-    exportNodeNamingMode: 'smart',
-    showCompatibilityWarnings: true,
-    ruleSetConversionPolicy: 'compatible',
-    enableAutoRefresh: true,
-    autoRefreshInterval: 1440,
-    autoNodeGroupsEnabled: true,
-    autoNodeGroupTypes: ['url-test'],
-    autoNodeGroupIncludeFlag: true,
-    ...overrides,
-  }
-}

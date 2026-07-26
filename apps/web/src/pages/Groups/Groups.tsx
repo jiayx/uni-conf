@@ -228,14 +228,10 @@ export function Groups() {
   }
 
   const handleTemplateChange = async (templateId: RoutingPolicyTemplateId) => {
-    const template = ROUTING_POLICY_TEMPLATES.find(item => item.id === templateId)
     setSavingTemplate(true)
     setActionError(null)
     try {
-      const updated = await api.settings.update({
-        routingPolicyTemplate: templateId,
-        dnsMode: template?.recommendedDnsMode,
-      })
+      const updated = await api.settings.update({ routingPolicyTemplate: templateId })
       applySettings(updated)
       setActiveTemplate(updated.routingPolicyTemplate)
       setOutletPreferences(updated.routingOutletPreferences ?? {})

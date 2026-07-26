@@ -226,7 +226,6 @@ async function inspectExport(
   if (!rendered) return null
   const warnings = resolveExportWarnings(exportData, format, {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
-    dnsMode: settings.dnsMode,
   })
   const artifactValidation = validateRenderedExport(format, rendered.content)
   const artifactWarnings = exportArtifactWarnings(artifactValidation)

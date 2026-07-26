@@ -350,20 +350,6 @@ describe('routing policy group sync', () => {
     expect([...resolveActiveTemplateGroupNames(template!)]).toEqual(groupNames);
   });
 
-  it('keeps DNS recommendations tied to scenario templates', () => {
-    expect(
-      ROUTING_POLICY_TEMPLATES.map((template) => [template.id, template.recommendedDnsMode])
-    ).toEqual([
-      ['empty', 'smart'],
-      ['minimal', 'smart'],
-      ['common', 'smart'],
-      ['ai', 'smart'],
-      ['streaming', 'smart'],
-      ['router', 'compatible'],
-      ['extended', 'smart'],
-    ]);
-  });
-
   it('normalizes foundation outlet builtins to the canonical model', async () => {
     const batches: Array<Array<{ sql: string; args: unknown[] }>> = [];
     const db = createSyncMockDb(batches);

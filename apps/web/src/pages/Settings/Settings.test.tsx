@@ -142,7 +142,7 @@ describe('Settings data safety', () => {
 
     expect(api.settings.update).toHaveBeenCalledWith({ ruleSetConversionPolicy: 'strict' })
     expect(actions['applySettings']).toHaveBeenCalledWith({ ...settings, ruleSetConversionPolicy: 'strict' })
-    expect(screen.getByText(/Keep every safely convertible rule/)).toBeInTheDocument()
+    expect(screen.getByText(/When an export profile has no override/)).toBeInTheDocument()
   })
 
   it('keeps the authoritative selection and shows diagnostics when a setting update fails', async () => {
@@ -217,11 +217,13 @@ describe('Settings data safety', () => {
     expect(screen.getByText('settings_unavailable · request-settings-2')).toBeInTheDocument()
   })
 
-  it('explains that automatic refresh controls subscriptions and rule-source checks', async () => {
+  it('explains the actual scope of DNS strategy and automatic refresh', async () => {
     render(<Settings />)
 
-    expect(await screen.findByText('Auto refresh subscriptions and rule sources')).toBeInTheDocument()
-    expect(screen.getByText(/stop both kinds of background network requests/)).toBeInTheDocument()
+    expect(await screen.findByText('Default DNS Strategy')).toBeInTheDocument()
+    expect(screen.getByText(/full Mihomo, Clash, Stash, and sing-box configs/)).toBeInTheDocument()
+    expect(screen.getByText('Auto refresh subscriptions')).toBeInTheDocument()
+    expect(screen.getByText(/only refreshes remote subscriptions/)).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: 'Default subscription refresh interval (minutes)' })).toBeInTheDocument()
   })
 })

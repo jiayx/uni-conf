@@ -787,7 +787,7 @@ rule-providers:
   // slightly beyond two minutes when Web and Worker suites share CI resources.
   }, 180000)
 
-  it('preserves disjoint concurrent settings patches and applies template DNS only on a real change', async () => {
+  it('preserves disjoint concurrent settings patches and independent DNS selection', async () => {
     const baseline = await request('/api/settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -840,7 +840,7 @@ rule-providers:
     })
     expect(changedTemplate.status).toBe(200)
     await expect(changedTemplate.json()).resolves.toMatchObject({
-      data: { routingPolicyTemplate: 'common', dnsMode: 'smart' },
+      data: { routingPolicyTemplate: 'common', dnsMode: 'fake-ip' },
     })
   }, 30000)
 
