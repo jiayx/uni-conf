@@ -109,10 +109,6 @@
   grid-template-columns: minmax(14rem, 1fr) auto;
   align-items: end;
   gap: 0.75rem 1rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface2);
 }
 .quickFormatField { display: grid; gap: 0.375rem; color: var(--color-text-primary); font-size: 0.8125rem; font-weight: 600; }
 .quickFormatField select { width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text-primary); font: inherit; }

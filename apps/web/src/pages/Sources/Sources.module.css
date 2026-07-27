@@ -60,8 +60,8 @@
 .importDiffSection { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
 .importDiffSection summary { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.625rem 0.75rem; cursor: pointer; color: var(--color-text-primary); font-size: 0.8125rem; font-weight: 600; }
 .importDiffCounts { display: flex; gap: 0.375rem; flex-wrap: wrap; justify-content: flex-end; font-size: 0.6875rem; font-weight: 500; }
-.importDiffItems { display: grid; gap: 0.375rem; max-height: 16rem; overflow: auto; padding: 0 0.75rem 0.75rem; }
-.importDiffItem { padding: 0.5rem 0.625rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface2); }
+.importDiffItems { display: grid; max-height: 16rem; overflow: auto; padding: 0 0.75rem 0.75rem; }
+.importDiffItem { padding: 0.625rem 0; border-top: 1px solid var(--color-border); background: transparent; }
 .importDiffItemHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; }
 .importDiffItemHeader strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-primary); }
 .importDiffTarget, .importDiffChange, .importDiffTruncated { margin-top: 0.25rem; color: var(--color-text-tertiary); font-size: 0.6875rem; line-height: 1.4; overflow-wrap: anywhere; }

@@ -586,7 +586,7 @@ export function Collections() {
               </button>
 
               {previewExpanded && (
-                <div id={`collection-preview-${collection.id}`}>
+                <div id={`collection-preview-${collection.id}`} className={styles.previewPanel}>
                   <PreviewList
                     nodes={previews[collection.id] ?? []}
                     loading={loadingPreviewIds.has(collection.id) && previews[collection.id] === undefined}

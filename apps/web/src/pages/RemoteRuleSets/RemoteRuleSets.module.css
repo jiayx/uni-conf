@@ -137,9 +137,10 @@
 .conversionMappingTable td { min-width: 16rem; padding: 0.5rem; border: 1px solid var(--color-border); text-align: left; vertical-align: top; }
 .conversionMappingTable th { background: var(--color-surface); color: var(--color-text-secondary); }
 .conversionMappingTable code { white-space: pre-wrap; overflow-wrap: anywhere; }
-.conversionIssues { display: flex; flex-direction: column; gap: 0.5rem; }
+.conversionIssues { display: flex; flex-direction: column; }
 .conversionIssues h4 { margin: 0; color: var(--color-text-primary); font-size: 0.8125rem; }
-.conversionIssue { padding: 0.625rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
+.conversionIssue { padding: 0.625rem 0; border-top: 1px solid var(--color-border); background: transparent; }
+.conversionIssues h4 + .conversionIssue { margin-top: 0.5rem; }
 .conversionIssueHeader { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .conversionIssueHeader code { color: var(--color-warning); font-weight: 600; }
 .conversionIssueHeader span:last-child { margin-left: auto; color: var(--color-text-tertiary); }

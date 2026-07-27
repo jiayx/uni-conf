@@ -116,10 +116,7 @@
 .formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
 .helpText { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
 .compatibilityPreview {
-  padding: 0.875rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface2);
+  padding: 0;
 }
 .compatibilityHeader {
   display: flex;
@@ -171,10 +168,7 @@
   background: var(--color-error-subtle);
 }
 .batchCompatibility {
-  padding: 0.875rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface2);
+  padding: 0;
 }
 .batchCompatibilityTableWrapper {
   overflow-x: auto;
