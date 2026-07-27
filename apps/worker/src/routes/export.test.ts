@@ -3,13 +3,13 @@ import {
   isValidExportFormat,
   resolveExportConfigName,
   resolveExportConfigUpdateName,
-  resolveExportDnsMode,
+  resolveExportDnsPolicy,
   validateExportConfigSelection,
 } from './export'
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
-    expect(resolveExportConfigName(undefined, 'mihomo')).toBe('默认 Mihomo / Clash / OpenClash 配置')
+    expect(resolveExportConfigName(undefined, 'mihomo')).toBe('默认 Mihomo 配置')
     expect(resolveExportConfigName('', 'singbox')).toBe('默认 sing-box 配置')
   })
 
@@ -33,15 +33,24 @@ describe('export route helpers', () => {
     expect(isValidExportFormat('yaml')).toBe(false)
   })
 
-  it('resolves DNS strategy from the selected export format', () => {
-    expect(resolveExportDnsMode('mihomo')).toBe('fake-ip')
-    expect(resolveExportDnsMode('clash')).toBe('fake-ip')
-    expect(resolveExportDnsMode('stash')).toBe('fake-ip')
-    expect(resolveExportDnsMode('singbox')).toBe('smart')
-    expect(resolveExportDnsMode('mihomo', 'fake-ip')).toBe('fake-ip')
-    expect(resolveExportDnsMode('surge')).toBe('compatible')
-    expect(resolveExportDnsMode('surge', 'smart')).toBeUndefined()
-    expect(resolveExportDnsMode('nodes_raw')).toBeUndefined()
+  it('resolves target-aware DNS policies', () => {
+    expect(resolveExportDnsPolicy('mihomo')).toMatchObject({
+      address: { mode: 'fake-ip' },
+      resolution: { mode: 'split' },
+    })
+    expect(resolveExportDnsPolicy('singbox')).toMatchObject({
+      address: { mode: 'fake-ip' },
+      resolution: { mode: 'split' },
+    })
+    expect(resolveExportDnsPolicy('surge')).toMatchObject({
+      address: { mode: 'fake-ip' },
+      resolution: { mode: 'split' },
+    })
+    expect(resolveExportDnsPolicy('shadowrocket')).toMatchObject({
+      address: { mode: 'fake-ip' },
+      resolution: { mode: 'split' },
+    })
+    expect(resolveExportDnsPolicy('nodes_raw')).toBeUndefined()
   })
 
   it('normalizes export config include lists', () => {

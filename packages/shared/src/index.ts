@@ -1,6 +1,9 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import type {
   AutoNodeGroupType,
+  DnsAddressMode,
+  DnsResolutionMode,
+  ExportDnsPolicy,
   ExportFormat,
   NormalizedProxyConfig,
   ProxyProtocol,
@@ -1010,17 +1013,29 @@ function isIpv4Address(value: string): boolean {
     && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
 }
 
-export type ManagedDnsMode = 'compatible' | 'smart' | 'fake-ip';
+export type DnsEngine =
+  | 'enhanced-mode'
+  | 'dns-server-graph'
+  | 'native-fake-ip'
+  | 'none';
+
+export interface ExportDnsCapabilities {
+  engine: DnsEngine;
+  addressModes: readonly DnsAddressMode[];
+  addressModeControl: 'selectable' | 'native' | 'none';
+  supportsRealIpExceptions: boolean;
+  resolutionModes: readonly DnsResolutionMode[];
+}
 
 export interface ExportClientCapabilities {
   outputKind: 'full-config' | 'node-subscription';
   nodeProtocols: readonly ProxyProtocol[];
   ruleSetFormats: readonly RuleSetFormat[];
-  managedDnsModes: readonly ManagedDnsMode[];
+  dns: ExportDnsCapabilities;
 }
 
 export const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
-export const EXPORT_CAPABILITY_PROFILE_REVISION = 17;
+export const EXPORT_CAPABILITY_PROFILE_REVISION = 18;
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = [
   'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
@@ -1069,68 +1084,134 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     outputKind: 'full-config',
     nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
-    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+    dns: {
+      engine: 'enhanced-mode',
+      addressModes: ['fake-ip', 'real-ip'],
+      addressModeControl: 'selectable',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   clash: {
     outputKind: 'full-config',
     nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
-    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+    dns: {
+      engine: 'enhanced-mode',
+      addressModes: ['fake-ip', 'real-ip'],
+      addressModeControl: 'selectable',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   singbox: {
     outputKind: 'full-config',
     nodeProtocols: SINGBOX_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['singbox'],
-    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+    dns: {
+      engine: 'dns-server-graph',
+      addressModes: ['fake-ip', 'real-ip'],
+      addressModeControl: 'selectable',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   loon: {
     outputKind: 'full-config',
     nodeProtocols: LOON_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['loon', 'surge', 'shadowrocket', 'text'],
-    managedDnsModes: ['compatible'],
+    dns: {
+      engine: 'native-fake-ip',
+      addressModes: ['fake-ip'],
+      addressModeControl: 'native',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   surge: {
     outputKind: 'full-config',
     nodeProtocols: SURGE_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['surge', 'text'],
-    managedDnsModes: ['compatible'],
+    dns: {
+      engine: 'native-fake-ip',
+      addressModes: ['fake-ip'],
+      addressModeControl: 'native',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   shadowrocket: {
     outputKind: 'full-config',
     nodeProtocols: TEXT_CLIENT_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['shadowrocket', 'surge', 'text'],
-    managedDnsModes: ['compatible'],
+    dns: {
+      engine: 'native-fake-ip',
+      addressModes: ['fake-ip'],
+      addressModeControl: 'native',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   quantumultx: {
     outputKind: 'full-config',
     nodeProtocols: QUANTUMULT_X_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['quantumultx', 'text'],
-    managedDnsModes: ['compatible'],
+    dns: {
+      engine: 'native-fake-ip',
+      addressModes: ['fake-ip'],
+      addressModeControl: 'native',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   stash: {
     outputKind: 'full-config',
     nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['stash', 'mihomo', 'clash', 'text'],
-    managedDnsModes: ['compatible', 'smart', 'fake-ip'],
+    dns: {
+      engine: 'native-fake-ip',
+      addressModes: ['fake-ip'],
+      addressModeControl: 'native',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   egern: {
     outputKind: 'full-config',
     nodeProtocols: EGERN_EXPORT_NODE_PROTOCOLS,
     // Egern can consume its native YAML sets and Surge-style source lists.
     ruleSetFormats: ['egern', 'surge', 'text'],
-    managedDnsModes: ['compatible'],
+    dns: {
+      engine: 'native-fake-ip',
+      addressModes: ['fake-ip'],
+      addressModeControl: 'native',
+      supportsRealIpExceptions: true,
+      resolutionModes: ['single', 'split'],
+    },
   },
   nodes_base64: {
     outputKind: 'node-subscription',
     nodeProtocols: NODE_SUBSCRIPTION_PROTOCOLS,
     ruleSetFormats: [],
-    managedDnsModes: [],
+    dns: {
+      engine: 'none',
+      addressModes: [],
+      addressModeControl: 'none',
+      supportsRealIpExceptions: false,
+      resolutionModes: [],
+    },
   },
   nodes_raw: {
     outputKind: 'node-subscription',
     nodeProtocols: NODE_SUBSCRIPTION_PROTOCOLS,
     ruleSetFormats: [],
-    managedDnsModes: [],
+    dns: {
+      engine: 'none',
+      addressModes: [],
+      addressModeControl: 'none',
+      supportsRealIpExceptions: false,
+      resolutionModes: [],
+    },
   },
 } as const satisfies Record<ExportSubscriptionFormat, ExportClientCapabilities>;
 
@@ -1184,19 +1265,26 @@ export function isEgernTransportSupported(protocol: string, network: unknown): b
   return true;
 }
 
-export function supportsManagedDnsMode(
-  format: ExportSubscriptionFormat,
-  mode: ManagedDnsMode
-): boolean {
-  return (EXPORT_CLIENT_CAPABILITIES[format].managedDnsModes as readonly ManagedDnsMode[]).includes(mode);
-}
-
-export function getDefaultManagedDnsMode(
+export function getDefaultExportDnsPolicy(
   format: ExportSubscriptionFormat
-): ManagedDnsMode | undefined {
-  if (format === 'mihomo' || format === 'clash' || format === 'stash') return 'fake-ip';
-  if (format === 'singbox') return 'smart';
-  return EXPORT_CLIENT_CAPABILITIES[format].managedDnsModes[0];
+): ExportDnsPolicy | undefined {
+  const capabilities = EXPORT_CLIENT_CAPABILITIES[format].dns;
+  if (capabilities.engine === 'none') return undefined;
+  return {
+    address: {
+      mode: 'fake-ip',
+      realIpExceptions: {
+        includeManagedDefaults: true,
+        domains: [],
+      },
+    },
+    resolution: {
+      mode: (capabilities.resolutionModes as readonly DnsResolutionMode[]).includes('split')
+        ? 'split'
+        : 'single',
+      preset: 'managed',
+    },
+  };
 }
 
 export function getCompatibleRuleSetFormats(format: ExportSubscriptionFormat): RuleSetFormat[] {
@@ -1519,6 +1607,17 @@ const QUIXOTIC_CUSTOM_PRESETS: Record<string, { path: string; ruleSetFormat: str
   'fake-ip-filter': { path: 'custom/domain/fake-ip-filter.list', ruleSetFormat: 'text', behavior: 'domain' },
 };
 
+export function getSubscriptionUrlName(rawUrl: string | undefined): string | undefined {
+  const value = rawUrl?.trim();
+  if (!value) return undefined;
+  try {
+    const name = new URL(value).searchParams.get('name')?.trim();
+    return name || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function supportsQuixoticRuleSetExport(format: string): boolean {
   return format in QUIXOTIC_FORMAT_PATHS;
 }
@@ -1630,32 +1729,6 @@ export interface RoutingPolicyTemplate {
   description: string;
   groupNames: string[];
 }
-
-export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
-
-export interface DnsModePreset {
-  id: DnsMode;
-  name: string;
-  description: string;
-}
-
-export const DNS_MODE_PRESETS: DnsModePreset[] = [
-  {
-    id: 'compatible',
-    name: '兼容解析',
-    description: '优先采用客户端兼容性较好的普通解析方式。',
-  },
-  {
-    id: 'smart',
-    name: '分流解析',
-    description: '国内外域名使用不同的 DNS 上游，降低解析污染风险。',
-  },
-  {
-    id: 'fake-ip',
-    name: 'Fake-IP',
-    description: '使用虚拟地址接管域名解析，适合支持 Fake-IP 的客户端。',
-  },
-];
 
 export const RULE_TARGET_FOUNDATION_GROUP_NAMES = [
   'PROXY',

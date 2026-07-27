@@ -1,4 +1,4 @@
-import type { DnsMode, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import type { ExportDnsPolicy, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import {
   DEFAULT_HEALTH_CHECK,
   isRuleSetFormatCompatible,
@@ -7,11 +7,12 @@ import {
   resolveRuleForExport,
 } from '@uni-conf/shared';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
+import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy';
 
 // ─── sing-box JSON generator ──────────────────────────────────────────────────
 
 interface SingboxGeneratorOptions {
-  dnsMode?: DnsMode;
+  dnsPolicy?: ExportDnsPolicy;
   ruleSetConversionBaseUrl?: string;
 }
 
@@ -23,7 +24,7 @@ export function generateSingboxJson(
   collectionNodeNames: Record<string, string[]> = {},
   options: SingboxGeneratorOptions = {}
 ): string {
-  const dnsMode = options.dnsMode ?? 'smart';
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY;
   const proxyDetour = defaultProxyDetour(groups);
   const serializedNodes = serializeSingboxNodes(nodes);
   const endpoints = serializedNodes.flatMap(item => item.endpoint ? [item.endpoint] : []);
@@ -32,7 +33,7 @@ export function generateSingboxJson(
       level: 'warn',
       timestamp: true,
     },
-    dns: buildDns(dnsMode, proxyDetour),
+    dns: buildDns(dnsPolicy, proxyDetour),
     inbounds: buildInbounds(),
     ...(endpoints.length > 0 ? { endpoints } : {}),
     outbounds: buildOutbounds(serializedNodes, groups, collectionNodeNames),
@@ -42,7 +43,7 @@ export function generateSingboxJson(
         enabled: true,
         path: 'cache.db',
         cache_id: 'uni-conf',
-        store_fakeip: dnsMode === 'fake-ip',
+        store_fakeip: dnsPolicy.address.mode === 'fake-ip',
       },
     },
   };
@@ -52,66 +53,72 @@ export function generateSingboxJson(
 
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
-function buildDns(mode: DnsMode, proxyDetour: string): object {
-  if (mode === 'compatible') {
-    return {
-      servers: [
-        {
-          type: 'https',
-          tag: 'localDns',
-          server: '223.5.5.5',
-          path: '/dns-query',
-          detour: 'direct',
-        },
-      ],
-      final: 'localDns',
-      independent_cache: true,
-      strategy: 'prefer_ipv4',
-    };
+function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
+  const split = policy.resolution.mode === 'split';
+  const fakeIp = policy.address.mode === 'fake-ip';
+  const servers: Record<string, unknown>[] = [
+    {
+      type: 'https',
+      tag: 'localDns',
+      server: '223.5.5.5',
+      path: '/dns-query',
+      detour: 'direct',
+    },
+  ];
+  if (split) {
+    servers.unshift({
+      type: 'tls',
+      tag: 'proxyDns',
+      server: '8.8.8.8',
+      detour: proxyDetour,
+    });
   }
-
-  const dns: Record<string, unknown> = {
-    servers: [
-      {
-        type: 'tls',
-        tag: 'proxyDns',
-        server: '8.8.8.8',
-        detour: proxyDetour,
-      },
-      {
-        type: 'https',
-        tag: 'localDns',
-        server: '223.5.5.5',
-        path: '/dns-query',
-        detour: 'direct',
-      },
-    ],
-    rules: [
-      {
-        rule_set: 'geosite-cn',
-        action: 'route',
-        server: 'localDns',
-      },
-      {
-        rule_set: 'geosite-geolocation-!cn',
-        action: 'route',
-        server: 'proxyDns',
-      },
-    ],
-    final: 'proxyDns',
-    independent_cache: true,
-    strategy: 'prefer_ipv4',
-  };
-
-  if (mode === 'fake-ip') {
-    dns.fakeip = {
-      enabled: true,
+  if (fakeIp) {
+    servers.push({
+      type: 'fakeip',
+      tag: 'fakeip',
       inet4_range: '198.18.0.0/15',
       inet6_range: 'fc00::/18',
-    };
+    });
   }
 
-  return dns;
+  const rules: Record<string, unknown>[] = [];
+  for (const domain of realIpDomains(policy)) {
+    rules.push({
+      ...(domain.startsWith('*.')
+        ? { domain_suffix: domain.slice(2) }
+        : { domain }),
+      action: 'route',
+      server: 'localDns',
+    });
+  }
+  if (split) {
+    rules.push({
+      rule_set: 'geosite-cn',
+      action: 'route',
+      server: 'localDns',
+    });
+  }
+  if (fakeIp) {
+    rules.push({
+      query_type: ['A', 'AAAA'],
+      action: 'route',
+      server: 'fakeip',
+    });
+  } else if (split) {
+    rules.push({
+      rule_set: 'geosite-geolocation-!cn',
+      action: 'route',
+      server: 'proxyDns',
+    });
+  }
+
+  return {
+    servers,
+    ...(rules.length > 0 ? { rules } : {}),
+    final: split ? 'proxyDns' : 'localDns',
+    strategy: 'prefer_ipv4',
+  };
 }
 
 // ─── Inbounds ─────────────────────────────────────────────────────────────────

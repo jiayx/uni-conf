@@ -14,7 +14,7 @@ import type { ExportFormat, ProxySource } from '@uni-conf/types'
 import { getConvertedRemoteRuleSet, preflightRuleSetConversions, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
 import { DEFAULT_EXPORT_CONFIG_ID } from '../services/default-export-config'
-import { resolveExportDnsMode } from '../services/export-dns'
+import { resolveExportDnsPolicy } from '../services/export-dns'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -183,7 +183,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
   const rendered = renderExportData(exportData, format, {
-    dnsMode: resolveExportDnsMode(format, config.dnsMode),
+    dnsPolicy: resolveExportDnsPolicy(format, config.dnsPolicy),
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, token),
   })
   if (!rendered) {

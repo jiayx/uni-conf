@@ -10,7 +10,8 @@ import {
 import { generateMihomoYaml } from './mihomo'
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
-import type { DnsMode, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
+import type { ExportDnsPolicy, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
+import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
 
 type Row = Record<string, unknown>
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
@@ -21,7 +22,7 @@ export function generateStashYaml(
   rules: ProxyRule[],
   remoteSets: RemoteRuleSet[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsMode?: DnsMode; ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): string {
   return generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, {
     ...options,
@@ -35,8 +36,9 @@ export function generateSurge(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): string {
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines = buildIniConfig({
     client: 'surge',
     nodes,
@@ -45,14 +47,8 @@ export function generateSurge(
     remoteSets,
     collectionNodeNames,
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
-    general: [
-      '[General]',
-      'loglevel = notify',
-      'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
-      `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
-      'test-timeout = 5',
-      '',
-    ],
+    general: surgeGeneralLines(dnsPolicy),
+    host: nativeHostDnsLines(dnsPolicy),
   })
   return lines.join('\n')
 }
@@ -63,8 +59,9 @@ export function generateShadowrocket(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): string {
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines = buildIniConfig({
     client: 'shadowrocket',
     nodes,
@@ -73,14 +70,10 @@ export function generateShadowrocket(
     remoteSets,
     collectionNodeNames,
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
-    general: [
-      '[General]',
-      'bypass-system = true',
-      'dns-server = system, 223.5.5.5, 8.8.8.8',
-      'skip-proxy = 127.0.0.1, localhost, *.local',
-      '',
-    ],
+    general: shadowrocketGeneralLines(dnsPolicy),
+    host: shadowrocketHostDnsLines(dnsPolicy),
     remoteSection: '[Remote Rule]',
+    forceRemoteDns: dnsPolicy.resolution.mode === 'split',
   })
   return lines.join('\n')
 }
@@ -91,8 +84,9 @@ export function generateQuantumultX(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): string {
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const serializedNodes = nodes
     .map((node) => ({ node, line: nodeToQuantumultX(node) }))
     .filter((item): item is { node: Row; line: string } => item.line !== null)
@@ -102,6 +96,18 @@ export function generateQuantumultX(
     '[general]',
     `server_check_url=${DEFAULT_HEALTH_CHECK.testUrl}`,
     'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
+    `dns_exclusion_list=${realIpDomains(dnsPolicy).join(', ')}`,
+    '',
+    '[dns]',
+    ...(dnsPolicy.resolution.mode === 'split'
+      ? [
+          'doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query',
+          'server = /*.cn/223.5.5.5',
+        ]
+      : [
+          'server = 223.5.5.5',
+          'server = 119.29.29.29',
+        ]),
     '',
     '[server_local]',
     ...nodeLines,
@@ -143,8 +149,9 @@ export function generateEgern(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): string {
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const proxies = nodes
     .map(nodeToEgernProxy)
     .filter((proxy): proxy is Record<string, unknown> => proxy !== null)
@@ -174,6 +181,9 @@ export function generateEgern(
     ipv6: false,
     http_port: 3080,
     socks_port: 3081,
+    real_ip_domains: realIpDomains(dnsPolicy),
+    hijack_dns: ['*'],
+    dns: egernDns(dnsPolicy),
     proxies,
     policy_groups: exportPolicyGroups(groups)
       .map((group) => groupToEgern(group, groups, nodeNames, collectionNodeNames)),
@@ -196,7 +206,9 @@ function buildIniConfig({
   collectionNodeNames,
   ruleSetConversionBaseUrl,
   general,
+  host,
   remoteSection,
+  forceRemoteDns = false,
 }: {
   client: 'surge' | 'shadowrocket'
   nodes: Row[]
@@ -206,11 +218,17 @@ function buildIniConfig({
   collectionNodeNames: Record<string, string[]>
   ruleSetConversionBaseUrl?: string
   general: string[]
+  host?: string[]
   remoteSection?: string
+  forceRemoteDns?: boolean
 }): string[] {
   const validNodes: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
-  const lines: string[] = [...general, '[Proxy]']
+  const lines: string[] = [
+    ...general,
+    ...(host && host.length > 0 ? ['[Host]', ...host, ''] : []),
+    '[Proxy]',
+  ]
   for (const node of nodes) {
     const line = nodeToIniProxy(node, client)
     if (line) {
@@ -248,7 +266,7 @@ function buildIniConfig({
   }
   for (const rule of rules) {
     if (!rule['enabled']) continue
-    const line = ruleToIni(rule, groups, client)
+    const line = ruleToIni(rule, groups, client, forceRemoteDns)
     if (line) lines.push(line)
   }
   if (!hasEnabledMatchRule(rules)) {
@@ -257,6 +275,82 @@ function buildIniConfig({
   lines.push('')
 
   return lines
+}
+
+function surgeGeneralLines(policy: ExportDnsPolicy): string[] {
+  return [
+    '[General]',
+    'loglevel = notify',
+    'dns-server = 223.5.5.5, 119.29.29.29',
+    ...(policy.resolution.mode === 'split'
+      ? ['encrypted-dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query']
+      : []),
+    `always-real-ip = ${realIpDomains(policy).join(', ')}`,
+    'hijack-dns = *:53',
+    'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
+    `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
+    'test-timeout = 5',
+    '',
+  ]
+}
+
+function shadowrocketGeneralLines(policy: ExportDnsPolicy): string[] {
+  return [
+    '[General]',
+    'bypass-system = true',
+    policy.resolution.mode === 'split'
+      ? 'dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query'
+      : 'dns-server = system, 223.5.5.5, 119.29.29.29',
+    `always-real-ip = ${realIpDomains(policy).join(', ')}`,
+    'hijack-dns = *:53',
+    'skip-proxy = 127.0.0.1, localhost, *.local',
+    '',
+  ]
+}
+
+function shadowrocketHostDnsLines(policy: ExportDnsPolicy): string[] {
+  if (policy.resolution.mode !== 'split') return []
+  return ['*.cn = server:223.5.5.5']
+}
+
+function nativeHostDnsLines(policy: ExportDnsPolicy): string[] {
+  if (policy.resolution.mode !== 'split') return []
+  return [
+    '*.cn = server:223.5.5.5,119.29.29.29',
+    '* = server:https://1.1.1.1/dns-query,https://8.8.8.8/dns-query',
+  ]
+}
+
+function egernDns(policy: ExportDnsPolicy): Record<string, unknown> {
+  if (policy.resolution.mode === 'single') {
+    return {
+      bootstrap: ['system', '223.5.5.5'],
+    }
+  }
+  return {
+    bootstrap: ['system', '223.5.5.5'],
+    upstreams: {
+      global: [
+        'https://1.1.1.1/dns-query',
+        'https://8.8.8.8/dns-query',
+      ],
+    },
+    forward: [
+      {
+        domain_suffix: {
+          match: 'cn',
+          value: 'bootstrap',
+        },
+      },
+      {
+        domain_wildcard: {
+          match: '*',
+          value: 'global',
+        },
+      },
+    ],
+    proxy_nameservers: ['tls://dns.google', 'https://1.1.1.1/dns-query'],
+  }
 }
 
 function nodeToIniProxy(node: Row, client: 'surge' | 'shadowrocket'): string | null {
@@ -587,10 +681,16 @@ function groupToEgern(
   }
 }
 
-function ruleToIni(rule: Row, groups: Row[], client: 'surge' | 'shadowrocket'): string | null {
+function ruleToIni(
+  rule: Row,
+  groups: Row[],
+  client: 'surge' | 'shadowrocket',
+  forceRemoteDns = false,
+): string | null {
   const type = String(rule['type'] ?? '')
   const payload = String(rule['payload'] ?? '')
-  const target = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
+  const targetGroupId = String(rule['target_group_id'] ?? '')
+  const target = resolveGroupName(targetGroupId, groups)
   const noResolve = rule['no_resolve']
     && supportsRuleNoResolve(type as RuleCompatibilityType, client)
     ? ',no-resolve'
@@ -598,7 +698,14 @@ function ruleToIni(rule: Row, groups: Row[], client: 'surge' | 'shadowrocket'): 
   if (type === 'MATCH') return `FINAL,${target}`
   const resolution = resolveRuleForExport(type as RuleCompatibilityType, payload, client)
   if (resolution.level === 'unsupported') return null
-  return `${resolution.type},${resolution.payload},${target}${noResolve}`
+  const targetGroupType = String(groups.find(group => String(group['id']) === targetGroupId)?.['type'] ?? '')
+  const remoteDns = forceRemoteDns
+    && client === 'shadowrocket'
+    && ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX'].includes(resolution.type)
+    && !['direct', 'reject'].includes(targetGroupType)
+      ? ',force-remote-dns'
+      : ''
+  return `${resolution.type},${resolution.payload},${target}${noResolve}${remoteDns}`
 }
 
 function ruleToQuantumultX(rule: Row, groups: Row[]): string | null {

@@ -25,36 +25,28 @@ import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible } from '@/core/remote-rules/compatibility'
 import {
-  getDefaultManagedDnsMode,
+  getDefaultExportDnsPolicy,
   getExportClientCapabilities,
   getExportSubscriptionFilename,
 } from '@uni-conf/shared'
-import type { CompatibilityWarning, DnsMode, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
+import type { CompatibilityWarning, DnsResolutionMode, ExportConfig, ExportDnsPolicy, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
 import styles from './Export.module.css'
 
 const BASE_URL = window.location.origin
 const DEFAULT_EXPORT_CONFIG_ID = 'default-mihomo'
 
-function supportedDnsModes(format: ExportFormat): readonly DnsMode[] {
-  return getExportClientCapabilities(format).managedDnsModes as readonly DnsMode[]
+function defaultDnsPolicy(format: ExportFormat): ExportDnsPolicy | undefined {
+  return getDefaultExportDnsPolicy(format)
 }
 
-function defaultDnsMode(format: ExportFormat): DnsMode | undefined {
-  return getDefaultManagedDnsMode(format)
-}
-
-function dnsNameKey(mode: DnsMode): string {
-  return `export.dns_${mode.replace('-', '_')}`
-}
-
-function dnsDescriptionKey(mode: DnsMode): string {
-  return `${dnsNameKey(mode)}_desc`
+function dnsPolicyBadgeKey(policy: ExportDnsPolicy): string {
+  return `export.dns_badge_${policy.address.mode.replace('-', '_')}_${policy.resolution.mode}`
 }
 
 interface ExportForm {
   name: string
   format: ExportFormat
-  dnsMode?: DnsMode
+  dnsPolicy?: ExportDnsPolicy
   enabled: boolean
   includeCollectionIds: string[]
   includeGroupIds: string[]
@@ -66,7 +58,7 @@ interface ExportForm {
 const EMPTY_FORM: ExportForm = {
   name: '',
   format: 'mihomo',
-  dnsMode: 'fake-ip',
+  dnsPolicy: defaultDnsPolicy('mihomo'),
   enabled: true,
   includeCollectionIds: [],
   includeGroupIds: [],
@@ -150,7 +142,7 @@ export function Export() {
     const nextForm: ExportForm = {
       name: t('export.copy_name', { name: config.name }),
       format: config.format,
-      dnsMode: config.dnsMode ?? defaultDnsMode(config.format),
+      dnsPolicy: config.dnsPolicy ?? defaultDnsPolicy(config.format),
       enabled: config.enabled,
       includeCollectionIds: [...config.includeCollectionIds],
       includeGroupIds: [...config.includeGroupIds],
@@ -169,7 +161,7 @@ export function Export() {
     const nextForm: ExportForm = {
       name: config.name,
       format: config.format,
-      dnsMode: config.dnsMode ?? defaultDnsMode(config.format),
+      dnsPolicy: config.dnsPolicy ?? defaultDnsPolicy(config.format),
       enabled: config.enabled,
       includeCollectionIds: config.includeCollectionIds,
       includeGroupIds: config.includeGroupIds,
@@ -198,7 +190,7 @@ export function Export() {
     const payload = {
       name: form.name,
       format: form.format,
-      dnsMode: form.dnsMode,
+      dnsPolicy: form.dnsPolicy,
       enabled: form.enabled,
       includeCollectionIds: form.includeCollectionIds,
       includeGroupIds: form.includeGroupIds,
@@ -375,9 +367,7 @@ export function Export() {
     setForm(f => ({
       ...f,
       format,
-      dnsMode: supportedDnsModes(format).includes(f.dnsMode as DnsMode)
-        ? f.dnsMode
-        : defaultDnsMode(format),
+      dnsPolicy: defaultDnsPolicy(format),
       includeRemoteSetIds: f.includeRemoteSetIds.filter(id => {
         const remoteSet = remoteSets.find(item => item.id === id)
         return remoteSet ? isRemoteRuleSetCompatible(format, remoteSet) : false
@@ -426,7 +416,6 @@ export function Export() {
                       {conversionPolicyLabel(defaultConfig.ruleSetConversionPolicy)}
                     </Badge>
                   </div>
-                  <div className={styles.scopeText}>{exportConfigScopeSummary(defaultConfig, collections, groups, rules, remoteSets, t)}</div>
                 </div>
                 <div className={styles.configActions}>
                   <Button
@@ -501,8 +490,8 @@ export function Export() {
                     <div className={styles.configName}>{cfg.name}</div>
                     <div className={styles.badges}>
                       <Badge variant="purple">{cfg.format.toUpperCase()}</Badge>
-                      {cfg.dnsMode && (
-                        <Badge variant="info">{t('export.dns_badge', { mode: t(dnsNameKey(cfg.dnsMode)) })}</Badge>
+                      {cfg.dnsPolicy && (
+                        <Badge variant="info">{t(dnsPolicyBadgeKey(cfg.dnsPolicy))}</Badge>
                       )}
                       <Badge variant={cfg.enabled ? 'success' : 'default'}>{cfg.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
                       <Badge variant={conversionPolicyBadgeVariant(cfg.ruleSetConversionPolicy)}>
@@ -597,41 +586,129 @@ export function Export() {
                 })
               : t('export.format_full_config_capability_hint', {
                   protocols: selectedFormatCapabilities.nodeProtocols.join(', '),
-                  dnsModes: selectedFormatCapabilities.managedDnsModes
-                    .map(mode => t(dnsNameKey(mode as DnsMode)))
-                    .join(' / '),
+                  dnsCapability: t(
+                    selectedFormatCapabilities.dns.addressModeControl === 'native'
+                      ? 'export.dns_capability_native'
+                      : 'export.dns_capability_selectable',
+                  ),
                 })}
           </div>
         </div>
-        {selectedFormatCapabilities.managedDnsModes.length > 1 && (
+        {selectedFormatCapabilities.dns.addressModeControl === 'selectable' && form.dnsPolicy && (
           <div>
-            <label className={styles.selectLabel} htmlFor="export-profile-dns-mode">
-              {t('export.dns_mode')}
+            <label className={styles.selectLabel} htmlFor="export-profile-dns-address-mode">
+              {t('export.dns_address_mode')}
             </label>
             <select
-              id="export-profile-dns-mode"
+              id="export-profile-dns-address-mode"
               className={styles.select}
-              value={form.dnsMode ?? defaultDnsMode(form.format)}
+              value={form.dnsPolicy.address.mode}
               onChange={event => setForm(current => ({
                 ...current,
-                dnsMode: event.target.value as DnsMode,
+                dnsPolicy: current.dnsPolicy
+                  ? {
+                      ...current.dnsPolicy,
+                      address: event.target.value === 'real-ip'
+                        ? { mode: 'real-ip' }
+                        : {
+                            mode: 'fake-ip',
+                            realIpExceptions: {
+                              includeManagedDefaults: true,
+                              domains: [],
+                            },
+                          },
+                    }
+                  : undefined,
               }))}
             >
-              {selectedFormatCapabilities.managedDnsModes.map(mode => (
-                <option key={mode} value={mode}>{t(dnsNameKey(mode as DnsMode))}</option>
+              {selectedFormatCapabilities.dns.addressModes.map(mode => (
+                <option key={mode} value={mode}>{t(`export.dns_address_${mode.replace('-', '_')}`)}</option>
               ))}
             </select>
-            {form.dnsMode && (
-              <div className={styles.formatCapabilityHint}>{t(dnsDescriptionKey(form.dnsMode))}</div>
-            )}
           </div>
         )}
-        {selectedFormatCapabilities.managedDnsModes.length === 1 && (
+        {selectedFormatCapabilities.dns.addressModeControl === 'native' && (
           <div className={styles.formatCapabilityHint}>
-            {t('export.dns_fixed_hint', {
-              mode: t(dnsNameKey(selectedFormatCapabilities.managedDnsModes[0] as DnsMode)),
-            })}
+            {t('export.dns_native_fake_ip_hint')}
           </div>
+        )}
+        {form.dnsPolicy && selectedFormatCapabilities.dns.resolutionModes.length > 1 && (
+          <div>
+            <label className={styles.selectLabel} htmlFor="export-profile-dns-resolution-mode">
+              {t('export.dns_resolution_mode')}
+            </label>
+            <select
+              id="export-profile-dns-resolution-mode"
+              className={styles.select}
+              value={form.dnsPolicy.resolution.mode}
+              onChange={event => setForm(current => current.dnsPolicy
+                ? {
+                    ...current,
+                    dnsPolicy: {
+                      ...current.dnsPolicy,
+                      resolution: {
+                        mode: event.target.value as DnsResolutionMode,
+                        preset: 'managed',
+                      },
+                    },
+                  }
+                : current)}
+            >
+              {selectedFormatCapabilities.dns.resolutionModes.map(mode => (
+                <option key={mode} value={mode}>{t(`export.dns_resolution_${mode}`)}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {form.dnsPolicy?.address.mode === 'fake-ip' && selectedFormatCapabilities.dns.supportsRealIpExceptions && (
+          <>
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={form.dnsPolicy.address.realIpExceptions.includeManagedDefaults}
+                onChange={event => setForm(current => current.dnsPolicy?.address.mode === 'fake-ip'
+                  ? {
+                      ...current,
+                      dnsPolicy: {
+                        ...current.dnsPolicy,
+                        address: {
+                          ...current.dnsPolicy.address,
+                          realIpExceptions: {
+                            ...current.dnsPolicy.address.realIpExceptions,
+                            includeManagedDefaults: event.target.checked,
+                          },
+                        },
+                      },
+                    }
+                  : current)}
+              />
+              <span>{t('export.dns_managed_real_ip_exceptions')}</span>
+            </label>
+            <Input
+              label={t('export.dns_extra_real_ip_domains')}
+              value={form.dnsPolicy.address.realIpExceptions.domains.join(', ')}
+              placeholder="*.example.local, api.example.com"
+              helperText={t('export.dns_extra_real_ip_domains_hint')}
+              onChange={event => {
+                const domains = event.target.value.split(',').map(value => value.trim()).filter(Boolean)
+                setForm(current => current.dnsPolicy?.address.mode === 'fake-ip'
+                  ? {
+                      ...current,
+                      dnsPolicy: {
+                        ...current.dnsPolicy,
+                        address: {
+                          ...current.dnsPolicy.address,
+                          realIpExceptions: {
+                            ...current.dnsPolicy.address.realIpExceptions,
+                            domains,
+                          },
+                        },
+                      },
+                    }
+                  : current)
+              }}
+            />
+          </>
         )}
         <div>
           <label className={styles.selectLabel} htmlFor="export-profile-conversion-policy">

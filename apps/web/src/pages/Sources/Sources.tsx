@@ -20,7 +20,7 @@ import { useSourcesStore } from '@/store/sources.store'
 import { api, ApiError } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
-import { MAX_SOURCE_CONTENT_BYTES, SOURCE_FORMATS } from '@uni-conf/shared'
+import { getSubscriptionUrlName, MAX_SOURCE_CONTENT_BYTES, SOURCE_FORMATS } from '@uni-conf/shared'
 import type { ProxySource, SourceFormat, SourceImportConflictResolution, SourceImportDiffSection, SourceImportPreview, SourceImportRun } from '@uni-conf/types'
 import styles from './Sources.module.css'
 
@@ -771,7 +771,26 @@ export function Sources() {
           <textarea
             className={styles.textarea}
             value={form.url}
-            onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+            onChange={e => {
+              const nextUrl = e.target.value
+              setForm(current => {
+                const previousUrls = parseSubscriptionUrls(current.url)
+                const nextUrls = parseSubscriptionUrls(nextUrl)
+                const previousAutoName = previousUrls.length === 1
+                  ? getSubscriptionUrlName(previousUrls[0])
+                  : undefined
+                const nextAutoName = nextUrls.length === 1
+                  ? getSubscriptionUrlName(nextUrls[0])
+                  : undefined
+                const shouldUpdateName = !current.name.trim()
+                  || (previousAutoName !== undefined && current.name === previousAutoName)
+                return {
+                  ...current,
+                  url: nextUrl,
+                  name: shouldUpdateName ? nextAutoName ?? '' : current.name,
+                }
+              })
+            }}
             placeholder={t('sources.url_placeholder')}
             required
           />

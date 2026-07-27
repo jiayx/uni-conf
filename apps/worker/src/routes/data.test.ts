@@ -29,7 +29,7 @@ describe('data reset defaults', () => {
     const response = await dataApp.request('/export', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ data: { version: 5 } })
+    await expect(response.json()).resolves.toMatchObject({ data: { version: 6 } })
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('pragma')).toBe('no-cache')
     expect(response.headers.get('content-disposition')).toMatch(/^attachment; filename="uni-conf-backup-\d{4}-\d{2}-\d{2}\.json"$/)
@@ -50,11 +50,11 @@ describe('data reset defaults', () => {
   })
 
   it('rejects unknown tables and SQL identifier-like columns before touching the database', async () => {
-    expect(validateBackupPayload({ version: 5, tables: { unexpected: [] } })).toEqual({
+    expect(validateBackupPayload({ version: 6, tables: { unexpected: [] } })).toEqual({
       valid: false,
       error: 'unknown backup table: unexpected',
     })
-    expect(validateBackupPayload({ version: 5, tables: { sources: [{ "id) VALUES ('x'); --": 'bad' }] } })).toEqual({
+    expect(validateBackupPayload({ version: 6, tables: { sources: [{ "id) VALUES ('x'); --": 'bad' }] } })).toEqual({
       valid: false,
       error: "unknown column sources.id) VALUES ('x'); --",
     })
@@ -73,20 +73,20 @@ describe('data reset defaults', () => {
   })
 
   it('rejects missing, null, and invalid constrained fields before destructive restore', async () => {
-    expect(validateBackupPayload({ version: 5, tables: { sources: [{ id: 'source-1' }] } })).toEqual({
+    expect(validateBackupPayload({ version: 6, tables: { sources: [{ id: 'source-1' }] } })).toEqual({
       valid: false,
       error: 'sources[0].name is required',
     })
-    expect(validateBackupPayload({ version: 5, tables: { sources: [{ ...sourceRow('source-1'), format: null }] } })).toEqual({
+    expect(validateBackupPayload({ version: 6, tables: { sources: [{ ...sourceRow('source-1'), format: null }] } })).toEqual({
       valid: false,
       error: 'sources[0].format must not be null',
     })
-    expect(validateBackupPayload({ version: 5, tables: { sources: [{ ...sourceRow('source-1'), type: 'unknown' }] } })).toEqual({
+    expect(validateBackupPayload({ version: 6, tables: { sources: [{ ...sourceRow('source-1'), type: 'unknown' }] } })).toEqual({
       valid: false,
       error: 'sources[0].type is invalid',
     })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { source_import_runs: [{ ...importRunRow('run-1'), status: 'failed' }] },
     })).toEqual({ valid: false, error: 'source_import_runs[0].status is invalid' })
 
@@ -102,16 +102,16 @@ describe('data reset defaults', () => {
 
   it('validates optional export-profile conversion policies', () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         export_configs: [{
           ...exportRow('export-1', 'token-1'),
           rule_set_conversion_policy: 'strict',
         }],
       },
-    })).toMatchObject({ valid: true, version: 5 })
+    })).toMatchObject({ valid: true, version: 6 })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         export_configs: [{
           ...exportRow('export-1', 'token-1'),
@@ -127,17 +127,17 @@ describe('data reset defaults', () => {
   it('accepts the current exported API envelope', () => {
     expect(validateBackupPayload({
       success: true,
-      data: { version: 5, tables: { sources: [sourceRow('source-1')] } },
-    })).toMatchObject({ valid: true, version: 5, totalRows: 1 })
+      data: { version: 6, tables: { sources: [sourceRow('source-1')] } },
+    })).toMatchObject({ valid: true, version: 6, totalRows: 1 })
   })
 
   it('rejects duplicate primary identifiers and export tokens before restore', () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { sources: [sourceRow('source-1'), sourceRow('source-1')] },
     })).toEqual({ valid: false, error: 'sources[1].id duplicates source-1' })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         export_configs: [
           exportRow('export-1', 'shared'),
@@ -149,15 +149,15 @@ describe('data reset defaults', () => {
 
   it('rejects malformed and dangling JSON relationship lists', () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { collections: [{ ...collectionRow('collection-1'), source_ids: '{', node_ids: '[]' }] },
     })).toEqual({ valid: false, error: 'collections[0].source_ids must contain valid JSON' })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { groups: [{ ...groupRow('group-1'), collection_ids: '["missing"]', group_ids: '[]' }] },
     })).toEqual({ valid: false, error: 'groups[0].collection_ids references a missing collection: missing' })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         groups: [{ ...groupRow('group-1'), collection_ids: '[]', group_ids: '[]' }],
         export_configs: [{
@@ -170,7 +170,7 @@ describe('data reset defaults', () => {
 
   it('rejects direct and indirect policy-group reference cycles before destructive restore', async () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         groups: [{ ...groupRow('group-1'), group_ids: '["group-1"]' }],
       },
@@ -179,7 +179,7 @@ describe('data reset defaults', () => {
       error: 'group reference cycle detected: group-1 -> group-1',
     })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         groups: [
           { ...groupRow('group-a'), group_ids: '["group-b"]' },
@@ -209,11 +209,11 @@ describe('data reset defaults', () => {
 
   it('validates target-native rule-set sources in backups', () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { remote_rule_sets: [{ ...remoteRuleSetRow('remote-1'), source_overrides: '{' }] },
     })).toEqual({ valid: false, error: 'remote_rule_sets[0].source_overrides must contain valid JSON' })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { remote_rule_sets: [{
         ...remoteRuleSetRow('remote-1'),
         source_overrides: JSON.stringify({ nodes_raw: 'https://example.com/raw.list' }),
@@ -223,7 +223,7 @@ describe('data reset defaults', () => {
       error: 'remote_rule_sets[0].source_overrides must contain only supported targets and public http(s) URLs',
     })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         groups: [groupRow('group-1')],
         remote_rule_sets: [{
@@ -236,7 +236,7 @@ describe('data reset defaults', () => {
 
   it('accepts a connected backup graph with scoped export references', () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: {
         sources: [sourceRow('source-1')],
         nodes: [nodeRow('node-1', 'source-1')],
@@ -250,18 +250,18 @@ describe('data reset defaults', () => {
         }],
         app_settings: [{ ...appSettingsRow(), default_export_token: 'token-1' }],
       },
-    })).toMatchObject({ valid: true, version: 5, totalRows: 8 })
+    })).toMatchObject({ valid: true, version: 6, totalRows: 8 })
   })
 
   it('validates optional import history source references without requiring an active source after undo', () => {
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { source_import_runs: [{ ...importRunRow('run-1'), source_id: 'missing' }] },
     })).toEqual({ valid: false, error: 'source_import_runs[0] references a missing source' })
     expect(validateBackupPayload({
-      version: 5,
+      version: 6,
       tables: { source_import_runs: [{ ...importRunRow('run-1'), source_id: null }] },
-    })).toMatchObject({ valid: true, version: 5, totalRows: 1 })
+    })).toMatchObject({ valid: true, version: 6, totalRows: 1 })
   })
 
   it('supports non-destructive backup validation with a row summary', async () => {
@@ -275,7 +275,7 @@ describe('data reset defaults', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       success: true,
-      data: { version: 5, totalRows: 1, containsSensitiveData: true, tables: { sources: 1 } },
+      data: { version: 6, totalRows: 1, containsSensitiveData: true, tables: { sources: 1 } },
     })
     expect(db.batch).not.toHaveBeenCalled()
   })
@@ -319,7 +319,7 @@ function currentTables(overrides: BackupTables = {}): BackupTables {
 }
 
 function currentBackup(tables: BackupTables = {}): Record<string, unknown> {
-  return { version: 5, tables: currentTables(tables) }
+  return { version: 6, tables: currentTables(tables) }
 }
 
 function validateBackupPayload(value: unknown) {
@@ -471,7 +471,16 @@ function exportRow(id: string, token: string): Record<string, unknown> {
     id,
     name: 'Export',
     format: 'mihomo',
-    dns_mode: 'smart',
+    dns_policy: JSON.stringify({
+      address: {
+        mode: 'fake-ip',
+        realIpExceptions: {
+          includeManagedDefaults: true,
+          domains: [],
+        },
+      },
+      resolution: { mode: 'split', preset: 'managed' },
+    }),
     token,
     enabled: 1,
     include_collection_ids: '[]',

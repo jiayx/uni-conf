@@ -415,7 +415,7 @@ export interface ExportConfig {
   id: string;
   name: string;
   format: ExportFormat;
-  dnsMode?: DnsMode;
+  dnsPolicy?: ExportDnsPolicy;
   token: string; // for /sub/:token/:format URLs
   enabled: boolean;
   includeCollectionIds: string[];
@@ -445,7 +445,30 @@ export type RoutingPolicyTemplateId =
   | 'streaming'
   | 'router'
   | 'extended';
-export type DnsMode = 'compatible' | 'smart' | 'fake-ip';
+export type DnsAddressMode = 'fake-ip' | 'real-ip';
+export type DnsResolutionMode = 'single' | 'split';
+
+export type DnsAddressPolicy =
+  | {
+      mode: 'fake-ip';
+      realIpExceptions: {
+        includeManagedDefaults: boolean;
+        domains: string[];
+      };
+    }
+  | {
+      mode: 'real-ip';
+    };
+
+export interface DnsResolutionPolicy {
+  mode: DnsResolutionMode;
+  preset: 'managed';
+}
+
+export interface ExportDnsPolicy {
+  address: DnsAddressPolicy;
+  resolution: DnsResolutionPolicy;
+}
 export type ExportNodeNamingMode = 'original' | 'region_sequence' | 'source_region_sequence' | 'smart';
 export type RuleSetConversionPolicy = 'compatible' | 'strict';
 export type AutoNodeGroupType = 'select' | 'url-test' | 'fallback';

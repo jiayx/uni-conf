@@ -13,6 +13,7 @@ import {
   decodeBase64UrlUtf8,
   detectCountry,
   extractSourceNodeGroupMarkerKey,
+  getSubscriptionUrlName,
   getProxyLinkUriScheme,
   isSubscriptionInfoNodeName,
   parseProxyUrlParts,
@@ -1237,6 +1238,8 @@ export function deriveSourceName(url: string | undefined): string {
 
   try {
     const parsed = new URL(value);
+    const queryName = getSubscriptionUrlName(value);
+    if (queryName) return queryName;
     const host = parsed.hostname.replace(/^www\./, '');
     return host || '订阅源';
   } catch {

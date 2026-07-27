@@ -4,7 +4,7 @@ import { buildQuickSubscriptionLinks } from './quick-subscriptions'
 describe('buildQuickSubscriptionLinks', () => {
   it('builds canonical subscription URLs for every quick export format', () => {
     expect(buildQuickSubscriptionLinks('https://conf.example.com/', 'token-1')).toEqual([
-      { value: 'mihomo', label: 'Mihomo / Clash / OpenClash YAML', url: 'https://conf.example.com/sub/token-1/mihomo.yaml' },
+      { value: 'mihomo', label: 'Mihomo YAML', url: 'https://conf.example.com/sub/token-1/mihomo.yaml' },
       { value: 'clash', label: 'Clash YAML', url: 'https://conf.example.com/sub/token-1/clash.yaml' },
       { value: 'singbox', label: 'sing-box JSON', url: 'https://conf.example.com/sub/token-1/singbox.json' },
       { value: 'loon', label: 'Loon CONF', url: 'https://conf.example.com/sub/token-1/loon.conf' },

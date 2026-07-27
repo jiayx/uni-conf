@@ -151,6 +151,9 @@ rule-providers:
 
   it('derives source names from subscription URLs', () => {
     expect(deriveSourceName('https://www.example.com/api/sub?token=abc')).toBe('example.com')
+    expect(deriveSourceName('https://api0.bigmelook.com/BigME/Subscription/api/v1/client/subscribe?token=secret&name=BigME.Pro')).toBe('BigME.Pro')
+    expect(deriveSourceName('https://example.com/sub?name=BigME%20Pro')).toBe('BigME Pro')
+    expect(deriveSourceName('https://example.com/sub?name=%20%20')).toBe('example.com')
     expect(deriveSourceName('https://airport.example/sub')).toBe('airport.example')
     expect(deriveSourceName('not a valid url')).toBe('not a valid url')
     expect(deriveSourceName(undefined)).toBe('订阅源')
@@ -158,6 +161,8 @@ rule-providers:
 
   it('resolves blank source names from the subscription URL', () => {
     expect(resolveSourceNameInput('  My Airport  ', 'https://example.com/sub')).toBe('My Airport')
+    expect(resolveSourceNameInput('Explicit Name', 'https://example.com/sub?name=URL%20Name')).toBe('Explicit Name')
+    expect(resolveSourceNameInput('', 'https://example.com/sub?name=URL%20Name')).toBe('URL Name')
     expect(resolveSourceNameInput('', 'https://www.example.com/sub')).toBe('example.com')
     expect(resolveSourceNameInput('   ', 'https://airport.example/sub')).toBe('airport.example')
   })
@@ -936,7 +941,7 @@ proxy-groups:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         type: 'url',
-        url: 'https://airport.example/sub',
+        url: 'https://airport.example/sub?token=secret&name=BigME.Pro',
         format: 'auto',
         refreshAfterCreate: false,
       }),
@@ -945,7 +950,7 @@ proxy-groups:
 
     expect(response.status).toBe(201)
     expect(payload.success).toBe(true)
-    expect(payload.data.source.name).toBe('airport.example')
+    expect(payload.data.source.name).toBe('BigME.Pro')
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
   })
 

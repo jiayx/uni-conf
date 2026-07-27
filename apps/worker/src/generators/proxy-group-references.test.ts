@@ -350,67 +350,78 @@ describe('proxy group references', () => {
     expect(content).not.toContain('redir-port:')
   })
 
-  it('uses smart DNS mode by default for Mihomo configs', () => {
+  it('uses FakeIP with split DNS by default for Mihomo configs', () => {
     const content = generateMihomoYaml([], [], [], [])
 
-    expect(content).toContain('enhanced-mode: redir-host')
+    expect(content).toContain('enhanced-mode: fake-ip')
     expect(content).toContain('fallback-filter:')
     expect(content).toContain('nameserver-policy:')
-    expect(content).not.toContain('fake-ip-range:')
+    expect(content).toContain('fake-ip-range:')
   })
 
-  it('can generate compatible and fake-ip DNS modes', () => {
-    const compatible = generateMihomoYaml([], [], [], [], {}, { dnsMode: 'compatible' })
-    const fakeIp = generateMihomoYaml([], [], [], [], {}, { dnsMode: 'fake-ip' })
+  it('separates address response from DNS upstream routing', () => {
+    const realIp = generateMihomoYaml([], [], [], [], {}, {
+      dnsPolicy: {
+        address: { mode: 'real-ip' },
+        resolution: { mode: 'single', preset: 'managed' },
+      },
+    })
+    const fakeIp = generateMihomoYaml([], [], [], [])
 
-    expect(compatible).toContain('enhanced-mode: redir-host')
-    expect(compatible).not.toContain('fallback-filter:')
+    expect(realIp).toContain('enhanced-mode: redir-host')
+    expect(realIp).not.toContain('fallback-filter:')
     expect(fakeIp).toContain('enhanced-mode: fake-ip')
     expect(fakeIp).toContain('fake-ip-filter:')
   })
 
-  it('maps DNS mode to sing-box fakeip settings', () => {
-    const smart = JSON.parse(generateSingboxJson([], [], [], [])) as {
+  it('renders sing-box FakeIP as a modern DNS server', () => {
+    const fakeIp = JSON.parse(generateSingboxJson([], [], [], [])) as {
       log: Record<string, unknown>;
-      dns: { fakeip?: unknown; rules: Array<Record<string, unknown>> };
+      dns: { servers: Array<Record<string, unknown>>; rules: Array<Record<string, unknown>> };
       inbounds: Array<Record<string, unknown>>;
       route: { default_domain_resolver: string };
       experimental: { cache_file: { store_fakeip: boolean } };
     }
-    const fakeIp = JSON.parse(generateSingboxJson([], [], [], [], {}, { dnsMode: 'fake-ip' })) as {
-      dns: Record<string, unknown>;
-      experimental: { cache_file: { store_fakeip: boolean } };
-    }
-    const compatible = JSON.parse(generateSingboxJson([], [], [], [], {}, { dnsMode: 'compatible' })) as {
+    const realIp = JSON.parse(generateSingboxJson([], [], [], [], {}, {
+      dnsPolicy: {
+        address: { mode: 'real-ip' },
+        resolution: { mode: 'single', preset: 'managed' },
+      },
+    })) as {
       dns: { servers: Array<{ tag: string }>; rules?: unknown; final: string };
     }
 
-    expect(smart.log).toMatchObject({ level: 'warn', timestamp: true })
-    expect(smart.dns.fakeip).toBeUndefined()
-    expect(smart.inbounds).toContainEqual(expect.objectContaining({
+    expect(fakeIp.log).toMatchObject({ level: 'warn', timestamp: true })
+    expect(fakeIp.inbounds).toContainEqual(expect.objectContaining({
       type: 'tun',
       tag: 'tun-in',
       auto_route: true,
       strict_route: true,
     }))
-    expect(smart.inbounds).toContainEqual(expect.objectContaining({
+    expect(fakeIp.inbounds).toContainEqual(expect.objectContaining({
       type: 'mixed',
       tag: 'mixed-in',
       listen: '::',
       listen_port: 2080,
       set_system_proxy: false,
     }))
-    expect(smart.experimental.cache_file.store_fakeip).toBe(false)
-    expect(smart.dns.rules).toEqual([
-      expect.objectContaining({ rule_set: 'geosite-cn', action: 'route', server: 'localDns' }),
-      expect.objectContaining({ rule_set: 'geosite-geolocation-!cn', action: 'route', server: 'proxyDns' }),
-    ])
-    expect(smart.dns.rules.every(rule => rule.outbound === undefined)).toBe(true)
-    expect(compatible.dns.servers).toEqual([expect.objectContaining({ tag: 'localDns' })])
-    expect(compatible.dns.rules).toBeUndefined()
-    expect(compatible.dns.final).toBe('localDns')
-    expect(smart.route.default_domain_resolver).toBe('localDns')
-    expect(fakeIp.dns.fakeip).toEqual(expect.objectContaining({ enabled: true }))
+    expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
+    expect(fakeIp.dns.servers).toContainEqual(expect.objectContaining({
+      type: 'fakeip',
+      tag: 'fakeip',
+    }))
+    expect(fakeIp.dns.rules).toContainEqual(expect.objectContaining({
+      query_type: ['A', 'AAAA'],
+      action: 'route',
+      server: 'fakeip',
+    }))
+    expect(fakeIp.dns.rules.findIndex(rule => rule.rule_set === 'geosite-cn')).toBeLessThan(
+      fakeIp.dns.rules.findIndex(rule => rule.server === 'fakeip'),
+    )
+    expect(fakeIp.route.default_domain_resolver).toBe('localDns')
+    expect(realIp.dns.servers).toEqual([expect.objectContaining({ tag: 'localDns' })])
+    expect(realIp.dns.rules).toBeUndefined()
+    expect(realIp.dns.final).toBe('localDns')
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
   })
 
@@ -422,7 +433,8 @@ describe('proxy group references', () => {
     const loon = generateLoon(nodeRows, rows, [], [], collectionNodeNames)
     expect(loon).toContain('[General]')
     expect(loon).toContain('ip-mode = v4-only')
-    expect(loon).toContain('dns-server = system, 119.29.29.29, 223.5.5.5, 8.8.8.8')
+    expect(loon).toContain('dns-server = system, 119.29.29.29, 223.5.5.5')
+    expect(loon).toContain('real-ip = *.lan')
     expect(loon).toContain('wifi-access-http-port = 7222')
     expect(loon).toContain('proxy-test-url = http://www.gstatic.com/generate_204')
     expect(loon).toContain('Auto = url-latency-benchmark, Supported SS, url=http://www.gstatic.com/generate_204, interval=300')
@@ -439,7 +451,9 @@ describe('proxy group references', () => {
     const shadowrocket = generateShadowrocket(nodeRows, rows, [], [], collectionNodeNames)
     expect(shadowrocket).toContain('[General]')
     expect(shadowrocket).toContain('bypass-system = true')
-    expect(shadowrocket).toContain('dns-server = system, 223.5.5.5, 8.8.8.8')
+    expect(shadowrocket).toContain('dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
+    expect(shadowrocket).toContain('always-real-ip = *.lan')
+    expect(shadowrocket).toContain('[Host]\n*.cn = server:223.5.5.5')
     expect(shadowrocket).toContain('[Proxy Group]')
     expect(shadowrocket).toContain('FINAL,PROXY')
 
@@ -464,6 +478,61 @@ describe('proxy group references', () => {
     expect(egern.socks_port).toBe(3081)
     expect(egern.policy_groups.map(egernEntryBody).map((group) => group?.name)).toContain(autoGroup.name)
     expect(egern.rules).toContainEqual({ default: { policy: 'PROXY' } })
+  })
+
+  it('renders split DNS and remote proxy resolution for Shadowrocket', () => {
+    const rules = [
+      {
+        id: 'rule-proxy-domain',
+        type: 'DOMAIN-SUFFIX',
+        payload: 'google.com',
+        target_group_id: proxyGroup.id,
+        enabled: 1,
+        no_resolve: 0,
+      },
+      {
+        id: 'rule-direct-domain',
+        type: 'DOMAIN-SUFFIX',
+        payload: 'example.cn',
+        target_group_id: directGroup.id,
+        enabled: 1,
+        no_resolve: 0,
+      },
+    ]
+    const split = generateShadowrocket(
+      [],
+      [toRow(proxyGroup), toRow(directGroup)],
+      rules,
+      [],
+    )
+    const single = generateShadowrocket(
+      [],
+      [toRow(proxyGroup), toRow(directGroup)],
+      rules,
+      [],
+      {},
+      {
+        dnsPolicy: {
+          address: {
+            mode: 'fake-ip',
+            realIpExceptions: {
+              includeManagedDefaults: true,
+              domains: [],
+            },
+          },
+          resolution: { mode: 'single', preset: 'managed' },
+        },
+      },
+    )
+
+    expect(split).toContain('dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
+    expect(split).toContain('[Host]\n*.cn = server:223.5.5.5')
+    expect(split).toContain('DOMAIN-SUFFIX,google.com,PROXY,force-remote-dns')
+    expect(split).toContain('DOMAIN-SUFFIX,example.cn,DIRECT')
+    expect(split).not.toContain('DOMAIN-SUFFIX,example.cn,DIRECT,force-remote-dns')
+    expect(single).toContain('dns-server = system, 223.5.5.5, 119.29.29.29')
+    expect(single).not.toContain('[Host]')
+    expect(single).not.toContain('force-remote-dns')
   })
 
   it('still appends text-client fallback rules when MATCH is disabled', () => {

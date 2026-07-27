@@ -170,10 +170,8 @@ export function mapExportConfig(row: Record<string, unknown>): ExportConfig {
     id: row.id as string,
     name: row.name as string,
     format: row.format as ExportConfig['format'],
-    dnsMode:
-      row.dns_mode === 'compatible' || row.dns_mode === 'smart' || row.dns_mode === 'fake-ip'
-        ? row.dns_mode
-        : undefined,
+    dnsPolicy:
+      jsonParse<ExportConfig['dnsPolicy']>(row.dns_policy as string | null) ?? undefined,
     token: row.token as string,
     enabled: Boolean(row.enabled),
     includeCollectionIds:

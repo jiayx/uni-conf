@@ -1,4 +1,4 @@
-import type { DnsMode, ExportFormat } from '@uni-conf/types'
+import type { ExportDnsPolicy, ExportFormat } from '@uni-conf/types'
 import type { ExportData } from '../export-data'
 import { generateMihomoYaml } from './mihomo'
 import { generateSingboxJson } from './singbox'
@@ -20,7 +20,7 @@ export interface RenderedExport {
 export function renderExportData(
   data: ExportData,
   format: ExportFormat,
-  options: { dnsMode?: DnsMode; ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): RenderedExport | null {
   const {
     nodes,

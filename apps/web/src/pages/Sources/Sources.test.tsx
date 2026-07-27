@@ -78,6 +78,20 @@ describe('Sources import flow', () => {
     expect(submit).toBeEnabled()
   })
 
+  it('fills the optional source name from a single subscription URL name parameter', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Sources /></MemoryRouter>)
+
+    await user.click(screen.getAllByRole('button', { name: 'Add URL' })[0]!)
+    await user.type(
+      screen.getByRole('textbox', { name: 'Subscription URL' }),
+      'https://api0.bigmelook.com/BigME/Subscription/api/v1/client/subscribe?token=secret&name=BigME.Pro',
+    )
+    await user.click(screen.getByText('Advanced options'))
+
+    expect(screen.getByRole('textbox', { name: 'Name (optional)' })).toHaveValue('BigME.Pro')
+  })
+
   it('previews a config before committing the import', async () => {
     vi.mocked(api.sources.previewImport).mockResolvedValue({
       detectedFormat: 'mihomo', nodeCount: 1, excludedCount: 0, sourceGroupCount: 1,

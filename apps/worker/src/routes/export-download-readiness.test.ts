@@ -322,13 +322,18 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
     expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'singbox',
-      expect.objectContaining({ dnsMode: 'smart' })
+      expect.objectContaining({
+        dnsPolicy: expect.objectContaining({
+          address: expect.objectContaining({ mode: 'fake-ip' }),
+          resolution: expect.objectContaining({ mode: 'split' }),
+        }),
+      })
     )
   })
 
@@ -348,7 +353,7 @@ describe('export download readiness', () => {
       success: true,
       data: {
         format: 'mihomo',
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: 'mihomo' },
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: 'mihomo' },
         artifactValidation: { format: 'mihomo', kind: 'yaml', valid: true, issues: [] },
         readiness: { ready: true, blockingWarnings: [] },
       },
@@ -409,7 +414,7 @@ describe('export download readiness', () => {
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'nodes_raw',
-      expect.objectContaining({ dnsMode: undefined })
+      expect.objectContaining({ dnsPolicy: undefined })
     )
   })
 
@@ -441,7 +446,16 @@ describe('export download readiness', () => {
       id: 'mobile-singbox',
       name: 'Mobile',
       format: 'singbox' as const,
-      dnsMode: 'smart' as const,
+      dnsPolicy: {
+        address: {
+          mode: 'fake-ip' as const,
+          realIpExceptions: {
+            includeManagedDefaults: true,
+            domains: [],
+          },
+        },
+        resolution: { mode: 'split' as const, preset: 'managed' as const },
+      },
       token: 'mobile-token',
       enabled: true,
       includeCollectionIds: [],
@@ -501,7 +515,7 @@ describe('export download readiness', () => {
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('SCRIPT=1')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
     await expect(response.json()).resolves.toEqual({
       version: 3,
       rules: [{ domain_suffix: ['example.com'] }],
@@ -560,7 +574,7 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
   })
@@ -643,7 +657,7 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@17')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@18')
     expect(fetchMock).toHaveBeenCalledWith(
       sourceUrl,
       expect.objectContaining({ redirect: 'manual' }),
@@ -759,7 +773,7 @@ describe('export download readiness', () => {
     expect(renderExportData).not.toHaveBeenCalled()
   })
 
-  it('renders public subscriptions with the filename format and stored DNS mode', async () => {
+  it('renders public subscriptions with the filename format and stored DNS policy', async () => {
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
       nodes: [
         {
@@ -785,12 +799,17 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@17')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'singbox',
-      expect.objectContaining({ dnsMode: 'smart' })
+      expect.objectContaining({
+        dnsPolicy: expect.objectContaining({
+          address: expect.objectContaining({ mode: 'fake-ip' }),
+          resolution: expect.objectContaining({ mode: 'split' }),
+        }),
+      })
     )
   })
 
@@ -847,7 +866,7 @@ describe('export download readiness', () => {
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'nodes_base64',
-      expect.objectContaining({ dnsMode: undefined })
+      expect.objectContaining({ dnsPolicy: undefined })
     )
   })
 

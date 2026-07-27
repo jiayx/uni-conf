@@ -4,16 +4,17 @@ import { exportConfigScopeSummary } from './scope-summary'
 
 const createdAt = '2026-01-01T00:00:00.000Z'
 const t = createTestT({
-  'export.scope_collections': '节点组',
-  'export.scope_groups': '策略组与出口',
-  'export.scope_rules': '手动规则',
-  'export.scope_remote_sets': '兼容分流规则集',
-  'export.scope_all_enabled': '{{label}}: 全部启用 {{count}}',
-  'export.scope_selected': '{{label}}: 已选 {{selected}}/{{count}}',
+  'export.scope_summary_all': '导出范围：全部已启用内容',
+  'export.scope_summary_custom': '导出范围：{{details}}',
+  'export.scope_summary_count': '{{label}} {{selected}}/{{count}}',
+  'export.scope_summary_collections': '节点组',
+  'export.scope_summary_groups': '策略组',
+  'export.scope_summary_rules': '规则',
+  'export.scope_summary_remote_sets': '规则集',
 })
 
 describe('export config scope summary', () => {
-  it('summarizes the zero-setup default scope with enabled and compatible items only', () => {
+  it('summarizes an unrestricted advanced profile without repeating counts', () => {
     expect(exportConfigScopeSummary(
       makeConfig({ format: 'singbox' }),
       [
@@ -34,7 +35,7 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-disabled', false, 'singbox'),
       ],
       t
-    )).toBe('节点组: 全部启用 1 / 策略组与出口: 全部启用 1 / 手动规则: 全部启用 1 / 兼容分流规则集: 全部启用 2')
+    )).toBe('导出范围：全部已启用内容')
   })
 
   it('shows selected scope counts against the eligible export pool', () => {
@@ -51,7 +52,7 @@ describe('export config scope summary', () => {
       [makeRule('rule-enabled', true), makeRule('rule-ai', true)],
       [makeRemoteSet('remote-singbox', true, 'singbox'), makeRemoteSet('remote-mihomo', true, 'mihomo')],
       t
-    )).toBe('节点组: 已选 1/2 / 策略组与出口: 已选 1/2 / 手动规则: 已选 1/2 / 兼容分流规则集: 已选 1/2')
+    )).toBe('导出范围：节点组 1/2 · 策略组 1/2 · 规则 1/2 · 规则集 1/2')
   })
 
   it('matches worker export target filtering when groups are scoped', () => {
@@ -80,7 +81,7 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-disabled-target', true, 'singbox', 'disabled-policy'),
       ],
       t
-    )).toBe('节点组: 全部启用 1 / 策略组与出口: 已选 2/3 / 手动规则: 全部启用 2 / 兼容分流规则集: 全部启用 2')
+    )).toBe('导出范围：节点组 1/1 · 策略组 2/3 · 规则 2/2 · 规则集 2/2')
   })
 
   it('counts selected scopes by the effective exportable items', () => {
@@ -113,7 +114,7 @@ describe('export config scope summary', () => {
         makeRemoteSet('remote-ai', true, 'singbox', 'builtin-ai'),
       ],
       t
-    )).toBe('节点组: 已选 1/1 / 策略组与出口: 已选 2/3 / 手动规则: 已选 1/1 / 兼容分流规则集: 已选 2/2')
+    )).toBe('导出范围：节点组 1/1 · 策略组 2/3 · 规则 1/1 · 规则集 2/2')
   })
 })
 

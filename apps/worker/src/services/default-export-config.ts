@@ -42,7 +42,7 @@ export async function ensureDefaultExportConfig(db: D1Database, ts: string): Pro
   await db
     .prepare(
       `INSERT INTO export_configs
-        (id, name, format, dns_mode, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, extra_config, created_at, updated_at)
+        (id, name, format, dns_policy, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, extra_config, created_at, updated_at)
        VALUES (?, '默认 Mihomo 配置', 'mihomo', NULL, ?, 1, '[]', '[]', '[]', '[]', NULL, ?, ?)`
     )
     .bind(DEFAULT_EXPORT_CONFIG_ID, token, ts, ts)

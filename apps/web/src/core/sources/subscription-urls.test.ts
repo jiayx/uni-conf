@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getSubscriptionUrlName } from '@uni-conf/shared'
 import { parseSubscriptionUrls } from './subscription-urls'
 
 describe('parseSubscriptionUrls', () => {
@@ -29,5 +30,12 @@ describe('parseSubscriptionUrls', () => {
       'https://b.example/sub',
       'https://c.example/sub',
     ])
+  })
+
+  it('reads a decoded optional source name from a subscription URL', () => {
+    expect(getSubscriptionUrlName('https://example.com/sub?token=secret&name=BigME.Pro')).toBe('BigME.Pro')
+    expect(getSubscriptionUrlName('https://example.com/sub?name=BigME%20Pro')).toBe('BigME Pro')
+    expect(getSubscriptionUrlName('https://example.com/sub?name=%20')).toBeUndefined()
+    expect(getSubscriptionUrlName('not a URL')).toBeUndefined()
   })
 })

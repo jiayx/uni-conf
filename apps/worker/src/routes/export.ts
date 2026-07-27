@@ -23,9 +23,9 @@ import {
   isExportSubscriptionFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
-import { resolveExportDnsMode } from '../services/export-dns'
+import { resolveExportDnsPolicy } from '../services/export-dns'
 
-export { resolveExportDnsMode } from '../services/export-dns'
+export { resolveExportDnsPolicy } from '../services/export-dns'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -49,19 +49,19 @@ exportRouter.post('/configs', async (c) => {
   const token = generateExportToken()
   const ts = now()
   const format = body.format ?? 'mihomo'
-  const dnsMode = resolveExportDnsMode(format, body.dnsMode)
-  if (body.dnsMode !== undefined && dnsMode === undefined) {
-    return c.json({ success: false, error: 'DNS mode is not supported by this export format' }, 400)
+  const dnsPolicy = resolveExportDnsPolicy(format, body.dnsPolicy)
+  if (body.dnsPolicy !== undefined && dnsPolicy === undefined) {
+    return c.json({ success: false, error: 'DNS policy is not supported by this export format' }, 400)
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO export_configs (id, name, format, dns_mode, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
+    `INSERT INTO export_configs (id, name, format, dns_policy, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     resolveExportConfigName(body.name, body.format),
     format,
-    dnsMode ?? null,
+    dnsPolicy ? JSON.stringify(dnsPolicy) : null,
     token,
     body.enabled !== false ? 1 : 0,
     JSON.stringify(selection.includeCollectionIds),
@@ -82,7 +82,7 @@ exportRouter.post('/configs', async (c) => {
 export function resolveExportConfigName(name: unknown, format: ExportConfig['format'] | undefined): string {
   if (typeof name === 'string' && name.trim()) return name.trim()
   const labels: Partial<Record<ExportConfig['format'], string>> = {
-    mihomo: 'Mihomo / Clash / OpenClash',
+    mihomo: 'Mihomo',
     clash: 'Clash',
     singbox: 'sing-box',
     loon: 'Loon',
@@ -139,13 +139,13 @@ exportRouter.put('/configs/:id', async (c) => {
   }
   const existingConfig = mapExportConfig(existing as Record<string, unknown>)
   const nextFormat = body.format ?? existingConfig.format
-  const requestedDnsMode = body.dnsMode ?? existingConfig.dnsMode
-  let nextDnsMode = resolveExportDnsMode(nextFormat, requestedDnsMode)
-  if (body.dnsMode !== undefined && nextDnsMode === undefined) {
-    return c.json({ success: false, error: 'DNS mode is not supported by this export format' }, 400)
+  const requestedDnsPolicy = body.dnsPolicy ?? existingConfig.dnsPolicy
+  let nextDnsPolicy = resolveExportDnsPolicy(nextFormat, requestedDnsPolicy)
+  if (body.dnsPolicy !== undefined && nextDnsPolicy === undefined) {
+    return c.json({ success: false, error: 'DNS policy is not supported by this export format' }, 400)
   }
-  if (body.dnsMode === undefined && requestedDnsMode !== undefined && nextDnsMode === undefined) {
-    nextDnsMode = resolveExportDnsMode(nextFormat)
+  if (body.dnsPolicy === undefined && requestedDnsPolicy !== undefined && nextDnsPolicy === undefined) {
+    nextDnsPolicy = resolveExportDnsPolicy(nextFormat)
   }
 
   const fields: string[] = []
@@ -160,9 +160,9 @@ exportRouter.put('/configs/:id', async (c) => {
     ))
   }
   if (body.format !== undefined) { fields.push('format = ?'); values.push(body.format) }
-  if (body.dnsMode !== undefined || body.format !== undefined) {
-    fields.push('dns_mode = ?')
-    values.push(nextDnsMode ?? null)
+  if (body.dnsPolicy !== undefined || body.format !== undefined) {
+    fields.push('dns_policy = ?')
+    values.push(nextDnsPolicy ? JSON.stringify(nextDnsPolicy) : null)
   }
   if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0) }
   if (body.includeCollectionIds !== undefined) { fields.push('include_collection_ids = ?'); values.push(JSON.stringify(selection.includeCollectionIds)) }
@@ -243,7 +243,7 @@ async function inspectExport(
     policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
   })
   const rendered = renderExportData(exportData, format, {
-    dnsMode: resolveExportDnsMode(format, config.dnsMode),
+    dnsPolicy: resolveExportDnsPolicy(format, config.dnsPolicy),
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
   })
   if (!rendered) return null
@@ -312,7 +312,7 @@ exportRouter.get('/download/:format', async (c) => {
     }, 409)
   }
   const rendered = renderExportData(exportData, format, {
-    dnsMode: resolveExportDnsMode(format, config.dnsMode),
+    dnsPolicy: resolveExportDnsPolicy(format, config.dnsPolicy),
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
   })
   if (!rendered) {

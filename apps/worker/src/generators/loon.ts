@@ -13,6 +13,8 @@ import {
   resolveRuleForExport,
   supportsRuleNoResolve,
 } from '@uni-conf/shared'
+import type { ExportDnsPolicy } from '@uni-conf/types'
+import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
 
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
@@ -215,15 +217,20 @@ export function generateLoon(
   rules: Record<string, unknown>[],
   remoteSets: Record<string, unknown>[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { ruleSetConversionBaseUrl?: string } = {}
+  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
 ): string {
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
 
   // [General]
   lines.push('[General]')
   lines.push('ip-mode = v4-only')
-  lines.push('dns-server = system, 119.29.29.29, 223.5.5.5, 8.8.8.8')
+  lines.push('dns-server = system, 119.29.29.29, 223.5.5.5')
+  if (dnsPolicy.resolution.mode === 'split') {
+    lines.push('doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
+  }
+  lines.push(`real-ip = ${realIpDomains(dnsPolicy).join(', ')}`)
   lines.push('allow-wifi-access = false')
   lines.push('wifi-access-http-port = 7222')
   lines.push('wifi-access-socks5-port = 7221')
@@ -233,6 +240,13 @@ export function generateLoon(
   lines.push(`proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`)
   lines.push('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
   lines.push('')
+
+  if (dnsPolicy.resolution.mode === 'split') {
+    lines.push('[Host]')
+    lines.push('*.cn = server:223.5.5.5')
+    lines.push('* = server:https://1.1.1.1/dns-query')
+    lines.push('')
+  }
 
   // [Proxy]
   lines.push('[Proxy]')

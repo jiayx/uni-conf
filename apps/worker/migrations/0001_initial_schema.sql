@@ -184,9 +184,9 @@ CREATE TABLE IF NOT EXISTS export_configs (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   format TEXT NOT NULL,
-  dns_mode TEXT CHECK (
-    dns_mode IS NULL
-    OR dns_mode IN ('compatible', 'smart', 'fake-ip')
+  dns_policy TEXT CHECK (
+    dns_policy IS NULL
+    OR json_valid(dns_policy)
   ),
   token TEXT NOT NULL UNIQUE,
   enabled INTEGER NOT NULL DEFAULT 1,

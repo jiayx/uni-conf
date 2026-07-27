@@ -9,25 +9,35 @@ export function exportConfigScopeSummary(
   remoteSets: RemoteRuleSet[],
   t: (key: string, options?: Record<string, unknown>) => string
 ): string {
+  const isUnrestricted = (
+    config.includeCollectionIds.length === 0
+    && config.includeGroupIds.length === 0
+    && config.includeRuleIds.length === 0
+    && config.includeRemoteSetIds.length === 0
+  )
+  if (isUnrestricted) return t('export.scope_summary_all')
+
   const exportedGroupIds = resolveExportedGroupIds(config, groups)
-  return [
-    summaryPart(t('export.scope_collections'), config.includeCollectionIds, enabledCount(collections), selectedEnabledCount(collections, config.includeCollectionIds), t),
-    summaryPart(t('export.scope_groups'), config.includeGroupIds, enabledCount(groups), exportedGroupIds.size, t),
-    summaryPart(t('export.scope_rules'), config.includeRuleIds, targetExportableCount(rules, exportedGroupIds), selectedTargetExportableCount(rules, config.includeRuleIds, exportedGroupIds), t),
-    summaryPart(t('export.scope_remote_sets'), config.includeRemoteSetIds, compatibleRemoteSetCount(config, remoteSets, exportedGroupIds), selectedCompatibleRemoteSetCount(config, remoteSets, config.includeRemoteSetIds, exportedGroupIds), t),
-  ].join(' / ')
+  const details = [
+    summaryPart(t('export.scope_summary_collections'), enabledCount(collections), selectedEnabledCount(collections, config.includeCollectionIds), t),
+    summaryPart(t('export.scope_summary_groups'), enabledCount(groups), exportedGroupIds.size, t),
+    summaryPart(t('export.scope_summary_rules'), targetExportableCount(rules, exportedGroupIds), selectedTargetExportableCount(rules, config.includeRuleIds, exportedGroupIds), t),
+    summaryPart(t('export.scope_summary_remote_sets'), compatibleRemoteSetCount(config, remoteSets, exportedGroupIds), selectedCompatibleRemoteSetCount(config, remoteSets, config.includeRemoteSetIds, exportedGroupIds), t),
+  ].join(' · ')
+  return t('export.scope_summary_custom', { details })
 }
 
 function summaryPart(
   label: string,
-  ids: string[],
   eligibleCount: number,
   selectedCount: number,
   t: (key: string, options?: Record<string, unknown>) => string
 ): string {
-  return ids.length === 0
-    ? t('export.scope_all_enabled', { label, count: eligibleCount })
-    : t('export.scope_selected', { label, selected: selectedCount, count: eligibleCount })
+  return t('export.scope_summary_count', {
+    label,
+    selected: selectedCount,
+    count: eligibleCount,
+  })
 }
 
 function enabledCount(items: Array<{ enabled: boolean }>): number {

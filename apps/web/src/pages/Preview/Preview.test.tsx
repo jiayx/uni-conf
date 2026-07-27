@@ -213,7 +213,7 @@ describe('Preview artifact validation', () => {
     await act(async () => {
       singbox.resolve({
         format: 'singbox',
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: 'singbox' },
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: 'singbox' },
         content: '{\n  "outbounds": [{"tag": "singbox-current"}]\n}',
         contentType: 'application/json; charset=utf-8',
         warnings: [],
@@ -226,7 +226,7 @@ describe('Preview artifact validation', () => {
     await act(async () => {
       mihomo.resolve({
         format: 'mihomo',
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: 'mihomo' },
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: 'mihomo' },
         content: 'proxies:\n  - name: stale-mihomo\n',
         contentType: 'text/yaml; charset=utf-8',
         warnings: [],
@@ -237,7 +237,7 @@ describe('Preview artifact validation', () => {
 
     expect(document.querySelector('pre')).toHaveTextContent('singbox-current')
     expect(document.querySelector('pre')).not.toHaveTextContent('stale-mihomo')
-    expect(screen.getByText('singbox capability profile r17')).toBeInTheDocument()
+    expect(screen.getByText('singbox capability profile r18')).toBeInTheDocument()
   })
 
   it('binds an advanced export profile to its target client in the address bar', async () => {
@@ -258,7 +258,7 @@ describe('Preview artifact validation', () => {
       const exportFormat = format as ExportFormat
       return {
         format: exportFormat,
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: exportFormat },
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: exportFormat },
         content: `preview:${exportFormat}`,
         contentType: 'text/plain; charset=utf-8',
         warnings: [],
@@ -275,7 +275,7 @@ describe('Preview artifact validation', () => {
     )
 
     const singboxTab = screen.getByRole('button', { name: 'sing-box' })
-    const mihomoTab = screen.getByRole('button', { name: 'Mihomo / Clash / OpenClash' })
+    const mihomoTab = screen.getByRole('button', { name: 'Mihomo' })
     expect(mihomoTab).toHaveAttribute('aria-pressed', 'true')
 
     const selector = await screen.findByRole('combobox', { name: 'Export profile' })
@@ -318,7 +318,7 @@ describe('Preview artifact validation', () => {
       }])
     vi.mocked(api.export.previewFormat).mockResolvedValue({
       format: 'mihomo',
-      capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: 'mihomo' },
+      capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: 'mihomo' },
       content: 'proxies:\n  - name: Default still works\n',
       contentType: 'text/yaml; charset=utf-8',
       warnings: [],
@@ -345,7 +345,7 @@ describe('Preview artifact validation', () => {
   it('shows a filterable source-to-target transformation report', async () => {
     vi.mocked(api.export.previewFormat).mockResolvedValue({
       format: 'shadowrocket',
-      capabilityProfile: { id: 'uni-conf-exporter', revision: 17, format: 'shadowrocket' },
+      capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: 'shadowrocket' },
       content: '[Rule]\nDST-PORT,443,DIRECT\n',
       contentType: 'text/plain; charset=utf-8',
       warnings: [

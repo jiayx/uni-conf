@@ -25,7 +25,7 @@ export type {
 }
 
 export const RULE_SET_FORMAT_OPTIONS: Array<{ value: RuleSetFormat; label: string; exportTargets: string }> = [
-  { value: 'mihomo', label: 'Mihomo / Clash Meta', exportTargets: 'Mihomo / Clash / Stash' },
+  { value: 'mihomo', label: 'Mihomo', exportTargets: 'Mihomo / Clash / Stash' },
   { value: 'clash', label: 'Clash Classical', exportTargets: 'Mihomo / Clash' },
   { value: 'singbox', label: 'sing-box SRS', exportTargets: 'sing-box' },
   { value: 'surge', label: 'Surge', exportTargets: 'Surge' },

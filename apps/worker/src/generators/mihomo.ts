@@ -4,13 +4,14 @@ import {
   resolveRuleForExport,
   supportsRuleNoResolve,
 } from '@uni-conf/shared';
-import type { DnsMode, ExportFormat, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
+import type { ExportDnsPolicy, ExportFormat, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
+import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
 
 interface MihomoGeneratorOptions {
-  dnsMode?: DnsMode;
+  dnsPolicy?: ExportDnsPolicy;
   ruleSetConversionBaseUrl?: string;
   ruleSetExportFormat?: Extract<ExportFormat, 'mihomo' | 'clash' | 'stash'>;
 }
@@ -49,7 +50,12 @@ export function generateMihomoYaml(
   lines.push('external-controller: 127.0.0.1:9090');
   lines.push('');
 
-  lines.push(...buildDnsLines(options.dnsMode ?? 'smart'));
+  const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY;
+  lines.push(...(
+    options.ruleSetExportFormat === 'stash'
+      ? buildStashDnsLines(dnsPolicy)
+      : buildMihomoDnsLines(dnsPolicy)
+  ));
   lines.push('');
 
   // ── Proxies ─────────────────────────────────────────────────────────────────
@@ -136,22 +142,18 @@ export function generateMihomoYaml(
   return lines.join('\n');
 }
 
-function buildDnsLines(mode: DnsMode): string[] {
+function buildMihomoDnsLines(policy: ExportDnsPolicy): string[] {
+  const fakeIp = policy.address.mode === 'fake-ip';
   const lines = [
     'dns:',
     '  enable: true',
-    `  enhanced-mode: ${mode === 'fake-ip' ? 'fake-ip' : 'redir-host'}`,
+    `  enhanced-mode: ${fakeIp ? 'fake-ip' : 'redir-host'}`,
   ];
 
-  if (mode === 'fake-ip') {
+  if (fakeIp) {
     lines.push('  fake-ip-range: 198.18.0.1/16');
     lines.push('  fake-ip-filter:');
-    lines.push('    - "*.lan"');
-    lines.push('    - "*.local"');
-    lines.push('    - "localhost.ptlogin2.qq.com"');
-    lines.push('    - "localhost.sec.qq.com"');
-    lines.push('    - "+.msftconnecttest.com"');
-    lines.push('    - "+.msftncsi.com"');
+    for (const domain of realIpDomains(policy)) lines.push(`    - "${domain}"`);
   }
 
   lines.push('  default-nameserver:');
@@ -161,7 +163,7 @@ function buildDnsLines(mode: DnsMode): string[] {
   lines.push('    - https://223.5.5.5/dns-query');
   lines.push('    - https://120.53.53.53/dns-query');
 
-  if (mode === 'compatible') {
+  if (policy.resolution.mode === 'single') {
     return lines;
   }
 
@@ -177,6 +179,33 @@ function buildDnsLines(mode: DnsMode): string[] {
   lines.push('    "geosite:cn":');
   lines.push('      - https://223.5.5.5/dns-query');
   lines.push('      - https://120.53.53.53/dns-query');
+  return lines;
+}
+
+function buildStashDnsLines(policy: ExportDnsPolicy): string[] {
+  const lines = [
+    'dns:',
+    '  enable: true',
+    '  default-nameserver:',
+    '    - 223.5.5.5',
+    '    - 119.29.29.29',
+    '  nameserver:',
+    '    - https://223.5.5.5/dns-query',
+    '    - https://120.53.53.53/dns-query',
+  ];
+  if (policy.address.mode === 'fake-ip') {
+    lines.push('  fake-ip-filter:');
+    for (const domain of realIpDomains(policy)) lines.push(`    - "${domain}"`);
+  }
+  if (policy.resolution.mode === 'split') {
+    lines.push('  nameserver-policy:');
+    lines.push('    "geosite:cn":');
+    lines.push('      - https://223.5.5.5/dns-query');
+    lines.push('      - https://120.53.53.53/dns-query');
+    lines.push('    "geosite:geolocation-!cn":');
+    lines.push('      - https://1.1.1.1/dns-query');
+    lines.push('      - https://8.8.8.8/dns-query');
+  }
   return lines;
 }
 

@@ -2,7 +2,7 @@ import { EXPORT_SUBSCRIPTION_FORMATS } from '@uni-conf/shared'
 import type { ExportFormat } from '@uni-conf/types'
 
 const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
-  mihomo: 'Mihomo / Clash / OpenClash YAML',
+  mihomo: 'Mihomo YAML',
   clash: 'Clash YAML',
   singbox: 'sing-box JSON',
   loon: 'Loon CONF',

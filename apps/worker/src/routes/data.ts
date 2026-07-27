@@ -4,7 +4,12 @@ import { now } from '../db/helpers'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
 import { validateGroupReferenceGraph } from '../services/group-reference-graph'
-import { FULL_CONFIG_EXPORT_FORMATS, isFullConfigExportFormat } from '@uni-conf/shared'
+import {
+  FULL_CONFIG_EXPORT_FORMATS,
+  isExportSubscriptionFormat,
+  isFullConfigExportFormat,
+} from '@uni-conf/shared'
+import { resolveExportDnsPolicy } from '../services/export-dns'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -21,7 +26,7 @@ const TABLES = [
 ] as const
 
 const MAX_BACKUP_ROWS = 100_000
-const BACKUP_VERSION = 5
+const BACKUP_VERSION = 6
 
 const TABLE_COLUMNS = {
   sources: ['id', 'name', 'type', 'url', 'format', 'enabled', 'node_count', 'last_updated', 'last_refresh_error', 'update_interval', 'user_agent', 'notes', 'tags', 'source_groups', 'raw_content', 'upload_bytes', 'download_bytes', 'total_bytes', 'expire_time', 'created_at', 'updated_at'],
@@ -30,7 +35,7 @@ const TABLE_COLUMNS = {
   groups: ['id', 'name', 'type', 'collection_ids', 'group_ids', 'builtins', 'test_url', 'interval', 'tolerance', 'lazy', 'enabled', 'sort_order', 'is_builtin', 'created_at', 'updated_at'],
   rules: ['id', 'name', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'notes', 'compatibility', 'created_at', 'updated_at'],
   remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'preset_source', 'preset_id', 'source_overrides', 'source_id', 'source_rule_set_key', 'source_missing', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'last_updated', 'notes', 'created_at', 'updated_at'],
-  export_configs: ['id', 'name', 'format', 'dns_mode', 'token', 'enabled', 'include_collection_ids', 'include_group_ids', 'include_rule_ids', 'include_remote_set_ids', 'rule_set_conversion_policy', 'extra_config', 'created_at', 'updated_at'],
+  export_configs: ['id', 'name', 'format', 'dns_policy', 'token', 'enabled', 'include_collection_ids', 'include_group_ids', 'include_rule_ids', 'include_remote_set_ids', 'rule_set_conversion_policy', 'extra_config', 'created_at', 'updated_at'],
   app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_template', 'routing_outlet_preferences', 'export_node_naming_mode', 'default_export_token', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_keys', 'auto_node_group_include_flag', 'updated_at'],
   source_import_runs: ['id', 'source_id', 'source_name', 'format', 'node_import_mode', 'status', 'node_count', 'added_count', 'updated_count', 'skipped_existing_count', 'rule_count', 'remote_rule_set_count', 'skipped_rule_count', 'conflict_count', 'refresh_error', 'structured_error', 'structured_changes', 'created_at', 'completed_at', 'undone_at'],
 } as const satisfies Record<TableName, readonly string[]>
@@ -246,6 +251,21 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
     && row.rule_set_conversion_policy !== 'strict'
   ) {
     return `export_configs[${index}].rule_set_conversion_policy is invalid`
+  }
+  if (table === 'export_configs' && !isExportSubscriptionFormat(row.format)) {
+    return `export_configs[${index}].format is invalid`
+  }
+  if (table === 'export_configs' && row.dns_policy !== null) {
+    if (typeof row.dns_policy !== 'string') return `export_configs[${index}].dns_policy must be a JSON object string`
+    try {
+      const parsed = JSON.parse(row.dns_policy)
+      if (!isRecord(parsed)) return `export_configs[${index}].dns_policy must contain a JSON object`
+      if (!isExportSubscriptionFormat(row.format) || !resolveExportDnsPolicy(row.format, parsed)) {
+        return `export_configs[${index}].dns_policy is not supported by its export format`
+      }
+    } catch {
+      return `export_configs[${index}].dns_policy must contain valid JSON`
+    }
   }
   if (table === 'source_import_runs') {
     if (!['all', 'new-only'].includes(String(row.node_import_mode))) {

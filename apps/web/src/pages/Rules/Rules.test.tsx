@@ -133,7 +133,7 @@ describe('Rules filters', () => {
 
     const impact = screen.getByRole('region', { name: 'Batch target-client impact' })
     expect(impact).toHaveTextContent('3 candidate lines: 3 valid, 0 invalid')
-    expect(within(within(impact).getByRole('row', { name: /Mihomo \/ Clash \/ OpenClash/ }))
+    expect(within(within(impact).getByRole('row', { name: /Mihomo/ }))
       .getAllByRole('cell').map(cell => cell.textContent)).toEqual(['1', '1', '0', '1', '1'])
     expect(within(within(impact).getByRole('row', { name: /sing-box/ }))
       .getAllByRole('cell').map(cell => cell.textContent)).toEqual(['3', '0', '0', '0', '1'])
@@ -178,7 +178,7 @@ describe('Rules filters', () => {
     await user.type(within(editor).getByLabelText('Match Value'), '443')
 
     await user.click(within(editor).getByText('Target client result'))
-    expect(within(editor).getByRole('article', { name: 'Mihomo / Clash / OpenClash: Convert' }))
+    expect(within(editor).getByRole('article', { name: 'Mihomo: Convert' }))
       .toHaveTextContent('PORT,443 → DST-PORT,443')
     expect(within(editor).getByRole('article', { name: 'Surge: Convert' }))
       .toHaveTextContent('PORT,443 → DEST-PORT,443')
