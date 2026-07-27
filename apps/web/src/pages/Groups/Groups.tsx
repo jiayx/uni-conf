@@ -20,13 +20,15 @@ import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import {
   DEFAULT_HEALTH_CHECK,
+  ALL_ROUTING_POLICY_SCENARIO_IDS,
+  DEFAULT_ROUTING_POLICY_SCENARIOS,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
   GLOBAL_NODE_OUTLET_GROUP_IDS,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
-  ROUTING_POLICY_TEMPLATES,
+  ROUTING_POLICY_SCENARIOS,
   RULE_TARGET_FOUNDATION_GROUP_IDS,
 } from '@uni-conf/shared'
-import type { GroupType, ProxyGroup, RemoteRuleSet, RoutingPolicyTemplateId, UnmatchedTrafficPolicy } from '@uni-conf/types'
+import type { GroupType, ProxyGroup, RemoteRuleSet, RoutingPolicyScenarioId, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import styles from './Groups.module.css'
 
 type GroupForm = Omit<ProxyGroup, 'id' | 'createdAt' | 'updatedAt'>
@@ -72,7 +74,7 @@ export function Groups() {
   const [formSaving, setFormSaving] = useState(false)
   const [rowAction, setRowAction] = useState<{ id: string; type: 'toggle' | 'delete' } | null>(null)
   const [reordering, setReordering] = useState(false)
-  const [activeTemplate, setActiveTemplate] = useState<RoutingPolicyTemplateId>('common')
+  const [activeScenarios, setActiveScenarios] = useState<RoutingPolicyScenarioId[]>([...DEFAULT_ROUTING_POLICY_SCENARIOS])
   const [unmatchedTrafficPolicy, setUnmatchedTrafficPolicy] = useState<UnmatchedTrafficPolicy>('proxy')
   const [ruleSets, setRuleSets] = useState<RemoteRuleSet[]>([])
   const [outletPreferences, setOutletPreferences] = useState<Record<string, string>>({})
@@ -85,7 +87,7 @@ export function Groups() {
     void fetchGroups()
     void api.settings.get()
       .then(settings => {
-        setActiveTemplate(settings.routingPolicyTemplate)
+        setActiveScenarios(settings.routingPolicyScenarios)
         setUnmatchedTrafficPolicy(settings.unmatchedTrafficPolicy)
         setOutletPreferences(settings.routingOutletPreferences ?? {})
       })
@@ -120,23 +122,28 @@ export function Groups() {
     ].filter(section => section.groups.length > 0),
     [groups, t]
   )
-  const activeTemplateConfig = ROUTING_POLICY_TEMPLATES.find(template => template.id === activeTemplate)
-    ?? ROUTING_POLICY_TEMPLATES.find(template => template.id === 'common')
-    ?? ROUTING_POLICY_TEMPLATES[0]
-  const templateGroups = useMemo(
-    () => activeTemplateConfig.groupNames.map(name => ({
+  const activeScenarioIds = useMemo(() => new Set(activeScenarios), [activeScenarios])
+  const activeBusinessGroupNames = useMemo(
+    () => Array.from(new Set(
+      ROUTING_POLICY_SCENARIOS
+        .filter(scenario => activeScenarioIds.has(scenario.id))
+        .flatMap(scenario => scenario.groupNames),
+    )),
+    [activeScenarioIds],
+  )
+  const scenarioGroups = useMemo(
+    () => activeBusinessGroupNames.map(name => ({
       name,
       group: groups.find(group => group.name === name),
     })),
-    [activeTemplateConfig, groups]
+    [activeBusinessGroupNames, groups]
   )
-  const templateOptions = useMemo(
-    () => ROUTING_POLICY_TEMPLATES.map(template => ({
-      ...template,
-      active: template.id === activeTemplate,
-      displayGroupNames: template.groupNames,
+  const scenarioOptions = useMemo(
+    () => ROUTING_POLICY_SCENARIOS.map(scenario => ({
+      ...scenario,
+      active: activeScenarioIds.has(scenario.id),
     })),
-    [activeTemplate]
+    [activeScenarioIds]
   )
   const effectivePolicyRows = useMemo(() => {
     const enabledGroupIds = new Set(groups.filter(group => group.enabled).map(group => group.id))
@@ -145,7 +152,7 @@ export function Groups() {
       'PROXY',
       'DIRECT',
       'REJECT',
-      ...activeTemplateConfig.groupNames,
+      ...activeBusinessGroupNames,
     ]
     return targetNames.map(name => {
       const group = groups.find(item => item.name === name)
@@ -154,7 +161,7 @@ export function Groups() {
         ruleSets: group ? effectiveSets.filter(set => set.targetGroupId === group.id).map(set => set.name) : [],
       }
     }).filter(row => row.ruleSets.length > 0)
-  }, [activeTemplateConfig, groups, ruleSets])
+  }, [activeBusinessGroupNames, groups, ruleSets])
   const openCreate = () => {
     const nextForm = createEmptyForm(visibleGroups.length)
     setEditingGroup(null)
@@ -246,13 +253,13 @@ export function Groups() {
     }
   }
 
-  const handleTemplateChange = async (templateId: RoutingPolicyTemplateId) => {
+  const handleScenarioSelection = async (scenarioIds: RoutingPolicyScenarioId[]) => {
     setSavingTemplate(true)
     setActionError(null)
     try {
-      const updated = await api.settings.update({ routingPolicyTemplate: templateId })
+      const updated = await api.settings.update({ routingPolicyScenarios: scenarioIds })
       applySettings(updated)
-      setActiveTemplate(updated.routingPolicyTemplate)
+      setActiveScenarios(updated.routingPolicyScenarios)
       setOutletPreferences(updated.routingOutletPreferences ?? {})
       await Promise.all([fetchGroups(), api.remoteRuleSets.list().then(setRuleSets)])
     } catch (error) {
@@ -260,6 +267,12 @@ export function Groups() {
     } finally {
       setSavingTemplate(false)
     }
+  }
+
+  const toggleScenario = (scenarioId: RoutingPolicyScenarioId) => {
+    const nextIds = ALL_ROUTING_POLICY_SCENARIO_IDS.filter(id =>
+      id === scenarioId ? !activeScenarioIds.has(id) : activeScenarioIds.has(id))
+    void handleScenarioSelection(nextIds)
   }
 
   const handleUnmatchedTrafficPolicyChange = async (policy: UnmatchedTrafficPolicy) => {
@@ -387,37 +400,52 @@ export function Groups() {
             <div className={styles.templateTitle}>{t('groups.template_title')}</div>
             <div className={styles.templateMeta}>{t('groups.template_meta')}</div>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => void Promise.all([
-              fetchGroups(),
-              api.remoteRuleSets.list().then(setRuleSets),
-            ]).catch(setActionError)}
-            loading={loading}
-            disabled={savingTemplate || savingPreferenceId !== null || reordering}
-          >
-            {t('common.refresh')}
-          </Button>
+          <div className={styles.scenarioShortcuts}>
+            <button
+              type="button"
+              className={activeScenarios.length === 0 ? styles.scenarioShortcutActive : ''}
+              onClick={() => void handleScenarioSelection([])}
+              disabled={savingTemplate}
+            >
+              {t('groups.shortcut_basic')}
+            </button>
+            <button
+              type="button"
+              className={sameScenarioSelection(activeScenarios, DEFAULT_ROUTING_POLICY_SCENARIOS) ? styles.scenarioShortcutActive : ''}
+              onClick={() => void handleScenarioSelection([...DEFAULT_ROUTING_POLICY_SCENARIOS])}
+              disabled={savingTemplate}
+            >
+              {t('groups.shortcut_recommended')}
+            </button>
+            <button
+              type="button"
+              className={activeScenarios.length === ALL_ROUTING_POLICY_SCENARIO_IDS.length ? styles.scenarioShortcutActive : ''}
+              onClick={() => void handleScenarioSelection([...ALL_ROUTING_POLICY_SCENARIO_IDS])}
+              disabled={savingTemplate}
+            >
+              {t('groups.shortcut_all')}
+            </button>
+          </div>
         </div>
         <div className={styles.templateGrid}>
-          {templateOptions.map(template => (
+          {scenarioOptions.map(scenario => (
             <button
-              key={template.id}
+              key={scenario.id}
               type="button"
-              className={`${styles.templateItem} ${template.active ? styles.templateItemActive : ''}`}
-              aria-pressed={template.active}
-              onClick={() => void handleTemplateChange(template.id)}
+              className={`${styles.templateItem} ${scenario.active ? styles.templateItemActive : ''}`}
+              aria-pressed={scenario.active}
+              onClick={() => toggleScenario(scenario.id)}
               disabled={savingTemplate}
             >
               <div className={styles.templateItemTop}>
-                <span className={styles.templateName}>{template.name}</span>
-                <Badge variant={template.active ? 'success' : 'default'}>
-                  {template.active ? t('common.current') : formatTemplateCount(template.displayGroupNames.length, t)}
+                <span className={styles.templateName}>{t(`groups.scenario_${scenario.id.replaceAll('-', '_')}_name`)}</span>
+                <Badge variant={scenario.active ? 'success' : 'default'}>
+                  {scenario.active ? t('groups.selected') : t('groups.optional')}
                 </Badge>
               </div>
-              <div className={styles.templateDesc}>{template.description}</div>
+              <div className={styles.templateDesc}>{t(`groups.scenario_${scenario.id.replaceAll('-', '_')}_desc`)}</div>
               <div className={styles.templateMembers}>
-                {t('groups.business_groups')}: {template.displayGroupNames.length > 0 ? template.displayGroupNames.join(' / ') : t('common.none')}
+                {t('groups.business_groups')}: {scenario.groupNames.join(' / ')}
               </div>
             </button>
           ))}
@@ -436,10 +464,10 @@ export function Groups() {
         </div>
         <div className={styles.activeTemplateGroups}>
           <span className={styles.activeTemplateLabel}>{t('groups.current_business_groups')}</span>
-          {templateGroups.length === 0 ? (
+          {scenarioGroups.length === 0 ? (
             <Badge variant="default">{t('groups.no_extra_business_groups')}</Badge>
           ) : (
-            templateGroups.map(item => (
+            scenarioGroups.map(item => (
               <Badge key={item.name} variant={item.group?.enabled ? 'purple' : 'default'}>
                 {item.name}
               </Badge>
@@ -648,8 +676,8 @@ function setFormValue<K extends keyof GroupForm>(
   setForm(current => ({ ...current, [key]: value }))
 }
 
-function formatTemplateCount(count: number, t: (key: string, options?: Record<string, unknown>) => string): string {
-  return count > 0 ? t('groups.business_group_count', { count }) : t('groups.foundation_only')
+function sameScenarioSelection(left: RoutingPolicyScenarioId[], right: RoutingPolicyScenarioId[]): boolean {
+  return left.length === right.length && left.every(id => right.includes(id))
 }
 
 function PlusIcon() {

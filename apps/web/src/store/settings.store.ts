@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DEFAULT_ROUTING_POLICY_SCENARIOS } from '@uni-conf/shared'
 import type { AppSettings, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 
 interface SettingsState extends AppSettings {
@@ -24,7 +24,7 @@ export const useSettingsStore = create<SettingsState>()(
       language: 'zh',
       theme: 'system',
       unmatchedTrafficPolicy: 'proxy',
-      routingPolicyTemplate: 'common',
+      routingPolicyScenarios: [...DEFAULT_ROUTING_POLICY_SCENARIOS],
       exportNodeNamingMode: 'smart',
       showCompatibilityWarnings: true,
       ruleSetConversionPolicy: 'compatible',

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticRuleSetBehavior, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
+import { buildQuixoticRuleSetUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticPresetProvisioning, resolveQuixoticRuleSetBehavior, resolveQuixoticRuleSetSortOrder } from '@uni-conf/shared';
 import { ensureDefaultRemoteRuleSets } from './default-rule-sets';
 
 const SYSTEM_DISABLED_NOTE = '[uni-conf:auto-disabled:missing-target]';
@@ -11,7 +11,9 @@ describe('default remote rule sets', () => {
 
     await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
 
-    expect(inserted).toHaveLength(QUIXOTIC_RULE_SET_PRESETS.length + 1);
+    expect(inserted).toHaveLength(managedQuixoticPresets().length + 1);
+    expect(inserted.find((item) => item.presetId === 'ecommerce')).toBeUndefined();
+    expect(inserted.find((item) => item.presetId === 'paypal')).toBeUndefined();
     expect(inserted.find((item) => item.presetId === 'ai')?.targetGroupId).toBe('builtin-ai');
     expect(inserted.find((item) => item.presetSource === 'uni-conf' && item.presetId === 'telegram')).toMatchObject({
       format: 'text',
@@ -34,6 +36,7 @@ describe('default remote rule sets', () => {
     expect(inserted.find((item) => item.presetId === 'apple')?.targetGroupId).toBe('builtin-apple');
     expect(inserted.find((item) => item.presetId === 'microsoft')?.targetGroupId).toBe('builtin-microsoft');
     expect(inserted.find((item) => item.presetId === 'steam')?.targetGroupId).toBe('builtin-gaming');
+    expect(inserted.find((item) => item.presetId === 'speedtest')?.targetGroupId).toBe('builtin-speedtest');
     expect(inserted.find((item) => item.presetId === 'adrules')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'httpdns')?.targetGroupId).toBe('builtin-reject');
     expect(inserted.find((item) => item.presetId === 'cn')?.targetGroupId).toBe('builtin-direct');
@@ -103,7 +106,7 @@ describe('default remote rule sets', () => {
   it('does not recreate defaults when preset rule sets already exist with current targets', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
-      existingPresets: QUIXOTIC_RULE_SET_PRESETS.map((preset) => ({
+      existingPresets: managedQuixoticPresets().map((preset) => ({
         id: `preset-${preset.id}`,
         preset_source: 'quixotic',
         preset_id: preset.id,
@@ -136,6 +139,27 @@ describe('default remote rule sets', () => {
     expect(inserted).toHaveLength(0);
   });
 
+  it('removes optional catalog presets that were previously system-managed', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: ['ecommerce', 'paypal'].map((presetId) => ({
+        id: `preset-${presetId}`,
+        preset_source: 'quixotic',
+        preset_id: presetId,
+        behavior: 'classical',
+        target_group_id: 'builtin-proxy',
+      })),
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toEqual(expect.arrayContaining([
+      { operation: 'delete', id: 'preset-ecommerce' },
+      { operation: 'delete', id: 'preset-paypal' },
+    ]));
+  });
+
   it('reenables and retargets system-disabled presets when the active template adds a specific group', async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const db = createMockDb({
@@ -165,6 +189,39 @@ describe('default remote rule sets', () => {
       sortOrder: 120,
       notes: expect.not.stringContaining(SYSTEM_DISABLED_NOTE),
     });
+  });
+
+  it('keeps a managed rule set active when its override target is enabled outside the default scenario', async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const db = createMockDb({
+      existingPresets: [{
+        id: 'preset-crypto',
+        preset_source: 'quixotic',
+        preset_id: 'crypto',
+        url: buildQuixoticRuleSetUrl('crypto', 'mihomo'),
+        format: 'mihomo',
+        behavior: 'classical',
+        target_group_id: 'builtin-crypto',
+        target_override_group_id: 'builtin-proxy',
+        enabled: 0,
+        notes: `QuixoticHeart/rule-set:crypto old\n${SYSTEM_DISABLED_NOTE}`,
+        sort_order: 120,
+      }],
+      groups: listGroups().map(group => (
+        group.id === 'builtin-crypto' ? { ...group, enabled: 0 } : group
+      )),
+      inserted,
+    });
+
+    await ensureDefaultRemoteRuleSets(db, '2026-01-01T00:00:00.000Z');
+
+    expect(inserted).toContainEqual(expect.objectContaining({
+      operation: 'update',
+      id: 'preset-crypto',
+      targetGroupId: 'builtin-crypto',
+      enabled: 1,
+      notes: expect.not.stringContaining(SYSTEM_DISABLED_NOTE),
+    }));
   });
 
   it('does not reenable user-disabled managed presets when metadata is already current', async () => {
@@ -258,6 +315,7 @@ describe('default remote rule sets', () => {
 
     for (const [presetId, targetGroupId] of [
       ['crypto', 'builtin-crypto'],
+      ['games', 'builtin-gaming'],
       ['steam', 'builtin-gaming'],
     ]) {
       expect(inserted).toContainEqual(expect.objectContaining({
@@ -274,10 +332,6 @@ describe('default remote rule sets', () => {
     });
     expect(inserted.find((item) => item.presetId === 'cn')).toMatchObject({
       targetGroupId: 'builtin-direct',
-      enabled: 1,
-    });
-    expect(inserted.find((item) => item.presetId === 'games')).toMatchObject({
-      targetGroupId: 'builtin-proxy',
       enabled: 1,
     });
     expect(inserted.find((item) => item.presetId === 'gits')).toMatchObject({
@@ -451,6 +505,7 @@ function createMockDb({
     format?: string;
     behavior: string;
     target_group_id: string;
+    target_override_group_id?: string | null;
     enabled?: number;
     sort_order?: number;
     notes?: string;
@@ -488,6 +543,8 @@ function createMockDb({
         const sql = statement.__sql ?? '';
         if (sql.includes('DELETE FROM remote_rule_set_source_health')) {
           inserted.push({ operation: 'invalidate-health', id: args[0] });
+        } else if (sql.includes('DELETE FROM remote_rule_sets')) {
+          inserted.push({ operation: 'delete', id: args[0] });
         } else if (sql.includes('SET enabled = 0')) {
           inserted.push({
             operation: 'disable',
@@ -569,6 +626,12 @@ function canonicalPresetNotes(source: string, presetId: string): string {
   return preset ? `QuixoticHeart/rule-set:${preset.id} ${preset.description}` : '';
 }
 
+function managedQuixoticPresets() {
+  return QUIXOTIC_RULE_SET_PRESETS.filter(
+    (preset) => resolveQuixoticPresetProvisioning(preset) !== 'optional',
+  );
+}
+
 function listGroups() {
   return [
     { id: 'builtin-proxy', name: 'PROXY', enabled: 1 },
@@ -580,6 +643,7 @@ function listGroups() {
     { id: 'builtin-google', name: 'Google', enabled: 1 },
     { id: 'builtin-apple', name: 'Apple', enabled: 1 },
     { id: 'builtin-microsoft', name: 'Microsoft', enabled: 1 },
+    { id: 'builtin-speedtest', name: 'Speedtest', enabled: 1 },
     { id: 'builtin-crypto', name: 'Crypto', enabled: 1 },
     { id: 'builtin-gaming', name: 'Gaming', enabled: 1 },
     { id: 'builtin-developer', name: 'Developer', enabled: 1 },
@@ -604,6 +668,7 @@ function expectedTargetGroupId(presetId: string): string {
     Crypto: 'builtin-crypto',
     Gaming: 'builtin-gaming',
     Developer: 'builtin-developer',
+    Speedtest: 'builtin-speedtest',
     DIRECT: 'builtin-direct',
     REJECT: 'builtin-reject',
   };

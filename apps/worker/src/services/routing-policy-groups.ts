@@ -1,13 +1,14 @@
 import {
-  buildRoutingPolicyTemplateGroupNames,
+  buildRoutingPolicyScenarioGroupNames,
   detectCountry,
   DEFAULT_HEALTH_CHECK,
   DEFAULT_NODE_POOL_COLLECTION_ID,
+  FOUNDATION_POLICY_GROUP_NAMES,
   GLOBAL_NODE_OUTLET_GROUP_IDS,
   parseAutoNodeGroupMarker,
-  ROUTING_POLICY_TEMPLATES,
-  type RoutingPolicyTemplate,
+  ROUTING_POLICY_SCENARIOS,
 } from '@uni-conf/shared';
+import type { RoutingPolicyScenarioId } from '@uni-conf/types';
 import { jsonParse, jsonStringify } from '../db/helpers';
 import { getAppSettings } from './app-settings';
 
@@ -44,6 +45,10 @@ const ROUTING_TAG_GROUP_PREFERENCES: Record<string, string[]> = {
   STREAMING: ['streaming', 'native'],
 };
 
+const ROUTING_DEFAULT_OUTLET_IDS: Record<string, string> = {
+  SPEEDTEST: 'builtin-direct',
+};
+
 const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: [], collectionIds: [] },
   { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [], collectionIds: [] },
@@ -54,6 +59,7 @@ const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-google', name: 'Google', type: 'select', sortOrder: 6, builtins: [], collectionIds: [] },
   { id: 'builtin-apple', name: 'Apple', type: 'select', sortOrder: 7, builtins: [], collectionIds: [] },
   { id: 'builtin-microsoft', name: 'Microsoft', type: 'select', sortOrder: 8, builtins: [], collectionIds: [] },
+  { id: 'builtin-speedtest', name: 'Speedtest', type: 'select', sortOrder: 9, builtins: [], collectionIds: [] },
   { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 10, builtins: [], collectionIds: [] },
   { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 11, builtins: [], collectionIds: [] },
   { id: 'builtin-developer', name: 'Developer', type: 'select', sortOrder: 12, builtins: [], collectionIds: [] },
@@ -67,7 +73,7 @@ const DEFAULT_GENERATED_GROUPS = [
 
 export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promise<void> {
   await ensureDefaultGeneratedGroups(db, ts);
-  await applyActiveTemplate(db, ts);
+  await applyActiveScenarios(db, ts);
 
   const { results } = await db
     .prepare('SELECT id, name, type, collection_ids, enabled, is_builtin FROM groups ORDER BY sort_order ASC, created_at ASC')
@@ -151,14 +157,16 @@ export function resolveRoutingMemberGroupIds(
   );
 }
 
-export function resolveActiveTemplateGroupNames(template: RoutingPolicyTemplate): Set<string> {
-  return new Set(buildRoutingPolicyTemplateGroupNames(template).map((name) => name.toUpperCase()));
+export function resolveActiveScenarioGroupNames(scenarioIds: RoutingPolicyScenarioId[]): Set<string> {
+  return new Set(buildRoutingPolicyScenarioGroupNames(scenarioIds).map((name) => name.toUpperCase()));
 }
 
-export function resolveManagedTemplateGroupNames(): Set<string> {
+export function resolveManagedScenarioGroupNames(): Set<string> {
   return new Set(
-    ROUTING_POLICY_TEMPLATES
-      .flatMap((item) => buildRoutingPolicyTemplateGroupNames(item))
+    [
+      ...FOUNDATION_POLICY_GROUP_NAMES,
+      ...ROUTING_POLICY_SCENARIOS.flatMap((item) => item.groupNames),
+    ]
       .map((name) => name.toUpperCase())
   );
 }
@@ -174,6 +182,7 @@ function sortRoutingMemberGroupIds(
   const routingGroupName = String(rowsById.get(routingGroupId)?.name ?? routingGroupId).toUpperCase();
   const countryPreferences = ROUTING_COUNTRY_PREFERENCES[routingGroupName] ?? [];
   const preferredOutletId = resolveOutletPreferenceId(outletPreferences[routingGroupId], outletIds, rowsById, autoCollectionKeysById);
+  const defaultOutletId = ROUTING_DEFAULT_OUTLET_IDS[routingGroupName];
   const used = new Set<string>();
   const ordered: string[] = [];
 
@@ -184,6 +193,7 @@ function sortRoutingMemberGroupIds(
   };
 
   if (preferredOutletId) push(preferredOutletId);
+  else if (defaultOutletId) push(defaultOutletId);
 
   for (const tagKey of ROUTING_TAG_GROUP_PREFERENCES[routingGroupName] ?? []) {
     for (const id of outletIds) {
@@ -272,12 +282,12 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
   await db.batch(canonicalStatements);
 }
 
-async function applyActiveTemplate(db: D1Database, ts: string): Promise<void> {
-  const template = await getActiveTemplate(db);
-  const activeNames = resolveActiveTemplateGroupNames(template);
-  const templateGroupNames = resolveManagedTemplateGroupNames();
+async function applyActiveScenarios(db: D1Database, ts: string): Promise<void> {
+  const settings = await getAppSettings(db);
+  const activeNames = resolveActiveScenarioGroupNames(settings.routingPolicyScenarios);
+  const scenarioGroupNames = resolveManagedScenarioGroupNames();
   const statements = DEFAULT_GENERATED_GROUPS
-    .filter((group) => templateGroupNames.has(group.name.toUpperCase()))
+    .filter((group) => scenarioGroupNames.has(group.name.toUpperCase()))
     .map((group) =>
       db
         .prepare('UPDATE groups SET enabled = ?, updated_at = ? WHERE id = ?')
@@ -285,13 +295,6 @@ async function applyActiveTemplate(db: D1Database, ts: string): Promise<void> {
     );
 
   if (statements.length > 0) await db.batch(statements);
-}
-
-async function getActiveTemplate(db: D1Database) {
-  const settings = await getAppSettings(db);
-  return ROUTING_POLICY_TEMPLATES.find((template) => template.id === settings.routingPolicyTemplate)
-    ?? ROUTING_POLICY_TEMPLATES.find((template) => template.id === 'common')
-    ?? ROUTING_POLICY_TEMPLATES[0]!;
 }
 
 async function getRoutingOutletPreferences(db: D1Database): Promise<Record<string, string>> {

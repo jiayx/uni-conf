@@ -44,15 +44,9 @@
 .sectionToggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: var(--radius-sm); }
 .chevron { flex: 0 0 auto; color: var(--color-text-secondary); transition: transform var(--transition-fast); }
 .chevronExpanded { transform: rotate(90deg); }
-.sectionKicker { color: var(--color-text-tertiary); font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0; }
 .sectionTitle { color: var(--color-text-primary); font-size: 0.9375rem; font-weight: 600; }
 .sectionMeta { margin-top: 0.125rem; color: var(--color-text-secondary); font-size: 0.75rem; }
 .sectionActions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
-.sectionSwitch {
-  display: inline-flex; align-items: center; gap: 0.375rem; min-width: max-content;
-  color: var(--color-text-secondary); font-size: 0.8125rem; cursor: pointer;
-}
-.sectionSwitch:has(input:disabled) { cursor: wait; opacity: 0.72; }
 .card { display: flex; flex-direction: column; gap: 0.875rem; }
 .cardInactive {
   border-color: var(--color-border); background: var(--color-surface2);
@@ -73,7 +67,11 @@
 .meta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .url { color: var(--color-text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.5; overflow-wrap: anywhere; }
 .notes { color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
-.systemNotice { color: var(--color-warning); font-size: 0.8125rem; line-height: 1.5; }
+.systemNotice {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+  color: var(--color-warning); font-size: 0.8125rem; line-height: 1.5;
+}
+.systemNoticeActions { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; }
 .validation { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.75rem; }
 .validation_valid { border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.08); }
 .validation_warning { border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.08); }

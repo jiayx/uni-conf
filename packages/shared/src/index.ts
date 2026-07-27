@@ -11,6 +11,7 @@ import type {
   RuleSetBehavior,
   RuleSetFormat as ModelRuleSetFormat,
   RuleType,
+  RoutingPolicyScenarioId,
   SourceFormat,
   UnmatchedTrafficPolicy,
 } from '@uni-conf/types';
@@ -1698,6 +1699,8 @@ export interface QuixoticRuleSetPreset {
   category: 'ai' | 'streaming' | 'social' | 'china' | 'apple' | 'microsoft' | 'google' | 'privacy' | 'gaming' | 'developer' | 'general';
 }
 
+export type RuleSetProvisioning = 'foundation' | 'scenario' | 'optional';
+
 export type InferredRuleSetTargetGroup =
   | 'PROXY'
   | 'AI'
@@ -1711,22 +1714,12 @@ export type InferredRuleSetTargetGroup =
   | 'Crypto'
   | 'Gaming'
   | 'Developer'
+  | 'Speedtest'
   | 'DIRECT'
   | 'REJECT';
 
-export type RoutingPolicyTemplateId =
-  | 'empty'
-  | 'minimal'
-  | 'common'
-  | 'ai'
-  | 'streaming'
-  | 'router'
-  | 'extended';
-
-export interface RoutingPolicyTemplate {
-  id: RoutingPolicyTemplateId;
-  name: string;
-  description: string;
+export interface RoutingPolicyScenario {
+  id: RoutingPolicyScenarioId;
   groupNames: string[];
 }
 
@@ -1748,54 +1741,55 @@ export const FOUNDATION_POLICY_GROUP_NAMES = [
   ...GLOBAL_NODE_OUTLET_GROUP_NAMES,
 ] as const;
 
-export function buildRoutingPolicyTemplateGroupNames(template: RoutingPolicyTemplate): string[] {
-  return Array.from(new Set([...FOUNDATION_POLICY_GROUP_NAMES, ...template.groupNames]));
+export function buildRoutingPolicyScenarioGroupNames(scenarioIds: RoutingPolicyScenarioId[]): string[] {
+  const enabledScenarioIds = new Set(scenarioIds);
+  return Array.from(new Set([
+    ...FOUNDATION_POLICY_GROUP_NAMES,
+    ...ROUTING_POLICY_SCENARIOS
+      .filter((scenario) => enabledScenarioIds.has(scenario.id))
+      .flatMap((scenario) => scenario.groupNames),
+  ]));
 }
 
-export const ROUTING_POLICY_TEMPLATES: RoutingPolicyTemplate[] = [
+export const ROUTING_POLICY_SCENARIOS: RoutingPolicyScenario[] = [
   {
-    id: 'empty',
-    name: '空组合',
-    description: '只保留 PROXY / DIRECT / REJECT 和节点选择能力，所有业务分流策略由用户自己添加。',
-    groupNames: [],
-  },
-  {
-    id: 'minimal',
-    name: '极简模式',
-    description: '适合新手，只保留基础出口；未匹配流量由上方基础分流方式决定。',
-    groupNames: [],
-  },
-  {
-    id: 'common',
-    name: '默认智能组合',
-    description: '适合大多数用户，为 AI、流媒体、Telegram、社交、GitHub、Google、Apple 和 Microsoft 提供独立分流。',
-    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft'],
-  },
-  {
-    id: 'ai',
-    name: 'AI 优先模式',
-    description: '优先启用 AI、开发和代码服务分流，适合主要使用 OpenAI、Claude、Gemini、Cursor 或 Copilot 的场景。',
-    groupNames: ['AI', 'GitHub', 'Google', 'Developer', 'Apple', 'Microsoft'],
+    id: 'ai-development',
+    groupNames: ['AI', 'GitHub', 'Google', 'Microsoft', 'Developer'],
   },
   {
     id: 'streaming',
-    name: '流媒体模式',
-    description: '优先启用流媒体、社交和 Telegram 分流，适合 Netflix、YouTube、Disney+ 等服务。',
-    groupNames: ['Streaming', 'Telegram', 'Social', 'Apple', 'Microsoft'],
+    groupNames: ['Streaming'],
   },
   {
-    id: 'router',
-    name: '路由器模式',
-    description: '适合 OpenClash、软路由和网关场景，保留常用分流并避免过多业务组。',
-    groupNames: ['Streaming', 'Telegram', 'GitHub', 'Google', 'Apple', 'Microsoft'],
+    id: 'communication',
+    groupNames: ['Telegram', 'Social'],
   },
   {
-    id: 'extended',
-    name: '扩展组合',
-    description: '在常用组合基础上增加加密货币、游戏和开发服务。',
-    groupNames: ['AI', 'Streaming', 'Telegram', 'Social', 'GitHub', 'Google', 'Apple', 'Microsoft', 'Crypto', 'Gaming', 'Developer'],
+    id: 'gaming',
+    groupNames: ['Gaming'],
+  },
+  {
+    id: 'finance',
+    groupNames: ['Crypto'],
+  },
+  {
+    id: 'diagnostics',
+    groupNames: ['Speedtest'],
+  },
+  {
+    id: 'platform',
+    groupNames: ['Apple', 'Microsoft', 'Google'],
   },
 ];
+
+export const DEFAULT_ROUTING_POLICY_SCENARIOS: RoutingPolicyScenarioId[] = [
+  'ai-development',
+  'streaming',
+  'diagnostics',
+];
+
+export const ALL_ROUTING_POLICY_SCENARIO_IDS: RoutingPolicyScenarioId[] =
+  ROUTING_POLICY_SCENARIOS.map((scenario) => scenario.id);
 
 export const QUIXOTIC_RULE_SET_PRESETS: QuixoticRuleSetPreset[] = [
   { id: 'abema', name: 'Abema', description: 'abema 视频流媒体平台', category: 'streaming' },
@@ -1875,9 +1869,7 @@ const DIRECT_PRESET_IDS = new Set([
 const REJECT_PRESET_IDS = new Set(['adrules', 'httpdns']);
 
 const PROXY_PRESET_IDS = new Set([
-  'games',
   'iplocation-proxy',
-  'talkatone',
 ]);
 
 const DIRECT_WHITELIST_PRESET_IDS = new Set([
@@ -1913,6 +1905,8 @@ const APPLE_PRESET_IDS = new Set(['apple', 'apple-proxy']);
 const MICROSOFT_PRESET_IDS = new Set(['microsoft', 'onedrive']);
 const GOOGLE_PRESET_IDS = new Set(['google', 'googlefcm']);
 const TELEGRAM_PRESET_IDS = new Set(['telegram']);
+const SPEEDTEST_PRESET_IDS = new Set(['speedtest']);
+const OPTIONAL_PRESET_IDS = new Set(['ecommerce', 'paypal']);
 
 export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): InferredRuleSetTargetGroup {
   if (REJECT_PRESET_IDS.has(preset.id)) return 'REJECT';
@@ -1922,6 +1916,7 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
   if (MICROSOFT_PRESET_IDS.has(preset.id)) return 'Microsoft';
   if (GOOGLE_PRESET_IDS.has(preset.id)) return 'Google';
   if (TELEGRAM_PRESET_IDS.has(preset.id)) return 'Telegram';
+  if (SPEEDTEST_PRESET_IDS.has(preset.id)) return 'Speedtest';
   if (CRYPTO_PRESET_IDS.has(preset.id)) return 'Crypto';
   if (PROXY_PRESET_IDS.has(preset.id)) return 'PROXY';
 
@@ -1947,6 +1942,13 @@ export function inferQuixoticTargetGroup(preset: QuixoticRuleSetPreset): Inferre
     default:
       return 'PROXY';
   }
+}
+
+export function resolveQuixoticPresetProvisioning(preset: QuixoticRuleSetPreset): RuleSetProvisioning {
+  if (OPTIONAL_PRESET_IDS.has(preset.id)) return 'optional';
+  return ['PROXY', 'DIRECT', 'REJECT'].includes(inferQuixoticTargetGroup(preset))
+    ? 'foundation'
+    : 'scenario';
 }
 
 export function resolveQuixoticRuleSetSortOrder(presetId: string): number {

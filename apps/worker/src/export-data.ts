@@ -160,7 +160,12 @@ export function filterRowsByTargetGroup(
   rows: Record<string, unknown>[],
   enabledGroupIds: Set<string>
 ): Record<string, unknown>[] {
-  return rows.filter((row) => enabledGroupIds.has(String(row.target_group_id ?? row.targetGroupId ?? '')))
+  return rows.filter((row) => enabledGroupIds.has(String(
+    row.target_override_group_id
+    ?? row.target_group_id
+    ?? row.targetGroupId
+    ?? ''
+  )))
 }
 
 async function selectRows(

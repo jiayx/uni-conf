@@ -169,6 +169,20 @@ describe('export artifact validation', () => {
     ]))
   })
 
+  it('recognizes Shadowrocket rule options after the policy target', () => {
+    const validation = validateRenderedExport('shadowrocket', [
+      '[General]', 'bypass-system = true',
+      '[Proxy]', 'Node = ss, example.com, 443',
+      '[Proxy Group]', 'PROXY = select, Node',
+      '[Rule]',
+      'DOMAIN-SUFFIX,example.com,PROXY,force-remote-dns',
+      'IP-CIDR,192.0.2.0/24,PROXY,no-resolve',
+      'DOMAIN,api.example.com,PROXY,no-resolve,force-remote-dns',
+    ].join('\n'))
+
+    expect(validation.issues).toEqual([])
+  })
+
   it('validates native Surge proxy protocol fields', () => {
     const validation = validateRenderedExport('surge', [
       '[General]', 'loglevel=notify',

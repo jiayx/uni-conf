@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   applyRoutingPolicyGroupLinks,
   listAutoCollectionKeysById,
-  resolveActiveTemplateGroupNames,
-  resolveManagedTemplateGroupNames,
+  resolveActiveScenarioGroupNames,
+  resolveManagedScenarioGroupNames,
   resolveOutletGroupIds,
   resolveRoutingGroupIds,
   syncRoutingPolicyGroups,
@@ -14,7 +14,6 @@ import {
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
   isFoundationPolicyGroupId,
   isRuleTargetFoundationGroupId,
-  ROUTING_POLICY_TEMPLATES,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
 } from '@uni-conf/shared';
 
@@ -216,11 +215,8 @@ describe('routing policy group sync', () => {
     expect(isFoundationPolicyGroupId('builtin-ai')).toBe(false);
   });
 
-  it('keeps foundation policy and full-node outlet groups enabled for the empty template', () => {
-    const emptyTemplate = ROUTING_POLICY_TEMPLATES.find((template) => template.id === 'empty');
-
-    expect(emptyTemplate).toBeDefined();
-    expect([...resolveActiveTemplateGroupNames(emptyTemplate!)]).toEqual([
+  it('keeps foundation policy and full-node outlet groups enabled without business scenarios', () => {
+    expect([...resolveActiveScenarioGroupNames([])]).toEqual([
       'PROXY',
       'DIRECT',
       'REJECT',
@@ -232,9 +228,8 @@ describe('routing policy group sync', () => {
   });
 
   it.each([
-    ['minimal', ['PROXY', 'DIRECT', 'REJECT', '全部节点', '节点选择', '自动选择', '故障切换']],
     [
-      'common',
+      ['ai-development', 'streaming', 'diagnostics'],
       [
         'PROXY',
         'DIRECT',
@@ -244,35 +239,16 @@ describe('routing policy group sync', () => {
         '自动选择',
         '故障切换',
         'AI',
-        'STREAMING',
-        'TELEGRAM',
-        'SOCIAL',
         'GITHUB',
         'GOOGLE',
-        'APPLE',
         'MICROSOFT',
-      ],
-    ],
-    [
-      'ai',
-      [
-        'PROXY',
-        'DIRECT',
-        'REJECT',
-        '全部节点',
-        '节点选择',
-        '自动选择',
-        '故障切换',
-        'AI',
-        'GITHUB',
-        'GOOGLE',
         'DEVELOPER',
-        'APPLE',
-        'MICROSOFT',
+        'STREAMING',
+        'SPEEDTEST',
       ],
     ],
     [
-      'streaming',
+      ['communication', 'gaming', 'finance', 'platform'],
       [
         'PROXY',
         'DIRECT',
@@ -281,59 +257,17 @@ describe('routing policy group sync', () => {
         '节点选择',
         '自动选择',
         '故障切换',
-        'STREAMING',
         'TELEGRAM',
         'SOCIAL',
-        'APPLE',
-        'MICROSOFT',
-      ],
-    ],
-    [
-      'router',
-      [
-        'PROXY',
-        'DIRECT',
-        'REJECT',
-        '全部节点',
-        '节点选择',
-        '自动选择',
-        '故障切换',
-        'STREAMING',
-        'TELEGRAM',
-        'GITHUB',
-        'GOOGLE',
-        'APPLE',
-        'MICROSOFT',
-      ],
-    ],
-    [
-      'extended',
-      [
-        'PROXY',
-        'DIRECT',
-        'REJECT',
-        '全部节点',
-        '节点选择',
-        '自动选择',
-        '故障切换',
-        'AI',
-        'STREAMING',
-        'TELEGRAM',
-        'SOCIAL',
-        'GITHUB',
-        'GOOGLE',
-        'APPLE',
-        'MICROSOFT',
-        'CRYPTO',
         'GAMING',
-        'DEVELOPER',
+        'CRYPTO',
+        'APPLE',
+        'MICROSOFT',
+        'GOOGLE',
       ],
     ],
-  ])('resolves the %s scenario template with foundation outlets', (templateId, groupNames) => {
-    const template = ROUTING_POLICY_TEMPLATES.find((item) => item.id === templateId);
-
-    expect(template).toBeDefined();
-    expect([...resolveActiveTemplateGroupNames(template!)]).toEqual(groupNames);
+  ] as const)('resolves the %s scenario selection with foundation outlets', (scenarioIds, groupNames) => {
+    expect([...resolveActiveScenarioGroupNames([...scenarioIds])]).toEqual(groupNames);
   });
 
   it('normalizes foundation outlet builtins to the canonical model', async () => {
@@ -359,8 +293,8 @@ describe('routing policy group sync', () => {
     expect(normalizedById.get('builtin-reject')?.[3]).toBe('["REJECT"]');
   });
 
-  it('manages every generated foundation and business group through templates', () => {
-    expect([...resolveManagedTemplateGroupNames()]).toEqual([
+  it('manages every generated foundation and business group through scenarios', () => {
+    expect([...resolveManagedScenarioGroupNames()]).toEqual([
       'PROXY',
       'DIRECT',
       'REJECT',
@@ -369,16 +303,17 @@ describe('routing policy group sync', () => {
       '自动选择',
       '故障切换',
       'AI',
+      'GITHUB',
+      'GOOGLE',
+      'MICROSOFT',
+      'DEVELOPER',
       'STREAMING',
       'TELEGRAM',
       'SOCIAL',
-      'GITHUB',
-      'GOOGLE',
-      'APPLE',
-      'MICROSOFT',
-      'DEVELOPER',
-      'CRYPTO',
       'GAMING',
+      'CRYPTO',
+      'SPEEDTEST',
+      'APPLE',
     ]);
   });
 
@@ -480,6 +415,33 @@ describe('routing policy group sync', () => {
     ]);
   });
 
+  it('uses DIRECT as the Speedtest default while allowing an explicit outlet override', () => {
+    const speedtestRows = [
+      ...groupRows,
+      {
+        id: 'builtin-speedtest',
+        name: 'Speedtest',
+        type: 'select',
+        collection_ids: '[]',
+        group_ids: '[]',
+        enabled: 1,
+        is_builtin: 1,
+      },
+    ];
+
+    const defaultLinked = applyRoutingPolicyGroupLinks(speedtestRows);
+    expect(JSON.parse(String(
+      defaultLinked.find((row) => row.id === 'builtin-speedtest')?.group_ids ?? '[]'
+    ))[0]).toBe('builtin-direct');
+
+    const overridden = applyRoutingPolicyGroupLinks(speedtestRows, {
+      'builtin-speedtest': 'group:builtin-node-select',
+    });
+    expect(JSON.parse(String(
+      overridden.find((row) => row.id === 'builtin-speedtest')?.group_ids ?? '[]'
+    ))[0]).toBe('builtin-node-select');
+  });
+
   it('resolves stable automatic outlet references after generated group ids change', () => {
     const regeneratedRows = groupRows.map((row) => (
       row.id === 'us-auto'
@@ -561,7 +523,7 @@ function appSettingsRow() {
   return {
     language: 'zh',
     theme: 'system',
-    routing_policy_template: 'empty',
+    routing_policy_scenarios: '[]',
     routing_outlet_preferences: null,
     export_node_naming_mode: 'smart',
     show_compatibility_warnings: 1,

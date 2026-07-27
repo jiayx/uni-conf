@@ -15,7 +15,7 @@ describe('settings route helpers', () => {
       language: 'zh',
       theme: 'system',
       unmatchedTrafficPolicy: 'proxy',
-      routingPolicyTemplate: 'common',
+      routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
       routingOutletPreferences: {
         'builtin-ai': 'auto:country:US:url-test',
         'builtin-streaming': 'group:builtin-auto-select',
@@ -39,7 +39,8 @@ describe('settings route helpers', () => {
   it('rejects invalid enum settings', () => {
     expect(validateSettingsPatch({ language: 'fr' as never })).toBe('invalid language')
     expect(validateSettingsPatch({ unmatchedTrafficPolicy: 'auto' as never })).toBe('invalid unmatched traffic policy')
-    expect(validateSettingsPatch({ routingPolicyTemplate: 'custom' as never })).toBe('invalid routing policy template')
+    expect(validateSettingsPatch({ routingPolicyScenarios: ['custom' as never] })).toBe('invalid routing policy scenarios')
+    expect(validateSettingsPatch({ routingPolicyScenarios: ['streaming', 'streaming'] })).toBe('invalid routing policy scenarios')
     expect(validateSettingsPatch({ routingOutletPreferences: [] as never })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': '' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'us-auto' } })).toBe('invalid routing outlet preferences')
@@ -75,15 +76,15 @@ describe('settings route helpers', () => {
     expect(language.values).toEqual(['en', '2026-07-24T00:00:00.000Z'])
   })
 
-  it('updates a routing template independently from other settings', () => {
+  it('updates routing scenarios independently from other settings', () => {
     const update = buildSettingsUpdate(
-      { routingPolicyTemplate: 'router' },
+      { routingPolicyScenarios: ['streaming', 'diagnostics'] },
       '2026-07-24T00:00:00.000Z',
     )
 
-    expect(update.sql).toContain('routing_policy_template = ?')
+    expect(update.sql).toContain('routing_policy_scenarios = ?')
     expect(update.sql).not.toContain('language = ?')
-    expect(update.values).toEqual(['router', '2026-07-24T00:00:00.000Z'])
+    expect(update.values).toEqual(['["streaming","diagnostics"]', '2026-07-24T00:00:00.000Z'])
   })
 
   it('updates the unmatched traffic policy independently', () => {

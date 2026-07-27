@@ -142,6 +142,8 @@ export function mapRule(row: Record<string, unknown>): ProxyRule {
 }
 
 export function mapRemoteRuleSet(row: Record<string, unknown>): RemoteRuleSet {
+  const defaultTargetGroupId = row.target_group_id as string;
+  const targetOverrideGroupId = (row.target_override_group_id as string | null) ?? undefined;
   return {
     id: row.id as string,
     name: row.name as string,
@@ -154,7 +156,9 @@ export function mapRemoteRuleSet(row: Record<string, unknown>): RemoteRuleSet {
     sourceId: (row.source_id as string | null) ?? undefined,
     sourceRuleSetKey: (row.source_rule_set_key as string | null) ?? undefined,
     sourceMissing: Boolean(row.source_missing),
-    targetGroupId: row.target_group_id as string,
+    defaultTargetGroupId,
+    targetOverrideGroupId,
+    targetGroupId: targetOverrideGroupId ?? defaultTargetGroupId,
     updateInterval: row.update_interval as number,
     enabled: Boolean(row.enabled),
     sortOrder: (row.sort_order as number | null) ?? 0,

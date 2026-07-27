@@ -279,6 +279,7 @@ describe('Preview artifact validation', () => {
     expect(mihomoTab).toHaveAttribute('aria-pressed', 'true')
 
     const selector = await screen.findByRole('combobox', { name: 'Export profile' })
+    await screen.findByRole('option', { name: 'Mobile (singbox)' })
     await user.selectOptions(selector, 'advanced-1')
 
     const locationSearch = await screen.findByTestId('location-search')

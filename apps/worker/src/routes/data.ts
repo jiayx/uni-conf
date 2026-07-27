@@ -34,9 +34,9 @@ const TABLE_COLUMNS = {
   collections: ['id', 'name', 'source_ids', 'node_ids', 'filters', 'renames', 'dedup', 'sort', 'sort_country_order', 'enabled', 'notes', 'created_at', 'updated_at'],
   groups: ['id', 'name', 'type', 'collection_ids', 'group_ids', 'builtins', 'test_url', 'interval', 'tolerance', 'lazy', 'enabled', 'sort_order', 'is_builtin', 'created_at', 'updated_at'],
   rules: ['id', 'name', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'notes', 'compatibility', 'created_at', 'updated_at'],
-  remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'preset_source', 'preset_id', 'source_overrides', 'source_id', 'source_rule_set_key', 'source_missing', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'last_updated', 'notes', 'created_at', 'updated_at'],
+  remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'preset_source', 'preset_id', 'source_overrides', 'source_id', 'source_rule_set_key', 'source_missing', 'target_group_id', 'target_override_group_id', 'update_interval', 'enabled', 'sort_order', 'last_updated', 'notes', 'created_at', 'updated_at'],
   export_configs: ['id', 'name', 'format', 'dns_policy', 'token', 'enabled', 'include_collection_ids', 'include_group_ids', 'include_rule_ids', 'include_remote_set_ids', 'rule_set_conversion_policy', 'extra_config', 'created_at', 'updated_at'],
-  app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_template', 'routing_outlet_preferences', 'export_node_naming_mode', 'default_export_token', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_keys', 'auto_node_group_include_flag', 'updated_at'],
+  app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_scenarios', 'routing_outlet_preferences', 'export_node_naming_mode', 'default_export_token', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_keys', 'auto_node_group_include_flag', 'updated_at'],
   source_import_runs: ['id', 'source_id', 'source_name', 'format', 'node_import_mode', 'status', 'node_count', 'added_count', 'updated_count', 'skipped_existing_count', 'rule_count', 'remote_rule_set_count', 'skipped_rule_count', 'conflict_count', 'refresh_error', 'structured_error', 'structured_changes', 'created_at', 'completed_at', 'undone_at'],
 } as const satisfies Record<TableName, readonly string[]>
 
@@ -51,7 +51,7 @@ const NON_NULL_COLUMNS = {
   rules: ['id', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'compatibility', 'created_at', 'updated_at'],
   remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'source_overrides', 'source_missing', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'created_at', 'updated_at'],
   export_configs: ['id', 'name', 'format', 'token', 'enabled', 'include_collection_ids', 'include_group_ids', 'include_rule_ids', 'include_remote_set_ids', 'created_at', 'updated_at'],
-  app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_template', 'export_node_naming_mode', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_include_flag', 'updated_at'],
+  app_settings: ['id', 'language', 'theme', 'unmatched_traffic_policy', 'routing_policy_scenarios', 'export_node_naming_mode', 'show_compatibility_warnings', 'rule_set_conversion_policy', 'enable_auto_refresh', 'auto_refresh_interval', 'auto_node_groups_enabled', 'auto_node_group_types', 'auto_node_group_include_flag', 'updated_at'],
   source_import_runs: ['id', 'source_name', 'format', 'node_import_mode', 'status', 'node_count', 'added_count', 'updated_count', 'skipped_existing_count', 'rule_count', 'remote_rule_set_count', 'skipped_rule_count', 'conflict_count', 'structured_changes', 'created_at'],
 } as const satisfies Record<TableName, readonly string[]>
 
@@ -140,7 +140,7 @@ app.delete('/', async (c) => {
         language = 'zh',
         theme = 'system',
         unmatched_traffic_policy = 'proxy',
-        routing_policy_template = 'common',
+        routing_policy_scenarios = '["ai-development","streaming","diagnostics"]',
         routing_outlet_preferences = NULL,
         export_node_naming_mode = 'smart',
         default_export_token = NULL,

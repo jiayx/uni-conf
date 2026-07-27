@@ -7,7 +7,7 @@ import type {
   ResourceDependency,
 } from '@uni-conf/types';
 import { listAutoCollectionKeysById, resolveRoutingGroupIds, withOutletRefs } from '../services/routing-policy-groups';
-import { DEFAULT_HEALTH_CHECK, FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
+import { DEFAULT_HEALTH_CHECK, FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_SCENARIOS } from '@uni-conf/shared';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { validateGroupReferenceGraph } from '../services/group-reference-graph';
 import { validateOptionalBooleanFields } from '../services/request-validation';
@@ -18,7 +18,7 @@ const BUILTIN_ONLY_GROUP_TYPES = new Set<ProxyGroup['type']>(['direct', 'reject'
 const BUILTIN_POLICIES = new Set(['DIRECT', 'REJECT']);
 const BUILTIN_GROUP_NAMES = new Set<string>([
   ...FOUNDATION_POLICY_GROUP_NAMES,
-  ...ROUTING_POLICY_TEMPLATES.flatMap((template) => template.groupNames),
+  ...ROUTING_POLICY_SCENARIOS.flatMap((scenario) => scenario.groupNames),
 ].map((name) => name.toUpperCase()));
 
 // ─── List groups ordered by sort_order ────────────────────────────────────────
@@ -333,7 +333,7 @@ export async function findGroupDeleteBlockers(
       id: string;
       name: string | null;
     }>(),
-    db.prepare('SELECT id, name FROM remote_rule_sets WHERE target_group_id = ? ORDER BY sort_order, id').bind(id).all<{
+    db.prepare('SELECT id, name FROM remote_rule_sets WHERE target_group_id = ? OR target_override_group_id = ? ORDER BY sort_order, id').bind(id, id).all<{
       id: string;
       name: string;
     }>(),

@@ -88,7 +88,15 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
     for (const [format, filename] of Object.entries(EXPORT_FORMAT_FILENAMES) as Array<[ExportSubscriptionFormat, string]>) {
       const response = await request(`/sub/${token}/${filename}`)
       const content = await response.text()
-      expect(response.status, `${format} download status: ${content.slice(0, 240)}`).toBe(200)
+      const diagnostic = response.status === 200
+        ? null
+        : await (await request(`/api/export/preview/${format}`)).json() as {
+            data?: { artifactValidation?: unknown }
+          }
+      expect(
+        response.status,
+        `${format} download status: ${content.slice(0, 240)}\nartifact validation: ${JSON.stringify(diagnostic?.data?.artifactValidation)}`
+      ).toBe(200)
       expect(content.length, `${format} content length`).toBeGreaterThan(20)
       assertExportShape(format, content)
     }
@@ -793,7 +801,7 @@ rule-providers:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         language: 'zh',
-        routingPolicyTemplate: 'router',
+        routingPolicyScenarios: ['streaming', 'communication', 'platform'],
       }),
     })
     expect(baseline.status).toBe(200)
@@ -814,32 +822,32 @@ rule-providers:
     expect(namingResponse.status).toBe(200)
 
     const concurrentSettings = await (await request('/api/settings')).json() as {
-      data: { language: string; routingPolicyTemplate: string; exportNodeNamingMode: string }
+      data: { language: string; routingPolicyScenarios: string[]; exportNodeNamingMode: string }
     }
     expect(concurrentSettings.data).toMatchObject({
       language: 'en',
-      routingPolicyTemplate: 'router',
+      routingPolicyScenarios: ['streaming', 'communication', 'platform'],
       exportNodeNamingMode: 'region_sequence',
     })
 
-    const sameTemplate = await request('/api/settings', {
+    const sameScenarios = await request('/api/settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ routingPolicyTemplate: 'router' }),
+      body: JSON.stringify({ routingPolicyScenarios: ['streaming', 'communication', 'platform'] }),
     })
-    expect(sameTemplate.status).toBe(200)
-    await expect(sameTemplate.json()).resolves.toMatchObject({
-      data: { routingPolicyTemplate: 'router', exportNodeNamingMode: 'region_sequence' },
+    expect(sameScenarios.status).toBe(200)
+    await expect(sameScenarios.json()).resolves.toMatchObject({
+      data: { routingPolicyScenarios: ['streaming', 'communication', 'platform'], exportNodeNamingMode: 'region_sequence' },
     })
 
-    const changedTemplate = await request('/api/settings', {
+    const changedScenarios = await request('/api/settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ routingPolicyTemplate: 'common' }),
+      body: JSON.stringify({ routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'] }),
     })
-    expect(changedTemplate.status).toBe(200)
-    await expect(changedTemplate.json()).resolves.toMatchObject({
-      data: { routingPolicyTemplate: 'common', exportNodeNamingMode: 'region_sequence' },
+    expect(changedScenarios.status).toBe(200)
+    await expect(changedScenarios.json()).resolves.toMatchObject({
+      data: { routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'], exportNodeNamingMode: 'region_sequence' },
     })
   }, 30000)
 

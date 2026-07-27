@@ -6,8 +6,16 @@
 .templateHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .templateTitle { font-size: 0.9375rem; font-weight: 600; color: var(--color-text-primary); }
 .templateMeta { margin-top: 0.25rem; font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
-.templateGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+.templateGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
 .basePolicyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.scenarioShortcuts { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; justify-content: flex-end; }
+.scenarioShortcuts button {
+  padding: 0.375rem 0.75rem; border: 1px solid var(--color-border); border-radius: 999px;
+  background: var(--color-surface); color: var(--color-text-secondary); font: inherit; font-size: 0.75rem; cursor: pointer;
+}
+.scenarioShortcuts button:hover { border-color: var(--color-accent); color: var(--color-text-primary); }
+.scenarioShortcuts button:disabled { cursor: wait; opacity: 0.65; }
+.scenarioShortcuts .scenarioShortcutActive { border-color: var(--color-accent); background: var(--color-accent-subtle); color: var(--color-accent); font-weight: 600; }
 .templateItem {
   display: flex; flex-direction: column; gap: 0.5rem; min-width: 0;
   padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md);

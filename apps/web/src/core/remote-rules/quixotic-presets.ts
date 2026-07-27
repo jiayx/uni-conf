@@ -4,6 +4,7 @@ import {
   inferQuixoticTargetGroup,
   inferQuixoticRuleSetSourceFromUrl,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticPresetProvisioning,
   resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
   type InferredRuleSetTargetGroup,
@@ -15,6 +16,7 @@ export {
   inferQuixoticTargetGroup,
   inferQuixoticRuleSetSourceFromUrl,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticPresetProvisioning,
   resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
 }

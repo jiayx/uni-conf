@@ -760,7 +760,12 @@ function validateTextRuleTargets(
   const issues: ExportArtifactValidationIssue[] = []
   for (const [index, line] of lines.entries()) {
     const values = line.split(',').map(item => item.trim()).filter(Boolean)
-    const target = values.at(-1)?.toLowerCase() === 'no-resolve' ? values.at(-2) : values.at(-1)
+    const trailingOptions = new Set(['no-resolve', 'force-remote-dns'])
+    let targetIndex = values.length - 1
+    while (targetIndex >= 0 && trailingOptions.has(values[targetIndex]!.toLowerCase())) {
+      targetIndex -= 1
+    }
+    const target = values[targetIndex]
     if (target && targets.has(target)) continue
     issues.push(issue('missing_reference', `${path}[${index}]`, `规则引用了不存在的策略 ${String(target)}`, `A rule references the missing policy ${String(target)}.`))
   }

@@ -60,12 +60,12 @@ describe('zero setup defaults integration', () => {
       .filter((row) => row.enabled === 1)
       .map((row) => groupsById.get(row.target_group_id)?.name ?? row.target_group_id);
     expect(remoteRuleTargets).toContain('REJECT');
-    expect(remoteRuleTargets).toContain('Telegram');
+    expect(remoteRuleTargets).toContain('Speedtest');
     expect(remoteRuleTargets).toContain('PROXY');
   });
 
-  it('keeps the empty routing template limited to foundation targets and node outlets', async () => {
-    const db = createZeroSetupDb({ routingPolicyTemplate: 'empty' });
+  it('keeps an empty scenario selection limited to foundation targets and node outlets', async () => {
+    const db = createZeroSetupDb({ routingPolicyScenarios: [] });
 
     await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
 
@@ -145,7 +145,7 @@ interface MemoryRow {
 }
 
 function createZeroSetupDb(patch: {
-  routingPolicyTemplate?: string;
+  routingPolicyScenarios?: string[];
   autoNodeGroupsEnabled?: boolean;
 } = {}): D1Database & { state: ZeroSetupState } {
   const state: ZeroSetupState = {
@@ -153,7 +153,9 @@ function createZeroSetupDb(patch: {
       id: 'singleton',
       language: 'zh',
       theme: 'system',
-      routing_policy_template: patch.routingPolicyTemplate ?? 'common',
+      routing_policy_scenarios: JSON.stringify(
+        patch.routingPolicyScenarios ?? ['ai-development', 'streaming', 'diagnostics'],
+      ),
       routing_outlet_preferences: null,
       export_node_naming_mode: 'smart',
       default_export_token: null,

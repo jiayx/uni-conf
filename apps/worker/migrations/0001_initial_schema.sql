@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   source_rule_set_key TEXT,
   source_missing INTEGER NOT NULL DEFAULT 0,
   target_group_id TEXT NOT NULL,
+  target_override_group_id TEXT,
   update_interval INTEGER NOT NULL DEFAULT 24,
   enabled INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -162,6 +163,7 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (target_group_id) REFERENCES groups(id),
+  FOREIGN KEY (target_override_group_id) REFERENCES groups(id),
   FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL
 );
 
@@ -214,7 +216,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
   unmatched_traffic_policy TEXT NOT NULL DEFAULT 'proxy' CHECK (
     unmatched_traffic_policy IN ('proxy', 'direct')
   ),
-  routing_policy_template TEXT NOT NULL DEFAULT 'common',
+  routing_policy_scenarios TEXT NOT NULL DEFAULT '["ai-development","streaming","diagnostics"]',
   routing_outlet_preferences TEXT,
   export_node_naming_mode TEXT NOT NULL DEFAULT 'smart',
   default_export_token TEXT,
@@ -263,6 +265,7 @@ INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtin
   ('builtin-google',    'Google',    'select',   '[]', '[]', '[]', 1, 6,  1, datetime('now'), datetime('now')),
   ('builtin-apple',     'Apple',     'select',   '[]', '[]', '[]', 1, 7,  1, datetime('now'), datetime('now')),
   ('builtin-microsoft', 'Microsoft', 'select',   '[]', '[]', '[]', 1, 8,  1, datetime('now'), datetime('now')),
+  ('builtin-speedtest', 'Speedtest', 'select',   '[]', '[]', '[]', 1, 9,  1, datetime('now'), datetime('now')),
   ('builtin-crypto',    'Crypto',    'select',   '[]', '[]', '[]', 0, 10, 1, datetime('now'), datetime('now')),
   ('builtin-gaming',    'Gaming',    'select',   '[]', '[]', '[]', 0, 11, 1, datetime('now'), datetime('now')),
   ('builtin-developer', 'Developer', 'select',   '[]', '[]', '[]', 0, 12, 1, datetime('now'), datetime('now')),

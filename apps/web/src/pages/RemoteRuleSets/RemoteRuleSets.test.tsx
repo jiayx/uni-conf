@@ -25,6 +25,10 @@ vi.mock('@/lib/api', async () => {
     ...actual,
     api: {
       ...actual.api,
+      settings: {
+        ...actual.api.settings,
+        get: vi.fn(),
+      },
       sources: {
         ...actual.api.sources,
         list: vi.fn(),
@@ -48,7 +52,11 @@ vi.mock('@/lib/api', async () => {
 describe('RemoteRuleSets content validation', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    useSettingsStore.setState({ ruleSetConversionPolicy: 'compatible' })
+    useSettingsStore.setState({
+      unmatchedTrafficPolicy: 'proxy',
+      ruleSetConversionPolicy: 'compatible',
+    })
+    vi.mocked(api.settings.get).mockResolvedValue(useSettingsStore.getState())
     await i18n.changeLanguage('en')
     groupStore.groups.splice(0, groupStore.groups.length, {
       id: 'builtin-proxy', name: 'PROXY', type: 'select', collectionIds: [], groupIds: [], builtins: [],
@@ -428,7 +436,7 @@ describe('RemoteRuleSets content validation', () => {
     const dialog = screen.getByRole('dialog', { name: 'Configure Native Sources · Managed AI' })
     expect(dialog).toHaveTextContent('The system keeps the default source and routing metadata up to date.')
     expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'Use After Match' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Traffic destination' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Discover native sources (7)' })).toBeInTheDocument()
 
     await user.type(
@@ -440,6 +448,75 @@ describe('RemoteRuleSets content validation', () => {
     expect(api.remoteRuleSets.update).toHaveBeenCalledWith('managed-ai', {
       sourceOverrides: { singbox: 'https://rules.example.com/managed-ai.srs' },
     })
+  })
+
+  it('overrides and restores the target of a system-managed rule set', async () => {
+    const managed = {
+      ...makeRuleSet('managed-streaming', 'Managed Streaming', 'builtin-streaming', 'mihomo'),
+      presetSource: 'quixotic' as const,
+      presetId: 'netflix',
+      defaultTargetGroupId: 'builtin-streaming',
+    }
+    vi.mocked(api.remoteRuleSets.list).mockResolvedValue([managed])
+    groupStore.groups.splice(
+      0,
+      groupStore.groups.length,
+      {
+        id: 'builtin-proxy', name: 'PROXY', type: 'select', collectionIds: [], groupIds: [], builtins: [],
+        enabled: true, order: 0, isBuiltin: true,
+      },
+      {
+        id: 'builtin-streaming', name: 'Streaming', type: 'select', collectionIds: [], groupIds: [], builtins: [],
+        enabled: true, order: 1, isBuiltin: true,
+      },
+    )
+    vi.mocked(api.remoteRuleSets.update).mockImplementation(async (_id, patch) => ({
+      ...managed,
+      targetOverrideGroupId: patch.targetOverrideGroupId,
+      targetGroupId: patch.targetOverrideGroupId || managed.targetGroupId,
+    }))
+    const user = userEvent.setup()
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Change target' }))
+    const target = screen.getByRole('combobox', { name: 'New destination' })
+    expect(within(target).getByRole('option', { name: 'Follow system: Streaming' })).toHaveValue('')
+    await user.selectOptions(target, 'builtin-proxy')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(api.remoteRuleSets.update).toHaveBeenCalledWith('managed-streaming', {
+      targetOverrideGroupId: 'builtin-proxy',
+    })
+    expect(await screen.findByText('System default Streaming · Current PROXY')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Change target' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'New destination' }), '')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(api.remoteRuleSets.update).toHaveBeenLastCalledWith('managed-streaming', {
+      targetOverrideGroupId: null,
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('System default Streaming · Current PROXY')).not.toBeInTheDocument()
+    })
+  })
+
+  it('replaces the ineffective enable switch with routing actions for an automatically unused set', async () => {
+    vi.mocked(api.remoteRuleSets.list).mockResolvedValue([{
+      ...makeRuleSet('managed-proxy', 'Managed Proxy', 'builtin-proxy', 'mihomo'),
+      presetSource: 'quixotic',
+      presetId: 'proxy',
+      defaultTargetGroupId: 'builtin-proxy',
+      enabled: false,
+    }])
+
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    expect(await screen.findByText('Not used by current plan')).toBeInTheDocument()
+    expect(screen.getByText('The current Routing Plan does not use this managed rule set.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Adjust Routing Plan' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change target' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
   it('keeps target-native sources available after selecting a library preset', async () => {
@@ -463,7 +540,7 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.getByRole('combobox', { name: 'Rule set source' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Rule Set Format' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Match Content' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Use After Match' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Traffic destination' })).toBeInTheDocument()
   })
 
   it('creates a supplemental rule set linked to a subscription provider', async () => {

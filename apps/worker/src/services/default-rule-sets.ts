@@ -3,6 +3,7 @@ import {
   inferQuixoticTargetGroup,
   isManagedRuleSetActiveForUnmatchedPolicy,
   QUIXOTIC_RULE_SET_PRESETS,
+  resolveQuixoticPresetProvisioning,
   resolveQuixoticRuleSetBehavior,
   resolveQuixoticRuleSetSortOrder,
 } from '@uni-conf/shared';
@@ -12,6 +13,10 @@ import type { UnmatchedTrafficPolicy } from '@uni-conf/types';
 
 type PresetSource = NonNullable<RemoteRuleSet['presetSource']>;
 type TargetGroupInfo = { id: string; enabled: boolean };
+type TargetGroupIndex = {
+  byName: Map<string, TargetGroupInfo>;
+  byId: Map<string, TargetGroupInfo>;
+};
 const QUIXOTIC_DEFAULT_FORMAT: RemoteRuleSet['format'] = 'mihomo';
 const SYSTEM_DISABLED_MISSING_TARGET_NOTE = '[uni-conf:auto-disabled:missing-target]';
 
@@ -44,10 +49,19 @@ export async function ensureDefaultRemoteRuleSets(
   ts: string,
   unmatchedTrafficPolicy: UnmatchedTrafficPolicy = 'proxy'
 ): Promise<void> {
-  const groups = await listGroupsByName(db);
+  const groups = await listTargetGroups(db);
   const existingPresets = await listExistingPresetRows(db);
   const healthInvalidationIds = new Set<string>();
+  const optionalPresetDeletes = QUIXOTIC_RULE_SET_PRESETS
+    .filter((preset) => resolveQuixoticPresetProvisioning(preset) === 'optional')
+    .flatMap((preset) => {
+      const existing = existingPresets.get(presetKey('quixotic', preset.id));
+      return existing
+        ? [db.prepare('DELETE FROM remote_rule_sets WHERE id = ?').bind(existing.id)]
+        : [];
+    });
   const quixoticStatements = QUIXOTIC_RULE_SET_PRESETS
+    .filter((preset) => resolveQuixoticPresetProvisioning(preset) !== 'optional')
     .map((preset) => {
       const existing = existingPresets.get(presetKey('quixotic', preset.id));
       const targetGroup = resolveTargetGroup(groups, inferQuixoticTargetGroup(preset));
@@ -56,9 +70,13 @@ export async function ensureDefaultRemoteRuleSets(
       const behavior = resolveQuixoticRuleSetBehavior(preset.id);
       const notes = `QuixoticHeart/rule-set:${preset.id} ${preset.description}`;
       if (!targetGroup) return disableExistingPreset(db, existing, notes, ts);
+      const overrideTarget = resolveOverrideTarget(groups, existing);
+      const hasOverride = Boolean(existing?.target_override_group_id);
       const state = resolveManagedPresetState(
         existing,
-        targetGroup.enabled && isManagedRuleSetActiveForUnmatchedPolicy(preset.id, unmatchedTrafficPolicy),
+        hasOverride
+          ? overrideTarget?.enabled === true
+          : targetGroup.enabled && isManagedRuleSetActiveForUnmatchedPolicy(preset.id, unmatchedTrafficPolicy),
         notes
       );
       if (existing) {
@@ -105,7 +123,12 @@ export async function ensureDefaultRemoteRuleSets(
       const existing = existingPresets.get(presetKey(preset.presetSource, preset.presetId));
       const targetGroup = resolveTargetGroup(groups, preset.targetGroupName);
       if (!targetGroup) return disableExistingPreset(db, existing, preset.notes, ts);
-      const state = resolveManagedPresetState(existing, targetGroup.enabled, preset.notes);
+      const overrideTarget = resolveOverrideTarget(groups, existing);
+      const state = resolveManagedPresetState(
+        existing,
+        existing?.target_override_group_id ? overrideTarget?.enabled === true : targetGroup.enabled,
+        preset.notes
+      );
       if (existing) {
         if (
           existing.target_group_id === targetGroup.id
@@ -150,20 +173,36 @@ export async function ensureDefaultRemoteRuleSets(
   const healthInvalidations = Array.from(healthInvalidationIds, (id) => db
     .prepare('DELETE FROM remote_rule_set_source_health WHERE remote_rule_set_id = ?')
     .bind(id));
-  const statements = [...quixoticStatements, ...uniConfStatements, ...healthInvalidations];
+  const statements = [
+    ...optionalPresetDeletes,
+    ...quixoticStatements,
+    ...uniConfStatements,
+    ...healthInvalidations,
+  ];
 
   if (statements.length > 0) await db.batch(statements);
 }
 
-async function listGroupsByName(db: D1Database): Promise<Map<string, TargetGroupInfo>> {
+async function listTargetGroups(db: D1Database): Promise<TargetGroupIndex> {
   const { results } = await db
     .prepare('SELECT id, name, enabled FROM groups')
     .all<{ id: string; name: string; enabled: number | boolean | null }>();
 
-  return new Map(results.map((group) => [
-    group.name.toUpperCase(),
-    { id: group.id, enabled: group.enabled !== 0 && group.enabled !== false },
-  ]));
+  const entries = results.map((group) => ({
+    id: group.id,
+    name: group.name,
+    enabled: group.enabled !== 0 && group.enabled !== false,
+  }));
+  return {
+    byName: new Map(entries.map((group) => [
+      group.name.toUpperCase(),
+      { id: group.id, enabled: group.enabled },
+    ])),
+    byId: new Map(entries.map((group) => [
+      group.id,
+      { id: group.id, enabled: group.enabled },
+    ])),
+  };
 }
 
 async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
@@ -172,12 +211,13 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
   format: RemoteRuleSet['format'];
   behavior: RemoteRuleSet['behavior'];
   target_group_id: string;
+  target_override_group_id?: string | null;
   enabled: number;
   sort_order: number;
   notes: string;
 }>> {
   const { results } = await db
-    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, enabled, sort_order, notes FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
+    .prepare("SELECT id, url, format, behavior, preset_source, preset_id, target_group_id, target_override_group_id, enabled, sort_order, notes FROM remote_rule_sets WHERE preset_source IN ('quixotic', 'uni-conf') AND preset_id IS NOT NULL")
     .all<{
       id: string;
       url: string;
@@ -186,6 +226,7 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       preset_source: PresetSource;
       preset_id: string;
       target_group_id: string;
+      target_override_group_id: string | null;
       enabled: number;
       sort_order: number;
       notes: string | null;
@@ -199,6 +240,7 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
       format: row.format,
       behavior: row.behavior,
       target_group_id: row.target_group_id,
+      target_override_group_id: row.target_override_group_id,
       enabled: row.enabled ?? 1,
       sort_order: row.sort_order ?? 0,
       notes: row.notes ?? '',
@@ -206,8 +248,17 @@ async function listExistingPresetRows(db: D1Database): Promise<Map<string, {
   ]));
 }
 
-function resolveTargetGroup(groups: Map<string, TargetGroupInfo>, groupName: string): TargetGroupInfo | undefined {
-  return groups.get(groupName.toUpperCase());
+function resolveTargetGroup(groups: TargetGroupIndex, groupName: string): TargetGroupInfo | undefined {
+  return groups.byName.get(groupName.toUpperCase());
+}
+
+function resolveOverrideTarget(
+  groups: TargetGroupIndex,
+  existing: { target_override_group_id?: string | null } | undefined,
+): TargetGroupInfo | undefined {
+  return existing?.target_override_group_id
+    ? groups.byId.get(existing.target_override_group_id)
+    : undefined;
 }
 
 function disableExistingPreset(

@@ -11,9 +11,14 @@ import {
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
 import { getConvertedRemoteRuleSet, RuleSetConversionError } from '../services/rule-set-conversion'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
+import { getAppSettings } from '../services/app-settings'
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(),
+}))
+
+vi.mock('../services/app-settings', () => ({
+  getAppSettings: vi.fn(async () => ({ unmatchedTrafficPolicy: 'proxy' })),
 }))
 
 vi.mock('../services/remote-rule-set-validation', () => ({
@@ -33,10 +38,12 @@ describe('remote rule set routes', () => {
     expect(isManagedRemoteRuleSet({ preset_source: 'quixotic', preset_id: null })).toBe(false)
   })
 
-  it('only allows toggling or target-native source overrides on managed remote rule sets', () => {
+  it('only allows toggling, target overrides, or target-native source overrides on managed remote rule sets', () => {
     expect(isManagedRemoteRuleSetUpdate({ enabled: false })).toBe(true)
     expect(isManagedRemoteRuleSetUpdate({ enabled: true })).toBe(true)
     expect(isManagedRemoteRuleSetUpdate({ sourceOverrides: { singbox: 'https://example.com/ai.srs' } })).toBe(true)
+    expect(isManagedRemoteRuleSetUpdate({ targetOverrideGroupId: 'builtin-proxy' })).toBe(true)
+    expect(isManagedRemoteRuleSetUpdate({ targetOverrideGroupId: null })).toBe(true)
     expect(isManagedRemoteRuleSetUpdate({ enabled: true, sourceOverrides: {} })).toBe(true)
     expect(isManagedRemoteRuleSetUpdate({})).toBe(false)
     expect(isManagedRemoteRuleSetUpdate({ name: 'AI' })).toBe(false)
@@ -179,10 +186,10 @@ describe('remote rule set routes', () => {
       body: JSON.stringify({ enabled: true }),
     }, { DB: db })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(409)
     await expect(response.json()).resolves.toMatchObject({
       success: false,
-      error: 'target group is disabled or missing',
+      code: 'managed_rule_set_unused',
     })
     expect(db.updates).toHaveLength(0)
   })
@@ -202,7 +209,7 @@ describe('remote rule set routes', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
       success: false,
-      error: 'built-in remote rule sets only allow enabled state and target-native source overrides to be changed',
+      error: 'built-in remote rule sets only allow enabled state, target override, and target-native source overrides to be changed',
     })
     expect(db.updates).toHaveLength(0)
   })
@@ -221,9 +228,68 @@ describe('remote rule set routes', () => {
 
     expect(response.status).toBe(200)
     expect(db.updates).toHaveLength(1)
-    expect(db.updates[0]?.[9]).toBe(0)
+    expect(db.updates[0]?.[10]).toBe(0)
     expect(db.healthDeletes).toHaveLength(0)
     expect(db.batches).toHaveLength(0)
+  })
+
+  it('rejects enabling a managed rule set that the current routing plan does not use', async () => {
+    vi.mocked(getAppSettings).mockResolvedValueOnce({ unmatchedTrafficPolicy: 'proxy' } as never)
+    const db = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow({
+        preset_id: 'proxy',
+        target_group_id: 'builtin-proxy',
+        enabled: 0,
+        notes: '[uni-conf:auto-disabled:missing-target]',
+      }),
+      enabledTargetGroupIds: new Set(['builtin-proxy']),
+    })
+
+    const response = await remoteRuleSetsApp.request('/preset-ai', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    }, { DB: db })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      code: 'managed_rule_set_unused',
+    })
+    expect(db.updates).toHaveLength(0)
+  })
+
+  it('stores and clears a managed target override without changing the canonical target', async () => {
+    const initialSyncCalls = vi.mocked(ensureZeroSetupDefaults).mock.calls.length
+    const db = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow(),
+      enabledTargetGroupIds: new Set(['builtin-ai', 'builtin-proxy']),
+    })
+
+    const overrideResponse = await remoteRuleSetsApp.request('/preset-ai', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetOverrideGroupId: 'builtin-proxy' }),
+    }, { DB: db })
+
+    expect(overrideResponse.status).toBe(200)
+    expect(db.updates[0]?.[7]).toBe('builtin-ai')
+    expect(db.updates[0]?.[8]).toBe('builtin-proxy')
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledTimes(initialSyncCalls + 2)
+
+    const clearDb = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow({ target_override_group_id: 'builtin-proxy' }),
+      enabledTargetGroupIds: new Set(['builtin-ai', 'builtin-proxy']),
+    })
+    const clearResponse = await remoteRuleSetsApp.request('/preset-ai', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetOverrideGroupId: null }),
+    }, { DB: clearDb })
+
+    expect(clearResponse.status).toBe(200)
+    expect(clearDb.updates[0]?.[7]).toBe('builtin-ai')
+    expect(clearDb.updates[0]?.[8]).toBeNull()
   })
 
   it('synchronizes managed defaults before reading the row to update', async () => {
@@ -661,6 +727,7 @@ function managedRemoteRuleSetRow(patch: Partial<Record<string, unknown>> = {}): 
     preset_source: 'quixotic',
     preset_id: 'ai',
     target_group_id: 'builtin-ai',
+    target_override_group_id: null,
     update_interval: 24,
     enabled: 1,
     sort_order: 40,

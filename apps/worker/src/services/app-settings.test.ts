@@ -7,7 +7,7 @@ import {
   normalizeOptionalString,
   normalizeOptionalStringList,
   normalizePositiveInteger,
-  normalizeRoutingPolicyTemplate,
+  normalizeRoutingPolicyScenarios,
   normalizeRuleSetConversionPolicy,
   normalizeTheme,
   normalizeUnmatchedTrafficPolicy,
@@ -32,8 +32,9 @@ describe('app settings normalization', () => {
     expect(normalizeTheme('dark')).toBe('dark')
     expect(normalizeUnmatchedTrafficPolicy('unknown')).toBe('proxy')
     expect(normalizeUnmatchedTrafficPolicy('direct')).toBe('direct')
-    expect(normalizeRoutingPolicyTemplate('unknown')).toBe('common')
-    expect(normalizeRoutingPolicyTemplate('router')).toBe('router')
+    expect(normalizeRoutingPolicyScenarios('unknown')).toEqual(['ai-development', 'streaming', 'diagnostics'])
+    expect(normalizeRoutingPolicyScenarios('[]')).toEqual([])
+    expect(normalizeRoutingPolicyScenarios('["diagnostics","streaming","diagnostics"]')).toEqual(['streaming', 'diagnostics'])
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')
     expect(normalizeRuleSetConversionPolicy('strict')).toBe('strict')
     expect(normalizeRuleSetConversionPolicy('unknown')).toBe('compatible')

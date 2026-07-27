@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings, AppSettingsPatch, ExportNodeNamingMode, Language, RoutingPolicyTemplateId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
+import type { AppSettings, AppSettingsPatch, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
-import { isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared'
+import { ALL_ROUTING_POLICY_SCENARIO_IDS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey } from '@uni-conf/shared'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -32,7 +32,7 @@ app.put('/', async (c) => {
   if (
     autoGroupsChanged
     || body.unmatchedTrafficPolicy !== undefined
-    || body.routingPolicyTemplate !== undefined
+    || body.routingPolicyScenarios !== undefined
     || body.routingOutletPreferences !== undefined
   ) {
     await syncRoutingPolicyGroups(c.env.DB, ts)
@@ -51,9 +51,7 @@ async function getSettings(db: D1Database): Promise<AppSettings> {
 const LANGUAGES: ReadonlySet<Language> = new Set(['zh', 'en'])
 const THEMES: ReadonlySet<ThemePreference> = new Set(['system', 'light', 'dark'])
 const UNMATCHED_TRAFFIC_POLICIES: ReadonlySet<UnmatchedTrafficPolicy> = new Set(['proxy', 'direct'])
-const ROUTING_POLICY_TEMPLATE_IDS: ReadonlySet<RoutingPolicyTemplateId> = new Set(
-  ROUTING_POLICY_TEMPLATES.map((template) => template.id as RoutingPolicyTemplateId)
-)
+const ROUTING_POLICY_SCENARIO_IDS: ReadonlySet<RoutingPolicyScenarioId> = new Set(ALL_ROUTING_POLICY_SCENARIO_IDS)
 const EXPORT_NODE_NAMING_MODES: ReadonlySet<ExportNodeNamingMode> = new Set([
   'original',
   'region_sequence',
@@ -65,7 +63,7 @@ const SETTINGS_PATCH_KEYS: ReadonlySet<string> = new Set([
   'language',
   'theme',
   'unmatchedTrafficPolicy',
-  'routingPolicyTemplate',
+  'routingPolicyScenarios',
   'routingOutletPreferences',
   'exportNodeNamingMode',
   'defaultExportToken',
@@ -98,7 +96,9 @@ export function buildSettingsUpdate(body: AppSettingsPatch, ts: string): Setting
   if (body.theme !== undefined) set('theme', body.theme)
   if (body.unmatchedTrafficPolicy !== undefined) set('unmatched_traffic_policy', body.unmatchedTrafficPolicy)
 
-  if (body.routingPolicyTemplate !== undefined) set('routing_policy_template', body.routingPolicyTemplate)
+  if (body.routingPolicyScenarios !== undefined) {
+    set('routing_policy_scenarios', JSON.stringify(body.routingPolicyScenarios))
+  }
 
   if (body.routingOutletPreferences !== undefined) {
     set(
@@ -153,8 +153,15 @@ export function validateSettingsPatch(value: unknown): string | null {
   if (body.unmatchedTrafficPolicy !== undefined && !UNMATCHED_TRAFFIC_POLICIES.has(body.unmatchedTrafficPolicy)) {
     return 'invalid unmatched traffic policy'
   }
-  if (body.routingPolicyTemplate !== undefined && !ROUTING_POLICY_TEMPLATE_IDS.has(body.routingPolicyTemplate)) {
-    return 'invalid routing policy template'
+  if (
+    body.routingPolicyScenarios !== undefined
+    && (
+      !Array.isArray(body.routingPolicyScenarios)
+      || new Set(body.routingPolicyScenarios).size !== body.routingPolicyScenarios.length
+      || body.routingPolicyScenarios.some((scenario) => !ROUTING_POLICY_SCENARIO_IDS.has(scenario))
+    )
+  ) {
+    return 'invalid routing policy scenarios'
   }
   if (body.routingOutletPreferences !== undefined) {
     if (

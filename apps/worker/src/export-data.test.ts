@@ -121,11 +121,12 @@ describe('export data scoping', () => {
         { id: 'rule-1', target_group_id: 'proxy' },
         { id: 'rule-2', target_group_id: 'disabled' },
         { id: 'rule-3', targetGroupId: 'streaming' },
+        { id: 'rule-4', target_group_id: 'disabled', target_override_group_id: 'proxy' },
       ],
       new Set(['proxy', 'streaming'])
     )
 
-    expect(filtered.map(row => row.id)).toEqual(['rule-1', 'rule-3'])
+    expect(filtered.map(row => row.id)).toEqual(['rule-1', 'rule-3', 'rule-4'])
   })
 
   it('renames exported nodes with region, source, and sequence', () => {

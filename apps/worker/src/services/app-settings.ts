@@ -1,12 +1,10 @@
-import { AUTO_NODE_GROUP_TYPE_ORDER, isAutoNodeGroupType, ROUTING_POLICY_TEMPLATES } from '@uni-conf/shared';
-import type { AppSettings, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
+import { ALL_ROUTING_POLICY_SCENARIO_IDS, AUTO_NODE_GROUP_TYPE_ORDER, DEFAULT_ROUTING_POLICY_SCENARIOS, isAutoNodeGroupType } from '@uni-conf/shared';
+import type { AppSettings, AutoNodeGroupType, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
 const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
 const UNMATCHED_TRAFFIC_POLICIES = new Set<UnmatchedTrafficPolicy>(['proxy', 'direct']);
-const ROUTING_POLICY_TEMPLATE_IDS = new Set<AppSettings['routingPolicyTemplate']>(
-  ROUTING_POLICY_TEMPLATES.map((template) => template.id as AppSettings['routingPolicyTemplate'])
-);
+const ROUTING_POLICY_SCENARIO_IDS = new Set<RoutingPolicyScenarioId>(ALL_ROUTING_POLICY_SCENARIO_IDS);
 const EXPORT_NODE_NAMING_MODES = new Set<ExportNodeNamingMode>([
   'original',
   'region_sequence',
@@ -29,7 +27,7 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     language: normalizeLanguage(row.language),
     theme: normalizeTheme(row.theme),
     unmatchedTrafficPolicy: normalizeUnmatchedTrafficPolicy(row.unmatched_traffic_policy),
-    routingPolicyTemplate: normalizeRoutingPolicyTemplate(row.routing_policy_template),
+    routingPolicyScenarios: normalizeRoutingPolicyScenarios(row.routing_policy_scenarios),
     routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
     defaultExportToken: normalizeOptionalString(row.default_export_token),
@@ -58,10 +56,18 @@ export function normalizeUnmatchedTrafficPolicy(value: unknown): UnmatchedTraffi
     : 'proxy';
 }
 
-export function normalizeRoutingPolicyTemplate(value: unknown): AppSettings['routingPolicyTemplate'] {
-  return typeof value === 'string' && ROUTING_POLICY_TEMPLATE_IDS.has(value as AppSettings['routingPolicyTemplate'])
-    ? value as AppSettings['routingPolicyTemplate']
-    : 'common';
+export function normalizeRoutingPolicyScenarios(value: unknown): RoutingPolicyScenarioId[] {
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? parseJsonArrayOrUndefined(value)
+      : undefined;
+  if (!rawItems) return [...DEFAULT_ROUTING_POLICY_SCENARIOS];
+  const selected = new Set(
+    rawItems.filter((item): item is RoutingPolicyScenarioId =>
+      typeof item === 'string' && ROUTING_POLICY_SCENARIO_IDS.has(item as RoutingPolicyScenarioId)),
+  );
+  return ALL_ROUTING_POLICY_SCENARIO_IDS.filter((id) => selected.has(id));
 }
 
 export function normalizeExportNodeNamingMode(value: unknown): ExportNodeNamingMode {

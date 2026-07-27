@@ -20,7 +20,7 @@ const hooks = vi.hoisted(() => {
   nodes: { nodes: [], loading: false, error: null, fetchNodes: fn(), addNode: fn(), updateNode: fn(), setNodesEnabled: fn(), deleteNode: fn() },
   rules: { rules: [], loading: false, error: null, fetchRules: fn(), addRule: fn(), updateRule: fn(), setRulesEnabled: fn(), deleteRule: fn(), reorderRules: fn(), batchAddRules: fn() },
   sources: { sources: [], loading: false, error: null, refreshResults: {}, refreshErrors: {}, fetchSources: fn(), addSource: fn(), importSource: fn(), updateSource: fn(), deleteSource: fn(), refreshSource: fn() },
-  settings: { language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyTemplate: 'common', exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible', enableAutoRefresh: true, autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'], autoNodeGroupIncludeFlag: true, applySettings: vi.fn() },
+  settings: { language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'], exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible', enableAutoRefresh: true, autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'], autoNodeGroupIncludeFlag: true, applySettings: vi.fn() },
   })
 })
 

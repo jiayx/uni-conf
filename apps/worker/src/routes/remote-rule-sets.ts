@@ -5,6 +5,7 @@ import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, Remot
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   isFullConfigExportFormat,
+  isManagedRuleSetActiveForUnmatchedPolicy,
   isRuleSetFormat,
   isRuleSetFormatCompatible,
   resolveRemoteRuleSetForExport,
@@ -18,6 +19,7 @@ import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import { listSourceRemoteRuleSets } from '../services/source-rule-sets'
+import { getAppSettings } from '../services/app-settings'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -329,8 +331,12 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
 
   const body = await c.req.json<Partial<RemoteRuleSet>>()
-  if (isManagedRemoteRuleSet(existing) && !isManagedRemoteRuleSetUpdate(body)) {
-    return c.json({ success: false, error: 'built-in remote rule sets only allow enabled state and target-native source overrides to be changed' }, 400)
+  const managed = isManagedRemoteRuleSet(existing)
+  if (managed && !isManagedRemoteRuleSetUpdate(body)) {
+    return c.json({ success: false, error: 'built-in remote rule sets only allow enabled state, target override, and target-native source overrides to be changed' }, 400)
+  }
+  if (!managed && body.targetOverrideGroupId !== undefined) {
+    return c.json({ success: false, error: 'target override is only available for built-in remote rule sets' }, 400)
   }
   const validation = validateRemoteRuleSetWrite(body, { create: false })
   if (!validation.valid) {
@@ -339,14 +345,50 @@ app.put('/:id', async (c) => {
   if (validation.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, validation.targetGroupId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
+  if (
+    typeof validation.targetOverrideGroupId === 'string'
+    && !(await isEnabledTargetGroup(c.env.DB, validation.targetOverrideGroupId))
+  ) {
+    return c.json({ success: false, error: 'target override group is disabled or missing' }, 400)
+  }
   const nextEnabled = validation.enabled !== undefined ? validation.enabled : Number(existing.enabled ?? 1) === 1
-  const nextTargetGroupId = validation.targetGroupId ?? String(existing.target_group_id ?? '')
-  if (nextEnabled && !(await isEnabledTargetGroup(c.env.DB, nextTargetGroupId))) {
+  const nextDefaultTargetGroupId = validation.targetGroupId ?? String(existing.target_group_id ?? '')
+  const nextOverrideTargetGroupId = validation.targetOverrideGroupId !== undefined
+    ? validation.targetOverrideGroupId
+    : (existing.target_override_group_id as string | null) ?? null
+  if (managed && nextOverrideTargetGroupId === nextDefaultTargetGroupId) {
+    return c.json({
+      success: false,
+      error: 'target override must differ from the system default; use null to restore the default',
+    }, 400)
+  }
+  const nextEffectiveTargetGroupId = nextOverrideTargetGroupId ?? nextDefaultTargetGroupId
+  if (
+    managed
+    && validation.enabled === true
+    && !(await isManagedRuleSetUsableByCurrentRouting(
+      c.env.DB,
+      existing,
+      nextOverrideTargetGroupId,
+      nextEffectiveTargetGroupId,
+    ))
+  ) {
+    return c.json({
+      success: false,
+      code: 'managed_rule_set_unused',
+      error: 'the current routing plan does not use this managed rule set; adjust the routing plan or change its target',
+    }, 409)
+  }
+  if (
+    nextEnabled
+    && !(managed && validation.targetOverrideGroupId === null)
+    && !(await isEnabledTargetGroup(c.env.DB, nextEffectiveTargetGroupId))
+  ) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
   const updateStatement = c.env.DB.prepare(
     `UPDATE remote_rule_sets SET
-      name = ?, url = ?, format = ?, behavior = ?, preset_source = ?, preset_id = ?, source_overrides = ?, target_group_id = ?, update_interval = ?,
+      name = ?, url = ?, format = ?, behavior = ?, preset_source = ?, preset_id = ?, source_overrides = ?, target_group_id = ?, target_override_group_id = ?, update_interval = ?,
       enabled = ?, sort_order = ?, last_updated = ?, notes = ?, updated_at = ?
      WHERE id = ?`
   )
@@ -361,6 +403,9 @@ app.put('/:id', async (c) => {
         ? JSON.stringify(validation.sourceOverrides)
         : existing.source_overrides ?? '{}',
       validation.targetGroupId ?? existing.target_group_id,
+      validation.targetOverrideGroupId !== undefined
+        ? validation.targetOverrideGroupId
+        : existing.target_override_group_id ?? null,
       validation.updateInterval ?? existing.update_interval,
       validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
       validation.sortOrder ?? existing.sort_order ?? 500,
@@ -380,6 +425,9 @@ app.put('/:id', async (c) => {
     await updateStatement.run()
   }
 
+  if (managed && validation.targetOverrideGroupId !== undefined) {
+    await ensureZeroSetupDefaults(c.env.DB, now())
+  }
   const updated = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
     .bind(id)
     .first<Record<string, unknown>>()
@@ -411,9 +459,24 @@ export function isManagedRemoteRuleSet(row: ManagedRemoteRuleSetFields): boolean
   return Boolean(row.preset_source && row.preset_id)
 }
 
+async function isManagedRuleSetUsableByCurrentRouting(
+  db: D1Database,
+  row: Record<string, unknown>,
+  overrideTargetGroupId: string | null,
+  effectiveTargetGroupId: string,
+): Promise<boolean> {
+  if (!(await isEnabledTargetGroup(db, effectiveTargetGroupId))) return false
+  if (overrideTargetGroupId) return true
+  if (row.preset_source !== 'quixotic' || typeof row.preset_id !== 'string') return true
+  const settings = await getAppSettings(db)
+  return isManagedRuleSetActiveForUnmatchedPolicy(row.preset_id, settings.unmatchedTrafficPolicy)
+}
+
 export function isManagedRemoteRuleSetUpdate(body: Partial<RemoteRuleSet>): boolean {
   const keys = Object.keys(body)
-  return keys.length > 0 && keys.every(key => key === 'enabled' || key === 'sourceOverrides')
+  return keys.length > 0 && keys.every(
+    key => key === 'enabled' || key === 'sourceOverrides' || key === 'targetOverrideGroupId'
+  )
 }
 
 const RULE_SET_BEHAVIORS: ReadonlySet<RuleSetBehavior> = new Set(['domain', 'ipcidr', 'classical'])
@@ -441,6 +504,7 @@ type RemoteRuleSetWriteValidation =
       sourceId?: string
       sourceRuleSetKey?: string
       targetGroupId?: string
+      targetOverrideGroupId?: string | null
       updateInterval?: number
       enabled?: boolean
       sortOrder?: number
@@ -550,6 +614,15 @@ export function validateRemoteRuleSetWrite(
   if (!options.create && body.targetGroupId !== undefined && !targetGroupId) {
     return { valid: false, error: 'targetGroupId is required' }
   }
+  const targetOverrideGroupId = body.targetOverrideGroupId === null
+    ? null
+    : normalizeOptionalText(body.targetOverrideGroupId)
+  if (body.targetOverrideGroupId !== undefined && body.targetOverrideGroupId !== null && !targetOverrideGroupId) {
+    return { valid: false, error: 'targetOverrideGroupId must be a group id or null' }
+  }
+  if (options.create && body.targetOverrideGroupId !== undefined) {
+    return { valid: false, error: 'targetOverrideGroupId is not allowed when creating a rule set' }
+  }
 
   const updateInterval = body.updateInterval !== undefined ? normalizePositiveInteger(body.updateInterval) : undefined
   if (body.updateInterval !== undefined && updateInterval === undefined) {
@@ -570,6 +643,7 @@ export function validateRemoteRuleSetWrite(
     sourceId: options.create ? sourceId : undefined,
     sourceRuleSetKey: options.create ? sourceRuleSetKey : undefined,
     targetGroupId: options.create ? targetGroupId ?? DEFAULT_RULE_TARGET_GROUP_ID : targetGroupId,
+    targetOverrideGroupId: options.create ? undefined : targetOverrideGroupId,
     updateInterval: options.create ? updateInterval ?? 24 : updateInterval,
     enabled: options.create ? body.enabled !== false : body.enabled,
     sortOrder: options.create ? sortOrder ?? 500 : sortOrder,

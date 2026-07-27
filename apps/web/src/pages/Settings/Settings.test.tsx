@@ -8,7 +8,7 @@ import type { AppSettings } from '@uni-conf/types'
 import { MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
 
 const settings = vi.hoisted((): AppSettings => ({
-  language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyTemplate: 'common',
+  language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
   exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true,
   ruleSetConversionPolicy: 'compatible',
   autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],

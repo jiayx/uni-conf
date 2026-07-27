@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Badge } from '@/components/ui/Badge/Badge'
@@ -12,7 +12,7 @@ import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { getRemoteRuleSetCompatibilityMode } from '@/core/remote-rules/compatibility'
-import { isSystemDisabledRemoteRuleSet, visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
+import { visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticRuleSetSourceFromUrl,
@@ -27,9 +27,11 @@ import { api, ApiError } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { useGroupsStore } from '@/store/groups.store'
+import { useSettingsStore } from '@/store/settings.store'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
+  isManagedRuleSetActiveForUnmatchedPolicy,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
   resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport,
 } from '@uni-conf/shared'
@@ -110,9 +112,12 @@ function createEmptyForm(targetGroupId = ''): RemoteSetForm {
 
 export function RemoteRuleSets() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
   const { groups, fetchGroups } = useGroupsStore()
+  const unmatchedTrafficPolicy = useSettingsStore(state => state.unmatchedTrafficPolicy)
+  const applySettings = useSettingsStore(state => state.applySettings)
   const [sets, setSets] = useState<RemoteRuleSet[]>([])
   const [sources, setSources] = useState<ProxySource[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,7 +133,6 @@ export function RemoteRuleSets() {
   const [sourceCandidateError, setSourceCandidateError] = useState('')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [togglingGroupId, setTogglingGroupId] = useState<string | null>(null)
   const [validatingId, setValidatingId] = useState<string | null>(null)
   const [validationById, setValidationById] = useState<Record<string, RemoteRuleSetValidationResult>>({})
   const [sourceHealthById, setSourceHealthById] = useState<Record<string, RemoteRuleSetSourceHealthResult>>({})
@@ -139,6 +143,10 @@ export function RemoteRuleSets() {
   const [validateAfterDiscovery, setValidateAfterDiscovery] = useState(false)
   const [sourceOverridesExpanded, setSourceOverridesExpanded] = useState(false)
   const [sourceOverrideFocusTarget, setSourceOverrideFocusTarget] = useState<RemoteRuleSetSourceOverrideTarget | null>(null)
+  const [targetOverrideSet, setTargetOverrideSet] = useState<RemoteRuleSet | null>(null)
+  const [targetOverrideGroupId, setTargetOverrideGroupId] = useState('')
+  const [targetOverrideError, setTargetOverrideError] = useState('')
+  const [savingTargetOverride, setSavingTargetOverride] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [compatibilityTarget, setCompatibilityTarget] = useState<ExportFormat | ''>('')
   const [compatibilityMode, setCompatibilityMode] = useState<CompatibilityMode>('all')
@@ -158,13 +166,20 @@ export function RemoteRuleSets() {
       .catch(e => { if (!cancelled) setError(e) })
       .finally(() => { if (!cancelled) setLoading(false) })
     void fetchGroups()
+    void api.settings.get()
+      .then(settings => {
+        if (!cancelled) applySettings(settings)
+      })
+      .catch(e => {
+        if (!cancelled) setError(e)
+      })
     void api.sources.list()
       .then(result => {
         if (!cancelled) setSources(result.filter(source => source.type !== 'manual'))
       })
       .catch(e => { if (!cancelled) setError(e) })
     return () => { cancelled = true }
-  }, [fetchGroups])
+  }, [applySettings, fetchGroups])
 
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
@@ -521,8 +536,8 @@ export function RemoteRuleSets() {
     }
   }
 
-  const handleToggle = async (set: RemoteRuleSet, targetEnabled: boolean) => {
-    if (!targetEnabled && !set.enabled) {
+  const handleToggle = async (set: RemoteRuleSet, usableByCurrentRouting: boolean) => {
+    if (!usableByCurrentRouting && !set.enabled) {
       setError(t('remoteRuleSets.disabled_target_error'))
       return
     }
@@ -532,29 +547,6 @@ export function RemoteRuleSets() {
       setSets(current => current.map(item => (item.id === set.id ? updated : item)))
     } catch (e) {
       setError(e)
-    }
-  }
-
-  const handleToggleSection = async (groupId: string, sectionSets: RemoteRuleSet[], enabled: boolean, targetEnabled: boolean) => {
-    if (enabled && !targetEnabled) {
-      setError(t('remoteRuleSets.disabled_target_error'))
-      return
-    }
-    const changedSets = sectionSets.filter(set => set.enabled !== enabled)
-    if (changedSets.length === 0) return
-
-    setError(null)
-    setTogglingGroupId(groupId)
-    try {
-      const updatedSets = await Promise.all(
-        changedSets.map(set => api.remoteRuleSets.update(set.id, { enabled }))
-      )
-      const updatedById = new Map(updatedSets.map(set => [set.id, set]))
-      setSets(current => current.map(item => updatedById.get(item.id) ?? item))
-    } catch (e) {
-      setError(e)
-    } finally {
-      setTogglingGroupId(null)
     }
   }
 
@@ -742,6 +734,35 @@ export function RemoteRuleSets() {
     setConversionPreview(null)
   }
 
+  const openTargetOverride = (ruleSet: RemoteRuleSet) => {
+    setTargetOverrideSet(ruleSet)
+    setTargetOverrideGroupId(ruleSet.targetOverrideGroupId ?? '')
+    setTargetOverrideError('')
+  }
+
+  const closeTargetOverride = () => {
+    setTargetOverrideSet(null)
+    setTargetOverrideGroupId('')
+    setTargetOverrideError('')
+  }
+
+  const saveTargetOverride = async () => {
+    if (!targetOverrideSet) return
+    setSavingTargetOverride(true)
+    setTargetOverrideError('')
+    try {
+      const updated = await api.remoteRuleSets.update(targetOverrideSet.id, {
+        targetOverrideGroupId: targetOverrideGroupId || null,
+      })
+      setSets(current => current.map(item => item.id === updated.id ? updated : item))
+      closeTargetOverride()
+    } catch (error) {
+      setTargetOverrideError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSavingTargetOverride(false)
+    }
+  }
+
   const openConversionPreview = (ruleSet: RemoteRuleSet) => {
     const targetFormat: ExportFormat = ruleSet.format === 'singbox' ? 'mihomo' : 'singbox'
     void runConversionPreview(ruleSet, targetFormat)
@@ -919,6 +940,9 @@ export function RemoteRuleSets() {
           ) : visibleSections.map(section => {
             const sectionExpanded = listFilterActive || resolvedExpandedGroupIds.has(section.groupId)
             const contentId = `rule-set-section-${section.groupId}`
+            const activeCount = section.sets.filter(set =>
+              set.enabled && isRuleSetUsableByCurrentRouting(set, section.targetEnabled, unmatchedTrafficPolicy)
+            ).length
             return (
             <section key={section.groupId} className={styles.ruleSetSection}>
               <div className={styles.sectionHeader}>
@@ -932,49 +956,50 @@ export function RemoteRuleSets() {
                 >
                   <ChevronIcon expanded={sectionExpanded} />
                   <div>
-                    <div className={styles.sectionKicker}>{t('remoteRuleSets.target')}</div>
                     <div className={styles.sectionTitle}>{section.groupName}</div>
                     <div className={styles.sectionMeta}>
                       {t('remoteRuleSets.section_meta', {
-                        setCount: section.sets.length,
-                        enabledCount: section.sets.filter(set => set.enabled).length,
+                        activeCount,
+                        inactiveCount: section.sets.length - activeCount,
                       })}
                     </div>
                   </div>
                 </button>
-                <div className={styles.sectionActions}>
-                  <label className={styles.sectionSwitch}>
-                    <input
-                      type="checkbox"
-                      checked={section.sets.some(set => set.enabled)}
-                      onChange={event => void handleToggleSection(section.groupId, section.sets, event.target.checked, section.targetEnabled)}
-                      disabled={togglingGroupId === section.groupId || (!section.targetEnabled && !section.sets.some(set => set.enabled))}
-                    />
-                    <span>{sectionEnabledLabel(section.sets, t)}</span>
-                  </label>
-                  <Badge variant={section.targetEnabled ? 'purple' : 'default'}>
-                    {section.targetEnabled ? t('remoteRuleSets.rule_target') : t('remoteRuleSets.target_disabled')}
-                  </Badge>
-                </div>
+                {!section.targetEnabled && (
+                  <div className={styles.sectionActions}>
+                    <Badge variant="default">{t('remoteRuleSets.target_disabled')}</Badge>
+                  </div>
+                )}
               </div>
               {sectionExpanded && <div id={contentId} className={styles.grid}>
                 {section.sets.map(set => {
                   const hasSourceOverrides = Object.keys(set.sourceOverrides).length > 0
                   const sourceHealth = sourceHealthById[set.id] ?? set.sourceHealth
                   const sourceHealthStale = Boolean(sourceHealth && 'stale' in sourceHealth && sourceHealth.stale)
-                  const effective = section.targetEnabled && set.enabled
+                  const managed = !canEditRemoteRuleSet(set)
+                  const usableByCurrentRouting = isRuleSetUsableByCurrentRouting(
+                    set,
+                    section.targetEnabled,
+                    unmatchedTrafficPolicy,
+                  )
+                  const automaticallyUnused = managed && !usableByCurrentRouting
+                  const effective = usableByCurrentRouting && set.enabled
                   return (
                   <Card key={set.id} className={`${styles.card} ${effective ? '' : styles.cardInactive}`}>
                     <div className={styles.cardHeader}>
-                      <label className={styles.enableSwitch}>
-                        <input
-                          type="checkbox"
-                          checked={set.enabled}
-                          onChange={() => void handleToggle(set, section.targetEnabled)}
-                          disabled={!section.targetEnabled && !set.enabled}
-                        />
-                        <span>{set.enabled ? t('common.enabled') : t('common.disabled')}</span>
-                      </label>
+                      {automaticallyUnused ? (
+                        <Badge variant="default">{t('remoteRuleSets.automatically_unused')}</Badge>
+                      ) : (
+                        <label className={styles.enableSwitch}>
+                          <input
+                            type="checkbox"
+                            checked={set.enabled}
+                            onChange={() => void handleToggle(set, usableByCurrentRouting)}
+                            disabled={!usableByCurrentRouting && !set.enabled}
+                          />
+                          <span>{set.enabled ? t('common.enabled') : t('common.disabled')}</span>
+                        </label>
+                      )}
                       <div className={styles.cardTitle}>{set.name}</div>
                     </div>
                     <div className={styles.meta}>
@@ -1002,10 +1027,28 @@ export function RemoteRuleSets() {
                       {compatibilityTarget && (
                         <CompatibilityBadge mode={getRemoteRuleSetCompatibilityMode(compatibilityTarget, set)} />
                       )}
+                      {set.targetOverrideGroupId && (
+                        <Badge variant="purple">
+                          {t('remoteRuleSets.target_override_badge', {
+                            default: groups.find(group => group.id === set.defaultTargetGroupId)?.name ?? set.defaultTargetGroupId,
+                            target: groups.find(group => group.id === set.targetGroupId)?.name ?? set.targetGroupId,
+                          })}
+                        </Badge>
+                      )}
                     </div>
                     <div className={styles.url}>{set.url}</div>
-                    {isSystemDisabledRemoteRuleSet(set.notes) && (
-                      <div className={styles.systemNotice}>{t('remoteRuleSets.system_disabled_notice')}</div>
+                    {automaticallyUnused && (
+                      <div className={styles.systemNotice}>
+                        <span>{t('remoteRuleSets.system_disabled_notice')}</span>
+                        <div className={styles.systemNoticeActions}>
+                          <Button variant="ghost" size="sm" onClick={() => void navigate('/groups')}>
+                            {t('remoteRuleSets.adjust_routing_plan')}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => openTargetOverride(set)}>
+                            {t('remoteRuleSets.change_target')}
+                          </Button>
+                        </div>
+                      </div>
                     )}
                     {visibleRemoteRuleSetNotes(set.notes) && <div className={styles.notes}>{visibleRemoteRuleSetNotes(set.notes)}</div>}
                     {validationById[set.id] && (
@@ -1032,6 +1075,11 @@ export function RemoteRuleSets() {
                         </Button>
                       ) : (
                         <>
+                          {!automaticallyUnused && (
+                            <Button variant="ghost" size="sm" onClick={() => openTargetOverride(set)}>
+                              {t('remoteRuleSets.change_target')}
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => openManagedSourceEditor(set)}>
                             {t('remoteRuleSets.configure_native_sources')}
                           </Button>
@@ -1058,6 +1106,45 @@ export function RemoteRuleSets() {
           })}
         </div>
       )}
+
+      <Modal
+        open={targetOverrideSet !== null}
+        onOpenChange={open => { if (!open) closeTargetOverride() }}
+        title={t('remoteRuleSets.target_override_title', { name: targetOverrideSet?.name ?? '' })}
+        footer={
+          <>
+            <ModalClose><Button variant="secondary" disabled={savingTargetOverride}>{t('common.cancel')}</Button></ModalClose>
+            <Button loading={savingTargetOverride} onClick={() => void saveTargetOverride()}>{t('common.save')}</Button>
+          </>
+        }
+      >
+        {targetOverrideError && <div className={styles.formError} role="alert">{targetOverrideError}</div>}
+        <div>
+          <label className={styles.label} htmlFor="remote-rule-set-target-override">
+            {t('remoteRuleSets.new_destination')}
+          </label>
+          <select
+            id="remote-rule-set-target-override"
+            className={styles.select}
+            value={targetOverrideGroupId}
+            onChange={event => setTargetOverrideGroupId(event.target.value)}
+          >
+            <option value="">
+              {t('remoteRuleSets.use_default_target', {
+                target: groups.find(group => group.id === targetOverrideSet?.defaultTargetGroupId)?.name
+                  ?? targetOverrideSet?.defaultTargetGroupId
+                  ?? '',
+              })}
+            </option>
+            {targetGroups
+              .filter(group => group.id !== targetOverrideSet?.defaultTargetGroupId)
+              .map(group => (
+              <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
+          </select>
+          <div className={styles.helperText}>{t('remoteRuleSets.target_override_help')}</div>
+        </div>
+      </Modal>
 
       <Modal
         open={conversionPreview !== null}
@@ -1347,11 +1434,12 @@ export function RemoteRuleSets() {
         {!editingManagedSet && (
           <>
             <div>
-              <label className={styles.label} htmlFor="remote-rule-set-target">{t('remoteRuleSets.target')}</label>
+              <label className={styles.label} htmlFor="remote-rule-set-target">{t('remoteRuleSets.traffic_destination')}</label>
               <select id="remote-rule-set-target" className={styles.select} value={form.targetGroupId} onChange={e => setFormValue('targetGroupId', e.target.value, setForm)}>
                 <option value="">{t('remoteRuleSets.default_target')}</option>
                 {targetGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
+              <div className={styles.helperText}>{t('remoteRuleSets.traffic_destination_help')}</div>
             </div>
             {!formSourceLinked && (
               <Input label={t('remoteRuleSets.update_interval')} type="number" min="1" value={form.updateInterval} onChange={e => setFormValue('updateInterval', Number(e.target.value), setForm)} />
@@ -1618,13 +1706,6 @@ function canEditRemoteRuleSet(set: Pick<RemoteRuleSet, 'presetSource' | 'presetI
   return !(set.presetSource && set.presetId)
 }
 
-function sectionEnabledLabel(sets: RemoteRuleSet[], t: (key: string) => string): string {
-  const enabledCount = sets.filter(set => set.enabled).length
-  if (enabledCount === 0) return t('remoteRuleSets.all_disabled')
-  if (enabledCount === sets.length) return t('remoteRuleSets.all_enabled')
-  return t('remoteRuleSets.partially_enabled')
-}
-
 function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: string; name: string; order?: number; enabled?: boolean }>) {
   const byId = new Map(groups.map(group => [group.id, group.name]))
   const orderById = new Map(groups.map((group, index) => [group.id, group.order ?? index]))
@@ -1658,6 +1739,18 @@ function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: strin
       || (orderById.get(a.groupId) ?? 9999) - (orderById.get(b.groupId) ?? 9999)
       || a.groupName.localeCompare(b.groupName)
     )
+}
+
+function isRuleSetUsableByCurrentRouting(
+  set: RemoteRuleSet,
+  targetEnabled: boolean,
+  unmatchedTrafficPolicy: 'proxy' | 'direct',
+): boolean {
+  if (!targetEnabled) return false
+  if (canEditRemoteRuleSet(set) || set.targetOverrideGroupId || set.presetSource !== 'quixotic' || !set.presetId) {
+    return true
+  }
+  return isManagedRuleSetActiveForUnmatchedPolicy(set.presetId, unmatchedTrafficPolicy)
 }
 
 function filterRuleSetSections<T extends { groupName: string; sets: RemoteRuleSet[] }>(sections: T[], query: string): T[] {

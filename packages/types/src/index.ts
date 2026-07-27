@@ -293,6 +293,8 @@ export interface RemoteRuleSet {
   sourceRuleSetKey?: string;
   sourceMissing?: boolean;
   sourceHealth?: RemoteRuleSetSourceHealthSnapshot;
+  defaultTargetGroupId?: string;
+  targetOverrideGroupId?: string | null;
   targetGroupId: string;
   updateInterval: number; // hours
   enabled: boolean;
@@ -437,14 +439,14 @@ export interface ExportConfig {
 export type Language = 'zh' | 'en';
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type UnmatchedTrafficPolicy = 'proxy' | 'direct';
-export type RoutingPolicyTemplateId =
-  | 'empty'
-  | 'minimal'
-  | 'common'
-  | 'ai'
+export type RoutingPolicyScenarioId =
+  | 'ai-development'
   | 'streaming'
-  | 'router'
-  | 'extended';
+  | 'communication'
+  | 'gaming'
+  | 'finance'
+  | 'diagnostics'
+  | 'platform';
 export type DnsAddressMode = 'fake-ip' | 'real-ip';
 export type DnsResolutionMode = 'single' | 'split';
 
@@ -477,7 +479,7 @@ export interface AppSettings {
   language: Language;
   theme: ThemePreference;
   unmatchedTrafficPolicy: UnmatchedTrafficPolicy;
-  routingPolicyTemplate: RoutingPolicyTemplateId;
+  routingPolicyScenarios: RoutingPolicyScenarioId[];
   routingOutletPreferences?: Record<string, string>;
   exportNodeNamingMode: ExportNodeNamingMode;
   defaultExportToken?: string;
