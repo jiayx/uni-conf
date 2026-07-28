@@ -25,7 +25,6 @@ import {
 } from '@/core/collections/auto-node-settings'
 import {
   buildSourceGroupSuggestions,
-  makeSourceNodeGroupMarker,
   mapUpstreamGroupType,
 } from '@/core/collections/source-group-suggestions'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
@@ -33,6 +32,7 @@ import {
   AUTO_NODE_GROUP_PREFIX,
   DEFAULT_NODE_POOL_COLLECTION_ID,
   DEFAULT_NODE_POOL_PREFIX,
+  makeSourceNodeGroupMarker,
 } from '@uni-conf/shared'
 import type {
   DedupStrategy,

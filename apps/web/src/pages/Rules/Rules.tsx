@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
-import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { useRulesStore } from '@/store/rules.store'
 import { useGroupsStore } from '@/store/groups.store'
 import { MANUAL_RULE_TYPES, parseManualRulesWithDiagnostics, type ManualRuleForm } from '@/core/rules/manual-rules'
@@ -21,14 +20,14 @@ import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsave
 import {
   MAX_NODE_SEARCH_LENGTH,
   MAX_RULE_BATCH_SELECTION,
+  DEFAULT_RULE_TARGET_GROUP_ID,
+  isRuleTargetGroup,
   resolveRuleForExport,
   supportsRuleNoResolve,
   validateAndNormalizeRulePayload,
 } from '@uni-conf/shared'
 import type { ExportFormat, ProxyRule, RuleType } from '@uni-conf/types'
 import styles from './Rules.module.css'
-
-type RuleForm = ManualRuleForm
 
 const RULE_COMPATIBILITY_TARGETS: ExportFormat[] = [
   'mihomo',
@@ -42,7 +41,7 @@ const RULE_COMPATIBILITY_TARGETS: ExportFormat[] = [
   'egern',
 ]
 
-function createEmptyForm(order: number, targetGroupId = ''): RuleForm {
+function createEmptyForm(order: number, targetGroupId = ''): ManualRuleForm {
   return {
     name: '',
     type: 'DOMAIN-SUFFIX',
@@ -75,8 +74,8 @@ export function Rules() {
   const [showModal, setShowModal] = useState(false)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [editingRule, setEditingRule] = useState<ProxyRule | null>(null)
-  const [form, setForm] = useState<RuleForm>(() => createEmptyForm(0))
-  const [initialForm, setInitialForm] = useState<RuleForm>(() => createEmptyForm(0))
+  const [form, setForm] = useState<ManualRuleForm>(() => createEmptyForm(0))
+  const [initialForm, setInitialForm] = useState<ManualRuleForm>(() => createEmptyForm(0))
   const [batchText, setBatchText] = useState('')
   const [batchTargetGroupId, setBatchTargetGroupId] = useState('')
   const [initialBatchTargetGroupId, setInitialBatchTargetGroupId] = useState('')
@@ -107,7 +106,7 @@ export function Rules() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = getDefaultRuleTargetGroupId(targetGroups)
+  const defaultTargetGroupId = DEFAULT_RULE_TARGET_GROUP_ID
   const batchParsed = useMemo(
     () => parseManualRulesWithDiagnostics(
       batchText,
@@ -190,7 +189,7 @@ export function Rules() {
   }
 
   const openEdit = (rule: ProxyRule) => {
-    const nextForm: RuleForm = {
+    const nextForm: ManualRuleForm = {
       name: rule.name ?? '',
       type: rule.type,
       payload: rule.payload,
@@ -236,7 +235,7 @@ export function Rules() {
       setFormError(t(`rules.payload_error_${payloadValidation.code}`))
       return
     }
-    const payload: RuleForm = {
+    const payload: ManualRuleForm = {
       ...form,
       name: form.name?.trim() ?? '',
       payload: payloadValidation.payload,
@@ -788,10 +787,10 @@ function formatRuleExpression(type: string, payload: string, noResolve = false):
   ].join(',')
 }
 
-function setFormValue<K extends keyof RuleForm>(
+function setFormValue<K extends keyof ManualRuleForm>(
   key: K,
-  value: RuleForm[K],
-  setForm: React.Dispatch<React.SetStateAction<RuleForm>>
+  value: ManualRuleForm[K],
+  setForm: React.Dispatch<React.SetStateAction<ManualRuleForm>>
 ) {
   setForm(current => ({ ...current, [key]: value }))
 }

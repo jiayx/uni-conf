@@ -7,7 +7,7 @@ import {
   RULE_SET_FORMATS,
   getExportFormatFromSubscriptionFilename,
   getExportSubscriptionFilename,
-  isExportSubscriptionFormat,
+  isExportFormat,
   isFullConfigExportFormat,
   isRuleSetFormat,
 } from '@uni-conf/shared'
@@ -69,7 +69,7 @@ describe('subscription route helpers', () => {
     ])
     expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'mrs', 'text'])
     expect(FULL_CONFIG_EXPORT_FORMATS.every(isFullConfigExportFormat)).toBe(true)
-    expect(EXPORT_SUBSCRIPTION_FORMATS.every(isExportSubscriptionFormat)).toBe(true)
+    expect(EXPORT_SUBSCRIPTION_FORMATS.every(isExportFormat)).toBe(true)
     expect(RULE_SET_FORMATS.every(isRuleSetFormat)).toBe(true)
   })
 })

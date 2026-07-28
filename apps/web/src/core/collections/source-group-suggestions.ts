@@ -2,17 +2,9 @@ import type { GroupType, NodeCollection, ProxyNode, ProxySource, SourceNodeGroup
 import {
   extractSourceNodeGroupMarkerKey,
   makeSourceNodeGroupKey,
-  makeSourceNodeGroupMarker,
-  SOURCE_NODE_GROUP_PREFIX,
 } from '@uni-conf/shared'
 
 export type SourceGroupImportType = Extract<GroupType, 'select' | 'url-test' | 'fallback'>
-
-export {
-  makeSourceNodeGroupKey,
-  makeSourceNodeGroupMarker,
-  SOURCE_NODE_GROUP_PREFIX,
-}
 
 export interface SourceGroupSuggestion {
   key: string
@@ -38,7 +30,7 @@ export function buildSourceGroupSuggestions(
 
   const existingMarkers = new Set(
     collections
-      .map(collection => parseSourceNodeGroupMarker(collection.notes))
+      .map(collection => extractSourceNodeGroupMarkerKey(collection.notes))
       .filter((marker): marker is string => Boolean(marker))
   )
 
@@ -59,10 +51,6 @@ export function buildSourceGroupSuggestions(
       exists: existingMarkers.has(key),
     }
   })).sort((a, b) => a.sourceName.localeCompare(b.sourceName) || a.groupName.localeCompare(b.groupName))
-}
-
-export function parseSourceNodeGroupMarker(notes?: string): string | null {
-  return extractSourceNodeGroupMarkerKey(notes)
 }
 
 export function mapUpstreamGroupType(type?: string): SourceGroupImportType {

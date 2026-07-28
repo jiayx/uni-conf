@@ -6,7 +6,7 @@ import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
 import { validateGroupReferenceGraph } from '../services/group-reference-graph'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
-  isExportSubscriptionFormat,
+  isExportFormat,
   isFullConfigExportFormat,
 } from '@uni-conf/shared'
 import { resolveExportDnsPolicy } from '../services/export-dns'
@@ -56,7 +56,7 @@ const NON_NULL_COLUMNS = {
 } as const satisfies Record<TableName, readonly string[]>
 
 app.get('/export', async (c) => {
-  await restoreDefaultData(c.env.DB, now())
+  await ensureZeroSetupDefaults(c.env.DB, now())
   const data: ExportPayload = {
     sources: [],
     nodes: [],
@@ -105,7 +105,7 @@ app.post('/import', async (c) => {
   }
 
   await c.env.DB.batch(stmts)
-  await restoreDefaultData(c.env.DB, now())
+  await ensureZeroSetupDefaults(c.env.DB, now())
   return c.json({ success: true, data: null })
 })
 
@@ -157,14 +157,10 @@ app.delete('/', async (c) => {
     ).bind(ts),
   ])
 
-  await restoreDefaultData(c.env.DB, ts)
+  await ensureZeroSetupDefaults(c.env.DB, ts)
 
   return c.json({ success: true, data: null })
 })
-
-export async function restoreDefaultData(db: D1Database, ts: string): Promise<void> {
-  await ensureZeroSetupDefaults(db, ts)
-}
 
 function insertRow(db: D1Database, table: TableName, row: Record<string, unknown>): D1PreparedStatement {
   const entries = Object.entries(row)
@@ -252,7 +248,7 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
   ) {
     return `export_configs[${index}].rule_set_conversion_policy is invalid`
   }
-  if (table === 'export_configs' && !isExportSubscriptionFormat(row.format)) {
+  if (table === 'export_configs' && !isExportFormat(row.format)) {
     return `export_configs[${index}].format is invalid`
   }
   if (table === 'export_configs' && row.dns_policy !== null) {
@@ -260,7 +256,7 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
     try {
       const parsed = JSON.parse(row.dns_policy)
       if (!isRecord(parsed)) return `export_configs[${index}].dns_policy must contain a JSON object`
-      if (!isExportSubscriptionFormat(row.format) || !resolveExportDnsPolicy(row.format, parsed)) {
+      if (!isExportFormat(row.format) || !resolveExportDnsPolicy(row.format, parsed)) {
         return `export_configs[${index}].dns_policy is not supported by its export format`
       }
     } catch {

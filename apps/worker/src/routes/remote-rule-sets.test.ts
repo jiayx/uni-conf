@@ -4,8 +4,6 @@ import {
   isManagedRemoteRuleSet,
   isManagedRemoteRuleSetUpdate,
   isValidRuleSetBehavior,
-  isValidRuleSetFormat,
-  isRuleSetPreviewTarget,
   validateRemoteRuleSetWrite,
 } from './remote-rule-sets'
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
@@ -45,18 +43,11 @@ describe('remote rule set routes', () => {
     expect(isManagedRemoteRuleSetUpdate({ enabled: false, targetGroupId: 'builtin-proxy' })).toBe(false)
   })
 
-  it('validates rule set format and behavior values', () => {
-    expect(isValidRuleSetFormat('mihomo')).toBe(true)
-    expect(isValidRuleSetFormat('singbox')).toBe(true)
-    expect(isValidRuleSetFormat('yaml')).toBe(false)
-    expect(isValidRuleSetFormat('')).toBe(false)
-
+  it('validates rule set behavior values', () => {
     expect(isValidRuleSetBehavior('domain')).toBe(true)
     expect(isValidRuleSetBehavior('ipcidr')).toBe(true)
     expect(isValidRuleSetBehavior('classical')).toBe(true)
     expect(isValidRuleSetBehavior('text')).toBe(false)
-    expect(isRuleSetPreviewTarget('quantumultx')).toBe(true)
-    expect(isRuleSetPreviewTarget('nodes_raw')).toBe(false)
   })
 
   it('normalizes remote rule set writes', () => {

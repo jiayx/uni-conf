@@ -148,19 +148,18 @@ export function Groups() {
   const effectivePolicyRows = useMemo(() => {
     const enabledGroupIds = new Set(groups.filter(group => group.enabled).map(group => group.id))
     const effectiveSets = ruleSets.filter(set => set.enabled && enabledGroupIds.has(set.targetGroupId))
-    const targetNames = [
-      'PROXY',
-      'DIRECT',
-      'REJECT',
-      ...activeBusinessGroupNames,
+    const targets = [
+      ...RULE_TARGET_FOUNDATION_GROUP_IDS
+        .map(id => groups.find(group => group.id === id))
+        .filter((group): group is ProxyGroup => Boolean(group)),
+      ...activeBusinessGroupNames
+        .map(name => groups.find(group => group.name === name))
+        .filter((group): group is ProxyGroup => Boolean(group)),
     ]
-    return targetNames.map(name => {
-      const group = groups.find(item => item.name === name)
-      return {
-        name,
-        ruleSets: group ? effectiveSets.filter(set => set.targetGroupId === group.id).map(set => set.name) : [],
-      }
-    }).filter(row => row.ruleSets.length > 0)
+    return targets.map(group => ({
+      name: group.name,
+      ruleSets: effectiveSets.filter(set => set.targetGroupId === group.id).map(set => set.name),
+    })).filter(row => row.ruleSets.length > 0)
   }, [activeBusinessGroupNames, groups, ruleSets])
   const openCreate = () => {
     const nextForm = createEmptyForm(visibleGroups.length)
@@ -697,13 +696,13 @@ function ArrowDownIcon() {
 }
 
 function describeFoundationGroup(group: ProxyGroup, t: (key: string) => string): string {
-  if (group.name === 'PROXY') return t('groups.foundation_proxy_desc')
-  if (group.name === 'DIRECT') return t('groups.foundation_direct_desc')
-  if (group.name === 'REJECT') return t('groups.foundation_reject_desc')
-  if (group.name === '全部节点') return t('groups.foundation_all_nodes_desc')
-  if (group.name === '节点选择') return t('groups.foundation_node_select_desc')
-  if (group.name === '自动选择') return t('groups.foundation_auto_select_desc')
-  if (group.name === '故障切换') return t('groups.foundation_fallback_desc')
+  if (group.id === 'builtin-proxy') return t('groups.foundation_proxy_desc')
+  if (group.id === 'builtin-direct') return t('groups.foundation_direct_desc')
+  if (group.id === 'builtin-reject') return t('groups.foundation_reject_desc')
+  if (group.id === 'builtin-all-nodes') return t('groups.foundation_all_nodes_desc')
+  if (group.id === 'builtin-node-select') return t('groups.foundation_node_select_desc')
+  if (group.id === 'builtin-auto-select') return t('groups.foundation_auto_select_desc')
+  if (group.id === 'builtin-fallback-select') return t('groups.foundation_fallback_desc')
   return t('groups.foundation_default_desc')
 }
 

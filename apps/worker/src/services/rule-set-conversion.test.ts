@@ -5,21 +5,10 @@ import type { RemoteRuleSet } from '@uni-conf/types'
 import {
   getConvertedRemoteRuleSet,
   preflightRuleSetConversions,
-  resolveConvertibleRuleSetTarget,
   RuleSetConversionError,
 } from './rule-set-conversion'
 
 describe('rule set conversion orchestration', () => {
-  it('only advertises conversion paths whose semantics can be preserved', () => {
-    expect(resolveConvertibleRuleSetTarget('clash', 'singbox')).toBe('singbox')
-    expect(resolveConvertibleRuleSetTarget('singbox', 'mihomo')).toBe('mihomo')
-    expect(resolveConvertibleRuleSetTarget('surge', 'singbox')).toBe('singbox')
-    expect(resolveConvertibleRuleSetTarget('singbox', 'quantumultx')).toBe('quantumultx')
-    expect(resolveConvertibleRuleSetTarget('clash', 'loon')).toBe('loon')
-    expect(resolveConvertibleRuleSetTarget('egern', 'singbox')).toBe('singbox')
-    expect(resolveConvertibleRuleSetTarget('singbox', 'egern')).toBe('egern')
-  })
-
   it('caches converted content and reuses it without another upstream request', async () => {
     const values = new Map<string, string>()
     const kv = {

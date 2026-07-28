@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
-import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
+import type { RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import { resolveRuleSetConversionIssues } from '@uni-conf/rule-set'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
@@ -224,7 +224,7 @@ app.post('/:id/validate-all', async (c) => {
 
 app.post('/:id/conversion-preview', async (c) => {
   const body: { targetFormat?: unknown } = await c.req.json<{ targetFormat?: unknown }>().catch(() => ({}))
-  if (!isRuleSetPreviewTarget(body.targetFormat)) {
+  if (!isFullConfigExportFormat(body.targetFormat)) {
     return c.json({ success: false, error: 'invalid conversion preview target' }, 400)
   }
   const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
@@ -461,16 +461,8 @@ export function isManagedRemoteRuleSetUpdate(body: Partial<RemoteRuleSet>): bool
 
 const RULE_SET_BEHAVIORS: ReadonlySet<RuleSetBehavior> = new Set(['domain', 'ipcidr', 'classical'])
 
-export function isValidRuleSetFormat(value: unknown): value is RuleSetFormat {
-  return isRuleSetFormat(value)
-}
-
 export function isValidRuleSetBehavior(value: unknown): value is RuleSetBehavior {
   return RULE_SET_BEHAVIORS.has(value as RuleSetBehavior)
-}
-
-export function isRuleSetPreviewTarget(value: unknown): value is ExportFormat {
-  return isFullConfigExportFormat(value)
 }
 
 type RemoteRuleSetWriteValidation =
@@ -569,7 +561,7 @@ export function validateRemoteRuleSetWrite(
   if (body.url !== undefined && !url) return { valid: false, error: 'url must be a public http(s) URL' }
 
   if (options.create && !body.format) return { valid: false, error: 'format is required' }
-  if (body.format !== undefined && !isValidRuleSetFormat(body.format)) {
+  if (body.format !== undefined && !isRuleSetFormat(body.format)) {
     return { valid: false, error: 'invalid rule set format' }
   }
 
@@ -639,7 +631,7 @@ type NormalizedSourceValidationInput =
 function normalizeSourceValidationInput(value: Partial<RemoteRuleSetSourceValidationInput> | null): NormalizedSourceValidationInput {
   const url = normalizeHttpUrl(value?.url)
   if (!url) return { valid: false, error: 'url must be a public http(s) URL', code: 'unsafe_url' }
-  if (!isRuleSetPreviewTarget(value?.targetFormat)) {
+  if (!isFullConfigExportFormat(value?.targetFormat)) {
     return { valid: false, error: 'invalid target-native source format', code: 'invalid_format' }
   }
   if (!isValidRuleSetBehavior(value?.behavior)) {

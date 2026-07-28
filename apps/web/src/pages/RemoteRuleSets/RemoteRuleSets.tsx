@@ -10,7 +10,6 @@ import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
 import { Input } from '@/components/ui/Input/Input'
 import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
-import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { getRemoteRuleSetCompatibilityMode } from '@/core/remote-rules/compatibility'
 import { isSystemDisabledRemoteRuleSet, visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
 import {
@@ -23,8 +22,10 @@ import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsave
 import { useGroupsStore } from '@/store/groups.store'
 import { useSettingsStore } from '@/store/settings.store'
 import {
+  DEFAULT_RULE_TARGET_GROUP_ID,
   FULL_CONFIG_EXPORT_FORMATS,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
+  isRuleTargetGroup,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
   resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport,
 } from '@uni-conf/shared'
@@ -167,7 +168,7 @@ export function RemoteRuleSets() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = getDefaultRuleTargetGroupId(targetGroups)
+  const defaultTargetGroupId = DEFAULT_RULE_TARGET_GROUP_ID
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const defaultExpandedGroupIds = useMemo(
     () => new Set(setsByTargetGroup.length <= 3 ? setsByTargetGroup.map(section => section.groupId) : []),

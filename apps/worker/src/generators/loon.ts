@@ -7,6 +7,7 @@ import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import {
   DEFAULT_HEALTH_CHECK,
+  DEFAULT_RULE_TARGET_GROUP_ID,
   getRuleCompatibilityLevel,
   isLoonTransportSupported,
   isRuleSetFormatCompatible,
@@ -310,11 +311,8 @@ export function generateLoon(
 }
 
 function defaultPolicy(groups: Array<Record<string, unknown>>): string {
-  return String(
-    groups.find(group => String(group['name']) === 'PROXY')?.['name']
-      ?? groups[0]?.['name']
-      ?? 'PROXY'
-  )
+  const group = groups.find(item => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
+  return group ? nativePolicyName(group) : 'DIRECT'
 }
 
 function nativePolicyName(group: Record<string, unknown>): string {

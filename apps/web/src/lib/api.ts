@@ -31,7 +31,7 @@ import type {
   ApiErrorDetails,
 } from '@uni-conf/types'
 import { parseContentDispositionFilename, type ExportDownloadFile } from '@/core/export/download-file'
-import { getExportSubscriptionFilename, MAX_NODE_SEARCH_LENGTH, type ExportSubscriptionFormat } from '@uni-conf/shared'
+import { getExportSubscriptionFilename, MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared'
 import { getStoredApiKey } from './auth'
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
@@ -349,7 +349,7 @@ const exportApi = {
     )
     if (res.status === 401) throw new UnauthorizedError()
     if (!res.ok) throw await toDownloadApiError(res)
-    const fallback = getExportSubscriptionFilename(format as ExportSubscriptionFormat)
+    const fallback = getExportSubscriptionFilename(format)
     return {
       blob: await res.blob(),
       filename: parseContentDispositionFilename(res.headers.get('content-disposition'), fallback),

@@ -12,15 +12,10 @@ export interface DetectedRuleSetFormat {
   confidence: 'exact' | 'high' | 'medium'
 }
 
-const EGERN_KEYS = new Set([
-  'domain_set',
-  'domain_suffix_set',
-  'domain_keyword_set',
-  'domain_regex_set',
-  'ip_cidr_set',
-  'ip_cidr6_set',
-  'dest_port_set',
-  'protocol_set',
+export const EGERN_RULE_SET_KEYS = new Set([
+  'domain_set', 'domain_suffix_set', 'domain_keyword_set', 'domain_regex_set', 'domain_wildcard_set',
+  'geoip_set', 'ip_cidr_set', 'ip_cidr6_set', 'url_regex_set', 'asn_set', 'user_agent_set',
+  'ssid_set', 'bssid_set', 'cellular_set', 'protocol_set', 'dest_port_set',
 ])
 
 export function detectRuleSetFormat(
@@ -66,7 +61,7 @@ export function detectRuleSetFormat(
   try {
     const document = parseYaml(trimmed) as unknown
     if (isRecord(document)) {
-      if (Object.keys(document).some(key => EGERN_KEYS.has(key))) {
+      if (Object.keys(document).some(key => EGERN_RULE_SET_KEYS.has(key))) {
         return { format: 'egern', encoding: 'yaml', confidence: 'high' }
       }
       if (Array.isArray(document.payload)) {
@@ -93,6 +88,35 @@ export function detectRuleSetFormat(
     behavior: inferBehavior(lines),
     confidence: 'medium',
   }
+}
+
+export function resolveTextRuleSetFormat(
+  text: string,
+  declaredFormat: RuleSetFormat,
+  behavior: RuleSetBehavior
+): DetectedRuleSetFormat {
+  if (declaredFormat !== 'text') {
+    return {
+      format: declaredFormat,
+      encoding: encodingForText(declaredFormat, text),
+      behavior,
+      confidence: 'high',
+    }
+  }
+  const detected = detectRuleSetFormat(text)
+  return detected
+    ? { ...detected, behavior: detected.behavior ?? behavior }
+    : { format: 'text', encoding: 'text', behavior, confidence: 'medium' }
+}
+
+function encodingForText(format: RuleSetFormat, text: string): RuleSetEncoding {
+  if (format === 'singbox' || text.trimStart().startsWith('{') || text.trimStart().startsWith('[')) {
+    return 'json'
+  }
+  if (format === 'egern' || format === 'mihomo' || format === 'clash' || format === 'stash') {
+    return 'yaml'
+  }
+  return 'text'
 }
 
 function hasRulesArray(value: unknown): boolean {

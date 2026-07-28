@@ -315,13 +315,6 @@ async function buildSourceNameById(db: D1Database): Promise<Map<string, string>>
   return new Map(results.map((row) => [row.id, row.name]))
 }
 
-export function applyDefaultExportNodeNames(
-  rows: Record<string, unknown>[],
-  sourceNameById: Map<string, string>
-): Record<string, unknown>[] {
-  return applyExportNodeNames(rows, sourceNameById, 'smart')
-}
-
 export function applyExportNodeNames(
   rows: Record<string, unknown>[],
   sourceNameById: Map<string, string>,

@@ -20,12 +20,10 @@ import { validateOptionalBooleanFields } from '../services/request-validation'
 import {
   getExportCapabilityProfile,
   getExportSubscriptionFilename,
-  isExportSubscriptionFormat,
+  isExportFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
 import { resolveExportDnsPolicy } from '../services/export-dns'
-
-export { resolveExportDnsPolicy } from '../services/export-dns'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -38,7 +36,7 @@ exportRouter.get('/configs', async (c) => {
 // POST /api/export/configs - create export config
 exportRouter.post('/configs', async (c) => {
   const body = await c.req.json<Partial<ExportConfig>>()
-  if (body.format !== undefined && !isValidExportFormat(body.format)) {
+  if (body.format !== undefined && !isExportFormat(body.format)) {
     return c.json({ success: false, error: 'invalid export format' }, 400)
   }
   const selection = validateExportConfigSelection(body)
@@ -130,7 +128,7 @@ exportRouter.put('/configs/:id', async (c) => {
       error: 'Default export config only allows enabled state updates',
     }, 403)
   }
-  if (body.format !== undefined && !isValidExportFormat(body.format)) {
+  if (body.format !== undefined && !isExportFormat(body.format)) {
     return c.json({ success: false, error: 'invalid export format' }, 400)
   }
   const selection = validateExportConfigSelection(body)
@@ -272,7 +270,7 @@ async function inspectExport(
 // GET /api/export/preview/:format
 exportRouter.get('/preview/:format', async (c) => {
   const format = c.req.param('format')
-  if (!isValidExportFormat(format)) {
+  if (!isExportFormat(format)) {
     return c.json({ success: false, error: `Unsupported format: ${format}` }, 400)
   }
   const config = await resolveConfig(c, format)
@@ -285,7 +283,7 @@ exportRouter.get('/preview/:format', async (c) => {
 // GET /api/export/download/:format
 exportRouter.get('/download/:format', async (c) => {
   const format = c.req.param('format')
-  if (!isValidExportFormat(format)) {
+  if (!isExportFormat(format)) {
     c.header('X-UniConf-Error-Code', 'export_format_invalid')
     return c.json({ success: false, code: 'export_format_invalid', error: `Unsupported format: ${format}` }, 400)
   }
@@ -355,10 +353,6 @@ async function resolveConfig(c: Context<{ Bindings: Env }>, format: ExportFormat
     return c.json({ success: false, error: 'Export profile does not support this format' }, 400)
   }
   return config
-}
-
-export function isValidExportFormat(value: unknown): value is ExportFormat {
-  return isExportSubscriptionFormat(value)
 }
 
 type ExportSelectionValidation =

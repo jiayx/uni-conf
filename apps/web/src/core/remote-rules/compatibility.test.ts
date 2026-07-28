@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '@uni-conf/shared'
 import { buildQuixoticRuleSetUrl, inferQuixoticRuleSetSourceFromUrl, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
-import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible, isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from './compatibility'
+import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible } from './compatibility'
 import type { RemoteRuleSet } from '@uni-conf/types'
 
 describe('remote rule set compatibility', () => {

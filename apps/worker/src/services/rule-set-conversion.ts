@@ -35,20 +35,13 @@ type RuleSetConversionFailureCode = RuleSetConversionError['code'] | 'unexpected
 
 const MAX_CONVERTIBLE_RULE_SET_BYTES = 4 * 1024 * 1024
 
-export function resolveConvertibleRuleSetTarget(
-  sourceFormat: RuleSetFormat,
-  exportFormat: ExportFormat
-): ConvertibleRuleSetTarget | null {
-  return getRuleSetConversionTargetFormat(sourceFormat, exportFormat)
-}
-
 export function resolveRuleSetConversionSource(
   ruleSet: RemoteRuleSet,
   exportFormat: ExportFormat
 ): { source: RemoteRuleSet; target: ConvertibleRuleSetTarget } | null {
   const resolved = resolveRemoteRuleSetForExport(ruleSet, exportFormat)
   if (!resolved || isRuleSetFormatCompatible(exportFormat, resolved.format)) return null
-  const target = resolveConvertibleRuleSetTarget(resolved.format, exportFormat)
+  const target = getRuleSetConversionTargetFormat(resolved.format, exportFormat)
   if (!target) return null
   return {
     source: { ...ruleSet, url: resolved.url, format: resolved.format as RuleSetFormat },

@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isValidExportFormat,
   resolveExportConfigName,
   resolveExportConfigUpdateName,
-  resolveExportDnsPolicy,
   validateExportConfigSelection,
 } from './export'
+import { resolveExportDnsPolicy } from '../services/export-dns'
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
@@ -22,15 +21,6 @@ describe('export route helpers', () => {
     expect(resolveExportConfigUpdateName('', 'singbox', 'mihomo')).toBe('默认 sing-box 配置')
     expect(resolveExportConfigUpdateName('   ', undefined, 'stash')).toBe('默认 Stash 配置')
     expect(resolveExportConfigUpdateName('  Travel  ', 'mihomo', 'singbox')).toBe('Travel')
-  })
-
-  it('validates export formats from the shared subscription format list', () => {
-    expect(isValidExportFormat('mihomo')).toBe(true)
-    expect(isValidExportFormat('clash')).toBe(true)
-    expect(isValidExportFormat('singbox')).toBe(true)
-    expect(isValidExportFormat('nodes_raw')).toBe(true)
-    expect(isValidExportFormat('sing-box')).toBe(false)
-    expect(isValidExportFormat('yaml')).toBe(false)
   })
 
   it('resolves target-aware DNS policies', () => {

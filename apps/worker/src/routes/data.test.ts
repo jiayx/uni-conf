@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import dataApp, {
-  restoreDefaultData,
-  validateBackupPayload as validateCurrentBackupPayload,
-} from './data'
+import dataApp, { validateBackupPayload as validateCurrentBackupPayload } from './data'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 vi.mock('../services/zero-setup', () => ({
@@ -12,15 +9,6 @@ vi.mock('../services/zero-setup', () => ({
 describe('data reset defaults', () => {
   beforeEach(() => {
     vi.mocked(ensureZeroSetupDefaults).mockReset()
-  })
-
-  it('restores zero-setup defaults after clearing data', async () => {
-    const db = {} as D1Database
-    const ts = '2026-01-01T00:00:00.000Z'
-
-    await restoreDefaultData(db, ts)
-
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, ts)
   })
 
   it('restores defaults before exporting data', async () => {

@@ -4,6 +4,7 @@ import type {
 } from '@uni-conf/types';
 import {
   getExportClientCapabilities,
+  getRuleSetConversionTargetFormat,
   isEgernTransportSupported,
   isLoonTransportSupported,
   isNodeProtocolSupportedByExport,
@@ -16,7 +17,6 @@ import type { ExportData } from '../export-data';
 import { nodeToSubscriptionUri } from '../generators/node-subscription';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 import { isSafeRemoteHttpUrl } from './safe-remote-fetch';
-import { resolveConvertibleRuleSetTarget } from './rule-set-conversion';
 
 export function validateExportData(
   data: ExportData,
@@ -502,7 +502,7 @@ function validateRemoteRuleSetCompatibility(data: ExportData, format: ExportForm
   for (const ruleSet of data.remoteSets) {
     const resolved = resolveRemoteRuleSetForExport(ruleSet, format);
     const convertible = resolved
-      ? resolveConvertibleRuleSetTarget(resolved.format, format) !== null
+      ? getRuleSetConversionTargetFormat(resolved.format, format) !== null
       : false;
     if (!convertible && (!resolved || !isRuleSetFormatCompatible(format, resolved.format))) {
       warnings.push({

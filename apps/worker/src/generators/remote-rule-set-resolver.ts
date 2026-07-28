@@ -1,6 +1,9 @@
-import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport as resolveSharedRemoteRuleSetForExport } from '@uni-conf/shared'
+import {
+  getRuleSetConversionTargetFormat,
+  isRuleSetFormatCompatible,
+  resolveRemoteRuleSetForExport as resolveSharedRemoteRuleSetForExport,
+} from '@uni-conf/shared'
 import type { ExportFormat, RemoteRuleSet } from '@uni-conf/types'
-import { resolveConvertibleRuleSetTarget } from '../services/rule-set-conversion'
 
 type Row = Record<string, unknown>
 
@@ -13,7 +16,7 @@ export function resolveRemoteRuleSetForExport(
   if (resolved && isRuleSetFormatCompatible(exportFormat, resolved.format)) {
     return { url: resolved.url, format: resolved.format as RemoteRuleSet['format'] }
   }
-  const target = resolved ? resolveConvertibleRuleSetTarget(resolved.format, exportFormat) : null
+  const target = resolved ? getRuleSetConversionTargetFormat(resolved.format, exportFormat) : null
   if (conversionBaseUrl && target) {
     return {
       url: buildConversionUrl(conversionBaseUrl, ruleSet.id, target, exportFormat),
@@ -37,7 +40,7 @@ export function resolveRemoteRuleSetRowForExport(
     sourceOverrides: parseSourceOverrides(ruleSet['source_overrides']),
   }, exportFormat)
   if (resolved && isRuleSetFormatCompatible(exportFormat, resolved.format)) return resolved
-  const target = resolved ? resolveConvertibleRuleSetTarget(resolved.format, exportFormat) : null
+  const target = resolved ? getRuleSetConversionTargetFormat(resolved.format, exportFormat) : null
   if (conversionBaseUrl && target) {
     return {
       url: buildConversionUrl(
@@ -53,7 +56,7 @@ export function resolveRemoteRuleSetRowForExport(
   return resolved
 }
 
-function conversionTargetFilename(target: NonNullable<ReturnType<typeof resolveConvertibleRuleSetTarget>>): string {
+function conversionTargetFilename(target: NonNullable<ReturnType<typeof getRuleSetConversionTargetFormat>>): string {
   if (target === 'singbox') return 'singbox.json'
   if (target === 'mihomo') return 'mihomo.yaml'
   if (target === 'egern') return 'egern.yaml'
@@ -63,7 +66,7 @@ function conversionTargetFilename(target: NonNullable<ReturnType<typeof resolveC
 function buildConversionUrl(
   conversionBaseUrl: string,
   ruleSetId: string,
-  target: NonNullable<ReturnType<typeof resolveConvertibleRuleSetTarget>>,
+  target: NonNullable<ReturnType<typeof getRuleSetConversionTargetFormat>>,
   exportFormat: ExportFormat,
 ): string {
   const url = `${conversionBaseUrl}/${encodeURIComponent(ruleSetId)}/${conversionTargetFilename(target)}`

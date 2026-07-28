@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { extractSourceNodeGroupMarkerKey, makeSourceNodeGroupMarker } from '@uni-conf/shared'
 import type { NodeCollection, ProxyNode, ProxySource } from '@uni-conf/types'
 import {
   buildSourceGroupSuggestions,
-  makeSourceNodeGroupMarker,
   mapUpstreamGroupType,
   nextSourceGroupLinkedOrder,
-  parseSourceNodeGroupMarker,
 } from './source-group-suggestions'
 
 const createdAt = '2026-01-01T00:00:00.000Z'
@@ -44,7 +43,7 @@ describe('source group suggestions', () => {
       [makeCollection('collection-a', marker)]
     )
 
-    expect(parseSourceNodeGroupMarker(marker)).toBe('source-a:A%20Select')
+    expect(extractSourceNodeGroupMarkerKey(marker)).toBe('source-a:A%20Select')
     expect(suggestions).toEqual([
       expect.objectContaining({
         key: 'source-a:A%20Select',

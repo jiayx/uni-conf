@@ -10,7 +10,7 @@ import type {
   ProxyProtocol,
   RemoteRuleSetSourceOverrideTarget,
   RuleSetBehavior,
-  RuleSetFormat as ModelRuleSetFormat,
+  RuleSetFormat,
   RuleType,
   RoutingPolicyScenarioId,
   SourceFormat,
@@ -446,9 +446,6 @@ export function isRuleTargetGroup(group: { id: string; collectionIds?: readonly 
   return !isGlobalNodeOutletGroupId(group.id) && (group.collectionIds?.length ?? 0) === 0;
 }
 
-export type ExportSubscriptionFormat = ExportFormat;
-export type RuleSetFormat = ModelRuleSetFormat;
-
 export type RuleCompatibilityType =
   | 'DOMAIN'
   | 'DOMAIN-SUFFIX'
@@ -488,12 +485,12 @@ export const FULL_CONFIG_EXPORT_FORMATS = [
 export const NODE_SUBSCRIPTION_EXPORT_FORMATS = [
   'nodes_base64',
   'nodes_raw',
-] as const satisfies readonly ExportSubscriptionFormat[];
+] as const satisfies readonly ExportFormat[];
 
 export const EXPORT_SUBSCRIPTION_FORMATS = [
   ...FULL_CONFIG_EXPORT_FORMATS,
   ...NODE_SUBSCRIPTION_EXPORT_FORMATS,
-] as const satisfies readonly ExportSubscriptionFormat[];
+] as const satisfies readonly ExportFormat[];
 
 export const RULE_SET_FORMATS = [
   ...FULL_CONFIG_EXPORT_FORMATS,
@@ -505,7 +502,7 @@ const EXPORT_SUBSCRIPTION_FORMAT_SET: ReadonlySet<string> = new Set(EXPORT_SUBSC
 const FULL_CONFIG_EXPORT_FORMAT_SET: ReadonlySet<string> = new Set(FULL_CONFIG_EXPORT_FORMATS);
 const RULE_SET_FORMAT_SET: ReadonlySet<string> = new Set(RULE_SET_FORMATS);
 
-export function isExportSubscriptionFormat(value: unknown): value is ExportSubscriptionFormat {
+export function isExportFormat(value: unknown): value is ExportFormat {
   return typeof value === 'string' && EXPORT_SUBSCRIPTION_FORMAT_SET.has(value);
 }
 
@@ -562,7 +559,7 @@ function isRecordValue(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-export const EXPORT_FORMAT_FILENAMES: Record<ExportSubscriptionFormat, string> = {
+export const EXPORT_FORMAT_FILENAMES: Record<ExportFormat, string> = {
   mihomo: 'mihomo.yaml',
   clash: 'clash.yaml',
   singbox: 'singbox.json',
@@ -576,19 +573,19 @@ export const EXPORT_FORMAT_FILENAMES: Record<ExportSubscriptionFormat, string> =
   nodes_raw: 'nodes-raw.txt',
 };
 
-export const EXPORT_FORMAT_BY_FILENAME: Record<string, ExportSubscriptionFormat> = Object.fromEntries(
+export const EXPORT_FORMAT_BY_FILENAME: Record<string, ExportFormat> = Object.fromEntries(
   Object.entries(EXPORT_FORMAT_FILENAMES).map(([format, filename]) => [filename, format])
-) as Record<string, ExportSubscriptionFormat>;
+) as Record<string, ExportFormat>;
 
-export function getExportSubscriptionFilename(format: ExportSubscriptionFormat): string {
+export function getExportSubscriptionFilename(format: ExportFormat): string {
   return EXPORT_FORMAT_FILENAMES[format];
 }
 
-export function getExportFormatFromSubscriptionFilename(filename: string): ExportSubscriptionFormat | null {
+export function getExportFormatFromSubscriptionFilename(filename: string): ExportFormat | null {
   return EXPORT_FORMAT_BY_FILENAME[filename] ?? null;
 }
 
-export const RULE_COMPATIBILITY: Record<RuleCompatibilityType, Partial<Record<ExportSubscriptionFormat, RuleCompatibilityLevel>>> = {
+export const RULE_COMPATIBILITY: Record<RuleCompatibilityType, Partial<Record<ExportFormat, RuleCompatibilityLevel>>> = {
   'DOMAIN': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
   'DOMAIN-SUFFIX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
   'DOMAIN-KEYWORD': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
@@ -613,13 +610,13 @@ export const RULE_COMPATIBILITY: Record<RuleCompatibilityType, Partial<Record<Ex
 
 export function getRuleCompatibilityLevel(
   ruleType: RuleCompatibilityType,
-  format: ExportSubscriptionFormat
+  format: ExportFormat
 ): RuleCompatibilityLevel {
   return RULE_COMPATIBILITY[ruleType]?.[format] ?? 'unsupported';
 }
 
 export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
-  client: ExportSubscriptionFormat;
+  client: ExportFormat;
   level: RuleCompatibilityLevel;
 }> {
   return EXPORT_SUBSCRIPTION_FORMATS.map((format) => ({
@@ -649,7 +646,7 @@ export interface RuleExportResolution {
 export function resolveRuleForExport(
   type: RuleType,
   payload: string,
-  format: ExportSubscriptionFormat
+  format: ExportFormat
 ): RuleExportResolution {
   if ((type === 'NETWORK' || type === 'PROTOCOL') && isFullConfigExportFormat(format)) {
     return resolveRuleSetRuleForTarget(type, payload, format);
@@ -731,7 +728,7 @@ export function getRuleCompatibilityForPayload(
   type: RuleType,
   payload: string
 ): Array<{
-  client: ExportSubscriptionFormat;
+  client: ExportFormat;
   level: RuleCompatibilityLevel;
 }> {
   return EXPORT_SUBSCRIPTION_FORMATS.map((format) => ({
@@ -742,7 +739,7 @@ export function getRuleCompatibilityForPayload(
 
 export function supportsRuleNoResolve(
   type: RuleType,
-  format: ExportSubscriptionFormat
+  format: ExportFormat
 ): boolean {
   if (format === 'nodes_base64' || format === 'nodes_raw' || format === 'singbox' || format === 'quantumultx') {
     return false;
@@ -1116,25 +1113,25 @@ export const EXPORT_CLIENT_CAPABILITIES = {
       resolutionModes: [],
     },
   },
-} as const satisfies Record<ExportSubscriptionFormat, ExportClientCapabilities>;
+} as const satisfies Record<ExportFormat, ExportClientCapabilities>;
 
 export const COMPATIBLE_RULE_SET_FORMATS = Object.fromEntries(
   EXPORT_SUBSCRIPTION_FORMATS.map((format) => [
     format,
     [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats],
   ])
-) as Record<ExportSubscriptionFormat, RuleSetFormat[]>;
+) as Record<ExportFormat, RuleSetFormat[]>;
 
 export function getExportClientCapabilities(
-  format: ExportSubscriptionFormat
+  format: ExportFormat
 ): ExportClientCapabilities {
   return EXPORT_CLIENT_CAPABILITIES[format];
 }
 
-export function getExportCapabilityProfile(format: ExportSubscriptionFormat): {
+export function getExportCapabilityProfile(format: ExportFormat): {
   id: typeof EXPORT_CAPABILITY_PROFILE_ID;
   revision: number;
-  format: ExportSubscriptionFormat;
+  format: ExportFormat;
 } {
   return {
     id: EXPORT_CAPABILITY_PROFILE_ID,
@@ -1143,14 +1140,14 @@ export function getExportCapabilityProfile(format: ExportSubscriptionFormat): {
   };
 }
 
-export function serializeExportCapabilityProfile(format: ExportSubscriptionFormat): string {
+export function serializeExportCapabilityProfile(format: ExportFormat): string {
   const profile = getExportCapabilityProfile(format);
   return `${profile.id}/${profile.format}@${profile.revision}`;
 }
 
 export function isNodeProtocolSupportedByExport(
   protocol: string,
-  format: ExportSubscriptionFormat
+  format: ExportFormat
 ): protocol is ProxyProtocol {
   return (EXPORT_CLIENT_CAPABILITIES[format].nodeProtocols as readonly string[]).includes(protocol);
 }
@@ -1169,7 +1166,7 @@ export function isEgernTransportSupported(protocol: string, network: unknown): b
 }
 
 export function getDefaultExportDnsPolicy(
-  format: ExportSubscriptionFormat
+  format: ExportFormat
 ): ExportDnsPolicy | undefined {
   const capabilities = EXPORT_CLIENT_CAPABILITIES[format].dns;
   if (capabilities.engine === 'none') return undefined;
@@ -1190,12 +1187,12 @@ export function getDefaultExportDnsPolicy(
   };
 }
 
-export function getCompatibleRuleSetFormats(format: ExportSubscriptionFormat): RuleSetFormat[] {
+export function getCompatibleRuleSetFormats(format: ExportFormat): RuleSetFormat[] {
   return [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats];
 }
 
 export function isRuleSetFormatCompatible(
-  exportFormat: ExportSubscriptionFormat,
+  exportFormat: ExportFormat,
   ruleSetFormat: string
 ): boolean {
   return getCompatibleRuleSetFormats(exportFormat).includes(ruleSetFormat as RuleSetFormat);
@@ -1203,7 +1200,7 @@ export function isRuleSetFormatCompatible(
 
 export function getRuleSetConversionTargetFormat(
   sourceFormat: string,
-  exportFormat: ExportSubscriptionFormat
+  exportFormat: ExportFormat
 ): 'mihomo' | 'singbox' | 'surge' | 'loon' | 'shadowrocket' | 'quantumultx' | 'egern' | null {
   const parseableSourceFormats = ['mihomo', 'mrs', 'clash', 'stash', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'text', 'egern'];
   if (exportFormat === 'singbox' && parseableSourceFormats.includes(sourceFormat)) {
@@ -1230,11 +1227,11 @@ export interface RemoteRuleSetLike {
   format: string;
   presetSource?: string | null;
   presetId?: string | null;
-  sourceOverrides?: Partial<Record<Exclude<ExportSubscriptionFormat, 'nodes_base64' | 'nodes_raw'>, string>> | null;
+  sourceOverrides?: Partial<Record<Exclude<ExportFormat, 'nodes_base64' | 'nodes_raw'>, string>> | null;
 }
 
 export function isRemoteRuleSetCompatible(
-  exportFormat: ExportSubscriptionFormat,
+  exportFormat: ExportFormat,
   ruleSet: Pick<RemoteRuleSetLike, 'format' | 'presetSource' | 'presetId' | 'sourceOverrides'>
 ): boolean {
   if (resolveRemoteRuleSetSourceOverride(ruleSet, exportFormat)) return true;
@@ -1250,7 +1247,7 @@ export function isRemoteRuleSetCompatible(
 
 export function resolveRemoteRuleSetForExport(
   ruleSet: RemoteRuleSetLike,
-  exportFormat: ExportSubscriptionFormat
+  exportFormat: ExportFormat
 ): { url: string; format: RuleSetFormat } | null {
   const override = resolveRemoteRuleSetSourceOverride(ruleSet, exportFormat);
   if (override) return override;
@@ -1265,7 +1262,7 @@ export function resolveRemoteRuleSetForExport(
 
 function resolveRemoteRuleSetSourceOverride(
   ruleSet: Pick<RemoteRuleSetLike, 'sourceOverrides'>,
-  exportFormat: ExportSubscriptionFormat
+  exportFormat: ExportFormat
 ): { url: string; format: RuleSetFormat } | null {
   if (exportFormat === 'nodes_base64' || exportFormat === 'nodes_raw') return null;
   const url = ruleSet.sourceOverrides?.[exportFormat];

@@ -1,6 +1,7 @@
 import type { ExportDnsPolicy, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import {
   DEFAULT_HEALTH_CHECK,
+  DEFAULT_RULE_TARGET_GROUP_ID,
   isRuleSetFormatCompatible,
   parseSingboxWireGuardEndpoint,
   parseRulePortPayload,
@@ -658,13 +659,12 @@ function buildRoute(
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string {
-  const group = groups.find((item) => item.name === 'PROXY')
-    ?? groups[0];
+  const group = groups.find((item) => item.id === DEFAULT_RULE_TARGET_GROUP_ID);
   return group ? resolveSingboxGroupName(group) : 'direct';
 }
 
 function defaultProxyDetour(groups: ProxyGroup[]): string {
-  const proxyGroup = groups.find((item) => item.name === 'PROXY');
+  const proxyGroup = groups.find((item) => item.id === DEFAULT_RULE_TARGET_GROUP_ID);
   return proxyGroup ? resolveSingboxGroupName(proxyGroup) : defaultPolicyName(groups);
 }
 

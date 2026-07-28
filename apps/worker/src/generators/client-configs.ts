@@ -1,6 +1,7 @@
 import * as yaml from 'js-yaml'
 import {
   DEFAULT_HEALTH_CHECK,
+  DEFAULT_RULE_TARGET_GROUP_ID,
   getRuleCompatibilityLevel,
   isEgernTransportSupported,
   isRuleSetFormatCompatible,
@@ -1064,11 +1065,8 @@ function isNativeOutletGroup(group: Row): boolean {
 }
 
 function defaultPolicy(groups: Row[]): string {
-  return String(
-    groups.find((group) => String(group['name']) === 'PROXY')?.['name']
-      ?? groups[0]?.['name']
-      ?? 'DIRECT'
-  )
+  const group = groups.find(item => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
+  return group ? nativePolicyName(group) : 'DIRECT'
 }
 
 function hasEnabledMatchRule(rules: Row[]): boolean {

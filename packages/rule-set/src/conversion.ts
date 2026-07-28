@@ -7,6 +7,7 @@ import type {
 } from '@uni-conf/types'
 import { isMihomoMrs, parseMihomoMrs } from './codecs/mihomo-mrs'
 import { isSingboxSrs, parseSingboxSrs } from './codecs/singbox-srs'
+import { detectRuleSetFormat } from './detect'
 import {
   resolveRuleSetRuleForTarget,
   type ConvertibleRuleSetTarget,
@@ -229,11 +230,9 @@ export function parseRuleSetContent(
 }
 
 function parseAutoTextSource(content: string, behavior: RuleSetBehavior): ParsedRuleSet {
-  const trimmed = content.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return parseSingboxSource(content)
-  if (/^(?:domain|geoip|ip_cidr|dest_port|protocol|user_agent|ssid|bssid|cellular)[a-z0-9_]*_set\s*:/m.test(trimmed)) {
-    return parseEgernSource(content)
-  }
+  const detected = detectRuleSetFormat(content)
+  if (detected?.format === 'singbox') return parseSingboxSource(content)
+  if (detected?.format === 'egern') return parseEgernSource(content)
   return parseTextSource(content, behavior)
 }
 

@@ -1,5 +1,6 @@
 import {
   DEFAULT_HEALTH_CHECK,
+  DEFAULT_RULE_TARGET_GROUP_ID,
   isRuleSetFormatCompatible,
   resolveRuleForExport,
   supportsRuleNoResolve,
@@ -475,8 +476,7 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string | null {
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string | undefined {
-  const group = groups.find((item) => item.name === 'PROXY')
-    ?? groups[0];
+  const group = groups.find((item) => item.id === DEFAULT_RULE_TARGET_GROUP_ID);
   return group ? resolveMihomoPolicyName(group) : undefined;
 }
 

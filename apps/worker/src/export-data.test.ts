@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { ExportConfig, NodeCollection, ProxyNode } from '@uni-conf/types'
 import {
   applyDefaultExportDedup,
-  applyDefaultExportNodeNames,
   applyExportNodeNames,
   buildCollectionNodeNames,
   expandReferencedGroupRows,
@@ -130,7 +129,7 @@ describe('export data scoping', () => {
   })
 
   it('renames exported nodes with region, source, and sequence', () => {
-    const renamed = applyDefaultExportNodeNames(
+    const renamed = applyExportNodeNames(
       [
         { id: 'node-1', source_id: 'source-a', name: 'HK 01', country_code: 'HK' },
         { id: 'node-2', source_id: 'source-a', name: 'HK 02', country_code: 'HK' },
@@ -139,7 +138,8 @@ describe('export data scoping', () => {
       new Map([
         ['source-a', 'Airport A'],
         ['source-b', '机场/B'],
-      ])
+      ]),
+      'smart'
     )
 
     expect(renamed.map(row => row.name)).toEqual([

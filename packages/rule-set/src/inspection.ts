@@ -2,7 +2,11 @@ import { load as parseYaml } from 'js-yaml'
 import type { RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import { isMihomoMrs, parseMihomoMrs } from './codecs/mihomo-mrs'
 import { isSingboxSrs, parseSingboxSrs } from './codecs/singbox-srs'
-import type { DetectedRuleSetFormat, RuleSetEncoding } from './detect'
+import {
+  EGERN_RULE_SET_KEYS,
+  resolveTextRuleSetFormat,
+  type DetectedRuleSetFormat,
+} from './detect'
 
 export type RuleSetInspectionMode = 'text' | 'structured'
 
@@ -42,12 +46,6 @@ interface EgernRuleValue {
   __uniConfEgernKey: string
   value: unknown
 }
-
-const EGERN_RULE_SET_KEYS = new Set([
-  'domain_set', 'domain_suffix_set', 'domain_keyword_set', 'domain_regex_set', 'domain_wildcard_set',
-  'geoip_set', 'ip_cidr_set', 'ip_cidr6_set', 'url_regex_set', 'asn_set', 'user_agent_set',
-  'ssid_set', 'bssid_set', 'cellular_set', 'protocol_set', 'dest_port_set',
-])
 
 export function parseRuleSetForInspection(
   text: string,
@@ -178,7 +176,7 @@ export function inspectRuleSetContent(
     )
   }
 
-  const detected = detectTextRuleSetFormat(content, options.format, options.behavior)
+  const detected = resolveTextRuleSetFormat(content, options.format, options.behavior)
   const parsed = parseRuleSetForInspection(content, detected.format)
   if (parsed.error) return inspectionError(detected, parsed.error)
   return inspectedResult(detected, parsed.mode, parsed.rules ?? [], options.behavior)
@@ -203,43 +201,6 @@ function inspectionError(
   error: RuleSetContentInspectionError
 ): RuleSetContentInspection {
   return { detected, mode: 'structured', rules: [], issues: [], error }
-}
-
-function detectTextRuleSetFormat(
-  text: string,
-  declaredFormat: RuleSetFormat,
-  behavior: RuleSetBehavior
-): DetectedRuleSetFormat {
-  if (declaredFormat !== 'text') {
-    return {
-      format: declaredFormat,
-      encoding: textEncoding(declaredFormat, text),
-      behavior,
-      confidence: 'high',
-    }
-  }
-
-  const trimmed = text.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    return { format: 'singbox', encoding: 'json', behavior, confidence: 'high' }
-  }
-  if (/^(?:domain|geoip|ip_cidr|dest_port|protocol|user_agent|ssid|bssid|cellular)[a-z0-9_]*_set\s*:/m.test(trimmed)) {
-    return { format: 'egern', encoding: 'yaml', behavior, confidence: 'high' }
-  }
-  if (/^(?:payload|rules|domain_set|ip_cidr)\s*:/m.test(trimmed)) {
-    return { format: 'mihomo', encoding: 'yaml', behavior, confidence: 'high' }
-  }
-  return { format: 'text', encoding: 'text', behavior, confidence: 'medium' }
-}
-
-function textEncoding(format: RuleSetFormat, text: string): RuleSetEncoding {
-  if (format === 'singbox' || text.trimStart().startsWith('{') || text.trimStart().startsWith('[')) {
-    return 'json'
-  }
-  if (format === 'egern' || /^(?:payload|rules|domain_set|ip_cidr|ip_cidr_set)\s*:/m.test(text)) {
-    return 'yaml'
-  }
-  return 'text'
 }
 
 function looksLikeHtml(text: string, contentType: string | undefined): boolean {

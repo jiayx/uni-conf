@@ -1,20 +1,11 @@
 import {
-  getCompatibleRuleSetFormats as getSharedCompatibleRuleSetFormats,
+  getCompatibleRuleSetFormats,
   getRuleSetConversionTargetFormat,
-  isRuleSetFormat,
   isRemoteRuleSetCompatible as isSharedRemoteRuleSetCompatible,
   isRuleSetFormatCompatible as isSharedRuleSetFormatCompatible,
   resolveRemoteRuleSetForExport as resolveSharedRemoteRuleSetForExport,
 } from '@uni-conf/shared'
-import type { ExportFormat, RemoteRuleSet, RuleSetFormat } from '@uni-conf/types'
-
-export function getCompatibleRuleSetFormats(format: ExportFormat): RuleSetFormat[] {
-  return getSharedCompatibleRuleSetFormats(format).filter(isRuleSetFormat)
-}
-
-export function isRuleSetFormatCompatible(exportFormat: ExportFormat, ruleSetFormat: RuleSetFormat): boolean {
-  return isSharedRuleSetFormatCompatible(exportFormat, ruleSetFormat)
-}
+import type { ExportFormat, RemoteRuleSet } from '@uni-conf/types'
 
 export function isRemoteRuleSetCompatible(exportFormat: ExportFormat, ruleSet: Pick<RemoteRuleSet, 'format' | 'presetSource' | 'presetId' | 'sourceOverrides'>): boolean {
   return getRemoteRuleSetCompatibilityMode(exportFormat, ruleSet) !== 'unsupported'
@@ -28,15 +19,6 @@ export function getRemoteRuleSetCompatibilityMode(
   if (!resolved || !isSharedRemoteRuleSetCompatible(exportFormat, ruleSet)) return 'unsupported'
   if (isSharedRuleSetFormatCompatible(exportFormat, resolved.format)) return 'direct'
   return getRuleSetConversionTargetFormat(resolved.format, exportFormat) ? 'converted' : 'unsupported'
-}
-
-export function resolveRemoteRuleSetForExport(
-  ruleSet: RemoteRuleSet,
-  exportFormat: ExportFormat
-): { url: string; format: RuleSetFormat } | null {
-  const resolved = resolveSharedRemoteRuleSetForExport(ruleSet, exportFormat)
-  if (!resolved || !isRuleSetFormat(resolved.format)) return null
-  return resolved
 }
 
 export function describeCompatibleRuleSetFormats(

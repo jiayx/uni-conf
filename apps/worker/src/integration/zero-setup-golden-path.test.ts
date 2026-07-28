@@ -10,8 +10,8 @@ import { Miniflare } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import worker from '../index'
 import type { Env } from '../types'
-import type { ExportConfig } from '@uni-conf/types'
-import { DEFAULT_NODE_POOL_COLLECTION_ID, EXPORT_FORMAT_FILENAMES, type ExportSubscriptionFormat } from '@uni-conf/shared'
+import type { ExportConfig, ExportFormat } from '@uni-conf/types'
+import { DEFAULT_NODE_POOL_COLLECTION_ID, EXPORT_FORMAT_FILENAMES } from '@uni-conf/shared'
 
 const require = createRequire(import.meta.url)
 const singboxSchema = JSON.parse(readFileSync(require.resolve('@black-duty/sing-box-schema/schema.json'), 'utf8')) as Record<string, unknown>
@@ -85,7 +85,7 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
   }
 
   async function assertEveryAdvertisedFormatDownloads(token: string): Promise<void> {
-    for (const [format, filename] of Object.entries(EXPORT_FORMAT_FILENAMES) as Array<[ExportSubscriptionFormat, string]>) {
+    for (const [format, filename] of Object.entries(EXPORT_FORMAT_FILENAMES) as Array<[ExportFormat, string]>) {
       const response = await request(`/sub/${token}/${filename}`)
       const content = await response.text()
       const diagnostic = response.status === 200
@@ -935,7 +935,7 @@ rule-providers:
   }, 30000)
 })
 
-function assertExportShape(format: ExportSubscriptionFormat, content: string): void {
+function assertExportShape(format: ExportFormat, content: string): void {
   if (format === 'mihomo' || format === 'clash' || format === 'stash') {
     const parsed = parseYAML(content) as Record<string, unknown>
     expect(Array.isArray(parsed.proxies), `${format} proxies`).toBe(true)
