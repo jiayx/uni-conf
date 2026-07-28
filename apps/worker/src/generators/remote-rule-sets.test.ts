@@ -379,6 +379,9 @@ describe('remote rule set generators', () => {
     expect(stash).toContain('https://example.com/stash.yaml');
     expect(stash).not.toContain('https://example.com/mihomo.yaml');
     expect(mihomo).toContain('https://example.com/mihomo.yaml');
+    expect(clash).not.toContain('geox-url:');
+    expect(stash).not.toContain('geox-url:');
+    expect(mihomo).toContain('geox-url:');
   });
 
   it('preserves Clash and Stash identity in shared Mihomo-container conversion URLs', () => {
@@ -419,7 +422,7 @@ describe('remote rule set generators', () => {
     const surge = generateSurge([], groupRows, [ruleRow(geositeRule), ruleRow(scriptRule), ruleRow(matchRule)], []);
     const shadowrocket = generateShadowrocket([], groupRows, [ruleRow(geositeRule), ruleRow(scriptRule), ruleRow(matchRule)], []);
 
-    expect(surge).toContain('GEOSITE,google,PROXY');
+    expect(surge).not.toContain('GEOSITE,google,PROXY');
     expect(shadowrocket).not.toContain('GEOSITE,google,PROXY');
     expect(surge).not.toContain('SCRIPT');
     expect(shadowrocket).not.toContain('SCRIPT');
@@ -432,10 +435,10 @@ describe('remote rule set generators', () => {
     expect(quantumultx).toContain('FINAL,PROXY');
   });
 
-  it('skips unsupported local rules for Loon while keeping partial rules', () => {
+  it('skips unsupported local rules for Loon', () => {
     const loon = generateLoon([], groupRows, [ruleRow(geositeRule), ruleRow(processPathRule), ruleRow(matchRule)], []);
 
-    expect(loon).toContain('GEOSITE, google, PROXY');
+    expect(loon).not.toContain('GEOSITE, google, PROXY');
     expect(loon).not.toContain('PROCESS-PATH');
   });
 

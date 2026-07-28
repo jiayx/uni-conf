@@ -33,6 +33,7 @@ export function generateMihomoYaml(
   options: MihomoGeneratorOptions = {}
 ): string {
   const lines: string[] = [];
+  const ruleSetExportFormat = options.ruleSetExportFormat ?? 'mihomo';
   const serializedNodes = nodes
     .map((node) => ({ node, proxy: nodeToMihomo(node) }))
     .filter((item): item is { node: ProxyNode; proxy: string } => item.proxy !== null);
@@ -54,6 +55,19 @@ export function generateMihomoYaml(
   lines.push('ipv6: false');
   lines.push('external-controller: 127.0.0.1:9090');
   lines.push('');
+
+  if (ruleSetExportFormat === 'mihomo') {
+    lines.push('geodata-mode: true');
+    lines.push('geodata-loader: memconservative');
+    lines.push('geo-auto-update: true');
+    lines.push('geo-update-interval: 24');
+    lines.push('geox-url:');
+    lines.push('  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"');
+    lines.push('  geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"');
+    lines.push('  mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"');
+    lines.push('  asn: "https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb"');
+    lines.push('');
+  }
 
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY;
   const useManagedFakeIpFilterProvider = options.ruleSetExportFormat !== 'stash';
@@ -88,7 +102,6 @@ export function generateMihomoYaml(
   lines.push('');
 
   // ── Rule providers ────────────────────────────────────────────────────────────
-  const ruleSetExportFormat = options.ruleSetExportFormat ?? 'mihomo';
   const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
     .map((rs) => ({

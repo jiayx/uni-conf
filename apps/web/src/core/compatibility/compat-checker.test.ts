@@ -23,6 +23,8 @@ describe('rule compatibility checker', () => {
 
     expect(rule?.compatibility.map((item) => item.client)).toEqual(EXPORT_SUBSCRIPTION_FORMATS)
     expect(rule?.compatibility.find((item) => item.client === 'mihomo')?.level).toBe('full')
+    expect(rule?.compatibility.find((item) => item.client === 'surge')?.level).toBe('unsupported')
+    expect(rule?.compatibility.find((item) => item.client === 'loon')?.level).toBe('unsupported')
     expect(rule?.compatibility.find((item) => item.client === 'shadowrocket')?.level).toBe('unsupported')
     expect(rule?.compatibility.find((item) => item.client === 'nodes_raw')?.level).toBe('unsupported')
   })

@@ -359,6 +359,20 @@ describe('proxy group references', () => {
     expect(content).not.toContain('redir-port:')
   })
 
+  it('configures automatic Geo data updates for Mihomo configs', () => {
+    const content = generateMihomoYaml([], [], [], [])
+
+    expect(content).toContain('geodata-mode: true')
+    expect(content).toContain('geodata-loader: memconservative')
+    expect(content).toContain('geo-auto-update: true')
+    expect(content).toContain('geo-update-interval: 24')
+    expect(content).toContain('geox-url:')
+    expect(content).toContain('MetaCubeX/meta-rules-dat@release/geoip.dat')
+    expect(content).toContain('MetaCubeX/meta-rules-dat@release/geosite.dat')
+    expect(content).toContain('MetaCubeX/meta-rules-dat@release/country.mmdb')
+    expect(content).toContain('GeoLite2-ASN.mmdb')
+  })
+
   it('uses FakeIP with split DNS by default for Mihomo configs', () => {
     const content = generateMihomoYaml([], [], [], [])
 
