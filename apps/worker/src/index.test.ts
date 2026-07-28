@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import worker, { redactLogPath } from './index'
+import { refreshRuleSetCatalogSnapshotIfDue } from './services/rule-set-catalogs'
 import { refreshDueSources } from './services/source-auto-refresh'
 import type { Env } from './types'
 
@@ -14,17 +15,22 @@ vi.mock('./services/source-auto-refresh', () => ({
   })),
 }))
 
+vi.mock('./services/rule-set-catalogs', () => ({
+  refreshRuleSetCatalogSnapshotIfDue: vi.fn(async () => null),
+}))
+
 describe('worker entrypoint', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('runs due source refreshes from the scheduled handler', async () => {
+  it('runs due source and rule catalog refreshes from the scheduled handler', async () => {
     const env = { DB: {} as D1Database } as Env
 
     await worker.scheduled?.({} as ScheduledController, env)
 
     expect(refreshDueSources).toHaveBeenCalledWith(env.DB)
+    expect(refreshRuleSetCatalogSnapshotIfDue).toHaveBeenCalledWith(env)
   })
 
   it('redacts subscription tokens from structured request logs', () => {
