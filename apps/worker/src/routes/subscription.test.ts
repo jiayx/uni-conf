@@ -67,7 +67,7 @@ describe('subscription route helpers', () => {
       ...FULL_CONFIG_EXPORT_FORMATS,
       ...NODE_SUBSCRIPTION_EXPORT_FORMATS,
     ])
-    expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'text'])
+    expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'mrs', 'text'])
     expect(FULL_CONFIG_EXPORT_FORMATS.every(isFullConfigExportFormat)).toBe(true)
     expect(EXPORT_SUBSCRIPTION_FORMATS.every(isExportSubscriptionFormat)).toBe(true)
     expect(RULE_SET_FORMATS.every(isRuleSetFormat)).toBe(true)

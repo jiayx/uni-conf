@@ -376,12 +376,12 @@ describe('remote rule set routes', () => {
   it('summarizes the stored default and target-native source health', async () => {
     vi.mocked(validateRemoteRuleSetContent).mockClear()
     vi.mocked(validateRemoteRuleSetContent).mockImplementation(async ruleSet => {
-      const status = ruleSet.url.includes('broken') ? 'invalid' : ruleSet.url.endsWith('.srs') ? 'warning' : 'valid'
+      const status = ruleSet.url.includes('broken') ? 'invalid' : 'valid'
       return {
         status, checkedAt: '2026-07-18T00:00:00.000Z',
         url: ruleSet.url, format: ruleSet.format, behavior: ruleSet.behavior,
-        inspectionMode: ruleSet.format === 'singbox' ? 'binary-header' : 'structured',
-        httpStatus: 200, byteLength: 128, ruleCount: status === 'warning' ? undefined : 4,
+        inspectionMode: 'structured',
+        httpStatus: 200, byteLength: 128, ruleCount: 4,
         invalidRuleCount: 0, issues: [],
       }
     })
@@ -413,9 +413,9 @@ describe('remote rule set routes', () => {
         defaultSource: { status: 'valid', format: 'mihomo' },
         sourceOverrides: [
           { targetFormat: 'egern', result: { status: 'invalid' } },
-          { targetFormat: 'singbox', result: { status: 'warning' } },
+          { targetFormat: 'singbox', result: { status: 'valid' } },
         ],
-        summary: { total: 3, valid: 1, warning: 1, invalid: 1 },
+        summary: { total: 3, valid: 2, warning: 0, invalid: 1 },
       },
     })
   })

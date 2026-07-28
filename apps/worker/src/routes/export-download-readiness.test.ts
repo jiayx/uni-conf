@@ -322,7 +322,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
     expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox')
     expect(renderExportData).toHaveBeenCalledWith(
@@ -353,7 +353,7 @@ describe('export download readiness', () => {
       success: true,
       data: {
         format: 'mihomo',
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format: 'mihomo' },
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 19, format: 'mihomo' },
         artifactValidation: { format: 'mihomo', kind: 'yaml', valid: true, issues: [] },
         readiness: { ready: true, blockingWarnings: [] },
       },
@@ -515,7 +515,7 @@ describe('export download readiness', () => {
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('SCRIPT=1')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
     await expect(response.json()).resolves.toEqual({
       version: 3,
       rules: [{ domain_suffix: ['example.com'] }],
@@ -574,7 +574,7 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
   })
@@ -657,7 +657,7 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@18')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@19')
     expect(fetchMock).toHaveBeenCalledWith(
       sourceUrl,
       expect.objectContaining({ redirect: 'manual' }),
@@ -799,7 +799,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@18')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),

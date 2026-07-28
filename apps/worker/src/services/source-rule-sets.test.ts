@@ -51,6 +51,24 @@ rules:
     ])
   })
 
+  it('discovers MRS providers with an explicit supported behavior', () => {
+    expect(discoverSourceRemoteRuleSets(`
+rule-providers:
+  private:
+    type: http
+    format: mrs
+    behavior: ipcidr
+    url: https://rules.example.com/private.mrs
+`, 'mihomo')).toEqual([
+      expect.objectContaining({
+        key: 'private',
+        format: 'mrs',
+        behavior: 'ipcidr',
+        url: 'https://rules.example.com/private.mrs',
+      }),
+    ])
+  })
+
   it('updates linked metadata and marks removed providers as missing', async () => {
     const boundOperations: Array<{ sql: string; args: unknown[] }> = []
     const db = {

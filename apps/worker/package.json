@@ -24,6 +24,7 @@
     "db:studio": "wrangler d1 studio DB"
   },
   "dependencies": {
+    "@uni-conf/rule-set": "workspace:*",
     "@uni-conf/shared": "workspace:*",
     "@uni-conf/types": "workspace:*",
     "hono": "^4.12.32",

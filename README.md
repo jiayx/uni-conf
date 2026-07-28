@@ -1,7 +1,7 @@
 # UniConf
 
 > **Manage once, export everywhere.**  
-> 一站式代理配置管理工具 / One-stop proxy configuration management tool
+> One-stop proxy configuration management tool
 
 UniConf lets you manage proxy subscriptions, nodes, filtering rules, strategy groups, and traffic routing rules in one place, then export complete configuration files for different proxy clients.
 

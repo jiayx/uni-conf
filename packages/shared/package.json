@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@uni-conf/rule-set": "workspace:*",
     "@uni-conf/types": "workspace:*"
   },
   "scripts": {

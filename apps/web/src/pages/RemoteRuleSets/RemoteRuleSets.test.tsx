@@ -688,9 +688,9 @@ describe('RemoteRuleSets content validation', () => {
     vi.mocked(api.remoteRuleSets.validateSource).mockResolvedValue({
       status: 'warning', checkedAt: '2026-07-18T00:00:00.000Z',
       url: 'https://rules.example.com/native.srs', format: 'singbox', behavior: 'domain',
-      inspectionMode: 'binary-header', httpStatus: 200, byteLength: 64,
-      invalidRuleCount: 0,
-      issues: [{ code: 'binary_header_only', severity: 'warning', message: '仅校验容器头', messageEn: 'Header only.' }],
+      inspectionMode: 'structured', httpStatus: 200, byteLength: 64,
+      ruleCount: 2, invalidRuleCount: 1,
+      issues: [{ code: 'invalid_rule', severity: 'warning', message: '一条规则需要检查', messageEn: 'One rule needs review.' }],
     })
     vi.mocked(api.remoteRuleSets.update).mockImplementation(async (id, patch) => ({
       ...(await api.remoteRuleSets.list())[0]!, ...patch, id,
@@ -725,11 +725,11 @@ describe('RemoteRuleSets content validation', () => {
         result: {
           status: 'warning', checkedAt: '2026-07-18T00:00:00.000Z',
           url: 'https://rules.example.com/native-singbox.srs', format: 'singbox', behavior: 'domain',
-          inspectionMode: 'binary-header', httpStatus: 200, byteLength: 256,
-          invalidRuleCount: 0,
+          inspectionMode: 'structured', httpStatus: 200, byteLength: 256,
+          ruleCount: 2, invalidRuleCount: 1,
           issues: [{
-            code: 'binary_header_only', severity: 'warning',
-            message: '仅校验容器头', messageEn: 'Only the binary header was inspected.',
+            code: 'invalid_rule', severity: 'warning',
+            message: '一条规则需要检查', messageEn: 'One rule needs review.',
           }],
         },
       },
@@ -748,7 +748,7 @@ describe('RemoteRuleSets content validation', () => {
       { url: 'https://rules.example.com/native-egern.yaml', targetFormat: 'egern', behavior: 'domain' },
     ])
     expect(await screen.findByText('Checked 2/2 · 1 valid · 1 review · 0 invalid · 0 failed')).toBeInTheDocument()
-    expect(screen.getByText('Only the binary header was inspected.')).toBeInTheDocument()
+    expect(screen.getByText('One rule needs review.')).toBeInTheDocument()
   })
 
   it('discovers known repository sources without overwriting manual values', async () => {

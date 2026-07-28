@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import { convertRuleSetContent } from '@uni-conf/rule-set'
 import { validateRemoteRuleSetContent } from './remote-rule-set-validation'
-import { convertRuleSetContent } from './rule-set-conversion'
 
 describe('remote rule set content validation', () => {
   it('validates a plain domain list and ignores comments', async () => {
@@ -35,6 +35,17 @@ describe('remote rule set content validation', () => {
   it('accepts sing-box source JSON rule objects', async () => {
     const result = await validateRemoteRuleSetContent(ruleSet({ format: 'singbox', behavior: 'domain' }), {
       fetcher: responseFetcher(JSON.stringify({ version: 3, rules: [{ domain_suffix: ['example.com'] }] }), 'application/json'),
+    })
+
+    expect(result).toMatchObject({ status: 'valid', inspectionMode: 'structured', ruleCount: 1 })
+  })
+
+  it('auto-detects structured content when the source format is generic text', async () => {
+    const result = await validateRemoteRuleSetContent(ruleSet({ format: 'text', behavior: 'domain' }), {
+      fetcher: responseFetcher(JSON.stringify({
+        version: 3,
+        rules: [{ domain_suffix: ['example.com'] }],
+      }), 'application/json'),
     })
 
     expect(result).toMatchObject({ status: 'valid', inspectionMode: 'structured', ruleCount: 1 })
@@ -98,17 +109,16 @@ describe('remote rule set content validation', () => {
     })
   })
 
-  it('recognizes an SRS binary container without pretending to inspect individual rules', async () => {
+  it('rejects a corrupt SRS binary container after inspecting its contents', async () => {
     const result = await validateRemoteRuleSetContent(ruleSet({ format: 'singbox' }), {
       fetcher: responseFetcher(new Uint8Array([0x53, 0x52, 0x53, 0x01, 0x00]), 'application/octet-stream'),
     })
 
     expect(result).toMatchObject({
-      status: 'warning',
-      inspectionMode: 'binary-header',
-      issues: [{ code: 'binary_header_only', severity: 'warning' }],
+      status: 'invalid',
+      inspectionMode: 'structured',
+      issues: [{ code: 'invalid_srs', severity: 'error' }],
     })
-    expect(result.ruleCount).toBeUndefined()
   })
 
   it('rejects HTML error pages returned with a successful status', async () => {

@@ -39,7 +39,7 @@ export function discoverSourceRemoteRuleSets(
   for (const [key, rawProvider] of Object.entries(providers)) {
     if (!isPlainRecord(rawProvider) || rawProvider.type !== 'http' || typeof rawProvider.url !== 'string') continue
     const providerFormat = String(rawProvider.format ?? '').toLowerCase()
-    if (providerFormat === 'mrs') continue
+    if (providerFormat === 'mrs' && rawProvider.behavior !== 'domain' && rawProvider.behavior !== 'ipcidr') continue
     const url = resolveProviderUrl(rawProvider.url, baseUrl)
     if (!url) continue
     const behavior: RuleSetBehavior = rawProvider.behavior === 'domain' || rawProvider.behavior === 'ipcidr'
@@ -51,7 +51,7 @@ export function discoverSourceRemoteRuleSets(
       key,
       name: key,
       url,
-      format: providerFormat === 'text' ? 'text' : 'mihomo',
+      format: providerFormat === 'mrs' ? 'mrs' : providerFormat === 'text' ? 'text' : 'mihomo',
       behavior,
       updateInterval: Number.isFinite(intervalSeconds) && intervalSeconds > 0
         ? Math.max(1, Math.round(intervalSeconds / 3600))

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
 import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
+import { resolveRuleSetConversionIssues } from '@uni-conf/rule-set'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   isFullConfigExportFormat,
@@ -13,7 +14,7 @@ import { DEFAULT_RULE_TARGET_GROUP_ID, isEnabledTargetGroup, listEnabledTargetGr
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
-import { getConvertedRemoteRuleSet, resolveRuleSetConversionIssues, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
+import { getConvertedRemoteRuleSet, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
 import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'

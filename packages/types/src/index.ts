@@ -253,6 +253,7 @@ export interface ProxyRule {
 }
 
 export type RuleSetFormat =
+  | 'mrs'
   | 'clash'
   | 'mihomo'
   | 'singbox'
@@ -342,7 +343,7 @@ export interface RemoteRuleSet {
 }
 
 export type RemoteRuleSetValidationStatus = 'valid' | 'warning' | 'invalid';
-export type RemoteRuleSetInspectionMode = 'text' | 'structured' | 'binary-header';
+export type RemoteRuleSetInspectionMode = 'text' | 'structured';
 
 export interface RemoteRuleSetValidationIssue {
   code: string;
@@ -404,26 +405,26 @@ export interface RemoteRuleSetSourceHealthSnapshot extends RemoteRuleSetSourceHe
 
 export type RemoteRuleSetConversionMode = 'direct' | 'converted' | 'unsupported';
 
-export type RemoteRuleSetConversionIssueReason =
+export type RuleSetConversionIssueReason =
   | 'invalid-rule'
   | 'compound-condition'
   | 'unsupported-directive'
   | 'unsupported-option';
 
-export type RemoteRuleSetConversionIssueResolution =
+export type RuleSetConversionIssueResolution =
   | 'repair-source-rule'
   | 'use-native-source'
   | 'remove-unsupported-option';
 
-export interface RemoteRuleSetConversionIssue {
+export interface RuleSetConversionIssue {
   type: string;
   count: number;
-  reason: RemoteRuleSetConversionIssueReason;
-  resolution: RemoteRuleSetConversionIssueResolution;
+  reason: RuleSetConversionIssueReason;
+  resolution: RuleSetConversionIssueResolution;
   examples: string[];
 }
 
-export interface RemoteRuleSetConversionMapping {
+export interface RuleSetConversionMapping {
   source: string;
   target: string;
 }
@@ -437,8 +438,8 @@ export interface RemoteRuleSetConversionPreview {
   convertedRuleCount: number;
   skippedRuleCount: number;
   skippedRuleTypes: Record<string, number>;
-  issues: RemoteRuleSetConversionIssue[];
-  convertedExamples: RemoteRuleSetConversionMapping[];
+  issues: RuleSetConversionIssue[];
+  convertedExamples: RuleSetConversionMapping[];
   convertedExamplesTruncated: boolean;
   contentType?: string;
   preview?: string;

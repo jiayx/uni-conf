@@ -101,8 +101,9 @@ export function generateMihomoYaml(
       lines.push(`  ${safeName}:`);
       lines.push(`    type: http`);
       lines.push(`    behavior: ${rs.behavior}`);
+      if (resolved.format === 'mrs') lines.push(`    format: mrs`);
       lines.push(`    url: "${resolved.url}"`);
-      lines.push(`    path: ./ruleset/${safeName}.yaml`);
+      lines.push(`    path: ./ruleset/${safeName}.${resolved.format === 'mrs' ? 'mrs' : 'yaml'}`);
       lines.push(`    interval: ${rs.updateInterval * 3600}`);
     }
   }

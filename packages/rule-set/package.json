@@ -1,0 +1,31 @@
+{
+  "name": "@uni-conf/rule-set",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conversion": "./src/conversion.ts",
+    "./detect": "./src/detect.ts",
+    "./inspection": "./src/inspection.ts",
+    "./rule-compatibility": "./src/rule-compatibility.ts",
+    "./codecs/mihomo-mrs": "./src/codecs/mihomo-mrs.ts",
+    "./codecs/singbox-srs": "./src/codecs/singbox-srs.ts"
+  },
+  "dependencies": {
+    "@uni-conf/types": "workspace:*",
+    "fflate": "^0.8.3",
+    "fzstd": "^0.1.1",
+    "js-yaml": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  }
+}

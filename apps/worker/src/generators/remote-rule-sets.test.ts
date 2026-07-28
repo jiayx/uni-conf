@@ -154,6 +154,19 @@ describe('remote rule set generators', () => {
     expect(content).not.toContain('ai.srs');
   });
 
+  it('emits native MRS metadata for Mihomo rule providers', () => {
+    const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [{
+      ...remoteSet,
+      name: 'Private IP',
+      url: 'https://example.com/private.mrs',
+      format: 'mrs',
+      behavior: 'ipcidr',
+    }]);
+
+    expect(content).toContain('    format: mrs');
+    expect(content).toContain('    path: ./ruleset/Private_IP.mrs');
+  });
+
   it('orders remote rule sets by managed sort order across full-config exporters', () => {
     const laterRemoteSet: RemoteRuleSet = {
       ...remoteSet,

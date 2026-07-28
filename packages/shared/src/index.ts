@@ -1,4 +1,5 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
+import { resolveRuleSetRuleForTarget } from '@uni-conf/rule-set/rule-compatibility';
 import type {
   AutoNodeGroupType,
   DnsAddressMode,
@@ -496,6 +497,7 @@ export const EXPORT_SUBSCRIPTION_FORMATS = [
 
 export const RULE_SET_FORMATS = [
   ...FULL_CONFIG_EXPORT_FORMATS,
+  'mrs',
   'text',
 ] as const satisfies readonly RuleSetFormat[];
 
@@ -639,17 +641,6 @@ export interface RuleExportResolution {
   reason?: RuleExportCompatibilityReason;
 }
 
-const SINGBOX_SNIFF_PROTOCOLS = new Set([
-  'http', 'tls', 'quic', 'stun', 'dns', 'bittorrent', 'dtls', 'ssh', 'rdp', 'ntp',
-]);
-const SURGE_PROTOCOLS = new Set([
-  'http', 'https', 'tcp', 'udp', 'doh', 'doh3', 'doq', 'quic', 'stun',
-]);
-const EGERN_PROTOCOLS = new Set([
-  'tcp', 'udp', 'http', 'https', 'quic', 'stun',
-]);
-const LOON_PROTOCOLS = new Set(['tcp', 'udp']);
-
 /**
  * Resolves value-dependent compatibility and an exact target rule spelling.
  * Type-only matrices cannot express cases such as Surge PROTOCOL versus
@@ -660,7 +651,9 @@ export function resolveRuleForExport(
   payload: string,
   format: ExportSubscriptionFormat
 ): RuleExportResolution {
-  const normalizedPayload = payload.trim().toLowerCase();
+  if ((type === 'NETWORK' || type === 'PROTOCOL') && isFullConfigExportFormat(format)) {
+    return resolveRuleSetRuleForTarget(type, payload, format);
+  }
   if (type === 'PORT' && (format === 'mihomo' || format === 'clash' || format === 'stash')) {
     return {
       level: 'convert',
@@ -727,87 +720,6 @@ export function resolveRuleForExport(
       reason: 'target-rule-spelling',
     };
   }
-  if (type === 'NETWORK') {
-    if (format === 'singbox') {
-      return ['tcp', 'udp', 'icmp'].includes(normalizedPayload)
-        ? { level: 'full', type, payload: normalizedPayload }
-        : unsupportedRuleValue(type, payload);
-    }
-    if (format === 'mihomo' || format === 'clash' || format === 'stash') {
-      return ['tcp', 'udp'].includes(normalizedPayload)
-        ? { level: 'full', type, payload: normalizedPayload }
-        : unsupportedRuleValue(type, payload);
-    }
-    if (format === 'surge' && ['tcp', 'udp'].includes(normalizedPayload)) {
-      return {
-        level: 'convert',
-        type: 'PROTOCOL',
-        payload: normalizedPayload.toUpperCase(),
-        reason: 'network-to-protocol',
-      };
-    }
-    if (format === 'loon' && LOON_PROTOCOLS.has(normalizedPayload)) {
-      return {
-        level: 'convert',
-        type: 'PROTOCOL',
-        payload: normalizedPayload.toUpperCase(),
-        reason: 'network-to-protocol',
-      };
-    }
-    if (format === 'egern' && ['tcp', 'udp'].includes(normalizedPayload)) {
-      return {
-        level: 'convert',
-        type: 'PROTOCOL',
-        payload: normalizedPayload,
-        reason: 'network-to-protocol',
-      };
-    }
-    return unsupportedRuleValue(type, payload);
-  }
-
-  if (type === 'PROTOCOL') {
-    if (
-      (format === 'mihomo' || format === 'clash' || format === 'stash')
-      && ['tcp', 'udp'].includes(normalizedPayload)
-    ) {
-      return {
-        level: 'convert',
-        type: 'NETWORK',
-        payload: normalizedPayload,
-        reason: 'protocol-to-network',
-      };
-    }
-    if (format === 'singbox') {
-      if (['tcp', 'udp'].includes(normalizedPayload)) {
-        return {
-          level: 'convert',
-          type: 'NETWORK',
-          payload: normalizedPayload,
-          reason: 'protocol-to-network',
-        };
-      }
-      return SINGBOX_SNIFF_PROTOCOLS.has(normalizedPayload)
-        ? { level: 'full', type, payload: normalizedPayload }
-        : unsupportedRuleValue(type, payload);
-    }
-    if (format === 'surge') {
-      return SURGE_PROTOCOLS.has(normalizedPayload)
-        ? { level: 'full', type, payload: normalizedPayload.toUpperCase() }
-        : unsupportedRuleValue(type, payload);
-    }
-    if (format === 'loon') {
-      return LOON_PROTOCOLS.has(normalizedPayload)
-        ? { level: 'full', type, payload: normalizedPayload.toUpperCase() }
-        : unsupportedRuleValue(type, payload);
-    }
-    if (format === 'egern') {
-      return EGERN_PROTOCOLS.has(normalizedPayload)
-        ? { level: 'full', type, payload: normalizedPayload }
-        : unsupportedRuleValue(type, payload);
-    }
-    return unsupportedRuleValue(type, payload);
-  }
-
   return {
     level: getRuleCompatibilityLevel(type, format),
     type,
@@ -826,15 +738,6 @@ export function getRuleCompatibilityForPayload(
     client: format,
     level: resolveRuleForExport(type, payload, format).level,
   }));
-}
-
-function unsupportedRuleValue(type: RuleType, payload: string): RuleExportResolution {
-  return {
-    level: 'unsupported',
-    type,
-    payload,
-    reason: 'unsupported-rule-value',
-  };
 }
 
 export function supportsRuleNoResolve(
@@ -1035,7 +938,7 @@ export interface ExportClientCapabilities {
 }
 
 export const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
-export const EXPORT_CAPABILITY_PROFILE_REVISION = 18;
+export const EXPORT_CAPABILITY_PROFILE_REVISION = 19;
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = [
   'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
@@ -1083,7 +986,7 @@ export const EXPORT_CLIENT_CAPABILITIES = {
   mihomo: {
     outputKind: 'full-config',
     nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
-    ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
+    ruleSetFormats: ['mihomo', 'mrs', 'clash', 'stash', 'text'],
     dns: {
       engine: 'enhanced-mode',
       addressModes: ['fake-ip', 'real-ip'],
@@ -1302,21 +1205,21 @@ export function getRuleSetConversionTargetFormat(
   sourceFormat: string,
   exportFormat: ExportSubscriptionFormat
 ): 'mihomo' | 'singbox' | 'surge' | 'loon' | 'shadowrocket' | 'quantumultx' | 'egern' | null {
-  const textSourceFormats = ['mihomo', 'clash', 'stash', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'text', 'egern'];
-  if (exportFormat === 'singbox' && textSourceFormats.includes(sourceFormat)) {
+  const parseableSourceFormats = ['mihomo', 'mrs', 'clash', 'stash', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'text', 'egern'];
+  if (exportFormat === 'singbox' && parseableSourceFormats.includes(sourceFormat)) {
     return 'singbox';
   }
-  if (['mihomo', 'clash', 'stash'].includes(exportFormat) && ['singbox', 'egern'].includes(sourceFormat)) {
+  if (['mihomo', 'clash', 'stash'].includes(exportFormat) && ['mrs', 'singbox', 'egern'].includes(sourceFormat)) {
     return 'mihomo';
   }
   if (['surge', 'loon', 'shadowrocket', 'quantumultx'].includes(exportFormat)
     && !isRuleSetFormatCompatible(exportFormat, sourceFormat)
-    && [...textSourceFormats, 'singbox'].includes(sourceFormat)) {
+    && [...parseableSourceFormats, 'singbox'].includes(sourceFormat)) {
     return exportFormat as 'surge' | 'loon' | 'shadowrocket' | 'quantumultx';
   }
   if (exportFormat === 'egern'
     && !isRuleSetFormatCompatible(exportFormat, sourceFormat)
-    && [...textSourceFormats, 'singbox'].includes(sourceFormat)) {
+    && [...parseableSourceFormats, 'singbox'].includes(sourceFormat)) {
     return 'egern';
   }
   return null;
