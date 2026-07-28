@@ -6,7 +6,7 @@ import {
   isEgernTransportSupported,
   isRuleSetFormatCompatible,
   resolveRuleForExport,
-  supportsRuleNoResolve,
+  getRuleNoResolveHandling,
 } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
 import { collectGroupMembers } from './group-members'
@@ -693,7 +693,7 @@ function ruleToIni(
   const targetGroupId = String(rule['target_group_id'] ?? '')
   const target = resolveGroupName(targetGroupId, groups)
   const noResolve = rule['no_resolve']
-    && supportsRuleNoResolve(type as RuleCompatibilityType, client)
+    && getRuleNoResolveHandling(type as RuleCompatibilityType, client) === 'native'
     ? ',no-resolve'
     : ''
   if (type === 'MATCH') return `FINAL,${target}`
@@ -757,7 +757,7 @@ function ruleToEgern(rule: Row, groups: Row[]): Record<string, unknown> | null {
     [key]: {
       match: payload,
       policy,
-      ...(supportsRuleNoResolve(sourceType as RuleCompatibilityType, 'egern') && rule['no_resolve']
+      ...(getRuleNoResolveHandling(sourceType as RuleCompatibilityType, 'egern') === 'native' && rule['no_resolve']
         ? { no_resolve: true }
         : {}),
     },

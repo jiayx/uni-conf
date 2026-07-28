@@ -39,4 +39,29 @@ describe('summarizeBatchRuleCompatibility', () => {
       },
     ])
   })
+
+  it('does not report implicit sing-box IP no-resolve handling as an omission', () => {
+    expect(summarizeBatchRuleCompatibility([
+      { type: 'IP-CIDR', payload: '10.0.0.0/8', noResolve: true },
+    ], ['singbox', 'quantumultx'])).toEqual([
+      {
+        format: 'singbox',
+        total: 1,
+        full: 1,
+        convert: 0,
+        partial: 0,
+        unsupported: 0,
+        optionOmitted: 0,
+      },
+      {
+        format: 'quantumultx',
+        total: 1,
+        full: 1,
+        convert: 0,
+        partial: 0,
+        unsupported: 0,
+        optionOmitted: 1,
+      },
+    ])
+  })
 })

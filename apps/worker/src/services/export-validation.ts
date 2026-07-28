@@ -10,7 +10,7 @@ import {
   isNodeProtocolSupportedByExport,
   isRuleSetFormatCompatible,
   resolveRuleForExport,
-  supportsRuleNoResolve,
+  getRuleNoResolveHandling,
   validateAndNormalizeRulePayload,
 } from '@uni-conf/shared';
 import type { ExportData } from '../export-data';
@@ -453,7 +453,7 @@ function validateRuleCompatibility(data: ExportData, format: ExportFormat): Comp
         },
       });
     }
-    if (rule.noResolve && !supportsRuleNoResolve(rule.type, format)) {
+    if (rule.noResolve && getRuleNoResolveHandling(rule.type, format) === 'omit') {
       warnings.push({
         code: 'rule-option-omitted',
         ruleId: rule.id,

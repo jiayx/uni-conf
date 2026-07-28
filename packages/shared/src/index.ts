@@ -737,14 +737,22 @@ export function getRuleCompatibilityForPayload(
   }));
 }
 
-export function supportsRuleNoResolve(
+export type RuleNoResolveHandling = 'native' | 'implicit' | 'omit';
+
+export function getRuleNoResolveHandling(
   type: RuleType,
   format: ExportFormat
-): boolean {
-  if (format === 'nodes_base64' || format === 'nodes_raw' || format === 'singbox' || format === 'quantumultx') {
-    return false;
+): RuleNoResolveHandling {
+  if (!['IP-CIDR', 'IP-CIDR6', 'IP-ASN', 'GEOIP'].includes(type)) {
+    return 'omit';
   }
-  return ['IP-CIDR', 'IP-CIDR6', 'IP-ASN', 'GEOIP'].includes(type);
+  if (format === 'singbox') {
+    return type === 'IP-ASN' ? 'omit' : 'implicit';
+  }
+  if (format === 'nodes_base64' || format === 'nodes_raw' || format === 'quantumultx') {
+    return 'omit';
+  }
+  return 'native';
 }
 
 export type RulePayloadValidationCode =

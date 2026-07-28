@@ -23,7 +23,7 @@ import {
   DEFAULT_RULE_TARGET_GROUP_ID,
   isRuleTargetGroup,
   resolveRuleForExport,
-  supportsRuleNoResolve,
+  getRuleNoResolveHandling,
   validateAndNormalizeRulePayload,
 } from '@uni-conf/shared'
 import type { ExportFormat, ProxyRule, RuleType } from '@uni-conf/types'
@@ -715,11 +715,16 @@ function RuleCompatibilityPreview({
     if (!validation.valid) return null
     return RULE_COMPATIBILITY_TARGETS.map(format => {
       const resolution = resolveRuleForExport(type, validation.payload, format)
-      const noResolveOmitted = noResolve && !supportsRuleNoResolve(type, format)
+      const noResolveHandling = noResolve
+        ? getRuleNoResolveHandling(type, format)
+        : null
+      const noResolveOmitted = noResolveHandling === 'omit'
       return {
         format,
         resolution,
         noResolveOmitted,
+        noResolveImplicit: noResolveHandling === 'implicit',
+        noResolveNative: noResolveHandling === 'native',
         displayLevel: noResolveOmitted && resolution.level === 'full'
           ? 'partial' as const
           : resolution.level,
@@ -747,7 +752,7 @@ function RuleCompatibilityPreview({
             : formatRuleExpression(
                 item.resolution.type,
                 item.resolution.payload,
-                noResolve && !item.noResolveOmitted,
+                noResolve && item.noResolveNative,
               )
           return (
             <article
@@ -764,12 +769,18 @@ function RuleCompatibilityPreview({
               </div>
               <code>
                 {source}
-                {(item.resolution.level === 'convert' || item.resolution.level === 'unsupported') && (
+                {(item.resolution.level === 'convert'
+                  || item.resolution.level === 'unsupported'
+                  || item.noResolveOmitted
+                  || item.noResolveImplicit) && (
                   <> → {target}</>
                 )}
               </code>
               {item.noResolveOmitted && (
                 <small>{t('rules.compatibility_no_resolve_omitted')}</small>
+              )}
+              {item.noResolveImplicit && (
+                <small>{t('rules.compatibility_no_resolve_implicit')}</small>
               )}
             </article>
           )

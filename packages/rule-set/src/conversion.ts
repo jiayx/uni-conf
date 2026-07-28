@@ -101,7 +101,9 @@ export function convertRuleSetContent(
     const convertedRuleExamples: RuleSetConversionMapping[] = []
     let convertedRuleExamplesTruncated = false
     const rules = parsed.rules.flatMap((rule) => {
-      if (rule.noResolve) {
+      const noResolveIsImplicit = rule.noResolve
+        && (rule.type === 'IP-CIDR' || rule.type === 'IP-CIDR6')
+      if (rule.noResolve && !noResolveIsImplicit) {
         addSkippedRule(
           skippedRuleTypes,
           skippedRuleExamples,
@@ -147,6 +149,14 @@ export function convertRuleSetContent(
       const converted = ruleToTextClient(rule, target)
       if (!converted) addSkippedRule(skippedRuleTypes, skippedRuleExamples, rule.type, formatNormalizedRule(rule))
       else {
+        if (rule.noResolve && target === 'quantumultx') {
+          addSkippedRule(
+            skippedRuleTypes,
+            skippedRuleExamples,
+            `${rule.type}-NO-RESOLVE`,
+            formatNormalizedRule(rule)
+          )
+        }
         convertedRuleExamplesTruncated ||= addConvertedRuleExample(
           convertedRuleExamples,
           rule.source,
@@ -592,7 +602,8 @@ function ruleToTextClient(
   } else {
     return null
   }
-  return `${targetType},${rule.payload}${rule.noResolve ? ',no-resolve' : ''}`
+  const noResolve = rule.noResolve && target !== 'quantumultx' ? ',no-resolve' : ''
+  return `${targetType},${rule.payload}${noResolve}`
 }
 
 function ruleToMihomoPayload(rule: NormalizedRule, behavior: RuleSetBehavior): string | null {

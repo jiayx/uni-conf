@@ -218,7 +218,7 @@ describe('rule set conversion orchestration', () => {
     ])
   })
 
-  it('does not call a no-resolve rule fully converted when the target has no equivalent option', async () => {
+  it('treats IP no-resolve semantics as implicit in sing-box', async () => {
     const compatible = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
       fetcher: async () => new Response(
         'payload:\n  - DOMAIN-SUFFIX,example.com\n  - IP-CIDR,10.0.0.0/8,no-resolve\n'
@@ -232,10 +232,7 @@ describe('rule set conversion orchestration', () => {
         'payload:\n  - DOMAIN-SUFFIX,example.com\n  - IP-CIDR,10.0.0.0/8,no-resolve\n'
       ),
     })
-    expect(strict.blockingWarning).toEqual(expect.objectContaining({
-      level: 'unsupported',
-      message: expect.stringContaining('IP-CIDR-NO-RESOLVE × 1'),
-    }))
+    expect(strict).toEqual({ warnings: [], blockingWarnings: [], blockingWarning: null })
   })
 
   it('preflights conversions with bounded concurrency while keeping warning order stable', async () => {

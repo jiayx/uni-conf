@@ -3,7 +3,7 @@ import {
   DEFAULT_RULE_TARGET_GROUP_ID,
   isRuleSetFormatCompatible,
   resolveRuleForExport,
-  supportsRuleNoResolve,
+  getRuleNoResolveHandling,
 } from '@uni-conf/shared';
 import type { ExportDnsPolicy, ExportFormat, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
@@ -469,7 +469,7 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string | null {
 
   const resolution = resolveRuleForExport(rule.type, rule.payload, 'mihomo');
   if (resolution.level === 'unsupported') return null;
-  const noResolve = rule.noResolve && supportsRuleNoResolve(rule.type, 'mihomo')
+  const noResolve = rule.noResolve && getRuleNoResolveHandling(rule.type, 'mihomo') === 'native'
     ? ',no-resolve'
     : '';
   return `${resolution.type},${resolution.payload},${groupName}${noResolve}`;

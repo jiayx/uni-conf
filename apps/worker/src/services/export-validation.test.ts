@@ -269,6 +269,10 @@ describe('export validation', () => {
 
   it('reports sing-box manual-rule capability gaps instead of silently dropping behavior', () => {
     const group = makeGroup('proxy', 'PROXY');
+    const implicitNoResolve = {
+      ...makeRule('ip-rule', group.id, 'IP-CIDR', '10.0.0.0/8'),
+      noResolve: true,
+    };
     const sourceRule = {
       ...makeRule('source-rule', group.id, 'SRC-IP-CIDR', '10.0.0.0/8'),
       noResolve: true,
@@ -277,9 +281,12 @@ describe('export validation', () => {
     const processPath = makeRule('process-rule', group.id, 'PROCESS-PATH', '/usr/bin/curl');
     const warnings = validateExportData(makeExportData({
       groups: [group],
-      rules: [sourceRule, unsupportedAsn, processPath],
+      rules: [implicitNoResolve, sourceRule, unsupportedAsn, processPath],
     }), 'singbox');
 
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      ruleId: implicitNoResolve.id,
+    }));
     expect(warnings).toContainEqual(expect.objectContaining({
       ruleId: sourceRule.id,
       level: 'partial',

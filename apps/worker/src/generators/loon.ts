@@ -12,7 +12,7 @@ import {
   isLoonTransportSupported,
   isRuleSetFormatCompatible,
   resolveRuleForExport,
-  supportsRuleNoResolve,
+  getRuleNoResolveHandling,
 } from '@uni-conf/shared'
 import type { ExportDnsPolicy } from '@uni-conf/types'
 import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
@@ -202,7 +202,7 @@ function ruleToLoon(rule: Record<string, unknown>, allGroups: Record<string, unk
   const targetGroup = allGroups.find(g => String(g['id']) === targetGroupId)
   const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
   const noResolve = rule['no_resolve']
-    && supportsRuleNoResolve(type as RuleCompatibilityType, 'loon')
+    && getRuleNoResolveHandling(type as RuleCompatibilityType, 'loon') === 'native'
     ? ', no-resolve'
     : ''
 

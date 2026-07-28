@@ -196,7 +196,12 @@ describe('Rules filters', () => {
     await user.type(within(editor).getByLabelText('Match Value'), '10.0.0.0/8')
     await user.click(within(editor).getByRole('checkbox', { name: 'No Resolve' }))
     expect(within(editor).getByRole('article', { name: 'QuantumultX: Partial' }))
-      .toHaveTextContent('The no-resolve option is omitted for this target.')
+      .toHaveTextContent('This target does not support per-rule DNS resolution control, so the option is omitted.')
+    const singBoxResult = within(editor).getByRole('article', { name: 'sing-box: Full' })
+    expect(singBoxResult)
+      .toHaveTextContent('No option is needed; this target does not resolve DNS solely to match this rule.')
+    expect(singBoxResult)
+      .toHaveTextContent('IP-CIDR,10.0.0.0/8,no-resolve → IP-CIDR,10.0.0.0/8')
   })
 
   it('keeps unsaved rule edits until discarding is confirmed', async () => {

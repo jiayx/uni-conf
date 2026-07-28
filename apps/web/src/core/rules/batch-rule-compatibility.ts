@@ -1,6 +1,6 @@
 import {
   resolveRuleForExport,
-  supportsRuleNoResolve,
+  getRuleNoResolveHandling,
   type RuleCompatibilityLevel,
 } from '@uni-conf/shared'
 import type { ExportFormat, RuleType } from '@uni-conf/types'
@@ -38,7 +38,7 @@ export function summarizeBatchRuleCompatibility(
     for (const rule of rules) {
       const resolution = resolveRuleForExport(rule.type, rule.payload, format)
       incrementLevel(summary, resolution.level)
-      if (rule.noResolve && !supportsRuleNoResolve(rule.type, format)) {
+      if (rule.noResolve && getRuleNoResolveHandling(rule.type, format) === 'omit') {
         summary.optionOmitted++
       }
     }

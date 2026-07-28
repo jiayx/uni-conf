@@ -16,7 +16,7 @@ describe('rule set conversion', () => {
     expect(result.content).toContain('+.example.com')
   })
 
-  it('converts a Clash classical provider to sing-box source JSON and reports skipped directives', () => {
+  it('preserves implicit IP no-resolve semantics when converting to sing-box', () => {
     const result = convertRuleSetContent(
       { format: 'clash', behavior: 'classical' },
       'singbox',
@@ -26,24 +26,26 @@ describe('rule set conversion', () => {
       version: 3,
       rules: [
         { domain_suffix: ['example.com'] },
+        { ip_cidr: ['10.0.0.0/8'] },
       ],
     })
-    expect(result.convertedRuleCount).toBe(1)
-    expect(result.skippedRuleCount).toBe(2)
-    expect(result.skippedRuleTypes).toEqual({ 'IP-CIDR-NO-RESOLVE': 1, SCRIPT: 1 })
+    expect(result.convertedRuleCount).toBe(2)
+    expect(result.skippedRuleCount).toBe(1)
+    expect(result.skippedRuleTypes).toEqual({ SCRIPT: 1 })
     expect(result.skippedRuleExamples).toEqual({
-      'IP-CIDR-NO-RESOLVE': ['IP-CIDR,10.0.0.0/8,no-resolve'],
       SCRIPT: ['SCRIPT,legacy-script'],
     })
-    expect(result.convertedRuleExamples).toEqual([{
-      source: 'DOMAIN-SUFFIX,example.com',
-      target: '{"domain_suffix":["example.com"]}',
-    }])
-    expect(resolveRuleSetConversionIssues(result)).toEqual([
+    expect(result.convertedRuleExamples).toEqual([
       {
-        type: 'IP-CIDR-NO-RESOLVE', count: 1, reason: 'unsupported-option',
-        resolution: 'remove-unsupported-option', examples: ['IP-CIDR,10.0.0.0/8,no-resolve'],
+        source: 'DOMAIN-SUFFIX,example.com',
+        target: '{"domain_suffix":["example.com"]}',
       },
+      {
+        source: 'IP-CIDR,10.0.0.0/8,no-resolve',
+        target: '{"ip_cidr":["10.0.0.0/8"]}',
+      },
+    ])
+    expect(resolveRuleSetConversionIssues(result)).toEqual([
       {
         type: 'SCRIPT', count: 1, reason: 'unsupported-directive',
         resolution: 'use-native-source', examples: ['SCRIPT,legacy-script'],
@@ -129,11 +131,11 @@ describe('rule set conversion', () => {
       version: 3,
       rules: [
         { domain_suffix: ['example.com'] },
+        { ip_cidr: ['2001:db8::/32'] },
       ],
     })
-    expect(result.skippedRuleCount).toBe(2)
+    expect(result.skippedRuleCount).toBe(1)
     expect(result.skippedRuleTypes).toEqual({
-      'IP-CIDR6-NO-RESOLVE': 1,
       'USER-AGENT': 1,
     })
   })
@@ -354,6 +356,20 @@ describe('rule set conversion', () => {
     expect(result.convertedRuleCount).toBe(3)
     expect(result.skippedRuleCount).toBe(2)
     expect(result.skippedRuleTypes).toEqual({ COMPOUND: 1, 'PROCESS-NAME': 1 })
+  })
+
+  it('omits unsupported no-resolve options from Quantumult X output', () => {
+    const result = convertRuleSetContent(
+      { format: 'mihomo', behavior: 'classical' },
+      'quantumultx',
+      'payload:\n  - IP-CIDR,10.0.0.0/8,no-resolve\n'
+    )
+    expect(result.content).toBe('IP-CIDR,10.0.0.0/8\n')
+    expect(result.skippedRuleTypes).toEqual({ 'IP-CIDR-NO-RESOLVE': 1 })
+    expect(result.convertedRuleExamples).toEqual([{
+      source: 'IP-CIDR,10.0.0.0/8,no-resolve',
+      target: 'IP-CIDR,10.0.0.0/8',
+    }])
   })
 
   it('rejects malformed domain and CIDR payloads instead of emitting invalid target rules', () => {

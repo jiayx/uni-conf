@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getRuleNoResolveHandling,
   parseRulePortPayload,
   resolveRuleForExport,
-  supportsRuleNoResolve,
   validateAndNormalizeRulePayload,
 } from '@uni-conf/shared'
 
@@ -140,8 +140,10 @@ describe('manual rule payload validation', () => {
       level: 'convert',
       type: 'SRC-IP',
     })
-    expect(supportsRuleNoResolve('IP-CIDR', 'mihomo')).toBe(true)
-    expect(supportsRuleNoResolve('PORT', 'mihomo')).toBe(false)
-    expect(supportsRuleNoResolve('IP-CIDR', 'singbox')).toBe(false)
+    expect(getRuleNoResolveHandling('IP-CIDR', 'mihomo')).toBe('native')
+    expect(getRuleNoResolveHandling('PORT', 'mihomo')).toBe('omit')
+    expect(getRuleNoResolveHandling('IP-CIDR', 'singbox')).toBe('implicit')
+    expect(getRuleNoResolveHandling('IP-ASN', 'singbox')).toBe('omit')
+    expect(getRuleNoResolveHandling('IP-CIDR', 'quantumultx')).toBe('omit')
   })
 })
