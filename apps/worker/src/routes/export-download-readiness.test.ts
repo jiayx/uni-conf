@@ -36,6 +36,8 @@ vi.mock('../services/export-artifact-validation', () => ({
 vi.mock('../services/app-settings', () => ({
   getAppSettings: vi.fn(async () => ({
     showCompatibilityWarnings: true,
+    dnsResolutionMode: 'split',
+    dnsRealIpDomains: [],
   })),
 }))
 
@@ -61,9 +63,10 @@ describe('export download readiness', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
-    vi.mocked(getAppSettings).mockResolvedValue({
+    vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible',
-    } as AppSettings)
+      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+    }))
     vi.mocked(ensureDefaultExportConfig).mockResolvedValue({
       id: 'default-mihomo', name: 'Default', format: 'mihomo', token: 'token', enabled: true,
       includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [],
@@ -225,9 +228,10 @@ describe('export download readiness', () => {
   })
 
   it('blocks partial authenticated and public conversions in strict completeness mode', async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({
+    vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-    } as AppSettings)
+      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+    }))
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
       'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy\n'
@@ -274,9 +278,10 @@ describe('export download readiness', () => {
     expect(strictDownload.status).toBe(409)
     expect(strictDownload.headers.get('X-UniConf-Error-Code')).toBe('conversion_incomplete')
 
-    vi.mocked(getAppSettings).mockResolvedValue({
+    vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-    } as AppSettings)
+      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+    }))
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       ...strictProfile,
       id: 'compatible-profile',
@@ -297,6 +302,10 @@ describe('export download readiness', () => {
   })
 
   it('renders quick downloads with the requested format while reusing the default export scope', async () => {
+    vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
+      dnsResolutionMode: 'single',
+      dnsRealIpDomains: ['*.example.com'],
+    }))
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
       nodes: [
         {
@@ -322,7 +331,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
     expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox')
     expect(renderExportData).toHaveBeenCalledWith(
@@ -330,8 +339,8 @@ describe('export download readiness', () => {
       'singbox',
       expect.objectContaining({
         dnsPolicy: expect.objectContaining({
-          address: expect.objectContaining({ mode: 'fake-ip' }),
-          resolution: expect.objectContaining({ mode: 'split' }),
+          additionalRealIpDomains: ['*.example.com'],
+          resolutionMode: 'single',
         }),
       })
     )
@@ -353,7 +362,7 @@ describe('export download readiness', () => {
       success: true,
       data: {
         format: 'mihomo',
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 19, format: 'mihomo' },
+        capabilityProfile: { id: 'uni-conf-exporter', revision: 21, format: 'mihomo' },
         artifactValidation: { format: 'mihomo', kind: 'yaml', valid: true, issues: [] },
         readiness: { ready: true, blockingWarnings: [] },
       },
@@ -446,16 +455,6 @@ describe('export download readiness', () => {
       id: 'mobile-singbox',
       name: 'Mobile',
       format: 'singbox' as const,
-      dnsPolicy: {
-        address: {
-          mode: 'fake-ip' as const,
-          realIpExceptions: {
-            includeManagedDefaults: true,
-            domains: [],
-          },
-        },
-        resolution: { mode: 'split' as const, preset: 'managed' as const },
-      },
       token: 'mobile-token',
       enabled: true,
       includeCollectionIds: [],
@@ -515,7 +514,7 @@ describe('export download readiness', () => {
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('SCRIPT=1')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
     await expect(response.json()).resolves.toEqual({
       version: 3,
       rules: [{ domain_suffix: ['example.com'] }],
@@ -523,9 +522,10 @@ describe('export download readiness', () => {
   })
 
   it('enforces strict completeness again at the token-scoped converted rule-set endpoint', async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({
+    vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-    } as AppSettings)
+      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+    }))
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
       'payload:\n  - DOMAIN-SUFFIX,example.com\n  - SCRIPT,legacy-script\n',
@@ -545,9 +545,10 @@ describe('export download readiness', () => {
   })
 
   it('lets a compatible profile override global strict mode at the converted rule-set endpoint', async () => {
-    vi.mocked(getAppSettings).mockResolvedValue({
+    vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-    } as AppSettings)
+      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+    }))
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       id: 'compatible-profile',
       name: 'Compatible',
@@ -574,7 +575,7 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
   })
@@ -657,7 +658,7 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@19')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@21')
     expect(fetchMock).toHaveBeenCalledWith(
       sourceUrl,
       expect.objectContaining({ redirect: 'manual' }),
@@ -799,15 +800,15 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@19')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'singbox',
       expect.objectContaining({
         dnsPolicy: expect.objectContaining({
-          address: expect.objectContaining({ mode: 'fake-ip' }),
-          resolution: expect.objectContaining({ mode: 'split' }),
+          additionalRealIpDomains: [],
+          resolutionMode: 'split',
         }),
       })
     )
@@ -951,6 +952,26 @@ function makeConvertibleExportData(): ExportData {
       enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     }],
   })
+}
+
+function makeAppSettings(patch: Partial<AppSettings> = {}): AppSettings {
+  return {
+    language: 'zh',
+    theme: 'system',
+    unmatchedTrafficPolicy: 'proxy',
+    routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
+    exportNodeNamingMode: 'smart',
+    dnsResolutionMode: 'split',
+    dnsRealIpDomains: [],
+    showCompatibilityWarnings: true,
+    ruleSetConversionPolicy: 'compatible',
+    enableAutoRefresh: true,
+    autoRefreshInterval: 240,
+    autoNodeGroupsEnabled: true,
+    autoNodeGroupTypes: ['url-test'],
+    autoNodeGroupIncludeFlag: true,
+    ...patch,
+  }
 }
 
 function createMockDb(): D1Database {

@@ -13,7 +13,7 @@ import { bundledRuleSetCatalogDefinitions } from '../generated/rule-set-catalogs
 import { safeRemoteFetch } from './safe-remote-fetch'
 import type { Env } from '../types'
 
-const CATALOG_CACHE_KEY = 'rule-set-catalogs:latest'
+const CATALOG_CACHE_KEY = 'rule-set-catalogs:v2'
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 export const RULE_SET_CATALOG_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
 
@@ -23,6 +23,7 @@ interface CatalogDefinition {
   repositoryUrl: string
   branch: string
   defaultSourceId: string
+  ignoredIds?: string[]
   sources: CatalogSourceDefinition[]
   defaults: CatalogMapping
   mappings: CatalogMapping[]
@@ -76,7 +77,7 @@ interface GitHubBranch {
 }
 
 const bundledSnapshot = bundledRuleSetCatalogSnapshot
-const currentCatalogIds = bundledSnapshot.catalogs.map(catalog => catalog.id).sort()
+const currentCatalogIds = bundledSnapshot.catalogs.map((catalog) => catalog.id).sort()
 
 export async function getRuleSetCatalogSnapshot(kv?: KVNamespace): Promise<RuleSetCatalogSnapshot> {
   if (!kv) return bundledSnapshot
@@ -89,17 +90,17 @@ export async function getRuleSetCatalogSnapshot(kv?: KVNamespace): Promise<RuleS
 }
 
 function hasCurrentCatalogs(snapshot: RuleSetCatalogSnapshot): boolean {
-  const ids = snapshot.catalogs.map(catalog => catalog.id).sort()
-  return ids.length === currentCatalogIds.length
-    && ids.every((id, index) => id === currentCatalogIds[index])
+  const ids = snapshot.catalogs.map((catalog) => catalog.id).sort()
+  return ids.length === currentCatalogIds.length && ids.every((id, index) => id === currentCatalogIds[index])
 }
 
 export async function refreshRuleSetCatalogSnapshot(
   env: Pick<Env, 'KV'>,
   fetcher: typeof fetch = fetch,
 ): Promise<RuleSetCatalogSnapshot> {
-  const definitions = bundledRuleSetCatalogDefinitions
-    .map(definition => structuredClone(definition)) as unknown as CatalogDefinition[]
+  const definitions = bundledRuleSetCatalogDefinitions.map((definition) =>
+    structuredClone(definition),
+  ) as unknown as CatalogDefinition[]
   const catalogs: RuleSetCatalog[] = []
   for (const definition of definitions) {
     catalogs.push(await scanCatalog(definition, fetcher))
@@ -129,10 +130,7 @@ export async function refreshRuleSetCatalogSnapshotIfDue(
   return refreshRuleSetCatalogSnapshot(env, fetcher)
 }
 
-async function scanCatalog(
-  definition: CatalogDefinition,
-  fetcher: typeof fetch,
-): Promise<RuleSetCatalog> {
+async function scanCatalog(definition: CatalogDefinition, fetcher: typeof fetch): Promise<RuleSetCatalog> {
   const repository = parseGitHubRepository(definition.repositoryUrl)
   const branchUrl = `https://api.github.com/repos/${repository.owner}/${repository.name}/branches/${encodeURIComponent(definition.branch)}`
   const branch = await fetchGitHubJson<GitHubBranch>(fetcher, branchUrl)
@@ -149,37 +147,44 @@ async function scanCatalog(
       if (!candidate) continue
       const id = normalizeCatalogItemId(candidate.id)
       if (!id) continue
+      if (definition.ignoredIds?.includes(id)) continue
       const item = items.get(id) ?? createCatalogItem(definition, id, candidate.name)
-      item.sources.push(createCatalogSource(
-        sourceRepositoryUrl,
-        sourceBranch,
-        source.id,
-        candidate.path,
-        source.format,
-        source.behavior,
-        source.nativeFor,
-        source.default ?? source.id === definition.defaultSourceId,
-      ))
+      item.sources.push(
+        createCatalogSource(
+          sourceRepositoryUrl,
+          sourceBranch,
+          source.id,
+          candidate.path,
+          source.format,
+          source.behavior,
+          source.nativeFor,
+          source.default ?? source.id === definition.defaultSourceId,
+        ),
+      )
       items.set(id, item)
     }
   }
 
   for (const [id, override] of Object.entries(definition.overrides ?? {})) {
+    if (definition.ignoredIds?.includes(id)) continue
     const existing = items.get(id)
     if (!existing && !override.sources?.length) continue
     const item = existing ?? createCatalogItem(definition, id)
     if (override.name) item.name = override.name
     for (const source of override.sources ?? []) {
-      appendCatalogSource(item, createCatalogSource(
-        source.repositoryUrl,
-        source.branch,
-        source.id,
-        source.path,
-        source.format,
-        source.behavior,
-        source.nativeFor ?? [],
-        source.default !== false,
-      ))
+      appendCatalogSource(
+        item,
+        createCatalogSource(
+          source.repositoryUrl,
+          source.branch,
+          source.id,
+          source.path,
+          source.format,
+          source.behavior,
+          source.nativeFor ?? [],
+          source.default !== false,
+        ),
+      )
     }
     items.set(id, item)
   }
@@ -200,10 +205,10 @@ async function scanCatalog(
 }
 
 function ensureDefaultCatalogSource(item: RuleSetCatalogItem): RuleSetCatalogItem {
-  if (!item.sources.some(source => source.default) && item.sources[0]) {
+  if (!item.sources.some((source) => source.default) && item.sources[0]) {
     item.sources[0].default = true
   }
-  item.sources = item.sources.filter(source => source.default || source.nativeFor.length > 0)
+  item.sources = item.sources.filter((source) => source.default || source.nativeFor.length > 0)
   return item
 }
 
@@ -219,8 +224,9 @@ function createCatalogItem(
   id: string,
   name = humanizeCatalogItemName(id),
 ): RuleSetCatalogItem {
-  const mapping = definition.mappings.find(candidate =>
-    candidate.ids?.includes(id) || matchesAny(id, candidate.match ?? []))
+  const mapping = definition.mappings.find(
+    (candidate) => candidate.ids?.includes(id) || matchesAny(id, candidate.match ?? []),
+  )
   const values = { ...definition.defaults, ...mapping }
   return {
     id,
@@ -282,12 +288,17 @@ function createCatalogSource(
 }
 
 async function fetchGitHubJson<T>(fetcher: typeof fetch, url: string): Promise<T> {
-  const response = await safeRemoteFetch(fetcher, url, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'UniConf',
+  const response = await safeRemoteFetch(
+    fetcher,
+    url,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'UniConf',
+      },
     },
-  }, { timeoutMs: 15_000 })
+    { timeoutMs: 15_000 },
+  )
   if (!response.ok) throw new Error(`GitHub catalog scan returned HTTP ${response.status}`)
   return JSON.parse(await readResponseTextLimited(response, MAX_RESPONSE_BYTES)) as T
 }
@@ -295,24 +306,30 @@ async function fetchGitHubJson<T>(fetcher: typeof fetch, url: string): Promise<T
 function isCatalogSnapshot(value: unknown): value is RuleSetCatalogSnapshot {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const snapshot = value as Partial<RuleSetCatalogSnapshot>
-  return snapshot.schemaVersion === 1
-    && typeof snapshot.generatedAt === 'string'
-    && Array.isArray(snapshot.catalogs)
-    && snapshot.catalogs.length > 0
+  return (
+    snapshot.schemaVersion === 1 &&
+    typeof snapshot.generatedAt === 'string' &&
+    Array.isArray(snapshot.catalogs) &&
+    snapshot.catalogs.length > 0
+  )
 }
 
 function parseGitHubRepository(value: string): { owner: string; name: string } {
   try {
     const url = new URL(value)
-    const [owner, name] = url.pathname.replace(/\.git\/?$/, '').split('/').filter(Boolean)
+    const [owner, name] = url.pathname
+      .replace(/\.git\/?$/, '')
+      .split('/')
+      .filter(Boolean)
     if (
-      url.protocol !== 'https:'
-      || url.hostname.toLowerCase() !== 'github.com'
-      || !owner
-      || !name
-      || !isSafeIdentifier(owner)
-      || !/^[A-Za-z0-9._-]+$/.test(name)
-    ) throw new Error()
+      url.protocol !== 'https:' ||
+      url.hostname.toLowerCase() !== 'github.com' ||
+      !owner ||
+      !name ||
+      !isSafeIdentifier(owner) ||
+      !/^[A-Za-z0-9._-]+$/.test(name)
+    )
+      throw new Error()
     return { owner, name }
   } catch {
     throw new Error(`Unsupported GitHub repository URL: ${value}`)
@@ -324,7 +341,7 @@ function isSafeIdentifier(value: unknown): value is string {
 }
 
 function matchesAny(value: string, patterns: string[]): boolean {
-  return patterns.some(pattern => globToRegExp(pattern).test(value))
+  return patterns.some((pattern) => globToRegExp(pattern).test(value))
 }
 
 function globToRegExp(pattern: string): RegExp {
@@ -363,8 +380,10 @@ function normalizeCatalogItemId(value: string): string {
 }
 
 function humanizeCatalogItemName(id: string): string {
-  return id.split(/[-_]+/).filter(Boolean)
-    .map(part => part.length <= 3 ? part.toUpperCase() : `${part[0]!.toUpperCase()}${part.slice(1)}`)
+  return id
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => (part.length <= 3 ? part.toUpperCase() : `${part[0]!.toUpperCase()}${part.slice(1)}`))
     .join(' ')
 }
 

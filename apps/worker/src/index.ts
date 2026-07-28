@@ -22,6 +22,7 @@ import { kvRateLimit } from './middleware/rate-limit'
 import { refreshRuleSetCatalogSnapshotIfDue } from './services/rule-set-catalogs'
 import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
 import { getAppSettings } from './services/app-settings'
+import { refreshManagedDnsResourcesIfDue } from './services/managed-dns-resources'
 
 type AppVariables = { requestId: string }
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>()
@@ -49,36 +50,40 @@ app.use('*', async (c, next) => {
   }
 })
 
-app.use('*', secureHeaders({
-  xFrameOptions: 'DENY',
-  referrerPolicy: 'strict-origin-when-cross-origin',
-  permissionsPolicy: { geolocation: [], microphone: [], camera: [] },
-}))
+app.use(
+  '*',
+  secureHeaders({
+    xFrameOptions: 'DENY',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    permissionsPolicy: { geolocation: [], microphone: [], camera: [] },
+  }),
+)
 
 // CORS - restrict to ALLOWED_ORIGIN when configured; defaults to '*' for local development
 app.use('/api/*', (c, next) =>
   cors({
     origin: c.env.ALLOWED_ORIGIN || (c.env.ENVIRONMENT === 'production' ? '' : '*'),
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    exposeHeaders: [
-      'Content-Disposition',
-      'X-Request-Id',
-      'X-UniConf-Error-Code',
-      'X-UniConf-Capability-Profile',
-    ],
-  })(c, next)
+    exposeHeaders: ['Content-Disposition', 'X-Request-Id', 'X-UniConf-Error-Code', 'X-UniConf-Capability-Profile'],
+  })(c, next),
 )
 
-app.use('/api/*', bodyLimit({
-  maxSize: 25 * 1024 * 1024,
-  onError: (c) => c.json({ success: false, error: 'Request body exceeds 25 MiB' }, 413),
-}))
+app.use(
+  '/api/*',
+  bodyLimit({
+    maxSize: 25 * 1024 * 1024,
+    onError: (c) => c.json({ success: false, error: 'Request body exceeds 25 MiB' }, 413),
+  }),
+)
 
-app.use('/api/*', kvRateLimit({
-  namespace: 'admin-auth-failures',
-  limit: 20,
-  countResponse: (status) => status === 401,
-}))
+app.use(
+  '/api/*',
+  kvRateLimit({
+    namespace: 'admin-auth-failures',
+    limit: 20,
+    countResponse: (status) => status === 401,
+  }),
+)
 app.use('/sub/*', kvRateLimit({ namespace: 'public-subscriptions', limit: 120 }))
 
 // Health check - stays public for infra probes
@@ -86,10 +91,13 @@ app.get('/api/health', (c) => c.json({ success: true, data: { status: 'ok', env:
 app.get('/api/ready', async (c) => {
   const checks = await checkReadiness(c.env)
   const ready = Object.values(checks).every(Boolean)
-  return c.json({
-    success: ready,
-    data: { status: ready ? 'ready' : 'not_ready', env: c.env.ENVIRONMENT, checks },
-  }, ready ? 200 : 503)
+  return c.json(
+    {
+      success: ready,
+      data: { status: ready ? 'ready' : 'not_ready', env: c.env.ENVIRONMENT, checks },
+    },
+    ready ? 200 : 503,
+  )
 })
 
 app.use('/api/*', async (c, next) => {
@@ -125,12 +133,16 @@ app.notFound((c) => c.json({ success: false, error: 'Not found' }, 404))
 
 // Error handler
 app.onError((err, c) => {
-  logEvent('worker_error', {
-    requestId: c.get('requestId'),
-    method: c.req.method,
-    path: redactLogPath(c.req.path),
-    error: err instanceof Error ? err.message : String(err),
-  }, 'error')
+  logEvent(
+    'worker_error',
+    {
+      requestId: c.get('requestId'),
+      method: c.req.method,
+      path: redactLogPath(c.req.path),
+      error: err instanceof Error ? err.message : String(err),
+    },
+    'error',
+  )
   const message = c.env.ENVIRONMENT === 'production' ? 'Internal server error' : err.message
   return c.json({ success: false, error: message || 'Internal server error' }, 500)
 })
@@ -143,18 +155,37 @@ export default {
     const startedAt = Date.now()
     const result = await refreshDueSources(env.DB)
     const catalogResult = await refreshCatalogsForSchedule(env)
+    const dnsResourceResult = await refreshManagedDnsResourcesForSchedule(env)
     const { errors, ...summary } = result
-    logEvent('source_auto_refresh', {
-      ...summary,
-      failedSourceIds: errors.map((item) => item.sourceId),
-      durationMs: Date.now() - startedAt,
-      environment: env.ENVIRONMENT,
-    }, result.failedCount > 0 ? 'error' : 'log')
-    if (catalogResult) {
-      logEvent('rule_set_catalog_refresh', {
-        ...catalogResult,
+    logEvent(
+      'source_auto_refresh',
+      {
+        ...summary,
+        failedSourceIds: errors.map((item) => item.sourceId),
+        durationMs: Date.now() - startedAt,
         environment: env.ENVIRONMENT,
-      }, catalogResult.error ? 'error' : 'log')
+      },
+      result.failedCount > 0 ? 'error' : 'log',
+    )
+    if (catalogResult) {
+      logEvent(
+        'rule_set_catalog_refresh',
+        {
+          ...catalogResult,
+          environment: env.ENVIRONMENT,
+        },
+        catalogResult.error ? 'error' : 'log',
+      )
+    }
+    if (!dnsResourceResult.skipped) {
+      logEvent(
+        'managed_dns_resource_refresh',
+        {
+          ...dnsResourceResult,
+          environment: env.ENVIRONMENT,
+        },
+        dnsResourceResult.error ? 'error' : 'log',
+      )
     }
   },
 } satisfies ExportedHandler<Env>
@@ -175,16 +206,24 @@ async function refreshCatalogsForSchedule(env: Env): Promise<{
     if (!snapshot) return null
     const timestamp = new Date().toISOString()
     const settings = await getAppSettings(env.DB)
-    await ensureDefaultRemoteRuleSets(
-      env.DB,
-      timestamp,
-      settings.unmatchedTrafficPolicy,
-      snapshot,
-    )
+    await ensureDefaultRemoteRuleSets(env.DB, timestamp, settings.unmatchedTrafficPolicy, snapshot)
     return {
       catalogCount: snapshot.catalogs.length,
       ruleSetCount: snapshot.catalogs.reduce((sum, catalog) => sum + catalog.items.length, 0),
     }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function refreshManagedDnsResourcesForSchedule(env: Env): Promise<{
+  domainCount?: number
+  error?: string
+  skipped?: boolean
+}> {
+  try {
+    const domainCount = await refreshManagedDnsResourcesIfDue(env.KV)
+    return domainCount === null ? { skipped: true } : { domainCount }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -220,10 +259,6 @@ async function checkBinding(check: () => Promise<boolean>): Promise<boolean> {
   }
 }
 
-export function logEvent(
-  event: string,
-  fields: Record<string, unknown>,
-  level: 'log' | 'error' = 'log'
-): void {
+export function logEvent(event: string, fields: Record<string, unknown>, level: 'log' | 'error' = 'log'): void {
   console[level](JSON.stringify({ event, timestamp: new Date().toISOString(), ...fields }))
 }

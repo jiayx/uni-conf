@@ -16,6 +16,11 @@ import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
 
 type Row = Record<string, unknown>
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
+type ClientGeneratorOptions = {
+  dnsPolicy?: ExportDnsPolicy
+  managedRealIpDomains?: string[]
+  ruleSetConversionBaseUrl?: string
+}
 
 export function generateStashYaml(
   nodes: ProxyNode[],
@@ -23,7 +28,7 @@ export function generateStashYaml(
   rules: ProxyRule[],
   remoteSets: RemoteRuleSet[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: ClientGeneratorOptions = {},
 ): string {
   return generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, {
     ...options,
@@ -37,7 +42,7 @@ export function generateSurge(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: ClientGeneratorOptions = {},
 ): string {
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines = buildIniConfig({
@@ -48,7 +53,7 @@ export function generateSurge(
     remoteSets,
     collectionNodeNames,
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
-    general: surgeGeneralLines(dnsPolicy),
+    general: surgeGeneralLines(dnsPolicy, options.managedRealIpDomains),
     host: nativeHostDnsLines(dnsPolicy),
   })
   return lines.join('\n')
@@ -60,7 +65,7 @@ export function generateShadowrocket(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: ClientGeneratorOptions = {},
 ): string {
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines = buildIniConfig({
@@ -71,10 +76,10 @@ export function generateShadowrocket(
     remoteSets,
     collectionNodeNames,
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
-    general: shadowrocketGeneralLines(dnsPolicy),
+    general: shadowrocketGeneralLines(dnsPolicy, options.managedRealIpDomains),
     host: shadowrocketHostDnsLines(dnsPolicy),
     remoteSection: '[Remote Rule]',
-    forceRemoteDns: dnsPolicy.resolution.mode === 'split',
+    forceRemoteDns: dnsPolicy.resolutionMode === 'split',
   })
   return lines.join('\n')
 }
@@ -85,7 +90,7 @@ export function generateQuantumultX(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: ClientGeneratorOptions = {},
 ): string {
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const serializedNodes = nodes
@@ -97,18 +102,12 @@ export function generateQuantumultX(
     '[general]',
     `server_check_url=${DEFAULT_HEALTH_CHECK.testUrl}`,
     'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
-    `dns_exclusion_list=${realIpDomains(dnsPolicy).join(', ')}`,
+    `dns_exclusion_list=${realIpDomains(dnsPolicy, options.managedRealIpDomains).join(', ')}`,
     '',
     '[dns]',
-    ...(dnsPolicy.resolution.mode === 'split'
-      ? [
-          'doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query',
-          'server = /*.cn/223.5.5.5',
-        ]
-      : [
-          'server = 223.5.5.5',
-          'server = 119.29.29.29',
-        ]),
+    ...(dnsPolicy.resolutionMode === 'split'
+      ? ['doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query', 'server = /*.cn/223.5.5.5']
+      : ['server = 223.5.5.5', 'server = 119.29.29.29']),
     '',
     '[server_local]',
     ...nodeLines,
@@ -150,19 +149,21 @@ export function generateEgern(
   rules: Row[],
   remoteSets: Row[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: ClientGeneratorOptions = {},
 ): string {
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
-  const proxies = nodes
-    .map(nodeToEgernProxy)
-    .filter((proxy): proxy is Record<string, unknown> => proxy !== null)
+  const proxies = nodes.map(nodeToEgernProxy).filter((proxy): proxy is Record<string, unknown> => proxy !== null)
   const nodeNames = proxies.map(egernEntryName).filter(Boolean)
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
   const remoteRules = sortedRemoteSets
     .filter((rs) => rs['enabled'])
-    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetRowForExport(rs, 'egern', options.ruleSetConversionBaseUrl) }))
-    .filter((item): item is { source: Row; resolved: { url: string; format: string } } =>
-      Boolean(item.resolved) && isRuleSetFormatCompatible('egern', item.resolved!.format)
+    .map((rs) => ({
+      source: rs,
+      resolved: resolveRemoteRuleSetRowForExport(rs, 'egern', options.ruleSetConversionBaseUrl),
+    }))
+    .filter(
+      (item): item is { source: Row; resolved: { url: string; format: string } } =>
+        Boolean(item.resolved) && isRuleSetFormatCompatible('egern', item.resolved!.format),
     )
     .map(({ source: rs, resolved }) => ({
       rule_set: {
@@ -182,17 +183,14 @@ export function generateEgern(
     ipv6: false,
     http_port: 3080,
     socks_port: 3081,
-    real_ip_domains: realIpDomains(dnsPolicy),
+    real_ip_domains: realIpDomains(dnsPolicy, options.managedRealIpDomains),
     hijack_dns: ['*'],
     dns: egernDns(dnsPolicy),
     proxies,
-    policy_groups: exportPolicyGroups(groups)
-      .map((group) => groupToEgern(group, groups, nodeNames, collectionNodeNames)),
-    rules: [
-      ...remoteRules,
-      ...localRules,
-      ...(hasDefaultRule ? [] : [{ default: { policy: defaultPolicy(groups) } }]),
-    ],
+    policy_groups: exportPolicyGroups(groups).map((group) =>
+      groupToEgern(group, groups, nodeNames, collectionNodeNames),
+    ),
+    rules: [...remoteRules, ...localRules, ...(hasDefaultRule ? [] : [{ default: { policy: defaultPolicy(groups) } }])],
   }
 
   return yaml.dump(config, { lineWidth: -1, noRefs: true })
@@ -225,11 +223,7 @@ function buildIniConfig({
 }): string[] {
   const validNodes: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
-  const lines: string[] = [
-    ...general,
-    ...(host && host.length > 0 ? ['[Host]', ...host, ''] : []),
-    '[Proxy]',
-  ]
+  const lines: string[] = [...general, ...(host && host.length > 0 ? ['[Host]', ...host, ''] : []), '[Proxy]']
   for (const node of nodes) {
     const line = nodeToIniProxy(node, client)
     if (line) {
@@ -250,7 +244,9 @@ function buildIniConfig({
       const resolved = resolveRemoteRuleSetRowForExport(rs, client, ruleSetConversionBaseUrl)
       if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
       const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
-      lines.push(`${safeTag(String(rs['name'] ?? 'remote'))} = ${resolved.url}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`)
+      lines.push(
+        `${safeTag(String(rs['name'] ?? 'remote'))} = ${resolved.url}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`,
+      )
     }
   }
 
@@ -260,9 +256,7 @@ function buildIniConfig({
     const resolved = resolveRemoteRuleSetRowForExport(rs, client, ruleSetConversionBaseUrl)
     if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
-    const source = client === 'surge'
-      ? resolved.url
-      : safeTag(String(rs['name'] ?? 'remote'))
+    const source = client === 'surge' ? resolved.url : safeTag(String(rs['name'] ?? 'remote'))
     lines.push(`RULE-SET,${source},${target}`)
   }
   for (const rule of rules) {
@@ -278,15 +272,15 @@ function buildIniConfig({
   return lines
 }
 
-function surgeGeneralLines(policy: ExportDnsPolicy): string[] {
+function surgeGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): string[] {
   return [
     '[General]',
     'loglevel = notify',
     'dns-server = 223.5.5.5, 119.29.29.29',
-    ...(policy.resolution.mode === 'split'
+    ...(policy.resolutionMode === 'split'
       ? ['encrypted-dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query']
       : []),
-    `always-real-ip = ${realIpDomains(policy).join(', ')}`,
+    `always-real-ip = ${realIpDomains(policy, managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
     `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
@@ -295,14 +289,14 @@ function surgeGeneralLines(policy: ExportDnsPolicy): string[] {
   ]
 }
 
-function shadowrocketGeneralLines(policy: ExportDnsPolicy): string[] {
+function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): string[] {
   return [
     '[General]',
     'bypass-system = true',
-    policy.resolution.mode === 'split'
+    policy.resolutionMode === 'split'
       ? 'dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query'
       : 'dns-server = system, 223.5.5.5, 119.29.29.29',
-    `always-real-ip = ${realIpDomains(policy).join(', ')}`,
+    `always-real-ip = ${realIpDomains(policy, managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'skip-proxy = 127.0.0.1, localhost, *.local',
     '',
@@ -310,20 +304,17 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy): string[] {
 }
 
 function shadowrocketHostDnsLines(policy: ExportDnsPolicy): string[] {
-  if (policy.resolution.mode !== 'split') return []
+  if (policy.resolutionMode !== 'split') return []
   return ['*.cn = server:223.5.5.5']
 }
 
 function nativeHostDnsLines(policy: ExportDnsPolicy): string[] {
-  if (policy.resolution.mode !== 'split') return []
-  return [
-    '*.cn = server:223.5.5.5,119.29.29.29',
-    '* = server:https://1.1.1.1/dns-query,https://8.8.8.8/dns-query',
-  ]
+  if (policy.resolutionMode !== 'split') return []
+  return ['*.cn = server:223.5.5.5,119.29.29.29', '* = server:https://1.1.1.1/dns-query,https://8.8.8.8/dns-query']
 }
 
 function egernDns(policy: ExportDnsPolicy): Record<string, unknown> {
-  if (policy.resolution.mode === 'single') {
+  if (policy.resolutionMode === 'single') {
     return {
       bootstrap: ['system', '223.5.5.5'],
     }
@@ -331,10 +322,7 @@ function egernDns(policy: ExportDnsPolicy): Record<string, unknown> {
   return {
     bootstrap: ['system', '223.5.5.5'],
     upstreams: {
-      global: [
-        'https://1.1.1.1/dns-query',
-        'https://8.8.8.8/dns-query',
-      ],
+      global: ['https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'],
     },
     forward: [
       {
@@ -355,9 +343,7 @@ function egernDns(policy: ExportDnsPolicy): Record<string, unknown> {
 }
 
 function nodeToIniProxy(node: Row, client: 'surge' | 'shadowrocket'): string | null {
-  return client === 'surge'
-    ? nodeToSurgeProxy(node)
-    : nodeToShadowrocketProxy(node)
+  return client === 'surge' ? nodeToSurgeProxy(node) : nodeToShadowrocketProxy(node)
 }
 
 function nodeToSurgeProxy(node: Row): string | null {
@@ -384,10 +370,7 @@ function nodeToSurgeProxy(node: Row): string | null {
     return `${prefix}, ${fields.join(', ')}`
   }
   if (protocol === 'vmess') {
-    const fields = [
-      `username=${String(parsed['uuid'] ?? '')}`,
-      ...surgeWebSocketFields(parsed),
-    ]
+    const fields = [`username=${String(parsed['uuid'] ?? '')}`, ...surgeWebSocketFields(parsed)]
     if (parsed['tls']) fields.push('tls=true', ...surgeTlsFields(parsed, extra))
     const method = String(extra['cipher'] ?? '')
     if (['chacha20-ietf-poly1305', 'aes-128-gcm'].includes(method)) {
@@ -411,10 +394,7 @@ function nodeToSurgeProxy(node: Row): string | null {
     ].join(', ')}`
   }
   if (protocol === 'hysteria2') {
-    const fields = [
-      `password=${password || String(extra['auth'] ?? '')}`,
-      ...surgeTlsFields(parsed, extra),
-    ]
+    const fields = [`password=${password || String(extra['auth'] ?? '')}`, ...surgeTlsFields(parsed, extra)]
     if (extra['downMbps']) fields.push(`download-bandwidth=${Number(extra['downMbps'])}`)
     if (extra['obfs'] === 'salamander' && extra['obfsPassword']) {
       fields.push(`salamander-password=${String(extra['obfsPassword'])}`)
@@ -521,16 +501,9 @@ function nodeToQuantumultX(node: Row): string | null {
 
   if (protocol === 'ss' || protocol === 'ssr') {
     const method = String(extra['cipher'] ?? extra['method'] ?? 'aes-256-gcm')
-    const fields = [
-      `shadowsocks=${endpoint}`,
-      `method=${method}`,
-      `password=${password}`,
-    ]
+    const fields = [`shadowsocks=${endpoint}`, `method=${method}`, `password=${password}`]
     if (protocol === 'ssr') {
-      fields.push(
-        `ssr-protocol=${String(extra['protocol'] ?? 'origin')}`,
-        `obfs=${String(extra['obfs'] ?? 'plain')}`,
-      )
+      fields.push(`ssr-protocol=${String(extra['protocol'] ?? 'origin')}`, `obfs=${String(extra['obfs'] ?? 'plain')}`)
       if (extra['protocolParam']) fields.push(`ssr-protocol-param=${String(extra['protocolParam'])}`)
       if (extra['obfsParam']) fields.push(`obfs-host=${String(extra['obfsParam'])}`)
     }
@@ -561,9 +534,7 @@ function nodeToQuantumultX(node: Row): string | null {
   }
 
   if (protocol === 'http' || protocol === 'https' || protocol === 'socks5') {
-    const fields = [
-      `${protocol === 'socks5' ? 'socks5' : 'http'}=${endpoint}`,
-    ]
+    const fields = [`${protocol === 'socks5' ? 'socks5' : 'http'}=${endpoint}`]
     if (username) fields.push(`username=${username}`)
     if (password) fields.push(`password=${password}`)
     if (protocol === 'https' || parsed['tls']) {
@@ -576,10 +547,7 @@ function nodeToQuantumultX(node: Row): string | null {
   return null
 }
 
-function quantumultXTransportFields(
-  parsed: Row,
-  extra: Row
-): string[] {
+function quantumultXTransportFields(parsed: Row, extra: Row): string[] {
   const network = String(parsed['network'] ?? 'tcp')
   const tls = Boolean(parsed['tls'])
   const fields: string[] = []
@@ -629,13 +597,15 @@ function groupToIni(
   group: Row,
   groups: Row[],
   nodeNames: string[],
-  collectionNodeNames: Record<string, string[]>
+  collectionNodeNames: Record<string, string[]>,
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
   const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames)
-  if (type === 'url-test') return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
-  if (type === 'fallback') return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+  if (type === 'url-test')
+    return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+  if (type === 'fallback')
+    return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   if (type === 'load-balance') return `${name} = load-balance, ${members.join(', ')}`
   return `${name} = select, ${members.join(', ')}`
 }
@@ -644,13 +614,15 @@ function groupToQuantumultX(
   group: Row,
   groups: Row[],
   nodeNames: string[],
-  collectionNodeNames: Record<string, string[]>
+  collectionNodeNames: Record<string, string[]>,
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
   const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames).join(',')
-  if (type === 'url-test') return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
-  if (type === 'fallback') return `fallback=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+  if (type === 'url-test')
+    return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+  if (type === 'fallback')
+    return `fallback=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   return `static=${name}, ${members}`
 }
 
@@ -658,14 +630,10 @@ function groupToEgern(
   group: Row,
   groups: Row[],
   nodeNames: string[],
-  collectionNodeNames: Record<string, string[]>
+  collectionNodeNames: Record<string, string[]>,
 ): Record<string, unknown> {
   const type = String(group['type'] ?? 'select')
-  const nativeType = type === 'url-test'
-    ? 'auto_test'
-    : type === 'load-balance'
-      ? 'load_balance'
-      : type
+  const nativeType = type === 'url-test' ? 'auto_test' : type === 'load-balance' ? 'load_balance' : type
   const body: Record<string, unknown> = {
     name: String(group['name'] ?? ''),
     policies: collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames),
@@ -682,28 +650,24 @@ function groupToEgern(
   }
 }
 
-function ruleToIni(
-  rule: Row,
-  groups: Row[],
-  client: 'surge' | 'shadowrocket',
-  forceRemoteDns = false,
-): string | null {
+function ruleToIni(rule: Row, groups: Row[], client: 'surge' | 'shadowrocket', forceRemoteDns = false): string | null {
   const type = String(rule['type'] ?? '')
   const payload = String(rule['payload'] ?? '')
   const targetGroupId = String(rule['target_group_id'] ?? '')
   const target = resolveGroupName(targetGroupId, groups)
-  const noResolve = rule['no_resolve']
-    && getRuleNoResolveHandling(type as RuleCompatibilityType, client) === 'native'
-    ? ',no-resolve'
-    : ''
+  const noResolve =
+    rule['no_resolve'] && getRuleNoResolveHandling(type as RuleCompatibilityType, client) === 'native'
+      ? ',no-resolve'
+      : ''
   if (type === 'MATCH') return `FINAL,${target}`
   const resolution = resolveRuleForExport(type as RuleCompatibilityType, payload, client)
   if (resolution.level === 'unsupported') return null
-  const targetGroupType = String(groups.find(group => String(group['id']) === targetGroupId)?.['type'] ?? '')
-  const remoteDns = forceRemoteDns
-    && client === 'shadowrocket'
-    && ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX'].includes(resolution.type)
-    && !['direct', 'reject'].includes(targetGroupType)
+  const targetGroupType = String(groups.find((group) => String(group['id']) === targetGroupId)?.['type'] ?? '')
+  const remoteDns =
+    forceRemoteDns &&
+    client === 'shadowrocket' &&
+    ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX'].includes(resolution.type) &&
+    !['direct', 'reject'].includes(targetGroupType)
       ? ',force-remote-dns'
       : ''
   return `${resolution.type},${resolution.payload},${target}${noResolve}${remoteDns}`
@@ -714,11 +678,7 @@ function ruleToQuantumultX(rule: Row, groups: Row[]): string | null {
   const payload = String(rule['payload'] ?? '')
   const target = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
   if (type === 'MATCH') return `FINAL,${target}`
-  const resolution = resolveRuleForExport(
-    type as RuleCompatibilityType,
-    payload,
-    'quantumultx',
-  )
+  const resolution = resolveRuleForExport(type as RuleCompatibilityType, payload, 'quantumultx')
   if (resolution.level === 'unsupported') return null
   return `${resolution.type},${resolution.payload},${target}`
 }
@@ -727,11 +687,7 @@ function ruleToEgern(rule: Row, groups: Row[]): Record<string, unknown> | null {
   const sourceType = String(rule['type'] ?? '')
   const sourcePayload = String(rule['payload'] ?? '')
   const policy = resolveGroupName(String(rule['target_group_id'] ?? ''), groups)
-  const resolution = resolveRuleForExport(
-    sourceType as RuleCompatibilityType,
-    sourcePayload,
-    'egern',
-  )
+  const resolution = resolveRuleForExport(sourceType as RuleCompatibilityType, sourcePayload, 'egern')
   if (resolution.level === 'unsupported') return null
   const type = resolution.type
   const payload = resolution.payload
@@ -816,12 +772,13 @@ function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
     }
   }
   if (protocol === 'trojan') {
-    const websocket = String(parsed['network'] ?? 'tcp') === 'ws'
-      ? compactObject({
-          path: parsed['wsPath'] ?? extra['wsPath'] ?? '/',
-          host: egernWebSocketHost(parsed),
-        })
-      : undefined
+    const websocket =
+      String(parsed['network'] ?? 'tcp') === 'ws'
+        ? compactObject({
+            path: parsed['wsPath'] ?? extra['wsPath'] ?? '/',
+            host: egernWebSocketHost(parsed),
+          })
+        : undefined
     return {
       trojan: compactObject({
         ...common,
@@ -956,9 +913,7 @@ function egernVmessTransport(parsed: Row, extra: Row): Record<string, unknown> |
     return {
       [tls ? 'wss' : 'ws']: compactObject({
         path: parsed['wsPath'] ?? extra['wsPath'] ?? '/',
-        headers: Object.keys(asRecord(parsed['wsHeaders'])).length > 0
-          ? asRecord(parsed['wsHeaders'])
-          : undefined,
+        headers: Object.keys(asRecord(parsed['wsHeaders'])).length > 0 ? asRecord(parsed['wsHeaders']) : undefined,
         ...tlsFields,
       }),
     }
@@ -968,9 +923,7 @@ function egernVmessTransport(parsed: Row, extra: Row): Record<string, unknown> |
       [network === 'http' ? 'http1' : 'http2']: compactObject({
         method: extra['httpMethod'] ?? 'GET',
         path: parsed['wsPath'] ?? extra['wsPath'] ?? '/',
-        headers: Object.keys(asRecord(parsed['wsHeaders'])).length > 0
-          ? asRecord(parsed['wsHeaders'])
-          : undefined,
+        headers: Object.keys(asRecord(parsed['wsHeaders'])).length > 0 ? asRecord(parsed['wsHeaders']) : undefined,
         ...(network === 'h2' ? tlsFields : {}),
       }),
     }
@@ -1004,21 +957,19 @@ function egernWebSocketHost(parsed: Row): string | undefined {
 
 function normalizeEgernVmessSecurity(value: unknown): string {
   const security = String(value ?? 'auto')
-  return ['auto', 'aes-128-gcm', 'chacha20-poly1305', 'none', 'zero'].includes(security)
-    ? security
-    : 'auto'
+  return ['auto', 'aes-128-gcm', 'chacha20-poly1305', 'none', 'zero'].includes(security) ? security : 'auto'
 }
 
 function normalizeEgernReserved(value: unknown): number[] | undefined {
   if (Array.isArray(value)) {
     const bytes = value.map(Number)
-    return bytes.length === 3 && bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+    return bytes.length === 3 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
       ? bytes
       : undefined
   }
   if (typeof value === 'string') {
-    const bytes = value.split(',').map(item => Number(item.trim()))
-    return bytes.length === 3 && bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+    const bytes = value.split(',').map((item) => Number(item.trim()))
+    return bytes.length === 3 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
       ? bytes
       : undefined
   }
@@ -1030,14 +981,12 @@ function optionalBoolean(value: unknown): boolean | undefined {
 }
 
 function compactObject<T extends Record<string, unknown>>(value: T): T {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== undefined)
-  ) as T
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T
 }
 
 function resolveGroupName(groupId: string, groups: Row[]): string {
   const group = groups.find((item) => String(item['id']) === groupId)
-  return group ? nativePolicyName(group) : (groupId || defaultPolicy(groups))
+  return group ? nativePolicyName(group) : groupId || defaultPolicy(groups)
 }
 
 function exportPolicyGroups(groups: Row[]): Row[] {
@@ -1048,7 +997,7 @@ function collectClientGroupMembers(
   group: Row,
   groups: Row[],
   nodeNames: string[],
-  collectionNodeNames: Record<string, string[]>
+  collectionNodeNames: Record<string, string[]>,
 ): string[] {
   return collectGroupMembers(group, groups, nodeNames, collectionNodeNames, nativePolicyName)
 }
@@ -1065,7 +1014,7 @@ function isNativeOutletGroup(group: Row): boolean {
 }
 
 function defaultPolicy(groups: Row[]): string {
-  const group = groups.find(item => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
+  const group = groups.find((item) => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
   return group ? nativePolicyName(group) : 'DIRECT'
 }
 
@@ -1074,19 +1023,24 @@ function hasEnabledMatchRule(rules: Row[]): boolean {
 }
 
 function sortRemoteRuleSetRows(remoteSets: Row[]): Row[] {
-  return [...remoteSets].sort((a, b) =>
-    Number(a['sort_order'] ?? 500) - Number(b['sort_order'] ?? 500)
-    || String(a['created_at'] ?? '').localeCompare(String(b['created_at'] ?? ''))
+  return [...remoteSets].sort(
+    (a, b) =>
+      Number(a['sort_order'] ?? 500) - Number(b['sort_order'] ?? 500) ||
+      String(a['created_at'] ?? '').localeCompare(String(b['created_at'] ?? '')),
   )
 }
 
 function safeJson(value: unknown): Record<string, unknown> {
   if (typeof value !== 'string') return {}
-  try { return JSON.parse(value) as Record<string, unknown> } catch { return {} }
+  try {
+    return JSON.parse(value) as Record<string, unknown>
+  } catch {
+    return {}
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 }
 
 function safeTag(name: string): string {

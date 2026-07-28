@@ -2,9 +2,6 @@ import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
 import { resolveRuleSetRuleForTarget } from '@uni-conf/rule-set/rule-compatibility';
 import type {
   AutoNodeGroupType,
-  DnsAddressMode,
-  DnsResolutionMode,
-  ExportDnsPolicy,
   ExportFormat,
   NormalizedProxyConfig,
   ProxyProtocol,
@@ -37,7 +34,11 @@ export const MAX_RULE_BATCH_SELECTION = 500;
 export const MAX_SOURCE_CONTENT_BYTES = 4 * 1024 * 1024;
 export const MAX_BACKUP_FILE_BYTES = 25 * 1024 * 1024;
 
-export const AUTO_NODE_GROUP_TYPE_ORDER = ['select', 'url-test', 'fallback'] as const satisfies readonly AutoNodeGroupType[];
+export const AUTO_NODE_GROUP_TYPE_ORDER = [
+  'select',
+  'url-test',
+  'fallback',
+] as const satisfies readonly AutoNodeGroupType[];
 
 export const AUTO_NODE_TAG_GROUPS = [
   {
@@ -74,7 +75,10 @@ export function makeTagAutoNodeGroupKey(tagKey: string, type: AutoNodeGroupType)
   return `tag:${tagKey}:${type}`;
 }
 
-export function makeCountryAutoNodeGroupMarker(countryCode: string, type: AutoNodeGroupType): { key: string; text: string } {
+export function makeCountryAutoNodeGroupMarker(
+  countryCode: string,
+  type: AutoNodeGroupType
+): { key: string; text: string } {
   const key = makeCountryAutoNodeGroupKey(countryCode, type);
   return { key, text: `${AUTO_NODE_GROUP_PREFIX} ${key}` };
 }
@@ -132,7 +136,7 @@ export const DEFAULT_HEALTH_CHECK = {
   lazy: true,
 } as const;
 
-export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60;
+export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 240;
 
 export const DEFAULT_PROXY_PORTS: Partial<Record<ProxyProtocol, number>> = {
   anytls: 443,
@@ -226,10 +230,7 @@ export function parseProxyUrlParts(
   }
 }
 
-function parseProxyHostPort(
-  hostPort: string,
-  protocol: ProxyProtocol
-): { server: string; port: number } | null {
+function parseProxyHostPort(hostPort: string, protocol: ProxyProtocol): { server: string; port: number } | null {
   let server: string;
   let port = DEFAULT_PROXY_PORTS[protocol] ?? 0;
 
@@ -290,11 +291,13 @@ export function buildStructuredProxyConfig(
     protocol,
     server,
     port,
-    password: protocol === 'hysteria'
-      ? asConfigString(extra.password) ?? asConfigString(extra.auth)
-      : asConfigString(extra.password),
+    password:
+      protocol === 'hysteria'
+        ? (asConfigString(extra.password) ?? asConfigString(extra.auth))
+        : asConfigString(extra.password),
     uuid: asConfigString(extra.uuid),
-    tls: IMPLICIT_TLS_PROXY_PROTOCOL_SET.has(protocol) ||
+    tls:
+      IMPLICIT_TLS_PROXY_PROTOCOL_SET.has(protocol) ||
       asConfigBoolean(extra.tls) ||
       extra.security === 'tls' ||
       extra.security === 'reality',
@@ -319,11 +322,24 @@ function normalizeProxyExtra(rawConfig: Record<string, unknown>): Record<string,
   assignAlias(extra, 'alterId', rawConfig.aid);
   assignAlias(extra, 'cipher', rawConfig.scy);
   assignAlias(extra, 'clientFingerprint', rawConfig['client-fingerprint'], rawConfig.fingerprint, rawConfig.fp);
-  assignAlias(extra, 'publicKey', rawConfig['public-key'], rawConfig.publicKey, rawConfig['peer-public-key'], rawConfig.pbk);
+  assignAlias(
+    extra,
+    'publicKey',
+    rawConfig['public-key'],
+    rawConfig.publicKey,
+    rawConfig['peer-public-key'],
+    rawConfig.pbk
+  );
   assignAlias(extra, 'shortId', rawConfig['short-id'], rawConfig.shortId, rawConfig.sid);
   assignAlias(extra, 'presharedKey', rawConfig['pre-shared-key'], rawConfig.presharedKey);
   assignAlias(extra, 'obfsPassword', rawConfig['obfs-password'], rawConfig.obfsPassword);
-  assignAlias(extra, 'congestionControl', rawConfig['congestion-controller'], rawConfig.congestion_control, rawConfig.congestionControl);
+  assignAlias(
+    extra,
+    'congestionControl',
+    rawConfig['congestion-controller'],
+    rawConfig.congestion_control,
+    rawConfig.congestionControl
+  );
   return extra;
 }
 
@@ -415,11 +431,7 @@ export const GLOBAL_NODE_OUTLET_GROUP_IDS = [
   'builtin-fallback-select',
 ] as const;
 
-export const RULE_TARGET_FOUNDATION_GROUP_IDS = [
-  'builtin-proxy',
-  'builtin-direct',
-  'builtin-reject',
-] as const;
+export const RULE_TARGET_FOUNDATION_GROUP_IDS = ['builtin-proxy', 'builtin-direct', 'builtin-reject'] as const;
 
 export const DEFAULT_RULE_TARGET_GROUP_ID = RULE_TARGET_FOUNDATION_GROUP_IDS[0];
 
@@ -585,27 +597,230 @@ export function getExportFormatFromSubscriptionFilename(filename: string): Expor
   return EXPORT_FORMAT_BY_FILENAME[filename] ?? null;
 }
 
-export const RULE_COMPATIBILITY: Record<RuleCompatibilityType, Partial<Record<ExportFormat, RuleCompatibilityLevel>>> = {
-  'DOMAIN': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-SUFFIX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-KEYWORD': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'DOMAIN-REGEX': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'partial', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
-  'IP-CIDR': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'IP-CIDR6': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'IP-ASN': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'full', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
-  'GEOIP': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
-  'GEOSITE': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'PROCESS-NAME': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'PROCESS-PATH': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
-  'PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
-  'SRC-PORT': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'SRC-IP-CIDR': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'unsupported' },
-  'PROTOCOL': { mihomo: 'partial', clash: 'partial', singbox: 'partial', loon: 'partial', surge: 'full', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'full' },
-  'NETWORK': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'partial', surge: 'partial', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
-  'IN-TYPE': { mihomo: 'full', clash: 'full', singbox: 'unsupported', loon: 'unsupported', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'unsupported', egern: 'unsupported' },
-  'RULE-SET': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'unsupported', surge: 'full', shadowrocket: 'partial', quantumultx: 'unsupported', stash: 'full', egern: 'full' },
-  'SCRIPT': { mihomo: 'partial', clash: 'partial', singbox: 'unsupported', loon: 'partial', surge: 'unsupported', shadowrocket: 'unsupported', quantumultx: 'unsupported', stash: 'partial', egern: 'unsupported' },
-  'MATCH': { mihomo: 'full', clash: 'full', singbox: 'full', loon: 'full', surge: 'full', shadowrocket: 'full', quantumultx: 'full', stash: 'full', egern: 'full' },
+export const RULE_COMPATIBILITY: Record<
+  RuleCompatibilityType,
+  Partial<Record<ExportFormat, RuleCompatibilityLevel>>
+> = {
+  DOMAIN: {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
+  'DOMAIN-SUFFIX': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
+  'DOMAIN-KEYWORD': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
+  'DOMAIN-REGEX': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'unsupported',
+    surge: 'partial',
+    shadowrocket: 'partial',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'full',
+  },
+  'IP-CIDR': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
+  'IP-CIDR6': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
+  'IP-ASN': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'unsupported',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'partial',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'full',
+  },
+  GEOIP: {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
+  GEOSITE: {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'partial',
+    surge: 'partial',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'unsupported',
+  },
+  'PROCESS-NAME': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'partial',
+    surge: 'full',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'unsupported',
+  },
+  'PROCESS-PATH': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'unsupported',
+    surge: 'full',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'partial',
+    egern: 'unsupported',
+  },
+  PORT: {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'full',
+  },
+  'SRC-PORT': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'unsupported',
+  },
+  'SRC-IP-CIDR': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'unsupported',
+    surge: 'full',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'unsupported',
+  },
+  PROTOCOL: {
+    mihomo: 'partial',
+    clash: 'partial',
+    singbox: 'partial',
+    loon: 'partial',
+    surge: 'full',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'partial',
+    egern: 'full',
+  },
+  NETWORK: {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'partial',
+    surge: 'partial',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'full',
+  },
+  'IN-TYPE': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'unsupported',
+    loon: 'unsupported',
+    surge: 'unsupported',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'unsupported',
+    egern: 'unsupported',
+  },
+  'RULE-SET': {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'unsupported',
+    surge: 'full',
+    shadowrocket: 'partial',
+    quantumultx: 'unsupported',
+    stash: 'full',
+    egern: 'full',
+  },
+  SCRIPT: {
+    mihomo: 'partial',
+    clash: 'partial',
+    singbox: 'unsupported',
+    loon: 'partial',
+    surge: 'unsupported',
+    shadowrocket: 'unsupported',
+    quantumultx: 'unsupported',
+    stash: 'partial',
+    egern: 'unsupported',
+  },
+  MATCH: {
+    mihomo: 'full',
+    clash: 'full',
+    singbox: 'full',
+    loon: 'full',
+    surge: 'full',
+    shadowrocket: 'full',
+    quantumultx: 'full',
+    stash: 'full',
+    egern: 'full',
+  },
 };
 
 export function getRuleCompatibilityLevel(
@@ -626,10 +841,7 @@ export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
 }
 
 export type RuleExportCompatibilityReason =
-  | 'protocol-to-network'
-  | 'network-to-protocol'
-  | 'target-rule-spelling'
-  | 'unsupported-rule-value';
+  'protocol-to-network' | 'network-to-protocol' | 'target-rule-spelling' | 'unsupported-rule-value';
 
 export interface RuleExportResolution {
   level: RuleCompatibilityLevel;
@@ -643,11 +855,7 @@ export interface RuleExportResolution {
  * Type-only matrices cannot express cases such as Surge PROTOCOL versus
  * Mihomo NETWORK, or sing-box network values versus sniffed protocols.
  */
-export function resolveRuleForExport(
-  type: RuleType,
-  payload: string,
-  format: ExportFormat
-): RuleExportResolution {
+export function resolveRuleForExport(type: RuleType, payload: string, format: ExportFormat): RuleExportResolution {
   if ((type === 'NETWORK' || type === 'PROTOCOL') && isFullConfigExportFormat(format)) {
     return resolveRuleSetRuleForTarget(type, payload, format);
   }
@@ -739,10 +947,7 @@ export function getRuleCompatibilityForPayload(
 
 export type RuleNoResolveHandling = 'native' | 'implicit' | 'omit';
 
-export function getRuleNoResolveHandling(
-  type: RuleType,
-  format: ExportFormat
-): RuleNoResolveHandling {
+export function getRuleNoResolveHandling(type: RuleType, format: ExportFormat): RuleNoResolveHandling {
   if (!['IP-CIDR', 'IP-CIDR6', 'IP-ASN', 'GEOIP'].includes(type)) {
     return 'omit';
   }
@@ -767,22 +972,16 @@ export type RulePayloadValidationCode =
   | 'invalid-token';
 
 export type RulePayloadValidationResult =
-  | { valid: true; payload: string }
-  | { valid: false; code: RulePayloadValidationCode; message: string };
+  { valid: true; payload: string } | { valid: false; code: RulePayloadValidationCode; message: string };
 
-export type RulePortPayload =
-  | { kind: 'single'; port: number }
-  | { kind: 'range'; range: string };
+export type RulePortPayload = { kind: 'single'; port: number } | { kind: 'range'; range: string };
 
 /**
  * Validates the semantics that UniConf's manual-rule exporters rely on and
  * returns the canonical payload stored in D1. Keep this runtime-neutral so the
  * browser preview and Worker write paths cannot drift.
  */
-export function validateAndNormalizeRulePayload(
-  type: RuleType,
-  value: unknown
-): RulePayloadValidationResult {
+export function validateAndNormalizeRulePayload(type: RuleType, value: unknown): RulePayloadValidationResult {
   if (type === 'MATCH') return { valid: true, payload: '' };
   const payload = typeof value === 'string' ? value.trim() : '';
   if (!payload) {
@@ -793,7 +992,11 @@ export function validateAndNormalizeRulePayload(
     try {
       new RegExp(payload);
     } catch {
-      return { valid: false, code: 'invalid-domain-regex', message: 'payload must be a valid domain regular expression' };
+      return {
+        valid: false,
+        code: 'invalid-domain-regex',
+        message: 'payload must be a valid domain regular expression',
+      };
     }
   }
 
@@ -804,7 +1007,11 @@ export function validateAndNormalizeRulePayload(
     return { valid: false, code: 'invalid-ipv6-cidr', message: 'payload must be a valid IPv6 CIDR' };
   }
   if (type === 'SRC-IP-CIDR' && !isIpv4Cidr(payload) && !isIpv6Cidr(payload)) {
-    return { valid: false, code: 'invalid-ip-cidr', message: 'payload must be a valid IPv4 or IPv6 CIDR' };
+    return {
+      valid: false,
+      code: 'invalid-ip-cidr',
+      message: 'payload must be a valid IPv4 or IPv6 CIDR',
+    };
   }
 
   if (type === 'PORT' || type === 'SRC-PORT') {
@@ -826,7 +1033,11 @@ export function validateAndNormalizeRulePayload(
     const match = /^(?:AS)?(\d+)$/i.exec(payload);
     const asn = match ? Number(match[1]) : Number.NaN;
     if (!Number.isSafeInteger(asn) || asn < 1 || asn > 4_294_967_295) {
-      return { valid: false, code: 'invalid-asn', message: 'payload must be an ASN from 1 to 4294967295' };
+      return {
+        valid: false,
+        code: 'invalid-asn',
+        message: 'payload must be an ASN from 1 to 4294967295',
+      };
     }
     return { valid: true, payload: String(asn) };
   }
@@ -864,9 +1075,7 @@ export function parseRulePortPayload(value: string): RulePortPayload | null {
   if (!range) return null;
   const start = Number(range[1]);
   const end = Number(range[2]);
-  return isValidPort(start) && isValidPort(end) && start <= end
-    ? { kind: 'range', range: `${start}:${end}` }
-    : null;
+  return isValidPort(start) && isValidPort(end) && start <= end ? { kind: 'range', range: `${start}:${end}` } : null;
 }
 
 function isValidPort(value: number): boolean {
@@ -878,21 +1087,20 @@ function isIpv4Cidr(value: string): boolean {
   if (!match) return false;
   const prefix = Number(match[2]);
   const octets = match[1]!.split('.');
-  return Number.isInteger(prefix)
-    && prefix >= 0
-    && prefix <= 32
-    && octets.length === 4
-    && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
+  return (
+    Number.isInteger(prefix) &&
+    prefix >= 0 &&
+    prefix <= 32 &&
+    octets.length === 4 &&
+    octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255)
+  );
 }
 
 function isIpv6Cidr(value: string): boolean {
   const match = /^([^/]+)\/(\d+)$/.exec(value);
   if (!match) return false;
   const prefix = Number(match[2]);
-  return Number.isInteger(prefix)
-    && prefix >= 0
-    && prefix <= 128
-    && isIpv6Address(match[1]!);
+  return Number.isInteger(prefix) && prefix >= 0 && prefix <= 128 && isIpv6Address(match[1]!);
 }
 
 function isIpv6Address(value: string): boolean {
@@ -917,22 +1125,37 @@ function isIpv6Address(value: string): boolean {
 
 function isIpv4Address(value: string): boolean {
   const octets = value.split('.');
-  return octets.length === 4
-    && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
+  return octets.length === 4 && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255);
 }
 
-export type DnsEngine =
-  | 'enhanced-mode'
-  | 'dns-server-graph'
-  | 'native-fake-ip'
-  | 'none';
+export type DnsEngine = 'enhanced-mode' | 'dns-server-graph' | 'native-fake-ip' | 'none';
+export const MAX_DNS_REAL_IP_DOMAINS = 256;
+
+export function normalizeDnsRealIpDomain(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase().replace(/^\+\./, '*.');
+  if (!normalized || normalized.length > 253) return undefined;
+  const labels = normalized.split('.');
+  if (
+    labels.some((label) =>
+      !label
+      || label.length > 63
+      || !/^(?:\*|[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)$/i.test(label))
+  ) {
+    return undefined;
+  }
+  return normalized;
+}
+
+export function normalizeDnsRealIpDomainList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length > MAX_DNS_REAL_IP_DOMAINS) return undefined;
+  const normalized = value.map(normalizeDnsRealIpDomain);
+  if (normalized.some((domain) => domain === undefined)) return undefined;
+  return [...new Set(normalized as string[])];
+}
 
 export interface ExportDnsCapabilities {
   engine: DnsEngine;
-  addressModes: readonly DnsAddressMode[];
-  addressModeControl: 'selectable' | 'native' | 'none';
-  supportsRealIpExceptions: boolean;
-  resolutionModes: readonly DnsResolutionMode[];
 }
 
 export interface ExportClientCapabilities {
@@ -943,42 +1166,115 @@ export interface ExportClientCapabilities {
 }
 
 export const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
-export const EXPORT_CAPABILITY_PROFILE_REVISION = 19;
+export const EXPORT_CAPABILITY_PROFILE_REVISION = 21;
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
-  'tuic', 'anytls', 'socks5', 'http', 'https',
+  'ss',
+  'ssr',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
 ] as const satisfies readonly ProxyProtocol[];
 
 const SINGBOX_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
-  'tuic', 'anytls', 'shadowtls', 'ssh', 'socks5', 'http', 'https', 'wireguard',
+  'ss',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'shadowtls',
+  'ssh',
+  'socks5',
+  'http',
+  'https',
+  'wireguard',
 ] as const satisfies readonly ProxyProtocol[];
 
 const TEXT_CLIENT_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'vmess', 'trojan', 'anytls', 'socks5', 'http', 'https',
+  'ss',
+  'vmess',
+  'trojan',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
 ] as const satisfies readonly ProxyProtocol[];
 
 const SURGE_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'vmess', 'trojan', 'hysteria2', 'anytls', 'socks5', 'http', 'https',
+  'ss',
+  'vmess',
+  'trojan',
+  'hysteria2',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
 ] as const satisfies readonly ProxyProtocol[];
 
 const LOON_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria2', 'http', 'https',
+  'ss',
+  'ssr',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria2',
+  'http',
+  'https',
 ] as const satisfies readonly ProxyProtocol[];
 
 const QUANTUMULT_X_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'anytls', 'socks5', 'http', 'https',
+  'ss',
+  'ssr',
+  'vmess',
+  'vless',
+  'trojan',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
 ] as const satisfies readonly ProxyProtocol[];
 
 const EGERN_EXPORT_NODE_PROTOCOLS = [
-  'ss', 'vmess', 'vless', 'trojan', 'hysteria2', 'tuic', 'anytls',
-  'socks5', 'http', 'https', 'ssh', 'wireguard',
+  'ss',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
+  'ssh',
+  'wireguard',
 ] as const satisfies readonly ProxyProtocol[];
 
 const NODE_SUBSCRIPTION_PROTOCOLS = [
-  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2',
-  'tuic', 'anytls', 'shadowtls', 'ssh', 'socks5', 'http', 'https', 'wireguard',
+  'ss',
+  'ssr',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'shadowtls',
+  'ssh',
+  'socks5',
+  'http',
+  'https',
+  'wireguard',
 ] as const satisfies readonly ProxyProtocol[];
 
 /**
@@ -994,10 +1290,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['mihomo', 'mrs', 'clash', 'stash', 'text'],
     dns: {
       engine: 'enhanced-mode',
-      addressModes: ['fake-ip', 'real-ip'],
-      addressModeControl: 'selectable',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   clash: {
@@ -1006,10 +1298,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
     dns: {
       engine: 'enhanced-mode',
-      addressModes: ['fake-ip', 'real-ip'],
-      addressModeControl: 'selectable',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   singbox: {
@@ -1018,10 +1306,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['singbox'],
     dns: {
       engine: 'dns-server-graph',
-      addressModes: ['fake-ip', 'real-ip'],
-      addressModeControl: 'selectable',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   loon: {
@@ -1030,10 +1314,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['loon', 'surge', 'shadowrocket', 'text'],
     dns: {
       engine: 'native-fake-ip',
-      addressModes: ['fake-ip'],
-      addressModeControl: 'native',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   surge: {
@@ -1042,10 +1322,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['surge', 'text'],
     dns: {
       engine: 'native-fake-ip',
-      addressModes: ['fake-ip'],
-      addressModeControl: 'native',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   shadowrocket: {
@@ -1054,10 +1330,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['shadowrocket', 'surge', 'text'],
     dns: {
       engine: 'native-fake-ip',
-      addressModes: ['fake-ip'],
-      addressModeControl: 'native',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   quantumultx: {
@@ -1066,10 +1338,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['quantumultx', 'text'],
     dns: {
       engine: 'native-fake-ip',
-      addressModes: ['fake-ip'],
-      addressModeControl: 'native',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   stash: {
@@ -1078,10 +1346,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['stash', 'mihomo', 'clash', 'text'],
     dns: {
       engine: 'native-fake-ip',
-      addressModes: ['fake-ip'],
-      addressModeControl: 'native',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   egern: {
@@ -1091,10 +1355,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: ['egern', 'surge', 'text'],
     dns: {
       engine: 'native-fake-ip',
-      addressModes: ['fake-ip'],
-      addressModeControl: 'native',
-      supportsRealIpExceptions: true,
-      resolutionModes: ['single', 'split'],
     },
   },
   nodes_base64: {
@@ -1103,10 +1363,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: [],
     dns: {
       engine: 'none',
-      addressModes: [],
-      addressModeControl: 'none',
-      supportsRealIpExceptions: false,
-      resolutionModes: [],
     },
   },
   nodes_raw: {
@@ -1115,24 +1371,15 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     ruleSetFormats: [],
     dns: {
       engine: 'none',
-      addressModes: [],
-      addressModeControl: 'none',
-      supportsRealIpExceptions: false,
-      resolutionModes: [],
     },
   },
 } as const satisfies Record<ExportFormat, ExportClientCapabilities>;
 
 export const COMPATIBLE_RULE_SET_FORMATS = Object.fromEntries(
-  EXPORT_SUBSCRIPTION_FORMATS.map((format) => [
-    format,
-    [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats],
-  ])
+  EXPORT_SUBSCRIPTION_FORMATS.map((format) => [format, [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats]])
 ) as Record<ExportFormat, RuleSetFormat[]>;
 
-export function getExportClientCapabilities(
-  format: ExportFormat
-): ExportClientCapabilities {
+export function getExportClientCapabilities(format: ExportFormat): ExportClientCapabilities {
   return EXPORT_CLIENT_CAPABILITIES[format];
 }
 
@@ -1153,10 +1400,7 @@ export function serializeExportCapabilityProfile(format: ExportFormat): string {
   return `${profile.id}/${profile.format}@${profile.revision}`;
 }
 
-export function isNodeProtocolSupportedByExport(
-  protocol: string,
-  format: ExportFormat
-): protocol is ProxyProtocol {
+export function isNodeProtocolSupportedByExport(protocol: string, format: ExportFormat): protocol is ProxyProtocol {
   return (EXPORT_CLIENT_CAPABILITIES[format].nodeProtocols as readonly string[]).includes(protocol);
 }
 
@@ -1173,36 +1417,11 @@ export function isEgernTransportSupported(protocol: string, network: unknown): b
   return true;
 }
 
-export function getDefaultExportDnsPolicy(
-  format: ExportFormat
-): ExportDnsPolicy | undefined {
-  const capabilities = EXPORT_CLIENT_CAPABILITIES[format].dns;
-  if (capabilities.engine === 'none') return undefined;
-  return {
-    address: {
-      mode: 'fake-ip',
-      realIpExceptions: {
-        includeManagedDefaults: true,
-        domains: [],
-      },
-    },
-    resolution: {
-      mode: (capabilities.resolutionModes as readonly DnsResolutionMode[]).includes('split')
-        ? 'split'
-        : 'single',
-      preset: 'managed',
-    },
-  };
-}
-
 export function getCompatibleRuleSetFormats(format: ExportFormat): RuleSetFormat[] {
   return [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats];
 }
 
-export function isRuleSetFormatCompatible(
-  exportFormat: ExportFormat,
-  ruleSetFormat: string
-): boolean {
+export function isRuleSetFormatCompatible(exportFormat: ExportFormat, ruleSetFormat: string): boolean {
   return getCompatibleRuleSetFormats(exportFormat).includes(ruleSetFormat as RuleSetFormat);
 }
 
@@ -1210,21 +1429,36 @@ export function getRuleSetConversionTargetFormat(
   sourceFormat: string,
   exportFormat: ExportFormat
 ): 'mihomo' | 'singbox' | 'surge' | 'loon' | 'shadowrocket' | 'quantumultx' | 'egern' | null {
-  const parseableSourceFormats = ['mihomo', 'mrs', 'clash', 'stash', 'surge', 'loon', 'shadowrocket', 'quantumultx', 'text', 'egern'];
+  const parseableSourceFormats = [
+    'mihomo',
+    'mrs',
+    'clash',
+    'stash',
+    'surge',
+    'loon',
+    'shadowrocket',
+    'quantumultx',
+    'text',
+    'egern',
+  ];
   if (exportFormat === 'singbox' && parseableSourceFormats.includes(sourceFormat)) {
     return 'singbox';
   }
   if (['mihomo', 'clash', 'stash'].includes(exportFormat) && ['mrs', 'singbox', 'egern'].includes(sourceFormat)) {
     return 'mihomo';
   }
-  if (['surge', 'loon', 'shadowrocket', 'quantumultx'].includes(exportFormat)
-    && !isRuleSetFormatCompatible(exportFormat, sourceFormat)
-    && [...parseableSourceFormats, 'singbox'].includes(sourceFormat)) {
+  if (
+    ['surge', 'loon', 'shadowrocket', 'quantumultx'].includes(exportFormat) &&
+    !isRuleSetFormatCompatible(exportFormat, sourceFormat) &&
+    [...parseableSourceFormats, 'singbox'].includes(sourceFormat)
+  ) {
     return exportFormat as 'surge' | 'loon' | 'shadowrocket' | 'quantumultx';
   }
-  if (exportFormat === 'egern'
-    && !isRuleSetFormatCompatible(exportFormat, sourceFormat)
-    && [...parseableSourceFormats, 'singbox'].includes(sourceFormat)) {
+  if (
+    exportFormat === 'egern' &&
+    !isRuleSetFormatCompatible(exportFormat, sourceFormat) &&
+    [...parseableSourceFormats, 'singbox'].includes(sourceFormat)
+  ) {
     return 'egern';
   }
   return null;
@@ -1246,11 +1480,15 @@ export function isRemoteRuleSetCompatible(
   if (ruleSet.presetSource === 'quixotic' && ruleSet.presetId) {
     if (!supportsQuixoticRuleSetExport(exportFormat)) return false;
     const resolvedFormat = resolveQuixoticRuleSetForExport(ruleSet.presetId, exportFormat).format;
-    return isRuleSetFormatCompatible(exportFormat, resolvedFormat)
-      || getRuleSetConversionTargetFormat(resolvedFormat, exportFormat) !== null;
+    return (
+      isRuleSetFormatCompatible(exportFormat, resolvedFormat) ||
+      getRuleSetConversionTargetFormat(resolvedFormat, exportFormat) !== null
+    );
   }
-  return isRuleSetFormatCompatible(exportFormat, ruleSet.format)
-    || getRuleSetConversionTargetFormat(ruleSet.format, exportFormat) !== null;
+  return (
+    isRuleSetFormatCompatible(exportFormat, ruleSet.format) ||
+    getRuleSetConversionTargetFormat(ruleSet.format, exportFormat) !== null
+  );
 }
 
 export function resolveRemoteRuleSetForExport(
@@ -1274,9 +1512,7 @@ function resolveRemoteRuleSetSourceOverride(
 ): { url: string; format: RuleSetFormat } | null {
   if (exportFormat === 'nodes_base64' || exportFormat === 'nodes_raw') return null;
   const url = ruleSet.sourceOverrides?.[exportFormat];
-  return typeof url === 'string' && url
-    ? { url, format: exportFormat as RuleSetFormat }
-    : null;
+  return typeof url === 'string' && url ? { url, format: exportFormat as RuleSetFormat } : null;
 }
 
 export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
@@ -1479,23 +1715,16 @@ const STREAMING_NODE_PATTERNS: RegExp[] = [
   /\b(stream|streaming|media|netflix|nf|disney|disney\+|youtube|yt|hulu|hbo|max|dazn|abema|bahamut|spotify|twitch)\b/i,
 ];
 
-const UNLOCK_NODE_PATTERNS: RegExp[] = [
-  /解锁|解除|原生解锁|流媒解锁/,
-  /\b(unlock|unlocked|unblocking)\b/i,
-];
+const UNLOCK_NODE_PATTERNS: RegExp[] = [/解锁|解除|原生解锁|流媒解锁/, /\b(unlock|unlocked|unblocking)\b/i];
 
 const RESIDENTIAL_NODE_PATTERNS: RegExp[] = [
   /家宽|家庭宽带|住宅|住宅宽带|民宽/,
   /\b(residential|home\s*broadband|home\s*isp|home\s*ip|isp)\b/i,
 ];
 
-const NATIVE_NODE_PATTERNS: RegExp[] = [
-  /原生|原生\s*ip|本土|本地/,
-  /\b(native|native\s*ip|local\s*ip)\b/i,
-];
+const NATIVE_NODE_PATTERNS: RegExp[] = [/原生|原生\s*ip|本土|本地/, /\b(native|native\s*ip|local\s*ip)\b/i];
 
 const QUIXOTIC_RAW_BASE = 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset';
-const QUIXOTIC_MASTER_RAW_BASE = 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master';
 
 const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; ruleSetFormat: string }> = {
   mihomo: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
@@ -1510,10 +1739,6 @@ const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; r
 };
 
 const QUIXOTIC_DEFAULT_FORMAT = QUIXOTIC_FORMAT_PATHS.mihomo!;
-
-const QUIXOTIC_CUSTOM_PRESETS: Record<string, { path: string; ruleSetFormat: string; behavior: RuleSetBehavior }> = {
-  'fake-ip-filter': { path: 'custom/domain/fake-ip-filter.list', ruleSetFormat: 'text', behavior: 'domain' },
-};
 
 export function getSubscriptionUrlName(rawUrl: string | undefined): string | undefined {
   const value = rawUrl?.trim();
@@ -1564,9 +1789,6 @@ export function inferQuixoticRuleSetSourceFromUrl(rawUrl: string): { id: string;
 }
 
 export function buildQuixoticRuleSetUrl(id: string, format: string): string {
-  const custom = QUIXOTIC_CUSTOM_PRESETS[id];
-  if (custom) return `${QUIXOTIC_MASTER_RAW_BASE}/${custom.path}`;
-
   const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
   return `${QUIXOTIC_RAW_BASE}/${target.path}/${id}.${target.extension}`;
 }
@@ -1580,14 +1802,6 @@ function decodeUrlPathname(pathname: string): string {
 }
 
 export function resolveQuixoticRuleSetForExport(id: string, format: string): { url: string; format: string } {
-  const custom = QUIXOTIC_CUSTOM_PRESETS[id];
-  if (custom) {
-    return {
-      url: buildQuixoticRuleSetUrl(id, format),
-      format: custom.ruleSetFormat,
-    };
-  }
-
   const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
   return {
     url: buildQuixoticRuleSetUrl(id, format),
@@ -1595,8 +1809,8 @@ export function resolveQuixoticRuleSetForExport(id: string, format: string): { u
   };
 }
 
-export function resolveQuixoticRuleSetBehavior(id: string): RuleSetBehavior {
-  return QUIXOTIC_CUSTOM_PRESETS[id]?.behavior ?? 'classical';
+export function resolveQuixoticRuleSetBehavior(_id: string): RuleSetBehavior {
+  return 'classical';
 }
 
 export interface RoutingPolicyScenario {
@@ -1604,18 +1818,9 @@ export interface RoutingPolicyScenario {
   groupNames: string[];
 }
 
-export const RULE_TARGET_FOUNDATION_GROUP_NAMES = [
-  'PROXY',
-  'DIRECT',
-  'REJECT',
-] as const;
+export const RULE_TARGET_FOUNDATION_GROUP_NAMES = ['PROXY', 'DIRECT', 'REJECT'] as const;
 
-export const GLOBAL_NODE_OUTLET_GROUP_NAMES = [
-  '全部节点',
-  '节点选择',
-  '自动选择',
-  '故障切换',
-] as const;
+export const GLOBAL_NODE_OUTLET_GROUP_NAMES = ['全部节点', '节点选择', '自动选择', '故障切换'] as const;
 
 export const FOUNDATION_POLICY_GROUP_NAMES = [
   ...RULE_TARGET_FOUNDATION_GROUP_NAMES,
@@ -1624,12 +1829,14 @@ export const FOUNDATION_POLICY_GROUP_NAMES = [
 
 export function buildRoutingPolicyScenarioGroupNames(scenarioIds: RoutingPolicyScenarioId[]): string[] {
   const enabledScenarioIds = new Set(scenarioIds);
-  return Array.from(new Set([
-    ...FOUNDATION_POLICY_GROUP_NAMES,
-    ...ROUTING_POLICY_SCENARIOS
-      .filter((scenario) => enabledScenarioIds.has(scenario.id))
-      .flatMap((scenario) => scenario.groupNames),
-  ]));
+  return Array.from(
+    new Set([
+      ...FOUNDATION_POLICY_GROUP_NAMES,
+      ...ROUTING_POLICY_SCENARIOS.filter((scenario) => enabledScenarioIds.has(scenario.id)).flatMap(
+        (scenario) => scenario.groupNames
+      ),
+    ])
+  );
 }
 
 export const ROUTING_POLICY_SCENARIOS: RoutingPolicyScenario[] = [
@@ -1673,5 +1880,6 @@ export const DEFAULT_ROUTING_POLICY_SCENARIOS: RoutingPolicyScenarioId[] = [
   'diagnostics',
 ];
 
-export const ALL_ROUTING_POLICY_SCENARIO_IDS: RoutingPolicyScenarioId[] =
-  ROUTING_POLICY_SCENARIOS.map((scenario) => scenario.id);
+export const ALL_ROUTING_POLICY_SCENARIO_IDS: RoutingPolicyScenarioId[] = ROUTING_POLICY_SCENARIOS.map(
+  (scenario) => scenario.id
+);

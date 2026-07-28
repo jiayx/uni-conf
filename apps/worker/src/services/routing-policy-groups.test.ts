@@ -514,7 +514,7 @@ function appSettingsRow() {
     export_node_naming_mode: 'smart',
     show_compatibility_warnings: 1,
     enable_auto_refresh: 1,
-    auto_refresh_interval: 1440,
+    auto_refresh_interval: 240,
     auto_node_groups_enabled: 1,
     auto_node_group_types: '["url-test"]',
     auto_node_group_keys: null,

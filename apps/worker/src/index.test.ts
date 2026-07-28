@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import worker, { redactLogPath } from './index'
 import { refreshRuleSetCatalogSnapshotIfDue } from './services/rule-set-catalogs'
 import { refreshDueSources } from './services/source-auto-refresh'
+import { refreshManagedDnsResourcesIfDue } from './services/managed-dns-resources'
 import type { Env } from './types'
 
 vi.mock('./services/source-auto-refresh', () => ({
@@ -19,18 +20,23 @@ vi.mock('./services/rule-set-catalogs', () => ({
   refreshRuleSetCatalogSnapshotIfDue: vi.fn(async () => null),
 }))
 
+vi.mock('./services/managed-dns-resources', () => ({
+  refreshManagedDnsResourcesIfDue: vi.fn(async () => 128),
+}))
+
 describe('worker entrypoint', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('runs due source and rule catalog refreshes from the scheduled handler', async () => {
-    const env = { DB: {} as D1Database } as Env
+    const env = { DB: {} as D1Database, KV: {} as KVNamespace } as Env
 
     await worker.scheduled?.({} as ScheduledController, env)
 
     expect(refreshDueSources).toHaveBeenCalledWith(env.DB)
     expect(refreshRuleSetCatalogSnapshotIfDue).toHaveBeenCalledWith(env)
+    expect(refreshManagedDnsResourcesIfDue).toHaveBeenCalledWith(env.KV)
   })
 
   it('redacts subscription tokens from structured request logs', () => {
@@ -43,7 +49,7 @@ describe('worker entrypoint', () => {
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/sub/secret-token/unknown.conf'),
       { ENVIRONMENT: 'development' } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(400)
@@ -62,7 +68,7 @@ describe('worker entrypoint', () => {
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/api/health'),
       { ENVIRONMENT: 'test' } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     await expect(response.json()).resolves.toEqual({
@@ -78,7 +84,7 @@ describe('worker entrypoint', () => {
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/api/health'),
       { ENVIRONMENT: 'test', API_KEY: 'secret' } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(200)
@@ -92,7 +98,7 @@ describe('worker entrypoint', () => {
         API_KEY: 'secret',
         ALLOWED_ORIGIN: 'https://uni-conf.example.com',
       }),
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(200)
@@ -114,16 +120,20 @@ describe('worker entrypoint', () => {
   it('returns 503 readiness details without exposing secret values', async () => {
     const env = createReadyEnv({ ENVIRONMENT: 'production' })
     env.DB = {
-      prepare: vi.fn(() => ({ first: vi.fn(async () => { throw new Error('D1 unavailable') }) })),
+      prepare: vi.fn(() => ({
+        first: vi.fn(async () => {
+          throw new Error('D1 unavailable')
+        }),
+      })),
     } as unknown as D1Database
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/api/ready'),
       env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(503)
-    const payload = await response.json() as { data: { checks: Record<string, boolean> } }
+    const payload = (await response.json()) as { data: { checks: Record<string, boolean> } }
     expect(payload.data.checks).toEqual({
       database: false,
       kv: true,
@@ -137,7 +147,7 @@ describe('worker entrypoint', () => {
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/api/dashboard'),
       { ENVIRONMENT: 'test', API_KEY: 'secret', DB: {} as D1Database } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(401)
@@ -149,7 +159,7 @@ describe('worker entrypoint', () => {
         headers: { Authorization: 'Bearer secret' },
       }),
       { ENVIRONMENT: 'test', API_KEY: 'secret' } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     await expect(response.json()).resolves.toEqual({ success: true, data: { ok: true } })
@@ -161,7 +171,7 @@ describe('worker entrypoint', () => {
         headers: { Authorization: 'Bearer secret' },
       }),
       { ENVIRONMENT: 'production', API_KEY: 'secret' } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(500)
@@ -180,7 +190,7 @@ describe('worker entrypoint', () => {
         body: '{}',
       }),
       { ENVIRONMENT: 'test' } as Env,
-      {} as ExecutionContext
+      {} as ExecutionContext,
     )
 
     expect(response.status).toBe(413)

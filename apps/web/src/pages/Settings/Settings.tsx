@@ -10,8 +10,8 @@ import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-nod
 import { api } from '@/lib/api'
 import { clearStoredApiKey } from '@/lib/auth'
 import { useSettingsStore } from '@/store/settings.store'
-import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
-import type { AppSettingsPatch, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, MAX_BACKUP_FILE_BYTES, normalizeDnsRealIpDomainList } from '@uni-conf/shared'
+import type { AppSettingsPatch, AutoNodeGroupType, DnsResolutionMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; nameKey: string; descriptionKey: string }> = [
@@ -32,6 +32,10 @@ export function Settings() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const settingsReadyRef = useRef(false)
   const settingsMutationRef = useRef(false)
+  const pendingSettingsMutationRef = useRef<{
+    patch: AppSettingsPatch
+    onFailure?: () => void
+  } | null>(null)
   const dataActionRef = useRef<'export' | 'import' | 'clear' | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -39,10 +43,14 @@ export function Settings() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [actionError, setActionError] = useState<unknown | null>(null)
   const [autoRefreshIntervalDraft, setAutoRefreshIntervalDraft] = useState(DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES)
+  const [dnsRealIpDomainsDraft, setDnsRealIpDomainsDraft] = useState('')
+  const [dnsRealIpDomainsError, setDnsRealIpDomainsError] = useState<string | null>(null)
   const {
     language,
     theme,
     exportNodeNamingMode,
+    dnsResolutionMode,
+    dnsRealIpDomains,
     showCompatibilityWarnings,
     ruleSetConversionPolicy,
     enableAutoRefresh,
@@ -54,7 +62,15 @@ export function Settings() {
   } = useSettingsStore()
 
   const persistSettings = useCallback(async (patch: AppSettingsPatch, onFailure?: () => void) => {
-    if (!settingsReadyRef.current || settingsMutationRef.current || dataActionRef.current != null) return
+    if (!settingsReadyRef.current || dataActionRef.current != null) return
+    if (settingsMutationRef.current) {
+      const pending = pendingSettingsMutationRef.current
+      pendingSettingsMutationRef.current = {
+        patch: { ...pending?.patch, ...patch },
+        onFailure: onFailure ?? pending?.onFailure,
+      }
+      return
+    }
     settingsMutationRef.current = true
     setSaving(true)
     setActionError(null)
@@ -63,6 +79,7 @@ export function Settings() {
       const updated = await api.settings.update(patch)
       applySettings(updated)
       setAutoRefreshIntervalDraft(updated.autoRefreshInterval)
+      setDnsRealIpDomainsDraft(updated.dnsRealIpDomains.join(', '))
       if (patch.language) await i18n.changeLanguage(updated.language)
     } catch (error) {
       onFailure?.()
@@ -70,6 +87,13 @@ export function Settings() {
     } finally {
       settingsMutationRef.current = false
       setSaving(false)
+      const pending = pendingSettingsMutationRef.current
+      pendingSettingsMutationRef.current = null
+      if (pending) {
+        queueMicrotask(() => {
+          void persistSettings(pending.patch, pending.onFailure)
+        })
+      }
     }
   }, [applySettings, i18n])
 
@@ -79,6 +103,7 @@ export function Settings() {
         .then(settings => {
           applySettings(settings)
           setAutoRefreshIntervalDraft(settings.autoRefreshInterval)
+          setDnsRealIpDomainsDraft(settings.dnsRealIpDomains.join(', '))
           void i18n.changeLanguage(settings.language)
         })
         .catch(error => setActionError(error))
@@ -101,6 +126,10 @@ export function Settings() {
     void persistSettings({ exportNodeNamingMode: nextMode })
   }
 
+  const handleDnsResolutionMode = (mode: DnsResolutionMode) => {
+    void persistSettings({ dnsResolutionMode: mode })
+  }
+
   const handleAutoNodeGroupsEnabled = (enabled: boolean) => {
     void persistSettings({ autoNodeGroupsEnabled: enabled })
   }
@@ -119,6 +148,7 @@ export function Settings() {
       const updated = await api.settings.get()
       applySettings(updated)
       setAutoRefreshIntervalDraft(updated.autoRefreshInterval)
+      setDnsRealIpDomainsDraft(updated.dnsRealIpDomains.join(', '))
       await i18n.changeLanguage(updated.language)
     } catch (error) {
       setActionError(error)
@@ -221,7 +251,8 @@ export function Settings() {
     window.location.reload()
   }
 
-  const interactionLocked = settingsLoading || saving || dataAction != null
+  const settingsControlsLocked = settingsLoading || dataAction != null
+  const actionLocked = settingsLoading || saving || dataAction != null
 
   return (
     <div className={styles.page}>
@@ -240,7 +271,7 @@ export function Settings() {
               type="button"
               className={`${styles.optionBtn} ${language === lang ? styles.active : ''}`}
               aria-pressed={language === lang}
-              disabled={interactionLocked}
+              disabled={settingsControlsLocked}
               onClick={() => handleLanguage(lang)}
             >
               {lang === 'zh' ? '中文' : 'English'}
@@ -259,7 +290,7 @@ export function Settings() {
               type="button"
               className={`${styles.optionBtn} ${theme === th ? styles.active : ''}`}
               aria-pressed={theme === th}
-              disabled={interactionLocked}
+              disabled={settingsControlsLocked}
               onClick={() => handleTheme(th)}
             >
               <span className={styles.themeIcon}>
@@ -280,7 +311,7 @@ export function Settings() {
               type="button"
               className={`${styles.optionBtn} ${exportNodeNamingMode === preset.id ? styles.active : ''}`}
               onClick={() => handleExportNodeNamingMode(preset.id)}
-              disabled={interactionLocked}
+              disabled={settingsControlsLocked}
               aria-pressed={exportNodeNamingMode === preset.id}
               title={t(preset.descriptionKey)}
             >
@@ -291,13 +322,71 @@ export function Settings() {
       </Card>
 
       <Card className={styles.section}>
+        <h2 className={styles.sectionTitle}>{t('settings.dns')}</h2>
+        <div className={styles.hint}>{t('settings.dns_hint')}</div>
+        <div className={styles.settingBlock}>
+          <div className={styles.settingLabel}>{t('settings.dns_resolution_mode')}</div>
+          <div className={styles.optionGroup}>
+            {(['single', 'split'] as DnsResolutionMode[]).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                className={`${styles.optionBtn} ${dnsResolutionMode === mode ? styles.active : ''}`}
+                aria-pressed={dnsResolutionMode === mode}
+                disabled={settingsControlsLocked}
+                onClick={() => handleDnsResolutionMode(mode)}
+              >
+                {t(`settings.dns_resolution_${mode}`)}
+              </button>
+            ))}
+          </div>
+          <div className={styles.hint}>
+            {t(`settings.dns_resolution_${dnsResolutionMode}_hint`)}
+          </div>
+        </div>
+        <Input
+          label={t('settings.dns_real_ip_domains')}
+          value={dnsRealIpDomainsDraft}
+          placeholder="*.example.local, api.example.com"
+          error={dnsRealIpDomainsError ?? undefined}
+          helperText={t('settings.dns_real_ip_domains_hint')}
+          onChange={event => {
+            setDnsRealIpDomainsDraft(event.target.value)
+            setDnsRealIpDomainsError(null)
+          }}
+          onBlur={() => {
+            const rawDomains = dnsRealIpDomainsDraft
+              .split(',')
+              .map(domain => domain.trim())
+              .filter(Boolean)
+            const domains = normalizeDnsRealIpDomainList(rawDomains)
+            if (!domains) {
+              setDnsRealIpDomainsError(t('settings.dns_real_ip_domains_invalid'))
+              return
+            }
+            const canonicalDraft = domains.join(', ')
+            setDnsRealIpDomainsDraft(canonicalDraft)
+            if (canonicalDraft === dnsRealIpDomains.join(', ')) return
+            void persistSettings(
+              { dnsRealIpDomains: domains },
+              () => {
+                setDnsRealIpDomainsDraft(dnsRealIpDomains.join(', '))
+                setDnsRealIpDomainsError(null)
+              },
+            )
+          }}
+          disabled={settingsControlsLocked}
+        />
+      </Card>
+
+      <Card className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('settings.auto_node_groups')}</h2>
         <label className={styles.toggleRow}>
           <input
             type="checkbox"
             checked={autoNodeGroupsEnabled}
             onChange={e => handleAutoNodeGroupsEnabled(e.target.checked)}
-            disabled={interactionLocked}
+            disabled={settingsControlsLocked}
           />
           <span>{t('settings.auto_node_groups_enabled')}</span>
         </label>
@@ -308,7 +397,7 @@ export function Settings() {
               type="button"
               className={`${styles.optionBtn} ${autoNodeGroupTypes.includes(preset.id) ? styles.active : ''}`}
               onClick={() => handleAutoNodeGroupType(preset.id)}
-              disabled={interactionLocked || !autoNodeGroupsEnabled}
+              disabled={settingsControlsLocked || !autoNodeGroupsEnabled}
               aria-pressed={autoNodeGroupTypes.includes(preset.id)}
               title={t(preset.descriptionKey)}
             >
@@ -321,7 +410,7 @@ export function Settings() {
             type="checkbox"
             checked={autoNodeGroupIncludeFlag}
             onChange={e => handleAutoNodeGroupIncludeFlag(e.target.checked)}
-            disabled={interactionLocked || !autoNodeGroupsEnabled}
+            disabled={settingsControlsLocked || !autoNodeGroupsEnabled}
           />
           <span>{t('settings.auto_node_include_flag')}</span>
         </label>
@@ -340,7 +429,7 @@ export function Settings() {
                 type="button"
                 className={`${styles.optionBtn} ${ruleSetConversionPolicy === policy ? styles.active : ''}`}
                 aria-pressed={ruleSetConversionPolicy === policy}
-                disabled={interactionLocked}
+                disabled={settingsControlsLocked}
                 onClick={() => {
                   void persistSettings({ ruleSetConversionPolicy: policy })
                 }}
@@ -358,7 +447,7 @@ export function Settings() {
             onChange={e => {
               void persistSettings({ showCompatibilityWarnings: e.target.checked })
             }}
-            disabled={interactionLocked}
+            disabled={settingsControlsLocked}
           />
           <span>{t('settings.show_compat_warnings')}</span>
         </label>
@@ -370,7 +459,7 @@ export function Settings() {
             onChange={e => {
               void persistSettings({ enableAutoRefresh: e.target.checked })
             }}
-            disabled={interactionLocked}
+            disabled={settingsControlsLocked}
           />
           <span>{t('settings.auto_refresh')}</span>
         </label>
@@ -391,7 +480,7 @@ export function Settings() {
               () => setAutoRefreshIntervalDraft(autoRefreshInterval),
             )
           }}
-          disabled={interactionLocked || !enableAutoRefresh}
+          disabled={settingsControlsLocked || !enableAutoRefresh}
         />
       </Card>
 
@@ -411,7 +500,7 @@ export function Settings() {
           <Button
             variant="secondary"
             loading={dataAction === 'import'}
-            disabled={interactionLocked}
+            disabled={actionLocked}
             onClick={() => fileInputRef.current?.click()}
           >
             {t('settings.import_data')}
@@ -430,7 +519,7 @@ export function Settings() {
           className={styles.fileInput}
           type="file"
           accept="application/json,.json"
-          disabled={interactionLocked}
+          disabled={actionLocked}
           onChange={e => void handleImport(e.target.files?.[0])}
         />
         {successMessage && <div className={styles.success} role="status">{successMessage}</div>}
@@ -441,7 +530,7 @@ export function Settings() {
         <h2 className={styles.sectionTitle}>{t('settings.access')}</h2>
         <div className={styles.hint}>{t('settings.access_key_hint')}</div>
         <div className={styles.actionGroup}>
-          <Button variant="secondary" disabled={interactionLocked} onClick={() => void handleForgetAccessKey()}>
+          <Button variant="secondary" disabled={actionLocked} onClick={() => void handleForgetAccessKey()}>
             {t('settings.access_key_clear')}
           </Button>
         </div>

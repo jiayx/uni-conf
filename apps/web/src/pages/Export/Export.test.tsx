@@ -48,16 +48,6 @@ const configs: ExportConfig[] = [{
   id: 'advanced-1',
   name: 'Mobile',
   format: 'singbox',
-  dnsPolicy: {
-    address: {
-      mode: 'fake-ip',
-      realIpExceptions: {
-        includeManagedDefaults: true,
-        domains: [],
-      },
-    },
-    resolution: { mode: 'split', preset: 'managed' },
-  },
   token: 'mobile-token',
   enabled: true,
   includeCollectionIds: [],
@@ -142,9 +132,8 @@ describe('Export', () => {
     render(<MemoryRouter><Export /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: 'New Advanced Export Profile' }))
-    expect(screen.getByText(/Exportable node protocols:/)).toHaveTextContent(/selectable FakeIP\/real IP/)
-    expect(screen.getByLabelText('Address response')).toHaveValue('fake-ip')
-    expect(screen.getByLabelText('DNS upstreams')).toHaveValue('split')
+    expect(screen.getByText(/Exportable node protocols:/)).toHaveTextContent(/global FakeIP policy/)
+    expect(screen.queryByLabelText('DNS upstreams')).not.toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Export Format'), 'nodes_base64')
     expect(screen.getByText(/Exports nodes only/)).toHaveTextContent(/without DNS, policy groups, or routing rules/)

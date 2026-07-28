@@ -23,12 +23,14 @@ import {
   isExportFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
-import { resolveExportDnsPolicy } from '../services/export-dns'
+import { getEffectiveExportDnsPolicy } from '../services/export-dns'
+import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
 // GET /api/export/configs - list export configs
 exportRouter.get('/configs', async (c) => {
+  await ensureDefaultExportConfig(c.env.DB, now())
   const rows = await c.env.DB.prepare('SELECT * FROM export_configs ORDER BY created_at DESC').all()
   return c.json({ success: true, data: (rows.results ?? []).map(mapExportConfig) })
 })
@@ -47,29 +49,26 @@ exportRouter.post('/configs', async (c) => {
   const token = generateExportToken()
   const ts = now()
   const format = body.format ?? 'mihomo'
-  const dnsPolicy = resolveExportDnsPolicy(format, body.dnsPolicy)
-  if (body.dnsPolicy !== undefined && dnsPolicy === undefined) {
-    return c.json({ success: false, error: 'DNS policy is not supported by this export format' }, 400)
-  }
-
   await c.env.DB.prepare(
-    `INSERT INTO export_configs (id, name, format, dns_policy, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    id,
-    resolveExportConfigName(body.name, body.format),
-    format,
-    dnsPolicy ? JSON.stringify(dnsPolicy) : null,
-    token,
-    body.enabled !== false ? 1 : 0,
-    JSON.stringify(selection.includeCollectionIds),
-    JSON.stringify(selection.includeGroupIds),
-    JSON.stringify(selection.includeRuleIds),
-    JSON.stringify(selection.includeRemoteSetIds),
-    selection.ruleSetConversionPolicy ?? null,
-    selection.extraConfig ? JSON.stringify(selection.extraConfig) : null,
-    ts, ts
-  ).run()
+    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      resolveExportConfigName(body.name, body.format),
+      format,
+      token,
+      body.enabled !== false ? 1 : 0,
+      JSON.stringify(selection.includeCollectionIds),
+      JSON.stringify(selection.includeGroupIds),
+      JSON.stringify(selection.includeRuleIds),
+      JSON.stringify(selection.includeRemoteSetIds),
+      selection.ruleSetConversionPolicy ?? null,
+      selection.extraConfig ? JSON.stringify(selection.extraConfig) : null,
+      ts,
+      ts,
+    )
+    .run()
 
   await ensureZeroSetupDefaults(c.env.DB, ts)
 
@@ -98,7 +97,7 @@ export function resolveExportConfigName(name: unknown, format: ExportConfig['for
 export function resolveExportConfigUpdateName(
   name: unknown,
   nextFormat: ExportConfig['format'] | undefined,
-  existingFormat: ExportConfig['format']
+  existingFormat: ExportConfig['format'],
 ): string | undefined {
   if (name === undefined) return undefined
   return resolveExportConfigName(name, nextFormat ?? existingFormat)
@@ -119,14 +118,15 @@ exportRouter.put('/configs/:id', async (c) => {
 
   const existing = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
-  if (
-    id === DEFAULT_EXPORT_CONFIG_ID
-    && Object.keys(body).some(field => field !== 'enabled')
-  ) {
-    return c.json({
-      success: false,
-      error: 'Default export config only allows enabled state updates',
-    }, 403)
+  const defaultAllowedFields = new Set(['enabled'])
+  if (id === DEFAULT_EXPORT_CONFIG_ID && Object.keys(body).some((field) => !defaultAllowedFields.has(field))) {
+    return c.json(
+      {
+        success: false,
+        error: 'Default export config only allows enabled state updates',
+      },
+      403,
+    )
   }
   if (body.format !== undefined && !isExportFormat(body.format)) {
     return c.json({ success: false, error: 'invalid export format' }, 400)
@@ -135,38 +135,37 @@ exportRouter.put('/configs/:id', async (c) => {
   if (!selection.valid) {
     return c.json({ success: false, error: selection.error }, 400)
   }
-  const existingConfig = mapExportConfig(existing as Record<string, unknown>)
-  const nextFormat = body.format ?? existingConfig.format
-  const requestedDnsPolicy = body.dnsPolicy ?? existingConfig.dnsPolicy
-  let nextDnsPolicy = resolveExportDnsPolicy(nextFormat, requestedDnsPolicy)
-  if (body.dnsPolicy !== undefined && nextDnsPolicy === undefined) {
-    return c.json({ success: false, error: 'DNS policy is not supported by this export format' }, 400)
-  }
-  if (body.dnsPolicy === undefined && requestedDnsPolicy !== undefined && nextDnsPolicy === undefined) {
-    nextDnsPolicy = resolveExportDnsPolicy(nextFormat)
-  }
-
   const fields: string[] = []
   const values: unknown[] = []
 
   if (body.name !== undefined) {
     fields.push('name = ?')
-    values.push(resolveExportConfigUpdateName(
-      body.name,
-      body.format,
-      existing.format as ExportConfig['format']
-    ))
+    values.push(resolveExportConfigUpdateName(body.name, body.format, existing.format as ExportConfig['format']))
   }
-  if (body.format !== undefined) { fields.push('format = ?'); values.push(body.format) }
-  if (body.dnsPolicy !== undefined || body.format !== undefined) {
-    fields.push('dns_policy = ?')
-    values.push(nextDnsPolicy ? JSON.stringify(nextDnsPolicy) : null)
+  if (body.format !== undefined) {
+    fields.push('format = ?')
+    values.push(body.format)
   }
-  if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0) }
-  if (body.includeCollectionIds !== undefined) { fields.push('include_collection_ids = ?'); values.push(JSON.stringify(selection.includeCollectionIds)) }
-  if (body.includeGroupIds !== undefined) { fields.push('include_group_ids = ?'); values.push(JSON.stringify(selection.includeGroupIds)) }
-  if (body.includeRuleIds !== undefined) { fields.push('include_rule_ids = ?'); values.push(JSON.stringify(selection.includeRuleIds)) }
-  if (body.includeRemoteSetIds !== undefined) { fields.push('include_remote_set_ids = ?'); values.push(JSON.stringify(selection.includeRemoteSetIds)) }
+  if (body.enabled !== undefined) {
+    fields.push('enabled = ?')
+    values.push(body.enabled ? 1 : 0)
+  }
+  if (body.includeCollectionIds !== undefined) {
+    fields.push('include_collection_ids = ?')
+    values.push(JSON.stringify(selection.includeCollectionIds))
+  }
+  if (body.includeGroupIds !== undefined) {
+    fields.push('include_group_ids = ?')
+    values.push(JSON.stringify(selection.includeGroupIds))
+  }
+  if (body.includeRuleIds !== undefined) {
+    fields.push('include_rule_ids = ?')
+    values.push(JSON.stringify(selection.includeRuleIds))
+  }
+  if (body.includeRemoteSetIds !== undefined) {
+    fields.push('include_remote_set_ids = ?')
+    values.push(JSON.stringify(selection.includeRemoteSetIds))
+  }
   if (body.ruleSetConversionPolicy !== undefined) {
     fields.push('rule_set_conversion_policy = ?')
     values.push(selection.ruleSetConversionPolicy ?? null)
@@ -177,9 +176,13 @@ exportRouter.put('/configs/:id', async (c) => {
   }
 
   if (fields.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400)
-  fields.push('updated_at = ?'); values.push(ts); values.push(id)
+  fields.push('updated_at = ?')
+  values.push(ts)
+  values.push(id)
 
-  await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run()
+  await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ?`)
+    .bind(...values)
+    .run()
   await ensureZeroSetupDefaults(c.env.DB, ts)
   const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
@@ -201,7 +204,9 @@ exportRouter.delete('/configs/:id', async (c) => {
 // POST /api/export/configs/:id/reset-token
 exportRouter.post('/configs/:id/reset-token', async (c) => {
   const id = c.req.param('id')
-  const existing = await c.env.DB.prepare('SELECT id, token FROM export_configs WHERE id = ?').bind(id).first<Record<string, unknown>>()
+  const existing = await c.env.DB.prepare('SELECT id, token FROM export_configs WHERE id = ?')
+    .bind(id)
+    .first<Record<string, unknown>>()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
 
   const ts = now()
@@ -219,12 +224,13 @@ async function syncDefaultExportTokenAfterReset(
   db: D1Database,
   previousToken: string,
   nextToken: string,
-  ts: string
+  ts: string,
 ): Promise<void> {
   if (!previousToken) return
-  await db.prepare(
-    "UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = 'singleton' AND default_export_token = ?"
-  )
+  await db
+    .prepare(
+      "UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = 'singleton' AND default_export_token = ?",
+    )
     .bind(nextToken, ts, previousToken)
     .run()
 }
@@ -241,7 +247,10 @@ async function inspectExport(
     policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
   })
   const rendered = renderExportData(exportData, format, {
-    dnsPolicy: resolveExportDnsPolicy(format, config.dnsPolicy),
+    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format),
+    managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
+      ? await getManagedRealIpDomains(c.env.KV)
+      : undefined,
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
   })
   if (!rendered) return null
@@ -251,11 +260,9 @@ async function inspectExport(
   const artifactValidation = validateRenderedExport(format, rendered.content)
   const artifactWarnings = exportArtifactWarnings(artifactValidation)
   const graphBlockingWarning = findBlockingExportWarning(exportData, format)
-  const blockingWarnings = [
-    graphBlockingWarning,
-    ...conversionPreflight.blockingWarnings,
-    ...artifactWarnings,
-  ].filter((warning): warning is CompatibilityWarning => warning !== null)
+  const blockingWarnings = [graphBlockingWarning, ...conversionPreflight.blockingWarnings, ...artifactWarnings].filter(
+    (warning): warning is CompatibilityWarning => warning !== null,
+  )
 
   return {
     ...rendered,
@@ -294,7 +301,15 @@ exportRouter.get('/download/:format', async (c) => {
   const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
     c.header('X-UniConf-Error-Code', 'export_not_ready')
-    return c.json({ success: false, code: 'export_not_ready', error: blockingWarning.message, warnings: [blockingWarning] }, 409)
+    return c.json(
+      {
+        success: false,
+        code: 'export_not_ready',
+        error: blockingWarning.message,
+        warnings: [blockingWarning],
+      },
+      409,
+    )
   }
   const conversionPreflight = await preflightRuleSetConversions(exportData, format, {
     kv: c.env.KV,
@@ -302,15 +317,21 @@ exportRouter.get('/download/:format', async (c) => {
   })
   if (conversionPreflight.blockingWarning) {
     c.header('X-UniConf-Error-Code', 'conversion_incomplete')
-    return c.json({
-      success: false,
-      code: 'conversion_incomplete',
-      error: conversionPreflight.blockingWarning.message,
-      warnings: conversionPreflight.warnings,
-    }, 409)
+    return c.json(
+      {
+        success: false,
+        code: 'conversion_incomplete',
+        error: conversionPreflight.blockingWarning.message,
+        warnings: conversionPreflight.warnings,
+      },
+      409,
+    )
   }
   const rendered = renderExportData(exportData, format, {
-    dnsPolicy: resolveExportDnsPolicy(format, config.dnsPolicy),
+    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format),
+    managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
+      ? await getManagedRealIpDomains(c.env.KV)
+      : undefined,
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
   })
   if (!rendered) {
@@ -320,12 +341,15 @@ exportRouter.get('/download/:format', async (c) => {
   const artifactValidation = validateRenderedExport(format, rendered.content)
   if (!artifactValidation.valid) {
     c.header('X-UniConf-Error-Code', 'artifact_invalid')
-    return c.json({
-      success: false,
-      code: 'artifact_invalid',
-      error: 'Generated export failed structural validation',
-      artifactValidation,
-    }, 500)
+    return c.json(
+      {
+        success: false,
+        code: 'artifact_invalid',
+        error: 'Generated export failed structural validation',
+        artifactValidation,
+      },
+      500,
+    )
   }
   const filename = getExportSubscriptionFilename(format)
 
@@ -390,9 +414,7 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
     includeGroupIds: includeGroupIds.value,
     includeRuleIds: includeRuleIds.value,
     includeRemoteSetIds: includeRemoteSetIds.value,
-    ...(ruleSetConversionPolicy.value !== undefined
-      ? { ruleSetConversionPolicy: ruleSetConversionPolicy.value }
-      : {}),
+    ...(ruleSetConversionPolicy.value !== undefined ? { ruleSetConversionPolicy: ruleSetConversionPolicy.value } : {}),
     ...(extraConfig.value !== undefined ? { extraConfig: extraConfig.value } : {}),
   }
 }
@@ -413,9 +435,7 @@ function normalizeIdList(value: unknown, field: string): IdListValidation {
   return { valid: true, value: [...new Set(ids)] }
 }
 
-type ExtraConfigValidation =
-  | { valid: true; value?: Record<string, unknown> | null }
-  | { valid: false; error: string }
+type ExtraConfigValidation = { valid: true; value?: Record<string, unknown> | null } | { valid: false; error: string }
 
 function normalizeExtraConfig(value: unknown): ExtraConfigValidation {
   if (value === undefined) return { valid: true, value: undefined }
@@ -427,8 +447,7 @@ function normalizeExtraConfig(value: unknown): ExtraConfigValidation {
 }
 
 type RuleSetConversionPolicyValidation =
-  | { valid: true; value?: ExportConfig['ruleSetConversionPolicy'] }
-  | { valid: false; error: string }
+  { valid: true; value?: ExportConfig['ruleSetConversionPolicy'] } | { valid: false; error: string }
 
 function normalizeRuleSetConversionPolicy(value: unknown): RuleSetConversionPolicyValidation {
   if (value === undefined) return { valid: true }

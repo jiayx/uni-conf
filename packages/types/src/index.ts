@@ -454,7 +454,6 @@ export interface ExportConfig {
   id: string;
   name: string;
   format: ExportFormat;
-  dnsPolicy?: ExportDnsPolicy;
   token: string; // for /sub/:token/:format URLs
   enabled: boolean;
   includeCollectionIds: string[];
@@ -485,29 +484,11 @@ export type RoutingPolicyScenarioId =
   | 'brokerage'
   | 'diagnostics'
   | 'platform';
-export type DnsAddressMode = 'fake-ip' | 'real-ip';
 export type DnsResolutionMode = 'single' | 'split';
 
-export type DnsAddressPolicy =
-  | {
-      mode: 'fake-ip';
-      realIpExceptions: {
-        includeManagedDefaults: boolean;
-        domains: string[];
-      };
-    }
-  | {
-      mode: 'real-ip';
-    };
-
-export interface DnsResolutionPolicy {
-  mode: DnsResolutionMode;
-  preset: 'managed';
-}
-
 export interface ExportDnsPolicy {
-  address: DnsAddressPolicy;
-  resolution: DnsResolutionPolicy;
+  additionalRealIpDomains: string[];
+  resolutionMode: DnsResolutionMode;
 }
 export type ExportNodeNamingMode = 'original' | 'region_sequence' | 'source_region_sequence' | 'smart';
 export type RuleSetConversionPolicy = 'compatible' | 'strict';
@@ -520,6 +501,8 @@ export interface AppSettings {
   routingPolicyScenarios: RoutingPolicyScenarioId[];
   routingOutletPreferences?: Record<string, string>;
   exportNodeNamingMode: ExportNodeNamingMode;
+  dnsResolutionMode: DnsResolutionMode;
+  dnsRealIpDomains: string[];
   defaultExportToken?: string;
   // Feature flags
   showCompatibilityWarnings: boolean;

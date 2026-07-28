@@ -186,10 +186,6 @@ CREATE TABLE IF NOT EXISTS export_configs (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   format TEXT NOT NULL,
-  dns_policy TEXT CHECK (
-    dns_policy IS NULL
-    OR json_valid(dns_policy)
-  ),
   token TEXT NOT NULL UNIQUE,
   enabled INTEGER NOT NULL DEFAULT 1,
   include_collection_ids TEXT NOT NULL DEFAULT '[]',
@@ -219,13 +215,20 @@ CREATE TABLE IF NOT EXISTS app_settings (
   routing_policy_scenarios TEXT NOT NULL DEFAULT '["ai-development","streaming","diagnostics"]',
   routing_outlet_preferences TEXT,
   export_node_naming_mode TEXT NOT NULL DEFAULT 'smart',
+  dns_resolution_mode TEXT NOT NULL DEFAULT 'split' CHECK (
+    dns_resolution_mode IN ('single', 'split')
+  ),
+  dns_real_ip_domains TEXT NOT NULL DEFAULT '[]' CHECK (
+    json_valid(dns_real_ip_domains)
+    AND json_type(dns_real_ip_domains) = 'array'
+  ),
   default_export_token TEXT,
   show_compatibility_warnings INTEGER NOT NULL DEFAULT 1,
   rule_set_conversion_policy TEXT NOT NULL DEFAULT 'compatible' CHECK (
     rule_set_conversion_policy IN ('compatible', 'strict')
   ),
   enable_auto_refresh INTEGER NOT NULL DEFAULT 1,
-  auto_refresh_interval INTEGER NOT NULL DEFAULT 1440,
+  auto_refresh_interval INTEGER NOT NULL DEFAULT 240,
   auto_node_groups_enabled INTEGER NOT NULL DEFAULT 1,
   auto_node_group_types TEXT NOT NULL DEFAULT '["url-test"]',
   auto_node_group_keys TEXT,

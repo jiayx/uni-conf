@@ -11,35 +11,24 @@ describe('rule-set catalog snapshots', () => {
     const kv = { get: vi.fn(async () => null) } as unknown as KVNamespace
     const snapshot = await getRuleSetCatalogSnapshot(kv)
 
-    expect(snapshot.catalogs.map(catalog => catalog.id)).toEqual([
-      'quixotic',
-      'broker-rules',
-    ])
-    expect(snapshot.catalogs.flatMap(catalog => catalog.items)).toHaveLength(50)
-    expect(snapshot.catalogs.find(catalog => catalog.id === 'broker-rules')?.items[0]).toMatchObject({
+    expect(snapshot.catalogs.map((catalog) => catalog.id)).toEqual(['quixotic', 'broker-rules'])
+    expect(snapshot.catalogs.flatMap((catalog) => catalog.items)).toHaveLength(49)
+    expect(snapshot.catalogs.find((catalog) => catalog.id === 'broker-rules')?.items[0]).toMatchObject({
       id: 'broker',
       suggestedTarget: 'Broker',
       provisioning: 'scenario',
     })
-    expect(snapshot.catalogs
-      .find(catalog => catalog.id === 'quixotic')
-      ?.items.find(item => item.id === 'private')
-      ?.sources[0]).toMatchObject({
-        sourceId: 'mihomo',
-        url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/private.list',
-        default: true,
-      })
-    expect(snapshot.catalogs
-      .find(catalog => catalog.id === 'quixotic')
-      ?.items.find(item => item.id === 'fake-ip-filter')
-      ?.sources.find(source => source.default)).toMatchObject({
-        sourceId: 'text',
-        format: 'text',
-        nativeFor: [],
-      })
-    expect(snapshot.catalogs
-      .flatMap(catalog => catalog.items)
-      .every(item => item.provisioning !== 'optional')).toBe(true)
+    expect(
+      snapshot.catalogs.find((catalog) => catalog.id === 'quixotic')?.items.find((item) => item.id === 'private')
+        ?.sources[0],
+    ).toMatchObject({
+      sourceId: 'mihomo',
+      url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/private.list',
+      default: true,
+    })
+    expect(
+      snapshot.catalogs.flatMap((catalog) => catalog.items).every((item) => item.provisioning !== 'optional'),
+    ).toBe(true)
   })
 
   it('prefers the latest valid snapshot from KV', async () => {
@@ -77,19 +66,22 @@ describe('rule-set catalog snapshots', () => {
 
     const snapshot = await refreshRuleSetCatalogSnapshot({ KV: kv }, fetcher)
 
-    expect(fetcher.mock.calls
-      .map(([input]) => String(input))
-      .every(url => !url.includes('jiayx/uni-conf'))).toBe(true)
-    expect(snapshot.catalogs.find(catalog => catalog.id === 'quixotic')?.items)
-      .toContainEqual(expect.objectContaining({
+    expect(fetcher.mock.calls.map(([input]) => String(input)).every((url) => !url.includes('jiayx/uni-conf'))).toBe(
+      true,
+    )
+    expect(snapshot.catalogs.find((catalog) => catalog.id === 'quixotic')?.items).toContainEqual(
+      expect.objectContaining({
         id: 'telegram',
         provisioning: 'optional',
         suggestedTarget: undefined,
-      }))
-    expect(snapshot.catalogs
-      .flatMap(catalog => catalog.items)
-      .filter(item => item.sources.filter(source => source.default).length !== 1)
-      .map(item => item.id)).toEqual([])
+      }),
+    )
+    expect(
+      snapshot.catalogs
+        .flatMap((catalog) => catalog.items)
+        .filter((item) => item.sources.filter((source) => source.default).length !== 1)
+        .map((item) => item.id),
+    ).toEqual([])
     expect(put).toHaveBeenCalledOnce()
   })
 
@@ -102,8 +94,9 @@ describe('rule-set catalog snapshots', () => {
 
     const snapshot = await refreshRuleSetCatalogSnapshotIfDue({ KV: kv }, Date.now(), fetcher)
 
-    expect(snapshot?.catalogs.find(catalog => catalog.id === 'quixotic')?.items)
-      .toContainEqual(expect.objectContaining({ id: 'telegram' }))
+    expect(snapshot?.catalogs.find((catalog) => catalog.id === 'quixotic')?.items).toContainEqual(
+      expect.objectContaining({ id: 'telegram' }),
+    )
   })
 })
 

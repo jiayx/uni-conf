@@ -26,6 +26,8 @@ export const useSettingsStore = create<SettingsState>()(
       unmatchedTrafficPolicy: 'proxy',
       routingPolicyScenarios: [...DEFAULT_ROUTING_POLICY_SCENARIOS],
       exportNodeNamingMode: 'smart',
+      dnsResolutionMode: 'split',
+      dnsRealIpDomains: [],
       showCompatibilityWarnings: true,
       ruleSetConversionPolicy: 'compatible',
       enableAutoRefresh: true,

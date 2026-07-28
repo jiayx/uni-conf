@@ -1,44 +1,58 @@
 import { describe, expect, it } from 'vitest'
 import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '@uni-conf/shared'
-import { buildQuixoticRuleSetUrl, inferQuixoticRuleSetSourceFromUrl, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
-import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible } from './compatibility'
+import {
+  buildQuixoticRuleSetUrl,
+  inferQuixoticRuleSetSourceFromUrl,
+  resolveQuixoticRuleSetBehavior,
+} from './quixotic-presets'
+import {
+  describeCompatibleRuleSetFormats,
+  getRemoteRuleSetCompatibilityMode,
+  isRemoteRuleSetCompatible,
+} from './compatibility'
 import type { RemoteRuleSet } from '@uni-conf/types'
 
 describe('remote rule set compatibility', () => {
   it('maps QuixoticHeart presets to client-specific rule set URLs', () => {
     expect(buildQuixoticRuleSetUrl('ai', 'mihomo')).toBe(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/meta/ai.list'
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/meta/ai.list',
     )
     expect(buildQuixoticRuleSetUrl('ai', 'singbox')).toBe(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/ai.srs'
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/ai.srs',
     )
     expect(buildQuixoticRuleSetUrl('ai', 'egern')).toBe(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/egern/ai.yaml'
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/egern/ai.yaml',
     )
-    expect(buildQuixoticRuleSetUrl('fake-ip-filter', 'mihomo')).toBe(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master/custom/domain/fake-ip-filter.list'
-    )
-    expect(buildQuixoticRuleSetUrl('fake-ip-filter', 'singbox')).toBe(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master/custom/domain/fake-ip-filter.list'
-    )
-    expect(resolveQuixoticRuleSetBehavior('fake-ip-filter')).toBe('domain')
+    expect(resolveQuixoticRuleSetBehavior('ai')).toBe('classical')
   })
 
   it('recognizes only strict target-specific Quixotic rule-set URLs', () => {
-    expect(inferQuixoticRuleSetSourceFromUrl(
-      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list?download=1'
-    )).toEqual({ id: 'games', format: 'mihomo' })
-    expect(inferQuixoticRuleSetSourceFromUrl(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/games.srs'
-    )).toEqual({ id: 'games', format: 'singbox' })
-    expect(inferQuixoticRuleSetSourceFromUrl(
-      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/egern/games.yaml'
-    )).toEqual({ id: 'games', format: 'egern' })
+    expect(
+      inferQuixoticRuleSetSourceFromUrl(
+        'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list?download=1',
+      ),
+    ).toEqual({ id: 'games', format: 'mihomo' })
+    expect(
+      inferQuixoticRuleSetSourceFromUrl(
+        'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/games.srs',
+      ),
+    ).toEqual({ id: 'games', format: 'singbox' })
+    expect(
+      inferQuixoticRuleSetSourceFromUrl(
+        'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/egern/games.yaml',
+      ),
+    ).toEqual({ id: 'games', format: 'egern' })
     expect(inferQuixoticRuleSetSourceFromUrl('https://evil.example/QuixoticHeart/rule-set/meta/games.list')).toBeNull()
-    expect(inferQuixoticRuleSetSourceFromUrl(
-      'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list'
-    )).toBeNull()
-    expect(inferQuixoticRuleSetSourceFromUrl('http://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list')).toBeNull()
+    expect(
+      inferQuixoticRuleSetSourceFromUrl(
+        'https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list',
+      ),
+    ).toBeNull()
+    expect(
+      inferQuixoticRuleSetSourceFromUrl(
+        'http://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/games.list',
+      ),
+    ).toBeNull()
   })
 
   it('keeps remote rule set formats scoped to compatible exporters', () => {
@@ -49,8 +63,16 @@ describe('remote rule set compatibility', () => {
   })
 
   it('marks exact cross-client rewrites as converted instead of directly compatible', () => {
-    const singboxSet = { format: 'singbox', url: 'https://rules.example/source.json', sourceOverrides: {} } as RemoteRuleSet
-    const quantumultXSet = { format: 'quantumultx', url: 'https://rules.example/qx.list', sourceOverrides: {} } as RemoteRuleSet
+    const singboxSet = {
+      format: 'singbox',
+      url: 'https://rules.example/source.json',
+      sourceOverrides: {},
+    } as RemoteRuleSet
+    const quantumultXSet = {
+      format: 'quantumultx',
+      url: 'https://rules.example/qx.list',
+      sourceOverrides: {},
+    } as RemoteRuleSet
 
     expect(getRemoteRuleSetCompatibilityMode('quantumultx', singboxSet)).toBe('converted')
     expect(getRemoteRuleSetCompatibilityMode('singbox', quantumultXSet)).toBe('converted')
@@ -85,29 +107,17 @@ describe('remote rule set compatibility', () => {
 
     expect(isRemoteRuleSetCompatible('singbox', set)).toBe(true)
     expect(resolveRemoteRuleSetForExport(set, 'singbox')?.url).toBe(
-      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/ai.srs'
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/ai.srs',
     )
     expect(isRemoteRuleSetCompatible('nodes_raw', set)).toBe(false)
-
-    const fakeIpFilterSet = {
-      ...set,
-      name: 'Fake IP Filter',
-      url: buildQuixoticRuleSetUrl('fake-ip-filter', 'mihomo'),
-      presetId: 'fake-ip-filter',
-    } as RemoteRuleSet
-    expect(resolveRemoteRuleSetForExport(fakeIpFilterSet, 'mihomo')).toMatchObject({
-      url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/master/custom/domain/fake-ip-filter.list',
-      format: 'text',
-    })
-    expect(isRemoteRuleSetCompatible('mihomo', fakeIpFilterSet)).toBe(true)
-    expect(isRemoteRuleSetCompatible('singbox', fakeIpFilterSet)).toBe(true)
-    expect(getRemoteRuleSetCompatibilityMode('singbox', fakeIpFilterSet)).toBe('converted')
   })
 
   it('describes unsupported exporters without remote rule set support', () => {
-    expect(describeCompatibleRuleSetFormats('nodes_base64', key => {
-      if (key === 'remoteRuleSets.unsupported_formats') return '不支持远程规则集'
-      return key
-    })).toBe('不支持远程规则集')
+    expect(
+      describeCompatibleRuleSetFormats('nodes_base64', (key) => {
+        if (key === 'remoteRuleSets.unsupported_formats') return '不支持远程规则集'
+        return key
+      }),
+    ).toBe('不支持远程规则集')
   })
 })

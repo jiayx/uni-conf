@@ -6,7 +6,7 @@
     "branch": "ruleset",
     "commit": "c4e432b6b7723c8976e23d12c2e92d3bb4d2c929"
   },
-  "syncedAt": "2026-07-28T02:29:11.140Z",
+  "syncedAt": "2026-07-28T08:22:47.177Z",
   "sourceProfiles": {
     "mihomo": {
       "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/{id}.list",
@@ -55,12 +55,6 @@
       "format": "egern",
       "behavior": "classical",
       "nativeTargets": ["egern"]
-    },
-    "text": {
-      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/master/meta/domain/{id}.list",
-      "format": "text",
-      "behavior": "domain",
-      "nativeTargets": []
     }
   },
   "defaultSourceSet": "standard",
@@ -77,10 +71,6 @@
         "quantumultx",
         "egern"
       ]
-    },
-    "fake-ip-filter": {
-      "defaultSource": "text",
-      "sources": ["singbox", "text"]
     },
     "without-singbox-quantumultx": {
       "defaultSource": "mihomo",
@@ -146,17 +136,6 @@
         "activeForUnmatchedPolicies": ["proxy"]
       },
       "rules": [{ "id": "dmca", "name": "DMCA" }]
-    },
-    {
-      "sourceSet": "fake-ip-filter",
-      "routing": {
-        "category": "dns",
-        "target": "DIRECT",
-        "provisioning": "foundation",
-        "order": 30,
-        "activeForUnmatchedPolicies": ["proxy"]
-      },
-      "rules": [{ "id": "fake-ip-filter", "name": "Fake IP Filter" }]
     },
     {
       "routing": {

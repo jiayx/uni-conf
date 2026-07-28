@@ -21,6 +21,8 @@ describe('settings route helpers', () => {
         'builtin-streaming': 'group:builtin-auto-select',
       },
       exportNodeNamingMode: 'source_region_sequence',
+      dnsResolutionMode: 'split',
+      dnsRealIpDomains: ['*.example.local', 'api.example.com'],
       autoNodeGroupsEnabled: true,
       autoNodeGroupTypes: ['url-test', 'fallback'],
       autoNodeGroupKeys: ['country:US:url-test', 'tag:streaming:fallback'],
@@ -49,6 +51,10 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:USA:url-test' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:us:url-test' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ exportNodeNamingMode: 'random' as never })).toBe('invalid export node naming mode')
+    expect(validateSettingsPatch({ dnsResolutionMode: 'fakeip' as never })).toBe('invalid DNS resolution mode')
+    expect(validateSettingsPatch({ dnsRealIpDomains: ['valid.example', 'bad domain'] })).toBe('invalid DNS real-IP domains')
+    expect(validateSettingsPatch({ dnsRealIpDomains: ['example.com"; injected: true'] })).toBe('invalid DNS real-IP domains')
+    expect(validateSettingsPatch({ dnsRealIpDomains: 'example.com' as never })).toBe('invalid DNS real-IP domains')
     expect(validateSettingsPatch({ autoNodeGroupTypes: ['url-test', 'random' as never] })).toBe('invalid auto node group type')
     expect(validateSettingsPatch({ autoNodeGroupKeys: ['US:url-test'] })).toBe('invalid auto node group key')
     expect(validateSettingsPatch({ autoNodeGroupKeys: ['country:usa:url-test'] })).toBe('invalid auto node group key')
@@ -95,6 +101,21 @@ describe('settings route helpers', () => {
 
     expect(update.sql).toContain('unmatched_traffic_policy = ?')
     expect(update.values).toEqual(['direct', '2026-07-24T00:00:00.000Z'])
+  })
+
+  it('stores the global DNS policy in canonical form', () => {
+    const update = buildSettingsUpdate({
+      dnsResolutionMode: 'single',
+      dnsRealIpDomains: [' +.Example.Local ', 'api.example.com', '*.example.local'],
+    }, '2026-07-24T00:00:00.000Z')
+
+    expect(update.sql).toContain('dns_resolution_mode = ?')
+    expect(update.sql).toContain('dns_real_ip_domains = ?')
+    expect(update.values).toEqual([
+      'single',
+      '["*.example.local","api.example.com"]',
+      '2026-07-24T00:00:00.000Z',
+    ])
   })
 
   it('serializes nullable and structured settings without carrying stale values', () => {

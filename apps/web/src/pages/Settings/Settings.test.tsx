@@ -10,8 +10,9 @@ import { MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
 const settings = vi.hoisted((): AppSettings => ({
   language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
   exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true,
+  dnsResolutionMode: 'split', dnsRealIpDomains: [],
   ruleSetConversionPolicy: 'compatible',
-  autoRefreshInterval: 1440, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],
+  autoRefreshInterval: 240, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],
   autoNodeGroupIncludeFlag: true,
 }))
 const actions = vi.hoisted(() => Object.fromEntries([
@@ -145,6 +146,58 @@ describe('Settings data safety', () => {
     expect(screen.getByText(/When an export profile has no override/)).toBeInTheDocument()
   })
 
+  it('edits the DNS policy globally and explains its scope', async () => {
+    vi.mocked(api.settings.update)
+      .mockResolvedValueOnce({ ...settings, dnsResolutionMode: 'single' })
+      .mockResolvedValueOnce({ ...settings, dnsResolutionMode: 'single', dnsRealIpDomains: ['*.example.com'] })
+    const user = userEvent.setup()
+    render(<Settings />)
+
+    expect(await screen.findByText(/All full-config exports use FakeIP/)).toBeInTheDocument()
+    expect(screen.getByText(/QuixoticHeart's managed FakeIP exceptions are always merged/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Single resolver' }))
+    expect(api.settings.update).toHaveBeenCalledWith({ dnsResolutionMode: 'single' })
+
+    const domains = screen.getByRole('textbox', { name: 'Additional real-IP domains' })
+    await user.type(domains, '*.example.com')
+    await user.tab()
+    expect(api.settings.update).toHaveBeenLastCalledWith({ dnsRealIpDomains: ['*.example.com'] })
+  })
+
+  it('rejects malformed real-IP domain patterns before saving', async () => {
+    const user = userEvent.setup()
+    render(<Settings />)
+    const domains = await screen.findByRole('textbox', { name: 'Additional real-IP domains' })
+
+    await user.type(domains, 'example.com"; injected: true')
+    await user.tab()
+
+    expect(screen.getByText('Enter valid domains or wildcard domains, up to 256 entries.')).toBeInTheDocument()
+    expect(api.settings.update).not.toHaveBeenCalled()
+  })
+
+  it('queues a resolution change triggered while domain changes are saving', async () => {
+    let resolveDomainUpdate: ((value: AppSettings) => void) | undefined
+    vi.mocked(api.settings.update)
+      .mockImplementationOnce(() => new Promise(resolve => {
+        resolveDomainUpdate = resolve
+      }))
+      .mockResolvedValueOnce({ ...settings, dnsResolutionMode: 'single', dnsRealIpDomains: ['*.example.com'] })
+    render(<Settings />)
+    const domains = await screen.findByRole('textbox', { name: 'Additional real-IP domains' })
+    await waitFor(() => expect(domains).toBeEnabled())
+
+    fireEvent.change(domains, { target: { value: '*.example.com' } })
+    fireEvent.blur(domains)
+    fireEvent.click(screen.getByRole('button', { name: 'Single resolver' }))
+
+    expect(api.settings.update).toHaveBeenCalledTimes(1)
+    expect(api.settings.update).toHaveBeenCalledWith({ dnsRealIpDomains: ['*.example.com'] })
+    resolveDomainUpdate?.({ ...settings, dnsRealIpDomains: ['*.example.com'] })
+    await waitFor(() => expect(api.settings.update).toHaveBeenCalledTimes(2))
+    expect(api.settings.update).toHaveBeenLastCalledWith({ dnsResolutionMode: 'single' })
+  })
+
   it('keeps the authoritative selection and shows diagnostics when a setting update fails', async () => {
     vi.mocked(api.settings.update).mockRejectedValueOnce(
       new ApiError('Settings update failed', 409, 'settings_conflict', 'request-settings-1'),
@@ -162,24 +215,26 @@ describe('Settings data safety', () => {
     expect(strictButton).toBeEnabled()
   })
 
-  it('prevents overlapping global setting mutations while one save is pending', async () => {
+  it('serializes global setting mutations while one save is pending', async () => {
     let resolveUpdate: ((value: AppSettings) => void) | undefined
-    vi.mocked(api.settings.update).mockImplementationOnce(() => new Promise(resolve => {
-      resolveUpdate = resolve
-    }))
+    vi.mocked(api.settings.update)
+      .mockImplementationOnce(() => new Promise(resolve => {
+        resolveUpdate = resolve
+      }))
+      .mockResolvedValueOnce({ ...settings, theme: 'dark' })
     const user = userEvent.setup()
     render(<Settings />)
 
     await user.click(screen.getByRole('button', { name: 'Strict completeness' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Saving...')
     const darkButton = screen.getByRole('button', { name: 'Dark' })
-    expect(darkButton).toBeDisabled()
+    expect(darkButton).toBeEnabled()
     await user.click(darkButton)
     expect(api.settings.update).toHaveBeenCalledTimes(1)
 
     resolveUpdate?.({ ...settings, ruleSetConversionPolicy: 'strict' })
-    await screen.findByRole('button', { name: 'Strict completeness' })
-    expect(await screen.findByRole('button', { name: 'Dark' })).toBeEnabled()
+    await waitFor(() => expect(api.settings.update).toHaveBeenCalledTimes(2))
+    expect(api.settings.update).toHaveBeenLastCalledWith({ theme: 'dark' })
   })
 
   it('blocks mutations until the initial authoritative settings request settles', async () => {
@@ -213,7 +268,7 @@ describe('Settings data safety', () => {
     await user.tab()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Interval update failed')
-    expect(interval).toHaveValue(1440)
+    expect(interval).toHaveValue(240)
     expect(screen.getByText('settings_unavailable · request-settings-2')).toBeInTheDocument()
   })
 

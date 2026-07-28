@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeAutoNodeGroupTypes,
   normalizeBooleanDefault,
+  normalizeDnsRealIpDomains,
+  normalizeDnsResolutionMode,
   normalizeExportNodeNamingMode,
   normalizeLanguage,
   normalizeOptionalString,
@@ -23,9 +25,9 @@ describe('app settings normalization', () => {
   })
 
   it('defaults invalid intervals and modes', () => {
-    expect(normalizePositiveInteger(null, 1440)).toBe(1440)
-    expect(normalizePositiveInteger(0, 1440)).toBe(1440)
-    expect(normalizePositiveInteger('30', 1440)).toBe(30)
+    expect(normalizePositiveInteger(null, 240)).toBe(240)
+    expect(normalizePositiveInteger(0, 240)).toBe(240)
+    expect(normalizePositiveInteger('30', 240)).toBe(30)
     expect(normalizeLanguage('fr')).toBe('zh')
     expect(normalizeLanguage('en')).toBe('en')
     expect(normalizeTheme('sepia')).toBe('system')
@@ -38,6 +40,11 @@ describe('app settings normalization', () => {
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')
     expect(normalizeRuleSetConversionPolicy('strict')).toBe('strict')
     expect(normalizeRuleSetConversionPolicy('unknown')).toBe('compatible')
+    expect(normalizeDnsResolutionMode('single')).toBe('single')
+    expect(normalizeDnsResolutionMode('unknown')).toBe('split')
+    expect(normalizeDnsRealIpDomains('[" +.Example.com ","api.example.com","*.example.com"]'))
+      .toEqual(['*.example.com', 'api.example.com'])
+    expect(normalizeDnsRealIpDomains('["example.com\\"; injected: true"]')).toEqual([])
   })
 
   it('normalizes auto node group settings', () => {

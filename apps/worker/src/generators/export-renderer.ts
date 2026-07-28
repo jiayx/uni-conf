@@ -20,19 +20,13 @@ export interface RenderedExport {
 export function renderExportData(
   data: ExportData,
   format: ExportFormat,
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: {
+    dnsPolicy?: ExportDnsPolicy
+    managedRealIpDomains?: string[]
+    ruleSetConversionBaseUrl?: string
+  } = {},
 ): RenderedExport | null {
-  const {
-    nodes,
-    groups,
-    rules,
-    remoteSets,
-    nodeRows,
-    groupRows,
-    ruleRows,
-    remoteSetRows,
-    collectionNodeNames,
-  } = data
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = data
 
   if (format === 'mihomo' || format === 'clash') {
     return {

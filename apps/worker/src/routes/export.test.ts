@@ -4,7 +4,6 @@ import {
   resolveExportConfigUpdateName,
   validateExportConfigSelection,
 } from './export'
-import { resolveExportDnsPolicy } from '../services/export-dns'
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
@@ -21,26 +20,6 @@ describe('export route helpers', () => {
     expect(resolveExportConfigUpdateName('', 'singbox', 'mihomo')).toBe('默认 sing-box 配置')
     expect(resolveExportConfigUpdateName('   ', undefined, 'stash')).toBe('默认 Stash 配置')
     expect(resolveExportConfigUpdateName('  Travel  ', 'mihomo', 'singbox')).toBe('Travel')
-  })
-
-  it('resolves target-aware DNS policies', () => {
-    expect(resolveExportDnsPolicy('mihomo')).toMatchObject({
-      address: { mode: 'fake-ip' },
-      resolution: { mode: 'split' },
-    })
-    expect(resolveExportDnsPolicy('singbox')).toMatchObject({
-      address: { mode: 'fake-ip' },
-      resolution: { mode: 'split' },
-    })
-    expect(resolveExportDnsPolicy('surge')).toMatchObject({
-      address: { mode: 'fake-ip' },
-      resolution: { mode: 'split' },
-    })
-    expect(resolveExportDnsPolicy('shadowrocket')).toMatchObject({
-      address: { mode: 'fake-ip' },
-      resolution: { mode: 'split' },
-    })
-    expect(resolveExportDnsPolicy('nodes_raw')).toBeUndefined()
   })
 
   it('normalizes export config include lists', () => {

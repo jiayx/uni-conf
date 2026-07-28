@@ -8,12 +8,18 @@ import {
   resolveRuleForExport,
 } from '@uni-conf/shared';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
-import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy';
+import {
+  DEFAULT_FAKE_IP_POLICY,
+  MANAGED_FAKE_IP_FILTER_TAG,
+  QUIXOTIC_FAKE_IP_FILTER_SRS_URL,
+  customRealIpDomains,
+} from './dns-policy';
 
 // ─── sing-box JSON generator ──────────────────────────────────────────────────
 
 interface SingboxGeneratorOptions {
   dnsPolicy?: ExportDnsPolicy;
+  managedRealIpDomains?: string[];
   ruleSetConversionBaseUrl?: string;
 }
 
@@ -28,7 +34,7 @@ export function generateSingboxJson(
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY;
   const proxyDetour = defaultProxyDetour(groups);
   const serializedNodes = serializeSingboxNodes(nodes);
-  const endpoints = serializedNodes.flatMap(item => item.endpoint ? [item.endpoint] : []);
+  const endpoints = serializedNodes.flatMap((item) => (item.endpoint ? [item.endpoint] : []));
   const config = {
     log: {
       level: 'warn',
@@ -38,13 +44,13 @@ export function generateSingboxJson(
     inbounds: buildInbounds(),
     ...(endpoints.length > 0 ? { endpoints } : {}),
     outbounds: buildOutbounds(serializedNodes, groups, collectionNodeNames),
-    route: buildRoute(rules, groups, remoteSets, proxyDetour, options.ruleSetConversionBaseUrl),
+    route: buildRoute(rules, groups, remoteSets, proxyDetour, dnsPolicy, options.ruleSetConversionBaseUrl),
     experimental: {
       cache_file: {
         enabled: true,
         path: 'cache.db',
         cache_id: 'uni-conf',
-        store_fakeip: dnsPolicy.address.mode === 'fake-ip',
+        store_fakeip: true,
       },
     },
   };
@@ -55,8 +61,7 @@ export function generateSingboxJson(
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
 function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
-  const split = policy.resolution.mode === 'split';
-  const fakeIp = policy.address.mode === 'fake-ip';
+  const split = policy.resolutionMode === 'split';
   const servers: Record<string, unknown>[] = [
     {
       type: 'https',
@@ -74,21 +79,22 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
       detour: proxyDetour,
     });
   }
-  if (fakeIp) {
-    servers.push({
-      type: 'fakeip',
-      tag: 'fakeip',
-      inet4_range: '198.18.0.0/15',
-      inet6_range: 'fc00::/18',
-    });
-  }
+  servers.push({
+    type: 'fakeip',
+    tag: 'fakeip',
+    inet4_range: '198.18.0.0/15',
+    inet6_range: 'fc00::/18',
+  });
 
   const rules: Record<string, unknown>[] = [];
-  for (const domain of realIpDomains(policy)) {
+  rules.push({
+    rule_set: MANAGED_FAKE_IP_FILTER_TAG,
+    action: 'route',
+    server: 'localDns',
+  });
+  for (const domain of customRealIpDomains(policy)) {
     rules.push({
-      ...(domain.startsWith('*.')
-        ? { domain_suffix: domain.slice(2) }
-        : { domain }),
+      ...(domain.startsWith('*.') ? { domain_suffix: domain.slice(2) } : { domain }),
       action: 'route',
       server: 'localDns',
     });
@@ -100,19 +106,11 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
       server: 'localDns',
     });
   }
-  if (fakeIp) {
-    rules.push({
-      query_type: ['A', 'AAAA'],
-      action: 'route',
-      server: 'fakeip',
-    });
-  } else if (split) {
-    rules.push({
-      rule_set: 'geosite-geolocation-!cn',
-      action: 'route',
-      server: 'proxyDns',
-    });
-  }
+  rules.push({
+    query_type: ['A', 'AAAA'],
+    action: 'route',
+    server: 'fakeip',
+  });
 
   return {
     servers,
@@ -129,10 +127,7 @@ function buildInbounds(): object[] {
     {
       type: 'tun',
       tag: 'tun-in',
-      address: [
-        '172.19.0.1/30',
-        'fdfe:dcba:9876::1/126',
-      ],
+      address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
       mtu: 9000,
       auto_route: true,
       strict_route: true,
@@ -173,10 +168,7 @@ function buildOutbounds(
   const outbounds: object[] = [];
   const serializableNodes = serializedNodes.map((item) => item.node);
   const serializableNodeNames = new Set(serializableNodes.map((node) => node.name));
-  const serializableCollectionNodeNames = filterCollectionNodeNames(
-    collectionNodeNames,
-    serializableNodeNames
-  );
+  const serializableCollectionNodeNames = filterCollectionNodeNames(collectionNodeNames, serializableNodeNames);
 
   // Convert proxy nodes
   for (const { outbound } of serializedNodes) {
@@ -238,9 +230,7 @@ function nodeToSingbox(node: ProxyNode): object | null {
         ob.transport = {
           type: 'ws',
           path: cfg.wsPath ?? '/',
-          headers: cfg.wsHeaders
-            ? Object.fromEntries(Object.entries(cfg.wsHeaders))
-            : {},
+          headers: cfg.wsHeaders ? Object.fromEntries(Object.entries(cfg.wsHeaders)) : {},
         };
       } else if (cfg.network === 'grpc') {
         ob.transport = {
@@ -449,7 +439,7 @@ function nodeToWireGuardEndpoint(node: ProxyNode): object {
       tag: node.name,
       address: wireguardLocalAddress(extra.ip ?? extra.address ?? nativeEndpoint.rawConfig.address),
       private_key: String(extra.privateKey ?? nativeEndpoint.rawConfig.private_key ?? ''),
-      peers: [primaryPeer, ...rawPeers.slice(1).map(peer => ({ ...peer }))],
+      peers: [primaryPeer, ...rawPeers.slice(1).map((peer) => ({ ...peer }))],
     };
   }
 
@@ -494,7 +484,9 @@ function nativeObject(rawConfig: unknown, key: string): Record<string, unknown> 
 }
 
 function isSingboxOutboundShape(value: Record<string, unknown> | null): value is Record<string, unknown> {
-  return Boolean(value && typeof value.type === 'string' && value.server_port !== undefined && value.server !== undefined);
+  return Boolean(
+    value && typeof value.type === 'string' && value.server_port !== undefined && value.server !== undefined
+  );
 }
 
 // ─── Group serialization ──────────────────────────────────────────────────────
@@ -572,6 +564,7 @@ function buildRoute(
   groups: ProxyGroup[],
   remoteSets: RemoteRuleSet[],
   proxyDetour: string,
+  dnsPolicy: ExportDnsPolicy,
   ruleSetConversionBaseUrl?: string
 ): object {
   const routeRules: object[] = [];
@@ -587,9 +580,7 @@ function buildRoute(
   });
 
   // Convert rules
-  const enabledRules = rules
-    .filter((r) => r.enabled)
-    .sort((a, b) => a.order - b.order);
+  const enabledRules = rules.filter((r) => r.enabled).sort((a, b) => a.order - b.order);
   const matchRule = enabledRules.find((r) => r.type === 'MATCH');
 
   for (const rule of enabledRules) {
@@ -606,6 +597,16 @@ function buildRoute(
   ];
   const ruleSetTags = new Set(['geosite-cn', 'geosite-geolocation-!cn']);
 
+  ruleSets.push({
+    tag: MANAGED_FAKE_IP_FILTER_TAG,
+    type: 'remote',
+    format: 'binary',
+    url: QUIXOTIC_FAKE_IP_FILTER_SRS_URL,
+    download_detour: proxyDetour,
+    update_interval: '24h',
+  });
+  ruleSetTags.add(MANAGED_FAKE_IP_FILTER_TAG);
+
   for (const tag of collectGeositeRuleSetTags(enabledRules)) {
     if (ruleSetTags.has(tag)) continue;
     ruleSets.push(buildSingboxGeositeRuleSet(tag, proxyDetour));
@@ -619,9 +620,17 @@ function buildRoute(
 
   const enabledRemoteSets = sortRemoteRuleSets(remoteSets)
     .filter((rs) => rs.enabled)
-    .map((rs) => ({ source: rs, resolved: resolveRemoteRuleSetForExport(rs, 'singbox', ruleSetConversionBaseUrl) }))
-    .filter((item): item is { source: RemoteRuleSet; resolved: { url: string; format: RemoteRuleSet['format']; converted?: boolean } } =>
-      Boolean(item.resolved) && isRuleSetFormatCompatible('singbox', item.resolved!.format)
+    .map((rs) => ({
+      source: rs,
+      resolved: resolveRemoteRuleSetForExport(rs, 'singbox', ruleSetConversionBaseUrl),
+    }))
+    .filter(
+      (
+        item
+      ): item is {
+        source: RemoteRuleSet;
+        resolved: { url: string; format: RemoteRuleSet['format']; converted?: boolean };
+      } => Boolean(item.resolved) && isRuleSetFormatCompatible('singbox', item.resolved!.format)
     );
 
   for (const { source: rs, resolved } of enabledRemoteSets) {
@@ -745,16 +754,27 @@ function wireguardLocalAddress(value: unknown): string[] {
 }
 
 function configStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
-  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  if (Array.isArray(value))
+    return value
+      .map(String)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  if (typeof value === 'string')
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
   return [];
 }
 
-function vlessRealityOptions(extra: Record<string, unknown> | undefined): { publicKey: string; shortId: string } | null {
+function vlessRealityOptions(
+  extra: Record<string, unknown> | undefined
+): { publicKey: string; shortId: string } | null {
   if (!extra) return null;
-  const nested = extra.reality && typeof extra.reality === 'object' && !Array.isArray(extra.reality)
-    ? extra.reality as Record<string, unknown>
-    : {};
+  const nested =
+    extra.reality && typeof extra.reality === 'object' && !Array.isArray(extra.reality)
+      ? (extra.reality as Record<string, unknown>)
+      : {};
   const publicKey = configString(extra.publicKey) ?? configString(nested.publicKey);
   const shortId = configString(extra.shortId) ?? configString(nested.shortId) ?? '';
   return publicKey ? { publicKey, shortId } : null;
@@ -765,10 +785,12 @@ function configString(value: unknown): string | undefined {
 }
 
 function anytlsFingerprint(extra: Record<string, unknown> | undefined): string | undefined {
-  return configString(extra?.['client-fingerprint'])
-    ?? configString(extra?.clientFingerprint)
-    ?? configString(extra?.fingerprint)
-    ?? configString(extra?.fp);
+  return (
+    configString(extra?.['client-fingerprint']) ??
+    configString(extra?.clientFingerprint) ??
+    configString(extra?.fingerprint) ??
+    configString(extra?.fp)
+  );
 }
 
 function isNativeOutletGroup(group: ProxyGroup): boolean {

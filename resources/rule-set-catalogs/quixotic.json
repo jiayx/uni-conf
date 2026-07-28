@@ -4,112 +4,78 @@
   "repositoryUrl": "https://github.com/QuixoticHeart/rule-set",
   "branch": "ruleset",
   "defaultSourceId": "mihomo",
+  "ignoredIds": ["fake-ip-filter"],
   "sources": [
     {
       "id": "mihomo",
       "path": "meta",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "mihomo",
       "behavior": "classical",
-      "nativeFor": [
-        "mihomo",
-        "clash"
-      ]
+      "nativeFor": ["mihomo", "clash"]
     },
     {
       "id": "stash",
       "path": "stash",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "stash",
       "behavior": "classical",
-      "nativeFor": [
-        "stash"
-      ]
+      "nativeFor": ["stash"]
     },
     {
       "id": "singbox",
       "path": "singbox/version5",
-      "include": [
-        "*.srs"
-      ],
+      "include": ["*.srs"],
       "format": "singbox",
       "behavior": "classical",
-      "nativeFor": [
-        "singbox"
-      ]
+      "nativeFor": ["singbox"]
     },
     {
       "id": "surge",
       "path": "surge",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "surge",
       "behavior": "classical",
-      "nativeFor": [
-        "surge"
-      ]
+      "nativeFor": ["surge"]
     },
     {
       "id": "loon",
       "path": "loon",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "loon",
       "behavior": "classical",
-      "nativeFor": [
-        "loon"
-      ]
+      "nativeFor": ["loon"]
     },
     {
       "id": "shadowrocket",
       "path": "shadowrocket",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "shadowrocket",
       "behavior": "classical",
-      "nativeFor": [
-        "shadowrocket"
-      ]
+      "nativeFor": ["shadowrocket"]
     },
     {
       "id": "quantumultx",
       "path": "quantumultx",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "quantumultx",
       "behavior": "classical",
-      "nativeFor": [
-        "quantumultx"
-      ]
+      "nativeFor": ["quantumultx"]
     },
     {
       "id": "egern",
       "path": "egern",
-      "include": [
-        "*.yaml"
-      ],
+      "include": ["*.yaml"],
       "format": "egern",
       "behavior": "classical",
-      "nativeFor": [
-        "egern"
-      ]
+      "nativeFor": ["egern"]
     },
     {
       "id": "custom",
       "repositoryUrl": "https://github.com/QuixoticHeart/rule-set",
       "branch": "master",
       "path": "custom",
-      "include": [
-        "*.list"
-      ],
+      "include": ["*.list"],
       "format": "text",
       "behavior": "classical",
       "nativeFor": []
@@ -119,26 +85,18 @@
     "category": "general",
     "provisioning": "optional",
     "sortOrder": 900,
-    "activeForUnmatchedPolicies": [
-      "proxy",
-      "direct"
-    ]
+    "activeForUnmatchedPolicies": ["proxy", "direct"]
   },
   "mappings": [
     {
-      "ids": [
-        "private"
-      ],
+      "ids": ["private"],
       "category": "general",
       "target": "DIRECT",
       "provisioning": "foundation",
       "sortOrder": 10
     },
     {
-      "ids": [
-        "adrules",
-        "httpdns"
-      ],
+      "ids": ["adrules", "httpdns"],
       "category": "privacy",
       "target": "REJECT",
       "provisioning": "foundation",
@@ -162,38 +120,18 @@
       "target": "DIRECT",
       "provisioning": "foundation",
       "sortOrder": 30,
-      "activeForUnmatchedPolicies": [
-        "proxy"
-      ]
+      "activeForUnmatchedPolicies": ["proxy"]
     },
     {
-      "ids": [
-        "fake-ip-filter"
-      ],
-      "category": "dns",
-      "target": "DIRECT",
-      "provisioning": "foundation",
-      "sortOrder": 30,
-      "activeForUnmatchedPolicies": [
-        "proxy"
-      ]
-    },
-    {
-      "ids": [
-        "dmca"
-      ],
+      "ids": ["dmca"],
       "category": "privacy",
       "target": "DIRECT",
       "provisioning": "foundation",
       "sortOrder": 30,
-      "activeForUnmatchedPolicies": [
-        "proxy"
-      ]
+      "activeForUnmatchedPolicies": ["proxy"]
     },
     {
-      "ids": [
-        "ai"
-      ],
+      "ids": ["ai"],
       "category": "ai",
       "target": "AI",
       "provisioning": "scenario",
@@ -223,92 +161,64 @@
       "sortOrder": 60
     },
     {
-      "ids": [
-        "gits"
-      ],
+      "ids": ["gits"],
       "category": "developer",
       "target": "GitHub",
       "provisioning": "scenario",
       "sortOrder": 70
     },
     {
-      "ids": [
-        "apple",
-        "apple-proxy"
-      ],
+      "ids": ["apple", "apple-proxy"],
       "category": "apple",
       "target": "Apple",
       "provisioning": "scenario",
       "sortOrder": 80
     },
     {
-      "ids": [
-        "microsoft",
-        "onedrive"
-      ],
+      "ids": ["microsoft", "onedrive"],
       "category": "microsoft",
       "target": "Microsoft",
       "provisioning": "scenario",
       "sortOrder": 90
     },
     {
-      "ids": [
-        "google",
-        "googlefcm"
-      ],
+      "ids": ["google", "googlefcm"],
       "category": "google",
       "target": "Google",
       "provisioning": "scenario",
       "sortOrder": 100
     },
     {
-      "ids": [
-        "games"
-      ],
+      "ids": ["games"],
       "category": "gaming",
       "target": "Gaming",
       "provisioning": "scenario",
       "sortOrder": 110
     },
     {
-      "ids": [
-        "crypto"
-      ],
+      "ids": ["crypto"],
       "category": "finance",
       "target": "Crypto",
       "provisioning": "scenario",
       "sortOrder": 120
     },
     {
-      "ids": [
-        "forum",
-        "socialmedia",
-        "talkatone",
-        "tiktok"
-      ],
+      "ids": ["forum", "socialmedia", "talkatone", "tiktok"],
       "category": "social",
       "target": "Social",
       "provisioning": "scenario",
       "sortOrder": 130
     },
     {
-      "ids": [
-        "gfw",
-        "proxy",
-        "tld-proxy"
-      ],
+      "ids": ["gfw", "proxy", "tld-proxy"],
       "category": "proxy",
       "target": "PROXY",
       "provisioning": "foundation",
       "sortOrder": 140,
-      "activeForUnmatchedPolicies": [
-        "direct"
-      ]
+      "activeForUnmatchedPolicies": ["direct"]
     },
     {
-      "ids": [
-        "speedtest"
-      ],
+      "ids": ["speedtest"],
       "category": "diagnostics",
       "target": "Speedtest",
       "provisioning": "scenario",
@@ -384,20 +294,6 @@
     },
     "youtube": {
       "name": "YouTube"
-    },
-    "fake-ip-filter": {
-      "name": "Fake IP Filter",
-      "sources": [
-        {
-          "id": "text",
-          "repositoryUrl": "https://github.com/QuixoticHeart/rule-set",
-          "branch": "master",
-          "path": "meta/domain/fake-ip-filter.list",
-          "format": "text",
-          "behavior": "domain",
-          "nativeFor": []
-        }
-      ]
     },
     "telegram": {
       "name": "Telegram"

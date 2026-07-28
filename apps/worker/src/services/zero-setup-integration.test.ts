@@ -156,7 +156,7 @@ function createZeroSetupDb(patch: {
       default_export_token: null,
       show_compatibility_warnings: 1,
       enable_auto_refresh: 1,
-      auto_refresh_interval: 1440,
+      auto_refresh_interval: 240,
       auto_node_groups_enabled: patch.autoNodeGroupsEnabled === false ? 0 : 1,
       auto_node_group_types: null,
       auto_node_group_keys: null,

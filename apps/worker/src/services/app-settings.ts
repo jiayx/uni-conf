@@ -1,5 +1,5 @@
-import { ALL_ROUTING_POLICY_SCENARIO_IDS, AUTO_NODE_GROUP_TYPE_ORDER, DEFAULT_ROUTING_POLICY_SCENARIOS, isAutoNodeGroupType } from '@uni-conf/shared';
-import type { AppSettings, AutoNodeGroupType, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
+import { ALL_ROUTING_POLICY_SCENARIO_IDS, AUTO_NODE_GROUP_TYPE_ORDER, DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DEFAULT_ROUTING_POLICY_SCENARIOS, isAutoNodeGroupType, normalizeDnsRealIpDomainList } from '@uni-conf/shared';
+import type { AppSettings, AutoNodeGroupType, DnsResolutionMode, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
 const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
@@ -12,6 +12,7 @@ const EXPORT_NODE_NAMING_MODES = new Set<ExportNodeNamingMode>([
   'smart',
 ]);
 const RULE_SET_CONVERSION_POLICIES = new Set<RuleSetConversionPolicy>(['compatible', 'strict']);
+const DNS_RESOLUTION_MODES = new Set<DnsResolutionMode>(['single', 'split']);
 const DEFAULT_AUTO_NODE_GROUP_TYPES: AutoNodeGroupType[] = ['url-test'];
 
 export async function getAppSettings(db: D1Database): Promise<AppSettings> {
@@ -30,11 +31,16 @@ export async function getAppSettings(db: D1Database): Promise<AppSettings> {
     routingPolicyScenarios: normalizeRoutingPolicyScenarios(row.routing_policy_scenarios),
     routingOutletPreferences: normalizeOptionalStringMap(row.routing_outlet_preferences),
     exportNodeNamingMode: normalizeExportNodeNamingMode(row.export_node_naming_mode),
+    dnsResolutionMode: normalizeDnsResolutionMode(row.dns_resolution_mode),
+    dnsRealIpDomains: normalizeDnsRealIpDomains(row.dns_real_ip_domains),
     defaultExportToken: normalizeOptionalString(row.default_export_token),
     showCompatibilityWarnings: normalizeBooleanDefault(row.show_compatibility_warnings, true),
     ruleSetConversionPolicy: normalizeRuleSetConversionPolicy(row.rule_set_conversion_policy),
     enableAutoRefresh: normalizeBooleanDefault(row.enable_auto_refresh, true),
-    autoRefreshInterval: normalizePositiveInteger(row.auto_refresh_interval, 1440),
+    autoRefreshInterval: normalizePositiveInteger(
+      row.auto_refresh_interval,
+      DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES,
+    ),
     autoNodeGroupsEnabled: normalizeBooleanDefault(row.auto_node_groups_enabled, true),
     autoNodeGroupTypes: normalizeAutoNodeGroupTypes(row.auto_node_group_types),
     autoNodeGroupKeys: normalizeOptionalStringList(row.auto_node_group_keys),
@@ -80,6 +86,21 @@ export function normalizeRuleSetConversionPolicy(value: unknown): RuleSetConvers
   return typeof value === 'string' && RULE_SET_CONVERSION_POLICIES.has(value as RuleSetConversionPolicy)
     ? value as RuleSetConversionPolicy
     : 'compatible';
+}
+
+export function normalizeDnsResolutionMode(value: unknown): DnsResolutionMode {
+  return typeof value === 'string' && DNS_RESOLUTION_MODES.has(value as DnsResolutionMode)
+    ? value as DnsResolutionMode
+    : 'split';
+}
+
+export function normalizeDnsRealIpDomains(value: unknown): string[] {
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? parseJsonArray(value)
+      : [];
+  return normalizeDnsRealIpDomainList(rawItems) ?? [];
 }
 
 export function normalizeBooleanDefault(value: unknown, defaultValue: boolean): boolean {

@@ -36,7 +36,10 @@ import { getStoredApiKey } from './auth'
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
-type ExportConfigCreateInput = Omit<ExportConfig, 'id' | 'token' | 'createdAt' | 'updatedAt' | 'name'> & {
+type ExportConfigCreateInput = Omit<
+  ExportConfig,
+  'id' | 'token' | 'createdAt' | 'updatedAt' | 'name'
+> & {
   name?: string
 }
 

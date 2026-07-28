@@ -11,10 +11,16 @@ import {
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
 import type { ExportFormat, ProxySource } from '@uni-conf/types'
-import { getConvertedRemoteRuleSet, preflightRuleSetConversions, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
+import {
+  getConvertedRemoteRuleSet,
+  preflightRuleSetConversions,
+  resolveRuleSetConversionSource,
+  RuleSetConversionError,
+} from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
 import { DEFAULT_EXPORT_CONFIG_ID } from '../services/default-export-config'
-import { resolveExportDnsPolicy } from '../services/export-dns'
+import { getEffectiveExportDnsPolicy } from '../services/export-dns'
+import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -23,41 +29,37 @@ export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 // different rule-set containers. It never silently broadens compound rules.
 subscriptionRouter.get('/sub/:token/rules/:ruleSetId/:filename', async (c) => {
   const token = c.req.param('token')
-  const target = c.req.param('filename') === 'singbox.json'
-    ? 'singbox'
-    : c.req.param('filename') === 'mihomo.yaml'
-      ? 'mihomo'
-      : c.req.param('filename') === 'egern.yaml'
-        ? 'egern'
-      : parseTextConversionTarget(c.req.param('filename'))
+  const target =
+    c.req.param('filename') === 'singbox.json'
+      ? 'singbox'
+      : c.req.param('filename') === 'mihomo.yaml'
+        ? 'mihomo'
+        : c.req.param('filename') === 'egern.yaml'
+          ? 'egern'
+          : parseTextConversionTarget(c.req.param('filename'))
   if (!target) return convertedRuleSetError('Unknown conversion target', 400, 'conversion_target_invalid')
 
   const config = await getEnabledExportConfigByToken(c.env.DB, token)
   if (!config) return convertedRuleSetError('Subscription not found or disabled', 404, 'subscription_unavailable')
   const settings = await getAppSettings(c.env.DB)
-  const conversionPolicy = resolveExportRuleSetConversionPolicy(
-    config,
-    settings.ruleSetConversionPolicy,
-  )
+  const conversionPolicy = resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy)
   const requestedExportFormat = c.req.query('for')
-  const exportFormat = requestedExportFormat === undefined
-    ? target
-    : isRuleSetConversionExportFormat(requestedExportFormat)
-      ? requestedExportFormat
-      : null
+  const exportFormat =
+    requestedExportFormat === undefined
+      ? target
+      : isRuleSetConversionExportFormat(requestedExportFormat)
+        ? requestedExportFormat
+        : null
   if (!exportFormat) {
     return convertedRuleSetError('Unknown export format context', 400, 'conversion_export_format_invalid')
   }
   if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== exportFormat) {
-    return convertedRuleSetError(
-      'Export profile does not support this format',
-      404,
-      'subscription_format_mismatch',
-    )
+    return convertedRuleSetError('Export profile does not support this format', 404, 'subscription_format_mismatch')
   }
   const exportData = await buildExportData(c.env.DB, config, exportFormat)
   const ruleSet = exportData.remoteSets.find((item) => item.id === c.req.param('ruleSetId') && item.enabled)
-  if (!ruleSet) return convertedRuleSetError('Rule set is not included in this subscription', 404, 'rule_set_out_of_scope')
+  if (!ruleSet)
+    return convertedRuleSetError('Rule set is not included in this subscription', 404, 'rule_set_out_of_scope')
   const conversion = resolveRuleSetConversionSource(ruleSet, exportFormat)
   if (!conversion || conversion.target !== target) {
     return convertedRuleSetError('Rule set does not require this conversion target', 422, 'conversion_not_required')
@@ -89,7 +91,11 @@ subscriptionRouter.get('/sub/:token/rules/:ruleSetId/:filename', async (c) => {
     if (error instanceof RuleSetConversionError && error.code === 'download_failed') {
       return convertedRuleSetError(error.message, 502, 'conversion_upstream_unavailable')
     }
-    return convertedRuleSetError('Rule set cannot be converted without changing its meaning', 422, 'conversion_invalid_content')
+    return convertedRuleSetError(
+      'Rule set cannot be converted without changing its meaning',
+      422,
+      'conversion_invalid_content',
+    )
   }
 })
 
@@ -104,7 +110,7 @@ function serializeSkippedRuleTypes(counts: Record<string, number>): string {
 function parseTextConversionTarget(filename: string): 'surge' | 'loon' | 'shadowrocket' | 'quantumultx' | null {
   const value = filename.endsWith('.list') ? filename.slice(0, -5) : ''
   return ['surge', 'loon', 'shadowrocket', 'quantumultx'].includes(value)
-    ? value as 'surge' | 'loon' | 'shadowrocket' | 'quantumultx'
+    ? (value as 'surge' | 'loon' | 'shadowrocket' | 'quantumultx')
     : null
 }
 
@@ -183,7 +189,10 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
   const rendered = renderExportData(exportData, format, {
-    dnsPolicy: resolveExportDnsPolicy(format, config.dnsPolicy),
+    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format),
+    managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
+      ? await getManagedRealIpDomains(c.env.KV)
+      : undefined,
     ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, token),
   })
   if (!rendered) {
@@ -226,11 +235,12 @@ export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string 
       upload: acc.upload + (source.uploadBytes ?? 0),
       download: acc.download + (source.downloadBytes ?? 0),
       total: acc.total + (source.totalBytes ?? 0),
-      expire: source.expireTime === undefined
-        ? acc.expire
-        : acc.expire === undefined
-          ? source.expireTime
-          : Math.min(acc.expire, source.expireTime),
+      expire:
+        source.expireTime === undefined
+          ? acc.expire
+          : acc.expire === undefined
+            ? source.expireTime
+            : Math.min(acc.expire, source.expireTime),
       hasUpload: acc.hasUpload || source.uploadBytes !== undefined,
       hasDownload: acc.hasDownload || source.downloadBytes !== undefined,
       hasTotal: acc.hasTotal || source.totalBytes !== undefined,
@@ -245,7 +255,7 @@ export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string 
       hasDownload: false,
       hasTotal: false,
       hasExpire: false,
-    }
+    },
   )
 
   const fields: string[] = []
@@ -265,11 +275,7 @@ export function buildRuleSetConversionBaseUrl(requestUrl: string, token: string)
   return `${new URL(requestUrl).origin}/sub/${encodeURIComponent(token)}/rules`
 }
 
-function convertedRuleSetError(
-  message: string,
-  status: 400 | 404 | 409 | 413 | 422 | 502,
-  code: string
-): Response {
+function convertedRuleSetError(message: string, status: 400 | 404 | 409 | 413 | 422 | 502, code: string): Response {
   return new Response(`# ${message}\n`, {
     status,
     headers: {

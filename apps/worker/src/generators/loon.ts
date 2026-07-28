@@ -21,7 +21,11 @@ type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
 function safeJson(text: unknown): Record<string, unknown> {
   if (typeof text !== 'string') return {}
-  try { return JSON.parse(text) as Record<string, unknown> } catch { return {} }
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return {}
+  }
 }
 
 function nodeToLoonProxy(node: Record<string, unknown>): string | null {
@@ -36,7 +40,9 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
   switch (protocol) {
     case 'ss': {
       const fields = [
-        'Shadowsocks', server, String(port),
+        'Shadowsocks',
+        server,
+        String(port),
         String(extra['cipher'] ?? extra['method'] ?? 'aes-256-gcm'),
         quoteLoonValue(password),
       ]
@@ -47,7 +53,9 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
     }
     case 'ssr': {
       const fields = [
-        'ShadowsocksR', server, String(port),
+        'ShadowsocksR',
+        server,
+        String(port),
         String(extra['cipher'] ?? extra['method'] ?? 'aes-256-cfb'),
         quoteLoonValue(password),
         `protocol=${String(extra['protocol'] ?? 'origin')}`,
@@ -62,7 +70,9 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
     case 'vmess': {
       if (!isLoonTransportSupported(parsed['network'])) return null
       const fields = [
-        'vmess', server, String(port),
+        'vmess',
+        server,
+        String(port),
         normalizeLoonVmessCipher(extra['cipher']),
         quoteLoonValue(String(parsed['uuid'] ?? '')),
       ]
@@ -73,10 +83,7 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
     }
     case 'vless': {
       if (!isLoonTransportSupported(parsed['network'])) return null
-      const fields = [
-        'VLESS', server, String(port),
-        quoteLoonValue(String(parsed['uuid'] ?? '')),
-      ]
+      const fields = ['VLESS', server, String(port), quoteLoonValue(String(parsed['uuid'] ?? ''))]
       appendLoonTransport(fields, parsed, extra)
       appendLoonTls(fields, parsed)
       return `${name} = ${fields.join(',')}`
@@ -110,11 +117,7 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
   }
 }
 
-function appendLoonTransport(
-  fields: string[],
-  parsed: Record<string, unknown>,
-  extra: Record<string, unknown>
-): void {
+function appendLoonTransport(fields: string[], parsed: Record<string, unknown>, extra: Record<string, unknown>): void {
   const transport = String(parsed['network'] ?? 'tcp')
   fields.push(`transport=${transport}`)
   if (transport !== 'ws' && transport !== 'http') return
@@ -128,7 +131,7 @@ function appendLoonTransport(
 function appendLoonTls(
   fields: string[],
   parsed: Record<string, unknown>,
-  options: { includeOverTls?: boolean } = {}
+  options: { includeOverTls?: boolean } = {},
 ): void {
   if (options.includeOverTls !== false) fields.push(`over-tls=${Boolean(parsed['tls'])}`)
   if (parsed['sni']) fields.push(`tls-name=${String(parsed['sni'])}`)
@@ -151,19 +154,13 @@ function appendLoonAlpn(fields: string[], extra: Record<string, unknown>): void 
   if (values.length === 1) fields.push(`alpn=${values[0]}`)
 }
 
-function appendBooleanField(
-  fields: string[],
-  key: string,
-  value: unknown
-): void {
+function appendBooleanField(fields: string[], key: string, value: unknown): void {
   if (value !== undefined) fields.push(`${key}=${Boolean(value)}`)
 }
 
 function normalizeLoonVmessCipher(value: unknown): string {
   const cipher = String(value ?? '')
-  return ['aes-128-gcm', 'chacha20-poly1305'].includes(cipher)
-    ? cipher
-    : 'aes-128-gcm'
+  return ['aes-128-gcm', 'chacha20-poly1305'].includes(cipher) ? cipher : 'aes-128-gcm'
 }
 
 function quoteLoonValue(value: string): string {
@@ -174,7 +171,7 @@ function groupToLoon(
   group: Record<string, unknown>,
   allGroups: Record<string, unknown>[],
   nodeNames: string[],
-  collectionNodeNames: Record<string, string[]>
+  collectionNodeNames: Record<string, string[]>,
 ): string {
   const name = String(group['name'] ?? '')
   const type = String(group['type'] ?? 'select')
@@ -199,12 +196,12 @@ function ruleToLoon(rule: Record<string, unknown>, allGroups: Record<string, unk
   const type = String(rule['type'] ?? '')
   const payload = String(rule['payload'] ?? '')
   const targetGroupId = String(rule['target_group_id'] ?? '')
-  const targetGroup = allGroups.find(g => String(g['id']) === targetGroupId)
+  const targetGroup = allGroups.find((g) => String(g['id']) === targetGroupId)
   const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
-  const noResolve = rule['no_resolve']
-    && getRuleNoResolveHandling(type as RuleCompatibilityType, 'loon') === 'native'
-    ? ', no-resolve'
-    : ''
+  const noResolve =
+    rule['no_resolve'] && getRuleNoResolveHandling(type as RuleCompatibilityType, 'loon') === 'native'
+      ? ', no-resolve'
+      : ''
 
   if (type === 'MATCH') return `FINAL, ${target}`
   const resolution = resolveRuleForExport(type as RuleCompatibilityType, payload, 'loon')
@@ -218,7 +215,11 @@ export function generateLoon(
   rules: Record<string, unknown>[],
   remoteSets: Record<string, unknown>[],
   collectionNodeNames: Record<string, string[]> = {},
-  options: { dnsPolicy?: ExportDnsPolicy; ruleSetConversionBaseUrl?: string } = {}
+  options: {
+    dnsPolicy?: ExportDnsPolicy
+    managedRealIpDomains?: string[]
+    ruleSetConversionBaseUrl?: string
+  } = {},
 ): string {
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines: string[] = []
@@ -228,10 +229,10 @@ export function generateLoon(
   lines.push('[General]')
   lines.push('ip-mode = v4-only')
   lines.push('dns-server = system, 119.29.29.29, 223.5.5.5')
-  if (dnsPolicy.resolution.mode === 'split') {
+  if (dnsPolicy.resolutionMode === 'split') {
     lines.push('doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
   }
-  lines.push(`real-ip = ${realIpDomains(dnsPolicy).join(', ')}`)
+  lines.push(`real-ip = ${realIpDomains(dnsPolicy, options.managedRealIpDomains).join(', ')}`)
   lines.push('allow-wifi-access = false')
   lines.push('wifi-access-http-port = 7222')
   lines.push('wifi-access-socks5-port = 7221')
@@ -242,7 +243,7 @@ export function generateLoon(
   lines.push('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
   lines.push('')
 
-  if (dnsPolicy.resolution.mode === 'split') {
+  if (dnsPolicy.resolutionMode === 'split') {
     lines.push('[Host]')
     lines.push('*.cn = server:223.5.5.5')
     lines.push('* = server:https://1.1.1.1/dns-query')
@@ -254,7 +255,10 @@ export function generateLoon(
   const validNodes: string[] = []
   for (const node of nodes) {
     const line = nodeToLoonProxy(node)
-    if (line) { lines.push(line); validNodes.push(String(node['name'] ?? '')) }
+    if (line) {
+      lines.push(line)
+      validNodes.push(String(node['name'] ?? ''))
+    }
   }
   lines.push('')
 
@@ -264,7 +268,7 @@ export function generateLoon(
 
   // [Proxy Group]
   lines.push('[Proxy Group]')
-  for (const group of groups.filter(group => !isNativeOutletGroup(group))) {
+  for (const group of groups.filter((group) => !isNativeOutletGroup(group))) {
     const line = groupToLoon(group, groups, validNodes, collectionNodeNames)
     lines.push(line)
   }
@@ -278,7 +282,7 @@ export function generateLoon(
     if (line) lines.push(line)
   }
   // Ensure FINAL rule exists
-  const hasFinal = rules.some(r => Boolean(r['enabled']) && String(r['type']) === 'MATCH')
+  const hasFinal = rules.some((r) => Boolean(r['enabled']) && String(r['type']) === 'MATCH')
   if (!hasFinal) {
     lines.push(`FINAL, ${defaultPolicy(groups)}`)
   }
@@ -292,7 +296,7 @@ export function generateLoon(
     if (!resolved || !isRuleSetFormatCompatible('loon', resolved.format)) continue
     const name = String(rs['name'] ?? '')
     const targetGroupId = String(rs['target_group_id'] ?? '')
-    const targetGroup = groups.find(g => String(g['id']) === targetGroupId)
+    const targetGroup = groups.find((g) => String(g['id']) === targetGroupId)
     const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
     lines.push(`${resolved.url}, policy=${target}, tag=${name}, enabled=true`)
   }
@@ -311,7 +315,7 @@ export function generateLoon(
 }
 
 function defaultPolicy(groups: Array<Record<string, unknown>>): string {
-  const group = groups.find(item => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
+  const group = groups.find((item) => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
   return group ? nativePolicyName(group) : 'DIRECT'
 }
 
@@ -327,8 +331,9 @@ function isNativeOutletGroup(group: Record<string, unknown>): boolean {
 }
 
 function sortRemoteRuleSetRows(remoteSets: Record<string, unknown>[]): Record<string, unknown>[] {
-  return [...remoteSets].sort((a, b) =>
-    Number(a['sort_order'] ?? 500) - Number(b['sort_order'] ?? 500)
-    || String(a['created_at'] ?? '').localeCompare(String(b['created_at'] ?? ''))
+  return [...remoteSets].sort(
+    (a, b) =>
+      Number(a['sort_order'] ?? 500) - Number(b['sort_order'] ?? 500) ||
+      String(a['created_at'] ?? '').localeCompare(String(b['created_at'] ?? '')),
   )
 }
