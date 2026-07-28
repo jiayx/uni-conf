@@ -28,6 +28,7 @@ export function Preview() {
   const format = parsePreviewFormat(searchParams.get('format'))
   const [configs, setConfigs] = useState<ExportConfig[]>([])
   const [configsLoading, setConfigsLoading] = useState(false)
+  const [configsLoaded, setConfigsLoaded] = useState(false)
   const [configsError, setConfigsError] = useState<unknown | null>(null)
   const configId = searchParams.get('configId') ?? ''
   const [content, setContent] = useState('')
@@ -51,6 +52,12 @@ export function Preview() {
   const selectedConfig = useMemo(
     () => configs.find(config => config.id === configId),
     [configId, configs],
+  )
+  const previewWaitingForConfig = Boolean(
+    configId && (
+      !configsLoaded
+      || (selectedConfig && selectedConfig.format !== format)
+    ),
   )
 
   const selectFormat = (nextFormat: ExportFormat) => {
@@ -90,6 +97,7 @@ export function Preview() {
       setConfigsError(error)
     } finally {
       setConfigsLoading(false)
+      setConfigsLoaded(true)
     }
   }, [])
 
@@ -131,13 +139,14 @@ export function Preview() {
   }, [configId, format])
 
   useEffect(() => {
+    if (previewWaitingForConfig) return
     queueMicrotask(() => {
       void handlePreview(false)
     })
     return () => {
       previewRequestId.current += 1
     }
-  }, [handlePreview])
+  }, [handlePreview, previewWaitingForConfig])
 
   const handleCopy = async () => {
     if (!canUseConfig) return

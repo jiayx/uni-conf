@@ -16,6 +16,7 @@ import {
 import {
   DASHBOARD_DATA_CHANGED_EVENT,
   openSetupGuide,
+  SETUP_GUIDE_DISMISSED_KEY,
 } from '@/core/onboarding/setup-guide'
 import { api } from '@/lib/api'
 import type { DashboardStats, ExportFormat } from '@uni-conf/types'
@@ -34,6 +35,13 @@ export function Dashboard() {
   const loadStats = async () => {
     const nextStats = await api.dashboard.stats()
     setStats(nextStats)
+    if (
+      nextStats.sourceCount === 0
+      && nextStats.nodeCount === 0
+      && window.sessionStorage.getItem(SETUP_GUIDE_DISMISSED_KEY) !== '1'
+    ) {
+      openSetupGuide()
+    }
     const defaultFormat = nextStats.defaultExportFormat
     if (defaultFormat && QUICK_EXPORT_OPTIONS.some(option => option.value === defaultFormat)) {
       setSelectedQuickFormat(defaultFormat)

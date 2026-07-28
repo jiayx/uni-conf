@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { Dashboard } from './Dashboard'
+import { SetupGuideDialog } from '@/components/onboarding/SetupGuideDialog/SetupGuideDialog'
 import { api } from '@/lib/api'
 import i18n from '@/i18n'
 import type { DashboardStats } from '@uni-conf/types'
@@ -34,6 +35,7 @@ const stats: DashboardStats = {
 describe('Dashboard', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
     await i18n.changeLanguage('en')
     vi.mocked(api.dashboard.stats).mockResolvedValue(stats)
   })
@@ -74,9 +76,16 @@ describe('Dashboard', () => {
       nodeCount: 0,
       enabledNodeCount: 0,
     })
-    render(<MemoryRouter><Dashboard /></MemoryRouter>)
+    render(
+      <MemoryRouter>
+        <Dashboard />
+        <SetupGuideDialog />
+      </MemoryRouter>,
+    )
 
     expect(await screen.findByRole('button', { name: 'Start setup' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Add a subscription' })).toBeInTheDocument()
     expect(screen.queryByText('Quick Export')).not.toBeInTheDocument()
+    expect(api.dashboard.stats).toHaveBeenCalledTimes(1)
   })
 })

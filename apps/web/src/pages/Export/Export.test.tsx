@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { Export } from './Export'
@@ -125,6 +125,26 @@ describe('Export', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Reset Token' }).at(-1)!)
     expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/Mobile.*all existing public links/is))
+  })
+
+  it('updates a changed profile without reloading unrelated export data', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(api.export.updateConfig).mockResolvedValue({ ...configs[1]!, enabled: false })
+    const user = userEvent.setup()
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    await user.click((await screen.findAllByRole('button', { name: 'Pause Subscription' })).at(-1)!)
+
+    await waitFor(() => expect(api.export.updateConfig).toHaveBeenCalledWith(
+      'advanced-1',
+      { enabled: false },
+    ))
+    expect(api.export.listConfigs).toHaveBeenCalledTimes(1)
+    expect(api.collections.list).toHaveBeenCalledTimes(1)
+    expect(api.groups.list).toHaveBeenCalledTimes(1)
+    expect(api.rules.list).toHaveBeenCalledTimes(1)
+    expect(api.remoteRuleSets.list).toHaveBeenCalledTimes(1)
+    expect(api.settings.get).toHaveBeenCalledTimes(1)
   })
 
   it('shows guidance that changes with the selected export format', async () => {

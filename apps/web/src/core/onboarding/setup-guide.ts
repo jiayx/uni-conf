@@ -1,5 +1,6 @@
 export const SETUP_GUIDE_OPEN_EVENT = 'uni-conf:setup-guide-open'
 export const DASHBOARD_DATA_CHANGED_EVENT = 'uni-conf:dashboard-data-changed'
+export const SETUP_GUIDE_DISMISSED_KEY = 'uni-conf:setup-guide-dismissed'
 
 export function openSetupGuide(): void {
   window.dispatchEvent(new Event(SETUP_GUIDE_OPEN_EVENT))

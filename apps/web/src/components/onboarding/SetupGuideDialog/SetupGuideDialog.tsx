@@ -7,12 +7,11 @@ import { summarizeDashboardSourceCreateResults } from '@/core/sources/dashboard-
 import { parseSubscriptionUrls } from '@/core/sources/subscription-urls'
 import {
   notifyDashboardDataChanged,
+  SETUP_GUIDE_DISMISSED_KEY,
   SETUP_GUIDE_OPEN_EVENT,
 } from '@/core/onboarding/setup-guide'
 import { api } from '@/lib/api'
 import styles from './SetupGuideDialog.module.css'
-
-const DISMISSED_KEY = 'uni-conf:setup-guide-dismissed'
 
 export function SetupGuideDialog() {
   const { t } = useTranslation()
@@ -24,32 +23,18 @@ export function SetupGuideDialog() {
   const canSubmit = parseSubscriptionUrls(sourceUrl).length > 0
 
   useEffect(() => {
-    let cancelled = false
     const openFromRequest = () => {
       setError(null)
       setOpen(true)
     }
     window.addEventListener(SETUP_GUIDE_OPEN_EVENT, openFromRequest)
 
-    if (window.sessionStorage.getItem(DISMISSED_KEY) !== '1') {
-      void api.dashboard.stats()
-        .then(stats => {
-          if (!cancelled && stats.sourceCount === 0 && stats.nodeCount === 0) {
-            setOpen(true)
-          }
-        })
-        .catch(() => undefined)
-    }
-
-    return () => {
-      cancelled = true
-      window.removeEventListener(SETUP_GUIDE_OPEN_EVENT, openFromRequest)
-    }
+    return () => window.removeEventListener(SETUP_GUIDE_OPEN_EVENT, openFromRequest)
   }, [])
 
   const close = () => {
     if (creating) return
-    window.sessionStorage.setItem(DISMISSED_KEY, '1')
+    window.sessionStorage.setItem(SETUP_GUIDE_DISMISSED_KEY, '1')
     setOpen(false)
   }
 
@@ -82,7 +67,7 @@ export function SetupGuideDialog() {
         return
       }
 
-      window.sessionStorage.removeItem(DISMISSED_KEY)
+      window.sessionStorage.removeItem(SETUP_GUIDE_DISMISSED_KEY)
       setOpen(false)
       notifyDashboardDataChanged()
       void navigate('/')

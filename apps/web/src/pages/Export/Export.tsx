@@ -188,15 +188,17 @@ export function Export() {
     setFormSaving(true)
     setFormError(null)
     try {
+      let savedConfig: ExportConfig
       if (editingId) {
-        await api.export.updateConfig(editingId, payload)
+        savedConfig = await api.export.updateConfig(editingId, payload)
+        setConfigs(current => current.map(config => config.id === savedConfig.id ? savedConfig : config))
       } else {
-        await api.export.createConfig(payload)
+        savedConfig = await api.export.createConfig(payload)
+        setConfigs(current => [...current, savedConfig])
       }
       setShowModal(false)
       setEditingId(null)
       setForm(EMPTY_FORM)
-      await load(false)
     } catch (error) {
       setFormError(error)
     } finally {
@@ -215,7 +217,12 @@ export function Export() {
     setActionNotice(null)
     try {
       await api.export.deleteConfig(config.id)
-      await load(false)
+      setConfigs(current => current.filter(item => item.id !== config.id))
+      setRevealedUrlScopes(current => {
+        const next = new Set(current)
+        next.delete(config.id)
+        return next
+      })
     } catch (error) {
       setDownloadError(error)
     } finally {
@@ -247,9 +254,14 @@ export function Export() {
     setDownloadError(null)
     setActionNotice(null)
     try {
-      await api.export.resetToken(config.id)
+      const updated = await api.export.resetToken(config.id)
+      setConfigs(current => current.map(item => item.id === updated.id ? updated : item))
+      setRevealedUrlScopes(current => {
+        const next = new Set(current)
+        next.delete(config.id)
+        return next
+      })
       setActionNotice(t('export.token_reset_success'))
-      await load(false)
     } catch (e) {
       setDownloadError(e)
     } finally {
@@ -272,9 +284,9 @@ export function Export() {
     setDownloadError(null)
     setActionNotice(null)
     try {
-      await api.export.updateConfig(config.id, { enabled: nextEnabled })
+      const updated = await api.export.updateConfig(config.id, { enabled: nextEnabled })
+      setConfigs(current => current.map(item => item.id === updated.id ? updated : item))
       setActionNotice(t(nextEnabled ? 'export.link_resumed_success' : 'export.link_paused_success'))
-      await load(false)
     } catch (e) {
       setDownloadError(e)
     } finally {

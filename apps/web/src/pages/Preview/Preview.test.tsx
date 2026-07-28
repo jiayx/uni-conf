@@ -301,6 +301,43 @@ describe('Preview artifact validation', () => {
     expect(selector).toHaveValue('')
   })
 
+  it('waits for the selected profile before generating its initial preview', async () => {
+    vi.mocked(api.export.listConfigs).mockResolvedValue([{
+      id: 'advanced-1',
+      name: 'Mobile',
+      format: 'singbox',
+      token: 'profile-token',
+      enabled: true,
+      includeCollectionIds: [],
+      includeGroupIds: [],
+      includeRuleIds: [],
+      includeRemoteSetIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }])
+    vi.mocked(api.export.previewFormat).mockImplementation(async format => ({
+      format,
+      capabilityProfile: { id: 'uni-conf-exporter', revision: 18, format },
+      content: `preview:${format}`,
+      contentType: 'text/plain; charset=utf-8',
+      warnings: [],
+      artifactValidation: { format, kind: 'ini', valid: true, issues: [] },
+      readiness: { ready: true, blockingWarnings: [] },
+    }))
+
+    render(
+      <MemoryRouter initialEntries={['/preview?format=mihomo&configId=advanced-1']}>
+        <Preview />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(api.export.previewFormat).toHaveBeenCalledWith(
+      'singbox',
+      'advanced-1',
+    ))
+    expect(api.export.previewFormat).toHaveBeenCalledTimes(1)
+  })
+
   it('reports and retries export-profile loading without blocking the default preview', async () => {
     vi.mocked(api.export.listConfigs)
       .mockRejectedValueOnce(new Error('Profile service unavailable'))
