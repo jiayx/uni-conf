@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as yaml from 'js-yaml';
+import { DEFAULT_RULE_TARGET_GROUP_ID } from '@uni-conf/shared';
 import type { ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { generateMihomoYaml } from './mihomo';
 import { generateSingboxJson } from './singbox';
@@ -9,7 +10,7 @@ import { generateLoon } from './loon';
 const createdAt = '2026-01-01T00:00:00.000Z';
 
 const proxyGroup: ProxyGroup = {
-  id: 'group-proxy',
+  id: DEFAULT_RULE_TARGET_GROUP_ID,
   name: 'PROXY',
   type: 'select',
   collectionIds: [],
