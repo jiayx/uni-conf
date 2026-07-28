@@ -1,614 +1,236 @@
-# Data Model Reference
+# UniConf 数据模型
 
-## Database: Cloudflare D1 (SQLite)
+当前结构来源是 `apps/worker/migrations/0001_initial_schema.sql`。本文说明当前表的职责、关系和 JSON 字段。
 
-All data is stored in D1. JSON arrays/objects are stored as TEXT columns.
-
----
-
-## Tables
-
-### `sources` — Subscription Sources
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | nanoid |
-| name | TEXT | Display name |
-| type | TEXT | `url` \| `manual` \| `file` \| `clipboard` |
-| url | TEXT? | Subscription URL (for type=url) |
-| format | TEXT | `auto` \| `clash` \| `mihomo` \| `singbox` \| `base64` \| `surge` \| `loon` \| `quantumultx` \| `shadowrocket` \| `raw` |
-| enabled | INTEGER | 1=enabled, 0=disabled |
-| node_count | INTEGER | Cached count |
-| last_updated | TEXT? | ISO timestamp of last refresh |
-| last_refresh_error | TEXT? | Latest refresh failure message, cleared after successful refresh |
-| update_interval | INTEGER | Minutes, `0` uses global auto-refresh interval |
-| user_agent | TEXT? | Custom UA for fetching |
-| notes | TEXT? | User notes |
-| tags | TEXT | JSON array of strings |
-| source_groups | TEXT | JSON array of node group names parsed from full subscription config |
-| raw_content | TEXT? | Last fetched raw subscription/config content cache |
-| upload_bytes / download_bytes / total_bytes / expire_time | INTEGER? | Cached `subscription-userinfo` values from the last successful refresh |
-| created_at | TEXT | ISO timestamp |
-| updated_at | TEXT | ISO timestamp |
-
-### `source_import_runs` — Non-sensitive Import Audit History
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | Import run ID |
-| source_id | TEXT? FK→sources | Active imported source; set to `NULL` after undo/delete |
-| source_name | TEXT | Source-name snapshot |
-| format / node_import_mode | TEXT | Parser and node import mode |
-| status | TEXT | `running` \| `success` \| `partial` \| `undone` |
-| node_count / added_count / updated_count / skipped_existing_count | INTEGER | Node-phase summary |
-| rule_count / remote_rule_set_count / skipped_rule_count / conflict_count | INTEGER | Structured-phase summary |
-| structured_changes | TEXT JSON | Non-sensitive before/applied routing fields for conditional conflict undo |
-| refresh_error / structured_error | TEXT? | Generic phase category only |
-| created_at / completed_at / undone_at | TEXT? | Lifecycle timestamps |
-
-This table deliberately excludes source content, node names/addresses, raw or parsed node configuration, and detailed errors that could quote imported credentials. `structured_changes` contains identifiers, target group identifiers, rule-set behavior, and update intervals only. Deleting or undoing an imported source retains the audit row, sets its source reference to `NULL`, and marks it `undone`. The source deletion batch also removes source-owned nodes and structured objects carrying that source's import marker, and conditionally restores explicitly overwritten routing fields when no later edit has changed them.
-
-### `nodes` — Proxy Nodes
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | nanoid |
-| source_id | TEXT FK→sources | Parent source |
-| name | TEXT | Node display name |
-| protocol | TEXT | `ss` \| `vmess` \| `vless` \| `trojan` \| `hysteria2` \| ... |
-| server | TEXT | Hostname or IP |
-| port | INTEGER | Port number |
-| country | TEXT? | Country name |
-| country_code | TEXT? | ISO 3166-1 alpha-2 |
-| enabled | INTEGER | 1/0 |
-| tags | TEXT | JSON array |
-| notes | TEXT? | User notes |
-| raw_config | TEXT | Original parsed config as JSON |
-| parsed_config | TEXT | Normalized config as JSON |
-| is_manual | INTEGER | 1 if user-entered |
-| created_at | TEXT | ISO timestamp |
-| updated_at | TEXT | ISO timestamp |
-
-Manual node creation accepts either structured fields (`name`, `protocol`, `server`, `port`) or a share-link `uri`. URI input is parsed by the same parser used for raw subscription lines. Structured manual input reuses shared node recognition to fill `country`, `country_code`, and recognition `tags` from the node name when the user has not provided those fields. For URI-created nodes:
-
-- `source_id` defaults to `manual`
-- `is_manual` is `1`
-- `raw_config.sourceFormat` is `uri`
-- `raw_config.uri` keeps the original pasted URI
-- `parsed_config` stores the normalized fields used by export, filtering, and form rendering
-- if the user overrides the URI display name, country and recognition tags are derived from the final display name unless explicitly provided
-
-Manual node writes validate the runtime shape before persistence. Protocols must come from the mainstream protocol registry, ports must be integers from 1 to 65535, names and servers are trimmed non-empty strings, tags are string arrays, and `raw_config` / `parsed_config` must be JSON objects. The web structured manual-node form is generated from the protocol registry and uses a shared core helper to persist every registry field into `parsed_config.extra`, while promoting common export fields such as `password`, `uuid`, `tls`, `sni`, `skipCertVerify`, `network`, and `wsPath` to the normalized top level. Required protocol fields from the registry are enforced in the web form and again by the worker API, so direct API calls cannot create or update structured manual nodes that are missing credentials such as AnyTLS password, TUIC UUID/password, or WireGuard keys. URI-created nodes may override parsed fields, but those overrides pass the same validation so manual entry cannot introduce `unknown`, `direct`, or `reject` pseudo-protocol nodes into export pools. Updates always synchronize row-level `protocol`, `server`, and `port` back into `parsed_config` before validation and persistence, because exporters use `parsed_config` as the authoritative normalized node shape. When a manual node is renamed, the worker re-runs country and recognition-tag detection unless the request explicitly provides `country`, `countryCode`, or `tags`, so automatic country/tag node groups follow the new node name after the zero-setup sync. Web-side Clash, sing-box, URI, and base64 parsers use the same shared country, recognition-tag, and subscription-info-node filters as the worker parser, keeping local import previews aligned with persisted node fields.
-
-When subscription parsing caches native client config in `raw_config.mihomo` or `raw_config.singbox`, the matching full-config exporter prefers that native object and only overwrites the current display name / tag, server, and port. If `raw_config` itself is already a Mihomo proxy object or sing-box outbound object, the same rule applies. WireGuard is the endpoint-specific exception: sing-box 1.13 removed the legacy WireGuard outbound, so current native endpoints remain top-level endpoints. Import keeps all peers and endpoint-only options; export overlays the current node name, local address, private key, and editable primary-peer fields while preserving additional peers. A manually entered WireGuard node without a native endpoint is built directly from normalized fields. This preserves client-specific fields that are not yet represented in the normalized model while keeping user-visible renames and node edits effective without reintroducing removed syntax.
-
-### `collections` — Node Group Filter Config
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | nanoid |
-| name | TEXT | Display name |
-| source_ids | TEXT | JSON array of source IDs (empty=all) |
-| node_ids | TEXT | JSON array of explicit node IDs |
-| filters | TEXT | JSON array of NodeFilter objects |
-| renames | TEXT | JSON array of NodeRename objects |
-| dedup | TEXT | `name` \| `server_port` \| `protocol_server_port` \| `full_config` |
-| sort | TEXT | `country` \| `name` \| `source` \| `protocol` \| `manual` |
-| sort_country_order | TEXT? | JSON array of country codes for custom order |
-| enabled | INTEGER | 1/0 |
-| notes | TEXT? | |
-| created_at | TEXT | |
-| updated_at | TEXT | |
-
-Generated node groups are regular `collections` plus one node-backed outlet `groups` row. Product UI treats the pair as one node group outlet; users do not manually link a collection to a policy group. Generated collection `notes` start with `[uni-conf:auto-node-group]` and use the explicit marker format `country:{countryCode}:{type}` or `tag:{tagKey}:{type}`. There is no legacy marker compatibility.
-
-The node group UI must lead with localized zero-setup language: the main action is automatic generation by country/region, tag pool, or upstream subscription group, generated rows are labeled as automatic, and the auto-generation modal explains that `url-test` groups are selected by default while manual select/fallback and upstream groups are optional. `apps/web/src/core/collections/collections-i18n.test.ts` guards those labels so the page does not imply users must manually build node filters before export works.
-
-Collection writes validate the node filtering model before persistence. Names are required, `source_ids`, `node_ids`, and `sort_country_order` must be arrays of non-empty string IDs/country codes, `filters` must use supported fields and operators, regex filters and regex renames must compile, `dedup` and `sort` must be known strategies, and list filters are trimmed and de-duplicated. This keeps advanced manual node groups from corrupting the generated outlet pools used by default policy groups.
-
-### `groups` — Proxy Strategy Groups
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | `builtin-*` for built-ins, nanoid for user |
-| name | TEXT | Group name (must be unique) |
-| type | TEXT | `select` \| `url-test` \| `fallback` \| `load-balance` \| `direct` \| `reject` |
-| collection_ids | TEXT | JSON array |
-| group_ids | TEXT | JSON array of nested group IDs |
-| builtins | TEXT | JSON array: `["DIRECT"]` or `["REJECT"]` |
-| test_url | TEXT? | URL for latency testing |
-| interval | INTEGER? | Test interval in seconds |
-| tolerance | INTEGER? | Tolerance in ms |
-| lazy | INTEGER | 1=lazy testing |
-| enabled | INTEGER | 1/0 |
-| sort_order | INTEGER | Display order |
-| is_builtin | INTEGER | 1 if system-provided |
-| created_at | TEXT | |
-| updated_at | TEXT | |
-
-Newly generated built-in groups, auto node group outlets, and UI-created node group outlets use `DEFAULT_HEALTH_CHECK` from `@uni-conf/shared`:
+## 关系概览
 
 ```text
-testUrl: http://www.gstatic.com/generate_204
-interval: 300
-tolerance: 150
-lazy: true
+sources
+  ├─ nodes
+  ├─ source_import_runs
+  └─ remote_rule_sets (可选来源归属)
+
+collections
+  └─ groups.collection_ids
+
+groups
+  ├─ groups.group_ids
+  ├─ rules.target_group_id
+  └─ remote_rule_sets.target_group_id / target_override_group_id
+
+remote_rule_sets
+  └─ remote_rule_set_source_health
+
+export_configs
+  └─ 通过 JSON ID 列表选择 collections/groups/rules/remote_rule_sets
+
+app_settings
+  └─ singleton
 ```
 
-Full-config exporters preserve this managed health-check baseline when the target client supports equivalent fields. Mihomo-compatible configs emit `url`, `interval`, `tolerance`, and `lazy`; sing-box urltest groups emit the same URL, interval, and tolerance; Loon, Surge, Shadowrocket, Quantumult X, and Egern emit the compatible URL and interval fields.
+## `sources`
 
-**Built-in groups** (pre-seeded, `is_builtin=1`):
-- `builtin-proxy` → PROXY (select)
-- `builtin-ai` → AI (select)
-- `builtin-streaming` → Streaming (select)
-- `builtin-social` → Social (select)
-- `builtin-github` → GitHub (select)
-- `builtin-apple` → Apple (select)
-- `builtin-microsoft` → Microsoft (select)
-- `builtin-final` → 漏网之鱼 (select)
-- `builtin-crypto` → Crypto (select, enabled by extended template)
-- `builtin-gaming` → Gaming (select, enabled by extended template)
-- `builtin-developer` → Developer (select, enabled by extended template)
-- `builtin-direct` → DIRECT (direct)
-- `builtin-reject` → REJECT (reject)
-- `builtin-all-nodes` → 全部节点 (select)
-- `builtin-node-select` → 节点选择 (select)
-- `builtin-auto-select` → 自动选择 (url-test)
-- `builtin-fallback-select` → 故障切换 (fallback)
+订阅和导入内容的拥有者。
 
-Built-in groups have distinct product roles:
+主要字段：
 
-| Role | Groups | Behavior |
-|------|--------|----------|
-| Rule target foundations | PROXY, DIRECT, REJECT | Always enabled by every routing policy template and always available as direct rule targets |
-| Global node outlets | 全部节点, 节点选择, 自动选择, 故障切换 | Always enabled by every routing policy template, backed by the system default usable node pool, and only used as outlet candidates inside routing groups |
-| Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
-| Business routing groups | AI, Streaming, Social, GitHub, Google, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Broker, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
+- `type`：`url`、`manual`、`file`、`clipboard`
+- `url`：远程订阅地址
+- `format`：来源格式或 `auto`
+- `enabled`：是否参与有效节点和导出
+- `node_count`、`last_updated`、`last_refresh_error`
+- `update_interval`：分钟；`0` 继承全局间隔
+- `user_agent`
+- `tags`：JSON 字符串数组
+- `source_groups`：解析到的上游节点组
+- `raw_content`：最近一次成功内容，用于显示和失败阶段重试
+- 流量与到期字段：`upload_bytes`、`download_bytes`、`total_bytes`、`expire_time`
 
-`PROXY` has no hard-coded builtin members; sync fills its outlet candidates from the current enabled foundation, global-node, and node-backed outlet groups. The four global node outlets reference the managed `builtin-default-node-pool` collection named `默认可用节点`, whose notes are `[uni-conf:default-node-pool]` and whose default filter is `tag not_in ["high-multiplier"]`. This keeps global outlets usable in zero setup without making high-multiplier nodes default candidates; users who want high-multiplier nodes can create a manual node group. Fresh database migrations also normalize these managed rows statically, and runtime zero-setup sync re-applies the same model before user-facing reads and exports. `DIRECT` and `REJECT` are system foundation outlets, not user-created policy group types. User-created groups may use `select`, `url-test`, `fallback`, or `load-balance`; the API rejects custom `direct` / `reject` groups so rules and generated exporters keep one canonical representation for direct and reject traffic. Exporters do not emit `DIRECT` / `REJECT` as ordinary policy groups. Mihomo-compatible and text-based clients reference the native `DIRECT` / `REJECT` policies directly whenever rules or nested groups target a `direct` / `reject` row; sing-box maps the same rows to `direct` / `block` outbounds.
+删除来源会级联删除节点；来源规则集使用 `ON DELETE SET NULL`，避免误删用户已经接管的规则集。
 
-The canonical clean-install schema creates the same managed zero-setup graph: it creates `builtin-default-node-pool`, binds `全部节点` / `节点选择` / `自动选择` / `故障切换` to that collection, and includes the current built-in business targets such as `Google`. Runtime zero-setup synchronization repairs managed rows when the application runs; no historical SQL normalization migrations are retained.
+## `source_import_runs`
 
-Shared group-category helpers are the source of truth for product surfaces: `builtin-proxy`, `builtin-direct`, and `builtin-reject` are rule-target foundation groups; `builtin-all-nodes`, `builtin-node-select`, `builtin-auto-select`, and `builtin-fallback-select` are global node outlets; neither category is shown as an editable business routing group. This keeps the empty scenario template understandable: it removes extra business groups only, while `PROXY / DIRECT / REJECT` and the global node outlets stay visible in the fixed foundation area.
+配置导入的摘要与恢复状态。
 
-The policy group UI must explain the same split with localized copy: the unmatched-traffic policy comes first, fixed rule foundations and global node outlets are shown as always-present system groups, and composable business scenarios enable only the independent controls a user needs. `apps/web/src/core/groups/group-i18n.test.ts` guards the translation keys for this zero-setup guidance so product text does not regress into hard-coded locale-specific labels.
+- 状态：`running`、`success`、`partial`、`undone`
+- 节点模式：`all`、`new-only`
+- 保存新增、更新、跳过、规则、规则集和冲突计数
+- `refresh_error` 与 `structured_error` 分别对应节点阶段和规则阶段
+- `structured_changes` 只保存撤销覆盖所需的非敏感路由字段
 
-Group writes validate the group graph before persistence. `type` must be one of the supported group types, user-created groups cannot use `direct` or `reject`, and user-created group names cannot collide with built-in policy group names such as `AI`, `Streaming`, `DIRECT`, or `自动选择`. `collection_ids` and `group_ids` must be arrays of non-empty string IDs, `builtins` can only contain `DIRECT` or `REJECT`, and a group cannot include itself in `group_ids`. IDs are trimmed and de-duplicated on write so manual advanced edits cannot corrupt the generated routing structure.
+该表不保存第二份原始配置、节点地址或凭据。原始内容只属于 `sources.raw_content`。
 
-Business routing group `group_ids` are derived, not manually maintained. The web form for policy groups edits the group identity, enabled state, type, health-check behavior, and an optional default outlet preference. Outlet candidates are shown as automatically maintained and are not submitted as user-authored relationships. When a default outlet preference exists, sync moves that outlet to the front of the derived member list and keeps the rest of the system-generated candidates after it. Preferences store stable outlet refs rather than generated group IDs: regular groups use `group:{groupId}`, while automatic node groups use `auto:{autoNodeGroupMarkerKey}` such as `auto:country:US:url-test`. `auto:` preference refs are validated with the same `@uni-conf/shared` auto-node marker parser used by generated collections and auto-node settings. This lets users answer intent-level questions such as “AI 走美国” without manually linking every policy group to every node group, and keeps the preference valid if an automatic country group is deleted and recreated after node changes. Without a saved preference, the system orders outlet candidates by intent:
+## `nodes`
 
-The zero-setup initializer owns the default graph order: default export config, automatic node groups, routing policy group links, then managed remote rule sets. Export preview, authenticated download, and public subscription generation call that initializer before collecting export rows, so managed rule sets are assigned after the foundation outlets (`PROXY`, `DIRECT`, `REJECT`) and their derived `group_ids` are current, even when the user only pasted subscription URLs and never opened the policy group page.
+解析后的节点。
 
-Readiness validation checks the final export graph, not only stored IDs. A policy group that references a missing child group is reported as unsupported, and a node-backed policy group whose collection has no final exported nodes is reported before download. Compatibility validation also checks node protocol support for the selected exporter. If a collection member name is not present in the final `proxies` / outbound node list after filtering, dedupe, renaming, or protocol compatibility filtering, preview returns a warning instead of silently producing a group that points at a missing proxy.
+- `source_id`：必需；手动节点也归属于系统创建的 manual source
+- 索引字段：`name`、`protocol`、`server`、`port`、`country`、`country_code`
+- 状态：`enabled`、`is_manual`
+- `tags`：JSON 字符串数组
+- `raw_config`：尽量保留来源客户端的原生对象或 URI 信息
+- `parsed_config`：用于搜索、展示和通用转换的规范化字段
 
-| Routing group | Preferred outlet order |
-|---------------|------------------------|
-| AI | Native Auto, then US, JP, SG country auto groups, then 自动选择 / 节点选择 / 故障切换 |
-| Streaming | Streaming Auto, Native Auto, then HK, JP, SG, TW, US country auto groups, then 自动选择 |
-| Speedtest | DIRECT, then 自动选择 / 节点选择 / 故障切换 / 全部节点 and node-backed groups |
-| PROXY, GitHub, and other groups | 自动选择 / 节点选择 / 故障切换 / 全部节点, then country auto groups |
+导出有效节点要求节点和所属来源同时启用。
 
-`routing_policy_scenarios` is a JSON array of independently selectable business scenarios. Foundation groups stay enabled for every selection:
-
-| Scenario | Enabled business groups, excluding foundation groups |
-|----------|----------------------------------------------------|
-| `ai-development` | AI, GitHub, Google, Microsoft, Developer |
-| `streaming` | Streaming |
-| `communication` | Social (including Telegram) |
-| `gaming` | Gaming |
-| `finance` | Crypto |
-| `diagnostics` | Speedtest |
-| `platform` | Apple, Microsoft, Google |
-
-The UI offers shortcuts without storing another abstraction: **Basic** selects no scenarios, **Recommended** selects `ai-development`, `streaming`, and `diagnostics`, and **All** selects every scenario. Users can then toggle individual scenarios, and shared groups such as Google or Microsoft are de-duplicated. Speedtest is a dedicated rule target whose derived first outlet is DIRECT; an explicit outlet preference still takes priority so a user can test a chosen node or node group.
-
-Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is `PROXY`, `DIRECT`, `REJECT`, or an enabled business policy group with no direct `collection_ids`. Global node outlets (`全部节点`, `节点选择`, `自动选择`, `故障切换`), country auto groups, and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Enabled custom non-node groups are treated as business routing groups too, so a user-created group such as `Downloads` automatically receives the same foundation outlets, global node outlets, and node-backed outlet groups as the built-in scenario groups. Built-in managed rule sets resolve targets from the full built-in group set and only enable rows whose target is active. If a managed rule set targets a business group that the active scenario selection has not enabled, the worker creates or updates that managed row as disabled with an internal missing-target note instead of hiding it or silently falling back to `PROXY`; selecting a scenario that enables the group re-enables and retargets only rows with that internal note. User-disabled managed rows stay disabled. Foundation targets (`PROXY`, `DIRECT`, `REJECT`) remain available for every selection. Custom remote rule set and manual rule create APIs default an omitted or blank target to `PROXY`; explicit update targets must still be enabled rule-target groups. The API rejects disabled, missing, global-node-outlet, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
-
-Gaming resources discovered in the current catalog target the `Gaming` business group and use the gaming priority band, so they are enabled by the gaming scenario and system-disabled when that scenario is not selected. Upstream removals disappear from the next generated snapshot instead of being preserved by an old hard-coded list.
-
-Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
-
-Manual rules are local overrides for exceptional cases; the default routing path comes from managed remote rule sets. The web UI must present this page as optional, with localized empty-state and batch-import guidance that points users back to preset routing policies for normal traffic. `apps/web/src/core/rules/rules-i18n.test.ts` guards those labels. The web batch importer accepts Clash-style lines, resolves target groups by id or name, and uses the selected fallback target when a line omits policy. This parser lives in `apps/web/src/core/rules/manual-rules.ts` so the local-rule supplement path is tested separately from the page UI.
-
-### `rules` — Traffic Routing Rules
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | nanoid |
-| name | TEXT? | Optional label |
-| type | TEXT | `DOMAIN` \| `DOMAIN-SUFFIX` \| `GEOIP` \| `RULE-SET` \| `MATCH` \| ... |
-| payload | TEXT | Match target |
-| no_resolve | INTEGER | 1 = don't resolve DNS (for IP rules) |
-| target_group_id | TEXT FK→groups | System-managed default target, or the target of a custom rule set |
-| target_override_group_id | TEXT? FK→groups | Optional user-selected target override for a system-managed rule set |
-| enabled | INTEGER | 1/0 |
-| sort_order | INTEGER | Rule evaluation order (lower = higher priority) |
-| notes | TEXT? | |
-| compatibility | TEXT | JSON array of derived ClientCompatibility objects from `@uni-conf/shared` |
-| created_at | TEXT | |
-| updated_at | TEXT | |
-
-Manual rules are an advanced override path. Writes validate `type` against the shared rule compatibility matrix, require a payload for every rule except `MATCH`, and default omitted create targets to `PROXY`. Explicit targets must be enabled rule-target groups. Batch imports fail fast on the first invalid row instead of silently dropping malformed rules.
-
-### Rule Set Repository Catalogs
-
-System rule sources are not D1 entities. `resources/rule-set-catalogs.json`
-indexes QuixoticHeart and Broker; their declarations contain repository paths,
-target mappings and exceptional sources. The generator validates every
-repository before replacing the deployment snapshots. Snapshots include only
-managed `foundation` and `scenario` items.
-
-The Worker refreshes the complete catalogs from GitHub into KV and falls back to
-the bundled snapshots on failure. Quixotic supplies the default graph and the
-supplemental picker; Broker is a scenario-managed system rule. Other repositories
-are added through a manual URL.
-
-The complete Quixotic catalog contains 58 logical rule sets: 52 generated
-top-level families from the `ruleset` branch plus six unique `master/custom`
-rules after duplicate names are merged. `custom/telegram.list` is included in
-this selectable catalog. The deployment snapshot remains the smaller managed
-subset (49 Quixotic items plus Broker); the complete catalog is fetched on
-demand and retained in KV.
-
-Quixotic `iplocation-direct` and `iplocation-proxy` are deliberately excluded
-from the managed graph. They are a paired, opt-in IP-attribution modification
-scheme for domestic applications rather than general DIRECT/PROXY traffic
-classification, and upstream warns that using them can cause account risk. A
-user who needs that behavior may select them from the Quixotic supplemental
-picker, but must choose their targets and ordering explicitly.
-
-### `remote_rule_sets` — Remote Rule Set References
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | nanoid |
-| name | TEXT | Display name |
-| url | TEXT | Remote URL |
-| format | TEXT | `clash` \| `mihomo` \| `singbox` \| `surge` \| `text` |
-| behavior | TEXT | `domain` \| `ipcidr` \| `classical` |
-| preset_source | TEXT? | Managed system catalog id, currently `quixotic` or `broker-rules` |
-| preset_id | TEXT? | Provider-specific preset id |
-| source_overrides | TEXT | JSON object mapping a full-config target client to its native rule-set URL |
-| target_group_id | TEXT FK→groups | |
-| update_interval | INTEGER | Hours |
-| enabled | INTEGER | 1/0 |
-| sort_order | INTEGER | Rule set evaluation order (lower = higher priority) |
-| last_updated | TEXT? | |
-| notes | TEXT? | |
-| created_at | TEXT | |
-| updated_at | TEXT | |
-
-Managed remote rule sets use deterministic `sort_order` buckets from the repository mapping so exported configs keep the intended priority. `preset_source` is the catalog id. Quixotic `fake-ip-filter` is a small path override because it lives outside the normal generated branch. Telegram is covered by Quixotic `socialmedia` together with other overseas social services.
-
-For a system-managed row, the effective target is `target_override_group_id ?? target_group_id`. Default synchronization may update `target_group_id` as the built-in routing graph evolves, but it never overwrites the user override. An override activates the managed rule set according to the selected target group's availability instead of the default business-scenario gate. Clearing the override restores the current system default; export filtering, dependency checks, and serializers all use the effective target. Custom rows continue to store their only target in `target_group_id` and do not use the override column.
-
-Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`.
-
-Custom rows may store sparse `source_overrides` for `mihomo`, `clash`, `singbox`, `surge`, `loon`, `shadowrocket`, `quantumultx`, `stash`, or `egern`. Each value is a validated public http(s) URL whose format is native to that target. Resolution order is target-specific override, managed preset source, default `url + format`, then semantics-preserving conversion when the resolved source is not directly compatible. Clash, Stash, and Mihomo overrides remain separate even though their generated full configurations can share the Mihomo-compatible YAML serializer. When one of those targets needs a token-scoped converted YAML rule provider, the provider URL retains the requested target context so its later fetch cannot silently select another target's override. An empty object preserves the original single-source behavior. Node-only subscription formats are never accepted as override keys. Backup validation checks both the JSON shape and the same SSRF-safe URL policy used by normal writes.
-
-Known-repository source discovery is editor-only assistance and does not add provenance columns. Until the user saves, the form tracks which sparse entries were auto-filled so a default-URL change can remove unchanged derived values without deleting manual overrides. Persisted rows contain only the final reviewed URL mapping and resolve exactly like manually entered mappings.
-
-### `remote_rule_set_source_health` — Operational Source Health Snapshots
-
-| Column | Type | Description |
-|--------|------|-------------|
-| remote_rule_set_id | TEXT PK/FK→remote_rule_sets | Checked rule set; cascades on delete |
-| checked_at | TEXT | Whole-source check time |
-| expires_at | TEXT | Freshness boundary derived from the rule set refresh interval |
-| result | TEXT | JSON aggregate plus default/override diagnostics |
-
-This operational table is deliberately excluded from configuration backups. A source-affecting edit (`url`, `format`, `behavior`, `source_overrides`, or `update_interval`) deletes the snapshot; enable/disable and display-only edits preserve it. Expired rows remain available for diagnosis but are returned with `stale: true`, so the UI can retain evidence without presenting it as current health.
-
-Rows with both `preset_source` and `preset_id` are system-managed. Users may disable or override their target, but cannot edit their canonical source or delete them. Synchronization updates catalog metadata without replacing user target overrides or explicit disables. Scenario items follow their business group; foundation items follow the unmatched-traffic policy.
-
-Source mappings classify discovered items as `foundation`, `scenario`, or
-`optional`: foundation entries follow the unmatched-traffic policy, scenario
-entries follow their business scenario, and optional entries are excluded from
-the managed graph and deployment snapshot. The add-supplement picker exposes the
-complete Quixotic runtime catalog, including optional entries, but optional items
-do not carry a suggested target and require an explicit user choice. A
-supplemental row remains a normal custom rule set whether it was pre-filled from
-Quixotic or created from a manually supplied URL.
-
-The routing-policy UI groups remote rule sets by the target used after a match, not by source URL. It shows `PROXY / DIRECT / REJECT` as fixed foundations, marks managed presets as system-maintained, and labels user-created rows as supplemental rule sets. `apps/web/src/core/remote-rules/remote-rule-sets-i18n.test.ts` guards those localized zero-setup labels so the page keeps presenting rule-set work as an optional override instead of required configuration.
-
-Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, optional target-native source overrides, positive update interval, and integer sort order are checked and trimmed. Create requests default omitted targets to `PROXY`; explicit targets must be enabled rule-target groups. Enabling an existing rule set also validates its current target group, so a scenario-disabled managed rule set cannot be manually switched on while its business target is still disabled. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`.
-
-| Order | Rule set intent |
-|-------|-----------------|
-| 10 | Private / local network |
-| 20 | Reject / privacy blocking |
-| 30 | Direct China and client-local rules |
-| 40 | AI |
-| 60 | Streaming |
-| 70-120 | GitHub, Apple, Microsoft, Google, Gaming, Crypto |
-| 130-150 | Social (including Telegram), proxy, speedtest |
-| 900 | Unknown presets |
-
-### `export_configs` — Export Configuration
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | nanoid |
-| name | TEXT | Config name |
-| format | TEXT | `mihomo` \| `singbox` \| `loon` \| ... |
-| dns_policy | TEXT? | Validated JSON containing independent address-response and resolver-routing policies; `NULL` means target-format automatic for the system default or no DNS for node-only exports |
-| token | TEXT UNIQUE | Random token for subscription URL |
-| enabled | INTEGER | 1/0 |
-| include_collection_ids | TEXT | JSON array (empty=all) |
-| include_group_ids | TEXT | JSON array (empty=all) |
-| include_rule_ids | TEXT | JSON array (empty=all) |
-| include_remote_set_ids | TEXT | JSON array (empty=all) |
-| rule_set_conversion_policy | TEXT? | `compatible` \| `strict`; `NULL` inherits the global app setting |
-| extra_config | TEXT? | Optional JSON object of format-specific overrides; `NULL` means no overrides |
-| created_at | TEXT | |
-| updated_at | TEXT | |
-
-The system ensures a built-in default export config exists:
-
-Export config create/update validation rejects malformed advanced overrides:
-
-- `extra_config` may only be a JSON object or `NULL`.
-- Scalar values and arrays are rejected before the config is stored.
-- `rule_set_conversion_policy` may only be `compatible`, `strict`, or `NULL`.
-- `dns_policy` is either `NULL` or a complete object with `address.mode` (`fake-ip` / `real-ip`), managed real-IP exceptions for FakeIP, and `resolution.mode` (`single` / `split`). The target exporter must support every requested axis.
-
-| Field | Value |
-|-------|-------|
-| id | `default-mihomo` |
-| name | `默认 Mihomo 配置` |
-| format | `mihomo` |
-| dns_policy | `NULL` (automatic by requested target format) |
-| include_*_ids | `[]` (export all enabled data) |
-
-`app_settings.default_export_token` points to this default config token unless the user explicitly changes it. If the token of the currently referenced export config is reset, the settings row is updated in the same request so the default subscription link keeps pointing at that config instead of falling back to another export config on the next zero-setup sync.
-
-Authenticated preview and download endpoints reuse the selected export config for scope and its optional rule-set conversion policy. The system default can render every supported route format from one token; its `dns_policy` remains `NULL` and resolves per request to FakeIP plus split DNS for full-config clients whose exporter implements domain-based resolver routing, and no DNS for node-only exports. Advanced export profiles are single-format objects: preview, download, public subscription, and converted rule-set endpoints reject any target format different from the stored `format`. Mihomo, Clash, and sing-box profiles may explicitly choose FakeIP or real-IP address responses. Stash, Surge, Loon, Shadowrocket, Quantumult X, and Egern use their native FakeIP engines and store FakeIP plus target-native real-IP exceptions; their UI does not present a misleading global FakeIP switch. Shadowrocket split DNS uses an overseas default DoH path, a domestic `[Host]` resolver override, and `force-remote-dns` for local domain rules routed through proxy policies. Public subscription URLs use the token plus canonical filename to identify both the config and requested format. `rule_set_conversion_policy = NULL` follows `app_settings.rule_set_conversion_policy`; `compatible` permits safe partial conversions with diagnostics, and `strict` blocks delivery on semantic loss.
-
-Export config writes validate the advanced include filters before persistence. `include_collection_ids`, `include_group_ids`, `include_rule_ids`, and `include_remote_set_ids` must be arrays of non-empty string IDs; values are trimmed and de-duplicated. Empty arrays keep the zero-setup behavior by exporting all enabled data of that kind. Create and update writes use the same display-name normalization: a blank name is replaced with the default name derived from the selected target format, while a non-blank name is trimmed before storage.
-
-The export UI must preserve that default-complete mental model: normal export never requires the user to create an export config first, and the default export must not ask the user to choose a single output format or DNS policy. The page presents the system-maintained default export as already available and lists all quick-export URLs generated from the same token; each requested format automatically receives its product default DNS behavior. Each quick-export row opens a preview modal for that concrete client format while still using the default export scope; the full `/preview?format={format}` page remains available from the modal for deep inspection. The stored `format` on the default row is only its primary API format; the requested quick-export client format comes from the download route or public subscription filename. Extra `export_configs` are advanced single-format profiles for separate subscription tokens or narrowed node/rule scopes. Their editor separates address response from DNS upstream routing: selectable engines expose FakeIP / real IP, native engines show a read-only native-FakeIP explanation, and both expose supported resolver routing and real-IP exceptions. Node-only formats omit DNS entirely. Selecting an advanced profile on the full preview page switches to its stored format; switching to another client returns to the system default.
-
-The export page reads the global conversion policy together with the profile list so an inherited profile displays its current effective behavior instead of an ambiguous “global” label. Duplicating an advanced profile opens a prefilled create flow with copied scope and policy fields; it never copies the row or token, and the normal create API generates a new random subscription token when the user saves.
-
-When `include_group_ids` selects only a subset of policy groups, export data expands the final group set through derived `group_ids` before collecting nodes. Node output is then scoped to the collections referenced by the expanded group set. The global node outlets reference the managed default usable node pool, so preview/download/public subscription include all nodes that match that pool rather than every raw subscription node. This keeps every proxy group member that can point at nodes aligned with matching `proxies` / `outbounds` entries in the rendered config while preserving the default high-multiplier exclusion.
-
-sing-box export uses the actual generated policy tag for DNS proxy detours and remote rule-set downloads. In the zero-setup graph this is `PROXY`; if no proxy policy group is present in a narrow generator test or custom export scope, it falls back to the same final policy resolution used by routing, then to `direct`. The generator must not emit a hard-coded lowercase `proxy` detour because the default policy group is stored and exported as `PROXY`.
-
-sing-box manual `GEOSITE` rules are emitted as `rule_set` route rules and the generator declares the matching SagerNet geosite remote rule set automatically, for example `GEOSITE,google,PROXY` produces a `geosite-google` rule-set definition. This keeps advanced local overrides from creating sing-box configs with route rules that reference undeclared rule-set tags.
-
-Loon, Surge, and Shadowrocket local rule rendering uses the shared rule compatibility matrix before writing rules. Rules marked `unsupported` for the target client are skipped instead of being emitted verbatim, so preview compatibility warnings and generated configs stay aligned. `partial` rules can still be rendered when the exporter has a known representation or acceptable downgrade.
-
-All full-config renderers append the same zero-setup fallback semantics when no enabled `MATCH` / `FINAL` rule is present. Disabled `MATCH` rows do not suppress the automatic fallback. Mihomo-compatible, sing-box, Loon, Surge, Shadowrocket, Quantumult X, and Egern exports choose `漏网之鱼` when available, then `PROXY`, then the first available policy, with a native direct fallback only when no policy exists. This keeps a one-link subscription usable even when the user never opens the manual rule editor.
-
-Dashboard stats, export config reads/writes, export preview/download, public subscription rendering, settings reads, policy group reads/writes, node group reads/writes, subscription source reads/create/update/refresh/delete, manual node reads/create/update/delete, manual rule reads/writes/deletes, and remote rule set reads/writes/deletes are initialization points for the zero-setup path. List and detail read endpoints both count as reads, so directly opening an advanced detail page cannot bypass default initialization. They ensure the default export config, foundation/routing policy groups, automatic node groups, and built-in remote rule sets exist before returning user-facing state or validating user-authored rules, so the first screen, subscription refresh flow, export config editor, policy/node group editors, and advanced rule editors use the same defaults that export will use. The worker keeps a service-level integration test for this path: recognized subscription nodes must materialize into the default export config, default usable node pool, automatic country/tag node groups, routing policy members, and managed remote rule sets together.
-
-### `app_settings` — Application Settings (Singleton)
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | TEXT PK | Always `'singleton'` |
-| language | TEXT | `zh` \| `en` |
-| theme | TEXT | `system` \| `light` \| `dark` |
-| routing_policy_scenarios | TEXT | JSON array of `ai-development` \| `streaming` \| `communication` \| `gaming` \| `finance` \| `diagnostics` \| `platform` |
-| routing_outlet_preferences | TEXT? | JSON object `{ routingGroupId: outletRef }` used to move a preferred outlet to the front of generated policy members |
-| export_node_naming_mode | TEXT | `original` \| `region_sequence` \| `source_region_sequence` \| `smart` |
-| default_export_token | TEXT? | Token of the default export config |
-| show_compatibility_warnings | INTEGER | 1/0 |
-| rule_set_conversion_policy | TEXT | `compatible` keeps safe partial results with warnings; `strict` blocks when any rule would be skipped |
-| enable_auto_refresh | INTEGER | 1/0, default `1` |
-| auto_refresh_interval | INTEGER | Minutes, default `1440` |
-| auto_node_groups_enabled | INTEGER | 1/0, default `1` |
-| auto_node_group_types | TEXT | JSON array of `select` \| `url-test` \| `fallback`, default `["url-test"]` |
-| auto_node_group_keys | TEXT? | Optional JSON array of selected generated auto group keys |
-| auto_node_group_include_flag | INTEGER | 1/0, default `1` |
-| updated_at | TEXT | |
-
-Settings reads normalize nullable or invalid values back to product defaults: Chinese UI language, system theme, common routing policy template, compatibility warnings on, compatible rule-set conversion, auto refresh on, 24-hour refresh interval, smart node naming, auto node groups on, `url-test` auto group type, flag-based country auto group names, no routing outlet overrides, and no default export token unless the stored token is a non-empty string. An explicit empty `auto_node_group_types` array is preserved as the user's choice to disable generated auto node group types; only missing, malformed, or all-invalid values fall back to `["url-test"]`. Settings writes use the shared `AppSettingsPatch` type, which separates normalized response values from write-only clear operations.
-
-The settings UI presents export node naming, rule-set conversion policy, and automatic node groups as localized intent options, not required setup steps. DNS is configured on export profiles because its supported behavior depends on the target client.
-
-Auto refresh is enabled by default and driven by the Worker scheduled handler. Wrangler triggers it every 5 minutes, and the worker entrypoint has a scheduled-handler test that verifies it delegates to `refreshDueSources`. When `enable_auto_refresh = 1`, the worker refreshes enabled URL sources that are due:
-
-- Source `update_interval > 0` overrides the global interval.
-- Source `update_interval = 0` uses `app_settings.auto_refresh_interval`, which defaults to 24 hours.
-- The effective interval is clamped to at least 5 minutes.
-- Sources with `last_updated = NULL` or an invalid timestamp are treated as due.
-
----
-
-The rule-set conversion policy defaults to `compatible`; malformed or missing stored values normalize to that default. `strict` is an explicit opt-in and is preserved by backup/restore and reset to `compatible` by the clear-data workflow.
-
-## JSON Field Schemas
-
-### NodeFilter (stored in `collections.filters`)
-```json
-{
-  "id": "filter-1",
-  "field": "name",
-  "operator": "not_contains",
-  "value": "过期",
-  "enabled": true
-}
-```
-
-### NodeRename (stored in `collections.renames`)
-```json
-{
-  "id": "rename-1",
-  "type": "strip_emoji",
-  "enabled": true,
-  "order": 0
-}
-```
-
-### SourceRefreshResult
-
-Subscription refresh returns counts for the default node cleanup pipeline:
-
-| Field | Description |
-|-------|-------------|
-| nodeCount | Persisted node count after refresh |
-| addedCount | New usable nodes inserted |
-| updatedCount | Existing usable nodes updated |
-| removedCount | Previously stored nodes removed because they disappeared or became unusable |
-| excludedCount | Parsed nodes skipped as subscription info entries or unsupported protocols |
-| sourceGroupCount | Upstream node groups retained after cleanup |
-
-### SourceCreateInput / SourceCreateResult
-
-`POST /api/sources` accepts `refreshAfterCreate?: boolean`. For URL sources it defaults to `true`, so API callers can create a subscription and immediately populate nodes in one request; the worker route has a default-refresh test so this behavior does not depend on the web UI passing the flag. `name` is optional on create and update; when omitted or submitted as a blank string, the worker derives it from the subscription URL host so the zero-setup path only requires the subscription link and editing a source cannot create an empty display name. The web zero-setup entry points accept one or more pasted subscription URLs and create one source per valid `http(s)` URL, leaving names blank for multi-source input so each source is named from its own host. URL parsing is shared and tested for newline, whitespace, English comma, Chinese comma, duplicate, labelled paste text, trailing punctuation, and invalid-token handling so Dashboard and Sources keep the same paste behavior.
-
-Source writes validate `type`, `format`, URL shape, refresh interval, advanced text fields, and tags before persistence. When a create request includes a subscription `url` but omits `type`, the worker treats it as a URL subscription source so API callers can follow the same one-field default path as the UI. URL sources must use an `http` or `https` subscription URL and are stored after trimming surrounding whitespace. Source formats are limited to the supported parser set (`auto`, Clash/Mihomo, sing-box, base64, Surge, Loon, Quantumult X, Shadowrocket, or raw URI lines), `update_interval` must be a non-negative integer, `user_agent` and `notes` must be strings or `NULL` when explicitly submitted, and `tags` must be a string array that is trimmed and de-duplicated. Invalid input is rejected before it can break scheduled refresh or default export generation.
-
-The web source form treats creation and update differently for User-Agent defaults. Creation omits an empty User-Agent so the worker can use its default fetch header. Updating an existing source sends an explicit empty string when the user selects the default option, which lets the worker clear a previously saved custom User-Agent; changing URL, parser format, or User-Agent then triggers an immediate refresh from the web flow.
-
-The source-management UI keeps the zero-setup create path focused on the subscription URL. Name, parser format, refresh interval, User-Agent, notes, and the refresh toggle remain in the advanced section, and user-facing labels, placeholders, User-Agent choices, save/refresh errors, and subscription traffic fields are all localized through `apps/web/src/i18n/*`. This keeps the dashboard and source page aligned on the same “paste links first” workflow.
-
-Refresh caches fetched `raw_content` and `subscription-userinfo` immediately after a successful HTTP response, before node parsing validates usable proxies. This preserves complete upstream configs for future parser/export reuse even when the current parser cannot yet turn the content into usable nodes, and the route test covers this parse-failure cache path.
-
-During refresh, `format = auto` uses content detection. Any explicit source format is treated as a parser hint and is tried first: Clash/Mihomo as YAML, sing-box as JSON, base64 as encoded URI lines, and raw/client-line formats as URI lines. This keeps the advanced format selector meaningful while preserving the one-link default path.
-
-Source refresh, enable/disable, and deletion all resynchronize automatic node groups and derived routing policy group members. Refresh keeps node rows stable when a subscription updates the server or port for a uniquely named node from the same source, so imported upstream node groups that store explicit node IDs do not break just because an airport rotated endpoints. Duplicate node names fall back to the full `server:port:name` identity to avoid merging distinct nodes. The web source editor immediately refreshes URL subscriptions after changing the URL, parser format, or User-Agent, and this refresh trigger is covered by a shared UI core test instead of being embedded only in the React component. Manual refresh failures still record `last_refresh_error` and run the zero-setup initializer, so a bad subscription cannot leave the default export config, foundation policy groups, or managed rule sets missing. Scheduled auto-refresh initializes the default graph before scanning due sources and runs it again after any due-source batch finishes, so country/tag node groups and policy members reflect the final refreshed node set even when the batch has mixed success and failure. Source deletion explicitly removes nodes for that source before removing the source row, so export readiness and generated node groups do not depend on database-level foreign-key cascade behavior.
-
-Upstream source groups parsed from full subscription configs are stored in `sources.source_groups`. The parser filters client built-in direct/reject members from upstream groups (`DIRECT` / `REJECT` for Mihomo-compatible configs and `direct` / `block` for sing-box configs, case-insensitively), so import suggestions only contain real node members. The node group page can import them as explicit-node collections by matching member names against nodes from the same source only. Imported collections use notes marker `[uni-conf:source-node-group] {sourceId}:{encodedGroupName}` so the UI can show already-imported groups and avoid creating duplicate node pools. Later subscription refreshes resynchronize those imported collections' `node_ids` from the current upstream group membership, preserving the user's selection while avoiding manual re-import when the provider adds, removes, or rotates nodes. Batch imports create linked outlet groups with consecutive sort orders after the current group list, so imported upstream groups keep a stable display order.
-
-The response data is:
+`raw_config` 当前可以包含：
 
 ```ts
 {
-  source: ProxySource
-  refresh?: SourceRefreshResult
-  refreshError?: string
+  sourceFormat: 'uri' | 'mihomo' | 'singbox' | 'unknown'
+  sourceUri?: string
+  mihomo?: Record<string, unknown>
+  singbox?: Record<string, unknown>
+  normalized?: Record<string, unknown>
 }
 ```
 
-If refresh fails, the created source remains stored and `refreshError` contains the fetch or parse error. The caller can update the source URL, format, or User-Agent and refresh again.
+生成器优先使用目标客户端原生对象；只有已实现的转换才使用规范化字段。
 
-Public subscription responses aggregate cached `subscription-userinfo` from enabled URL sources. `upload`, `download`, and `total` are summed; `expire` uses the earliest cached expiry. If no source has cached userinfo, UniConf returns a stable default header so clients that display subscription traffic still have a valid value.
+## `collections`
 
-Data backup export runs zero-setup default restoration before reading tables. The current backup contract is version 7 and only explicitly versioned v7 payloads are accepted. Before the destructive D1 batch begins, validation checks the schema's required and non-null columns, checked enums, table/column allowlists, row and token uniqueness, direct foreign keys, the target-specific DNS policy, and the JSON-encoded graph edges used by collections, groups, rules, and export scopes. A backup cannot therefore pass preview with a row D1 would reject for a missing required value, or while still referring to a missing source, node, collection, group, rule, remote rule set, export token, or import source. Catalog snapshots are deployment/KV data and are intentionally excluded from backup. Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, import history, and export configs, then immediately restores the default export config, automatic node group settings, built-in routing policy groups, and managed remote rule sets from the bundled catalog snapshot.
+节点组定义。
 
-Default cleanup excludes subscription info nodes such as official site, user center, subscription renewal, remaining/used/total traffic, package/plan/quota, expiry, reset, and multiplier hint entries. It also skips parsed nodes whose protocol maps outside the mainstream protocol registry, and nodes whose parsed/native config is missing protocol-required fields such as Trojan password, VMess UUID, AnyTLS password, TUIC UUID/password, or WireGuard keys. The same worker protocol validator is used by subscription refresh and manual node writes so default export pools are not polluted by nodes that can be parsed syntactically but cannot produce a usable client config.
+- `source_ids`、`node_ids`：JSON ID 数组；空来源数组表示全部来源
+- `filters`：`NodeFilter[]`
+- `renames`：`NodeRename[]`
+- `dedup`：`name`、`server_port`、`protocol_server_port`、`full_config`
+- `sort`：`country`、`name`、`source`、`protocol`、`manual`
+- `sort_country_order`：自定义国家顺序
+- `enabled`
 
-Country and region recognition is shared by subscription parsing, manual URI input, manual structured node creation and rename updates, node group auto-generation, and routing outlet ordering. It recognizes emoji flags, standalone region codes, common English names, Chinese names, and major city aliases such as Hong Kong / 香港, Japan / Tokyo / Osaka / 日本 / 东京 / 大阪, Singapore / 新加坡 / 狮城, US / LA / Los Angeles / San Jose / 美国 / 洛杉矶 / 圣何塞, Taiwan / 台北, Korea / Seoul, United Kingdom / London, Germany / Frankfurt, France / Paris, Netherlands / Amsterdam, Australia / Sydney / Melbourne, and Canada / Toronto / Vancouver.
+系统维护 `builtin-default-node-pool`，默认通过标签过滤排除高倍率节点。
 
-Node recognition writes derived metadata into `nodes.tags` when it does not need a dedicated column. Traffic multipliers are stored as:
+过滤字段：
 
-- `multiplier:2x`, `multiplier:1x`, `multiplier:0.5x`, etc.
-- `high-multiplier` when the detected multiplier is greater than `1x`.
-- `streaming` for media-oriented nodes such as Netflix, YouTube, Disney+, Hulu, HBO, Spotify, Twitch, or Chinese `流媒体` names.
-- `unlock` for nodes named as media/service unlock nodes.
-- `residential` for home ISP / residential nodes.
-- `native-ip` for native/local IP nodes.
+`name`、`server`、`protocol`、`country`、`countryCode`、`tag`、`sourceId`
 
-This lets node collections reuse the existing `tag` filter to exclude high-multiplier nodes, create low-cost pools, or build streaming/residential/native candidate pools without changing the node schema. Generated auto node groups add `tag not_in ["high-multiplier"]` by default, while manually created node groups remain fully user-controlled. Auto group sync uses the same exclusion when deciding whether a generated group should exist, so countries or tag pools that only contain high-multiplier nodes do not produce empty default outlets.
+过滤操作：
 
-Auto node group sync is driven by `app_settings`:
+`contains`、`not_contains`、`regex`、`not_regex`、`equals`、`not_equals`、`in`、`not_in`
 
-- `auto_node_groups_enabled`: when false, generated auto node group outlets are removed.
-- `auto_node_group_types`: JSON array of enabled generated policy types, default `["url-test"]`; supported values are `select`, `url-test`, and `fallback`.
-- `auto_node_group_keys`: optional JSON array of exact generated keys. `NULL` means include every recognized country/tag candidate; `[]` means include none. Valid keys use the canonical `country:{ISO2}:{type}` or `tag:{key}:{type}` form, for example `country:US:url-test` or `tag:streaming:fallback`; old shorthand keys such as `US:url-test` are rejected on settings writes.
-- `auto_node_group_include_flag`: default `1`; controls whether country auto group names include emoji flags.
+重命名操作：
 
-Auto node group sync always ensures the managed default usable node pool exists, even when country/tag auto node groups are disabled. It then creates generated collections plus node-backed outlet groups when matching nodes exist and the generated key is selected. If `auto_node_group_keys` is unset, sync treats every currently recognized country and supported tag pool as selected, so a freshly refreshed subscription can produce usable country / tag outlets without the user opening node-group settings first. The node group UI shows both country/region candidates and tag-pool candidates such as Streaming / Unlock and Native / Residential, using the same high-multiplier exclusion as the backend; when there is no explicit saved key list or existing generated collection to read from, the UI default selection is built from both country and tag candidates. Auto node group type order, tag-pool metadata, key generation, marker parsing and canonical key validation live in `@uni-conf/shared`, so backend sync, strategy-group preferences and frontend forms all use the same canonical `country:{ISO2}:{type}` / `tag:{key}:{type}` format. Product UI presents this pair as one “node group” so users do not maintain a separate collection-to-policy relationship. Generated collections are managed only through auto node group settings: the generic collection API rejects edits or deletes for collections whose notes start with `[uni-conf:auto-node-group]` or `[uni-conf:default-node-pool]`, and it also rejects user-created collections that try to use those reserved markers.
-Web auto-node settings helpers return `AppSettingsPatch` fragments rather than normalized `AppSettings` responses, so UI code can preserve write-only meanings such as `NULL` restoring the zero-setup generated-key default.
+`replace`、`regex`、`prefix`、`suffix`、`strip_emoji`、`standardize_country`、`auto_number`
 
-| Generated group | Collection filter | Used first by |
-|-----------------|-------------------|---------------|
-| `{flag?} {countryCode} Auto/Select/Fallback` | `countryCode equals {countryCode}` + `tag not_in ["high-multiplier"]` | Country-aware routing preferences |
-| `Streaming Auto/Select/Fallback` | `tag in ["streaming", "unlock"]` + `tag not_in ["high-multiplier"]` | Streaming |
-| `Native Auto/Select/Fallback` | `tag in ["residential", "native-ip"]` + `tag not_in ["high-multiplier"]` | AI, Streaming |
+## `groups`
 
-Auto node group sync runs through the zero-setup initializer after subscription refreshes, manual node changes, node group reads/writes, and auto node group setting changes. The node group page persists the user's selected generated keys; selecting nothing disables generated auto groups so the backend does not recreate them on the next sync.
+策略组和内置出口。
 
-Export, collection preview, and auto node group sync only consider nodes whose node row is enabled and whose source row is enabled. Disabling a subscription source therefore removes its nodes from generated node pools and exported configs without deleting the cached node rows; re-enabling the source makes the cached nodes eligible again.
+- 类型：`select`、`url-test`、`fallback`、`load-balance`、`direct`、`reject`
+- `collection_ids`：引用节点组
+- `group_ids`：引用其他策略组
+- `builtins`：`DIRECT` / `REJECT`
+- 健康测试字段：`test_url`、`interval`、`tolerance`、`lazy`
+- `is_builtin`：系统维护组
+- `sort_order`
 
-Dashboard `enabledNodeCount` uses the same enabled-node query as export and auto node groups, so it counts only nodes whose node row and source row are both enabled. `nodeCount` remains the total cached node count.
+初始基线包含：
 
-### Default Export Node Names
+- 基础目标：PROXY、DIRECT、REJECT
+- 业务组：AI、Streaming、Social、GitHub、Google、Apple、Microsoft、Speedtest、Crypto、Gaming、Broker、Developer
+- 全局节点出口：全部节点、节点选择、自动选择、故障切换
 
-The `nodes.name` value remains the original subscription/manual node name in storage. During export, `buildExportData` first deduplicates the final node rows by full parsed config, then rewrites exported node names to:
+运行时同步会根据场景、节点和出口偏好维护这些组。写入服务会检查引用存在性和循环。
 
-```text
-{country_code or Other} - {source name} - {two-digit sequence}
-```
+## `rules`
 
-Examples:
+有序手动规则。
 
-```text
-HK - Airport A - 01
-US - Airport A - 02
-Other - Manual - 01
-```
+- `type`、`payload`
+- `no_resolve`
+- `target_group_id`
+- `enabled`
+- `sort_order`
+- `compatibility`：创建/更新时计算的客户端兼容性快照
 
-`collectionNodeNames` is built from the rewritten names, so node-backed outlet groups reference the same names that appear in the exported `proxies` / `outbounds` list. If export-wide dedupe removes a duplicate node row, collections that referenced the removed row are remapped through the same full-config dedupe key to the retained exported node name instead of becoming empty.
+兼容性的实时事实来源仍是 `@uni-conf/shared`；导出不会只信任数据库里的旧快照。
 
-### ClientCompatibility (stored in `rules.compatibility`)
-```json
-[
-  { "client": "mihomo", "level": "full" },
-  { "client": "surge", "level": "partial", "note": "Surge only has partial GEOSITE support" }
-]
-```
+## `remote_rule_sets`
 
-`rules.compatibility` is not user-authored. Rule creation and batch import derive it from the shared rule compatibility matrix so API responses, forms, and preview validation stay aligned. The matrix reflects UniConf's current exporter capability; a client feature remains `unsupported` when UniConf cannot render all required sections for it. For example, `SCRIPT` rules are not treated as supported for Surge or Quantumult X until their exporters generate the matching script definitions. Remote rule set format support and preset URL resolution are also centralized in `@uni-conf/shared`; the web compatibility UI, worker preview validation, and client generators use the same matrix and resolver. Preview validation still recomputes target-format warnings at export time and is the authoritative check for the selected client.
+远程规则集配置。
 
-### Export Preview Warnings
+- `url`、`format`、`behavior`
+- `preset_source` / `preset_id`：系统目录条目标识
+- `source_overrides`：各完整配置客户端的原生来源 URL
+- `source_id` / `source_rule_set_key`：订阅源自带规则集的归属
+- `source_missing`：刷新后上游定义是否消失
+- `target_group_id`：系统/导入默认目标
+- `target_override_group_id`：用户显式目标覆盖
+- `update_interval`：小时
+- `enabled`、`sort_order`
 
-`GET /api/export/preview/:format` returns `warnings: CompatibilityWarning[]` alongside the generated content.
+有效目标为 `target_override_group_id ?? target_group_id`。目标覆盖是明确的用户意图，不依赖把整组规则集拖到另一个顺序位置。
 
-Each warning may include a structured `remediation` target (`sources`, `nodes`, `groups`, `rules`, `remote-rule-sets`, or a named `settings` section). Entity targets may carry a stable ID. The worker assigns this metadata at the point where it detects the problem; the web UI never infers a repair destination from localized warning text. Preview and readiness surfaces render a contextual action only when that metadata exists. Entity actions use an encoded `?edit=` query that the destination page consumes after its data loads and then opens the exact editor; settings actions use stable section anchors. Diagnostics without a provable target retain only the full-preview path.
+格式：
 
-The same response includes `readiness: { ready, blockingWarnings }`, calculated with the exact graph, conversion-policy, and final-artifact checks used by authenticated downloads. UI surfaces must use this field for enable/disable decisions rather than treating every `unsupported` diagnostic as blocking: for example, a source's latest refresh may have failed while its previously materialized nodes remain safely downloadable. `warnings` describe everything worth reviewing; `readiness.blockingWarnings` is the authoritative subset that prevents delivery. Preview and readiness responses also include `capabilityProfile: { id, format, revision }`. This revision identifies the UniConf exporter capability contract, not a target-client application version; successful file and public-subscription responses expose the same value in `X-UniConf-Capability-Profile`.
+`mrs`、`clash`、`mihomo`、`singbox`、`surge`、`loon`、`shadowrocket`、`quantumultx`、`egern`、`stash`、`text`
 
-`GET /api/export/readiness/:format` executes that same shared inspection path and returns only `format`, `warnings`, `artifactValidation`, and `readiness`. It deliberately omits `content` and `contentType`; compact status surfaces such as Dashboard quick export must use it so a large generated configuration is not transferred merely to render a readiness badge. The full Preview and Export pages continue using `/preview/:format` when they need configuration content.
+行为：
 
-Preview, authenticated download, and public subscription rendering all call `apps/worker/src/generators/export-renderer.ts`, so every export format uses the same content generation and content-type mapping across entry points. The export renderer has a smoke-test matrix over `EXPORT_SUBSCRIPTION_FORMATS`, including Mihomo, explicit Clash-compatible YAML, sing-box, Loon, Surge, Shadowrocket, Quantumult X, Stash, Egern, and node-only raw/base64 subscriptions. This keeps Dashboard quick links, authenticated downloads, and public subscription filenames aligned with the shared format registry when a client format is added or removed.
+`domain`、`ipcidr`、`classical`
 
-Dashboard quick-export links use the shared canonical filename registry for URLs and `export.formats.*` i18n labels for display names. The web i18n test checks every quick-export format has labels in both Chinese and English, so adding a new dashboard export target cannot silently show an untranslated or hard-coded client label in the zero-setup flow.
+## `remote_rule_set_source_health`
 
-The web export list uses the preview endpoint as its one-click validation path. It does not maintain a separate local validator: card-level validation uses the returned `readiness.ready` and exact `readiness.blockingWarnings` subset for usable/blocked state and blocker counts, while separately summarizing all `partial` and `convert` diagnostics. It links the user toward the full preview page for complete content and warning details. Default-profile quick rows run the lightweight readiness endpoint on demand before copying a public URL or downloading; successful results are cached per format until the profile is reloaded, while a failed check remains retryable. Opening the inline full preview also seeds the same per-format cache, avoiding a redundant readiness request. Large generated content is rendered through bounded line and character excerpts until the user explicitly expands it; line counting uses a single scan rather than allocating a split array, and copy operations continue to use the untouched full response.
+用户主动校验某个规则集全部来源后保存的运行状态：
 
-The worker separates readiness checks from client compatibility checks. Readiness warnings are always returned because they indicate a config that may be empty or structurally broken. A target client with zero renderable nodes is a readiness warning, not a hideable compatibility warning, because download/subscription would be blocked. The `show_compatibility_warnings` setting only hides client capability warnings such as DNS downgrade, per-node protocol skip details, or rule-format support.
+- `checked_at`
+- `expires_at`
+- `result`：默认来源、目标原生来源、计数和问题的 JSON
 
-Preview also performs a lightweight download reachability check for enabled remote rule sets that the selected export format can actually reference. The worker tries `HEAD` first and falls back to a ranged `GET` when a host does not support `HEAD`; failures, timeouts, or non-success statuses are returned as `partial` warnings because they do not block an otherwise renderable config. Node-only subscription formats skip this network check because they do not render rule providers.
+该表是可丢弃的运行数据：
 
-Authenticated download and public subscription responses block cases that cannot produce a usable client config: zero exported nodes, a selected target client for which every exported node protocol is unsupported, or structural readiness errors such as missing nested policy groups, missing rule/remote-rule targets, policy groups pointing at final node names that will not be emitted, or remote rule set URLs that are not downloadable `http(s)` addresses. Node-only subscription exports (`nodes_raw` / `nodes_base64`) use the final subscription URI serializer for this check, so a node with a supported protocol but missing required URI fields is treated as not renderable. Source refresh errors and remote rule-set network reachability failures remain preview warnings rather than hard download blockers when the already-materialized graph is otherwise renderable. Preview still returns generated content plus warnings so users can inspect why the export is empty, structurally broken, or protocol-filtered; download/subscription return HTTP 409 instead of handing clients a blank or dangling config.
+- 修改来源、格式、行为、覆盖或更新间隔时失效
+- 不进入配置备份
+- 过期结果只作为陈旧证据展示，不等同于持续健康监控
 
-The worker validates:
+## `export_configs`
 
-| Check | Level |
-|-------|-------|
-| No exported nodes | `unsupported` |
-| Duplicate node names | `partial` |
-| Source has latest refresh error | `unsupported` |
-| Source has never refreshed successfully | `partial` |
-| Missing nested group target | `unsupported` |
-| Missing rule target group | `unsupported` |
-| Rule type unsupported by target export format | `unsupported` |
-| Rule type partially supported by target export format | `partial` |
-| Missing remote rule set target group | `unsupported` |
-| Remote rule set incompatible with export format | `partial` |
-| Remote rule set URL is not downloadable over http(s) | `unsupported` |
-| Remote rule set URL cannot be fetched during preview | `partial` |
-| DNS policy cannot be fully represented by target export format | `partial` |
-| MATCH not last | `partial` |
+导出档案。
 
-If no enabled `MATCH` rule exists, exporters append the fallback policy automatically and preview does not warn; this is the normal zero-setup path. `partial` warnings are still exported with an automatic fallback or compatibility caveat. `unsupported` warnings indicate a configuration problem that may break the target client.
+- `format`
+- `token`
+- `enabled`
+- 四类 JSON 范围：节点组、策略组、手动规则、远程规则集
+- `rule_set_conversion_policy`：`compatible`、`strict` 或 `NULL` 继承全局
+- `extra_config`：预留的目标格式扩展对象
 
----
+系统默认档案 ID 固定，由服务自动创建，不可删除，只允许暂停/恢复。它可以针对任意请求格式生成全量配置。高级档案固定一个格式并使用自己的范围。
 
-## Migrations
+## `app_settings`
 
-The complete current schema is `apps/worker/migrations/0001_initial_schema.sql`. Historical incremental migrations are intentionally not retained; schema changes require rebuilding D1 from the current baseline and restoring a current-version backup.
+固定主键 `singleton`。
 
-Apply locally:
-```bash
-pnpm --filter worker db:migrate:local
-```
+| 字段                           | 当前含义                                                            |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `language`                     | `zh` / `en`                                                         |
+| `theme`                        | `system` / `light` / `dark`                                         |
+| `unmatched_traffic_policy`     | `proxy`（默认代理）/ `direct`（默认直连）                           |
+| `routing_policy_scenarios`     | 业务场景 ID 数组                                                    |
+| `routing_outlet_preferences`   | 业务组到稳定出口标识的映射                                          |
+| `export_node_naming_mode`      | `original` / `region_sequence` / `source_region_sequence` / `smart` |
+| `dns_resolution_mode`          | `single` / `split`                                                  |
+| `dns_real_ip_domains`          | 用户额外真实 IP 域名                                                |
+| `default_export_token`         | 当前默认公开档案 Token                                              |
+| `show_compatibility_warnings`  | 是否展示非阻断兼容性提示                                            |
+| `rule_set_conversion_policy`   | 全局 `compatible` / `strict`                                        |
+| `enable_auto_refresh`          | 到期订阅源的后台刷新开关                                            |
+| `auto_refresh_interval`        | 默认订阅刷新间隔，当前默认 240 分钟                                 |
+| `auto_node_groups_enabled`     | 自动国家/标签节点组开关                                             |
+| `auto_node_group_types`        | `select` / `url-test` / `fallback`                                  |
+| `auto_node_group_keys`         | 已选择的国家/标签键；`NULL` 表示全部候选                            |
+| `auto_node_group_include_flag` | 自动组名称是否显示旗帜                                              |
 
-Apply to production:
-```bash
-pnpm --filter worker db:migrate
-```
+## 备份
+
+备份包含配置表，不包含 `remote_rule_set_source_health`。当前备份格式版本为 8，导入前会验证：
+
+- Schema 版本
+- 表和列白名单
+- 必填字段与枚举
+- JSON 字段结构
+- 唯一 ID 和 Token
+- 外键式引用
+- 策略组循环
+
+备份包含 `raw_config`、`parsed_config` 和订阅内容，因此包含凭据，必须按秘密文件处理。

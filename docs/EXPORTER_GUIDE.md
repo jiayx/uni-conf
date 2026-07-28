@@ -1,125 +1,206 @@
-# Adding a New Exporter to UniConf
+# UniConf 导出器开发指南
 
-This guide explains how to add support for a new proxy client format to UniConf.
-Export generation is worker-owned: the web app calls worker preview/download APIs and should not maintain a second exporter implementation.
+本文说明当前导出架构，以及增加或修改客户端格式时必须同步的实现点。
 
-## Step 1: Add the Format Type
+## 事实来源
 
-Add the new value to `ExportFormat` in `packages/types/src/index.ts`.
+- 格式联合类型：`packages/types/src/index.ts`
+- 格式列表、文件名、规则兼容性、客户端能力：`packages/shared/src/index.ts`
+- 数据构建：`apps/worker/src/export-data.ts`
+- 生成器入口：`apps/worker/src/generators/export-renderer.ts`
+- 预览/下载：`apps/worker/src/routes/export.ts`
+- 公开订阅：`apps/worker/src/routes/subscription.ts`
+- 产物校验：`apps/worker/src/services/export-artifact-validation.ts`
 
-```ts
-export type ExportFormat =
-  | 'mihomo'
-  | 'clash'
-  | 'singbox'
-  | 'loon'
-  | 'surge'
-  | 'quantumultx'
-  | 'stash'
-  | 'shadowrocket'
-  | 'egern'
+不要在 Web 页面、某个生成器或路由里创建第二份格式列表或兼容性表。
+
+## 当前格式
+
+完整配置：
+
+`mihomo`、`clash`、`singbox`、`loon`、`surge`、`shadowrocket`、`quantumultx`、`stash`、`egern`
+
+节点订阅：
+
+`nodes_base64`、`nodes_raw`
+
+每个格式的当前协议和规则集格式能力由 `EXPORT_CLIENT_CAPABILITIES` 描述。它表示 UniConf 已经实现的序列化能力，不等同于目标客户端所有版本理论上支持的功能。
+
+## 导出链路
+
+```text
+ExportConfig
+ → buildExportData
+ → 规则/协议兼容性与引用检查
+ → 远程规则集转换预检
+ → renderExportData
+ → validateRenderedExport
+ → preview / download / public subscription
 ```
 
-If the format has a subscription filename, also update `EXPORT_FORMAT_FILENAMES` and related helpers in `packages/shared/src/index.ts`.
+三种交付入口必须复用这条链路。不能出现预览正常、下载或公开订阅使用另一套转换逻辑的情况。
 
-## Step 2: Add the Worker Generator
+## 增加格式
 
-Create or extend a generator in `apps/worker/src/generators/`.
+### 1. 注册类型和文件名
 
-The generator should accept:
+更新：
 
-- enabled nodes
-- enabled policy groups
-- enabled local rules
-- enabled remote rule sets
-- `collectionNodeNames`, so node-backed groups only include the nodes selected by their node group
-- generator options such as address response, resolver routing, and real-IP exceptions when the client supports managed DNS
+- `ExportFormat`
+- `FULL_CONFIG_EXPORT_FORMATS` 或 `NODE_SUBSCRIPTION_EXPORT_FORMATS`
+- `EXPORT_FORMAT_FILENAMES`
+- `EXPORT_CLIENT_CAPABILITIES`
 
-Use `apps/worker/src/generators/group-members.ts` for generic group member resolution when possible. For Mihomo-compatible YAML, remember that `DIRECT` and `REJECT` are client built-in policies; do not emit invalid `type: direct` or `type: reject` proxy-groups.
+如果能力对外变化，递增 `EXPORT_CAPABILITY_PROFILE_REVISION`。
 
-Full-config exporters should keep the zero-setup baseline aligned with the managed FakeIP policy. Address response (`fake-ip` / `real-ip`) and resolver routing (`single` / `split`) are independent axes; target adapters must not collapse them back into a combined mode enum. Mihomo-compatible configs, including the explicit `clash` export alias, use `mixed-port: 7890`, `mode: rule`, `allow-lan: false`, and `log-level: warning`; sing-box uses `log.level = warning` with its managed DNS and inbound baseline. Do not reintroduce separate Mihomo `port` / `socks-port` / `redir-port` defaults unless the product adds an explicit advanced port profile.
+### 2. 实现生成器
 
-Every full-config exporter must emit a usable fallback route when the data has no enabled `MATCH` / `FINAL` rule. Disabled fallback rows do not count. Use `漏网之鱼` when present, otherwise `PROXY`, then the first available policy, then the client's direct policy. This applies to YAML, JSON, INI-style clients, Quantumult X, and Egern alike; a generated full config must not end with an empty rule list.
+在 `apps/worker/src/generators/` 中创建专用生成器，并接入 `renderExportData`。
 
-Full-config generators must sort remote rule sets by managed priority before rendering rule-provider references and rules. Do not rely only on database query order; preview, download, public subscription, and direct generator tests should produce the same rule order for the same data.
+生成器接收已经展开的：
 
-## Step 3: Wire Preview, Download, and Public Subscription
+- 节点
+- 策略组
+- 手动规则
+- 远程规则集
+- 节点组到最终节点名称的映射
+- DNS 策略和规则集转换 URL 等目标选项
 
-Add the format branch in `apps/worker/src/generators/export-renderer.ts`. Worker routes must call that shared renderer instead of branching per route:
+生成器不查询 D1/KV，不发网络请求，也不自行决定导出档案范围。
 
-- `apps/worker/src/routes/export.ts`
-- `apps/worker/src/routes/subscription.ts`
+### 3. 只声明已实现能力
 
-Preview, download, and public subscription paths must use the same generator semantics. Any proxy name rewrite, dedupe, node group scoping, DNS downgrade, or compatibility warning should be visible in preview before download and public subscription use.
+协议只有在以下内容完成后才能加入客户端能力注册表：
 
-UI scope summaries should describe the same effective export graph that the worker will render. When an export config scopes policy groups, summary counts for manual rules and remote rule sets must expand the selected group graph and exclude rules whose target group is outside that final group set, matching `buildExportData` filtering.
+- 原生语法序列化
+- TLS/传输字段的明确映射
+- 不支持字段的拒绝或警告
+- 代表性协议矩阵测试
+- 最终产物结构校验
 
-Node-only exports (`nodes_raw` and `nodes_base64`) intentionally skip policy group, local rule, remote rule set, and DNS validation because those sections are not rendered. They should still validate source readiness, empty node output, duplicate node names, and whether each node protocol can be represented as a subscription URI.
+不能把另一个客户端的节点行改名后当作支持。例如 Surge、Loon、Shadowrocket 和 Quantumult X 各自使用独立序列化语法。
 
-Every full-config exporter must expand collection-backed policy groups through `collectionNodeNames` and then filter those members against the nodes actually serialized by that exporter. This prevents generated groups from pointing at missing proxies/outbounds and keeps Mihomo, Stash, sing-box, Loon, Surge, Shadowrocket, Quantumult X, and Egern aligned when the same node pool is used by default global outlets or auto node groups.
+### 4. 规则兼容性
 
-Client profile syntax and generic subscription URI syntax are separate contracts. In particular, Quantumult X `[server_local]` entries must use its native `protocol=host:port, ..., tag=name` form; do not reuse `nodeToSubscriptionUri` there. Only advertise a protocol in `EXPORT_CLIENT_CAPABILITIES.quantumultx.nodeProtocols` after a native serializer and artifact-contract test exist. Surge external rule sets belong directly in `[Rule]` as `RULE-SET,https://...,Policy`; do not invent a separate named `[Rule Set]` registry. Increment `EXPORT_CAPABILITY_PROFILE_REVISION` whenever an externally visible capability or serializer contract changes.
+更新 `RULE_COMPATIBILITY`，必要时在 `resolveRuleForExport` 中增加 payload-aware 转换。
 
-For the stable sing-box 1.13 profile, use top-level WireGuard `endpoints`, TUN `address`, route `sniff` actions, and `route.default_domain_resolver` for internal outbound/endpoint hostname resolution. DNS routing rules use explicit `action: route`. Keep the exporter and its bundled schema aligned to the same stable sing-box profile.
+级别：
 
-The bundled 1.13.13 schema does not expose a ShadowsocksR outbound, so SSR nodes are omitted from sing-box artifacts with an explicit compatibility warning. They remain available to Mihomo, Loon, Quantumult X, and node-subscription serializers that still implement SSR. WireGuard is supported by sing-box through top-level `endpoints`.
+- `full`：当前生成器可以直接保持语义
+- `convert`：转换为目标客户端等价指令
+- `partial`：只在明确记录的部分语义下可用
+- `unsupported`：不输出
 
-Do not share a lowest-common-denominator proxy-line serializer between Surge and Shadowrocket. Surge HTTPS is a native `https` type rather than `http, ..., tls=true`; HTTP(S) and SOCKS5 credentials are positional, while VMess, Trojan, AnyTLS, and Hysteria 2 use their documented named parameters. Every protocol listed in the Surge capability registry must have a protocol-matrix test that validates the complete rendered artifact.
+“目标客户端可能支持”不足以标为 `full`。必须有当前生成器实现和测试。例如：
 
-Loon is another independent profile grammar. Its SS/SSR, VMess/VLESS, Trojan/Hysteria 2, and HTTP(S) identity fields are positional, followed by documented `key=value` transport options. Reject unsupported transports explicitly; never relabel gRPC or another transport as TCP merely to keep the node in the output. A protocol being accepted by Loon's subscription importer is not evidence that an invented line belongs in `[Proxy]`.
+- Mihomo、Clash、sing-box、Stash 当前可处理本地 `GEOSITE`
+- Surge、Loon、Shadowrocket、Quantumult X、Egern 当前不会输出本地 `GEOSITE`
+- Surge/Loon 可通过专用远程规则集来源表达相同域名集合，但这不是 `GEOSITE,<name>` 指令支持
 
-Egern YAML is not Clash-style flat YAML. Each proxy, policy group, and rule must be wrapped by exactly one native type key, for example `shadowsocks: { ... }`, `select: { ... }`, or `domain: { ... }`; the fallback rule is `default: { policy: ... }`. Keep Egern protocol and transport capabilities independent from the other YAML exporters.
+精确矩阵应从 `RULE_COMPATIBILITY` 读取，不在文档复制完整静态表。
 
-Target the stable sing-box contract explicitly: TUN addresses use one `address` array and WireGuard nodes are top-level `endpoints` with peer objects. Endpoint tags participate in selector, route-rule, and final-route reference validation just like outbound tags. Protocol-matrix tests must pass both UniConf's graph validator and the bundled stable sing-box schema.
+### 5. 远程规则集
 
-## Step 4: Add Compatibility Rules
+为格式声明可以直接消费的 `ruleSetFormats`，再检查 `remote-rule-set-resolver.ts` 和 `rule-set-conversion.ts` 是否存在语义保持的转换路径。
 
-Update `RULE_COMPATIBILITY` in `packages/shared/src/index.ts`.
+转换规则：
 
-The web compatibility checker and the worker preview validator both consume this shared matrix. Do not add a second client-specific rule matrix in the web app.
+- 原生来源优先
+- 有目标客户端 `sourceOverrides` 时优先使用覆盖
+- 无精确转换时返回 unsupported
+- `compatible` 可以交付安全子集并报告跳过
+- `strict` 在存在跳过时阻止交付
 
-If the client cannot represent a remote rule-set format, update the worker preview validation and generator skip behavior together.
+不要为复合条件、脚本或未知指令做扩大匹配范围的降级。
 
-## Step 5: Add UI Labels
+### 6. DNS
 
-Add the format label to:
+全局只保存 DNS 意图，生成器负责目标语法：
 
-- `apps/web/src/i18n/zh.json`
-- `apps/web/src/i18n/en.json`
-- export or preview format option lists where applicable
+- `resolutionMode`: `single` / `split`
+- `additionalRealIpDomains`
 
-The UI should only select a format and display worker-generated output. It should not serialize nodes, groups, or rules locally.
+当前引擎分类：
 
-## Step 6: Write Tests
+- Mihomo/Clash：`enhanced-mode`
+- sing-box：DNS server graph
+- Loon/Surge/Shadowrocket/Quantumult X/Stash/Egern：目标原生 FakeIP 配置
+- 节点订阅：无 DNS
 
-Add focused worker tests for:
+Mihomo 专属 Geo 配置只在 `ruleSetExportFormat === 'mihomo'` 时输出，不能泄漏到 Clash/Stash。
 
-- node serialization
-- group member references
-- local rule output
-- remote rule-set handling
-- preview validation warnings
-- unsupported node/protocol filtering
+### 7. Web 标签
 
-If UI compatibility behavior changes, also update the web compatibility tests. Snapshot-style checks are useful, but include structural assertions for references such as “every group member exists as a proxy, built-in policy, or emitted group”. Worker preview validation should also warn when a selected exporter cannot serialize a node protocol, when a node-backed policy group has no final exported nodes, or when its collection member names are not present in the final proxy / outbound list after filtering and renaming.
+增加：
 
-## Compatibility Matrix Reference
+- `apps/web/src/core/export/formats.ts`
+- 中英文 i18n 标签
+- 快速导出和高级档案测试
 
-| Rule Type | Mihomo | sing-box | Loon | Surge | Shadowrocket | QX | Egern |
-|-----------|--------|---------|------|-------|-------------|-----|-------|
-| DOMAIN | Full | Full | Full | Full | Full | Full | Full |
-| DOMAIN-SUFFIX | Full | Full | Full | Full | Full | Full | Full |
-| DOMAIN-KEYWORD | Full | Full | Full | Full | Full | Full | Full |
-| IP-CIDR | Full | Full | Full | Full | Full | Full | Full |
-| GEOIP | Full | Full | Full | Full | Full | Full | Full |
-| GEOSITE | Full | Full | Partial | Partial | Unsupported | Unsupported | Unsupported |
-| PROCESS-NAME | Full | Full | Partial | Full | Unsupported | Unsupported | Unsupported |
-| IP-ASN | Full | Unsupported | Full | Full | Partial | Unsupported | Full |
-| PORT | Full | Full | Convert (`DEST-PORT`) | Convert (`DEST-PORT`) | Convert (`DST-PORT`) | Unsupported | Full |
-| SRC-PORT | Full | Full | Full | Full | Unsupported | Unsupported | Unsupported |
-| PROTOCOL | Payload-aware | Payload-aware | TCP/UDP | Payload-aware | Unsupported | Unsupported | Payload-aware |
-| NETWORK | TCP/UDP | TCP/UDP/ICMP | Convert TCP/UDP | Convert TCP/UDP | Unsupported | Unsupported | Convert TCP/UDP |
-| RULE-SET (manual directive) | Full | Full | Unsupported | Full | Partial | Unsupported | Full |
-| SCRIPT | Partial | Unsupported | Partial | Unsupported | Unsupported | Unsupported | Unsupported |
+Web 只选择格式和展示 Worker 返回结果，不实现序列化。
 
-Use the shared resolver for exact compatibility; the table summarizes its externally visible behavior. Internally, compatibility can be `full`, `partial`, `convert`, or `unsupported`, and value-dependent rules such as `PROTOCOL` and `NETWORK` may resolve differently per payload. The `RULE-SET` row is only about a manual rule directive: Loon `[Remote Rule]` and Quantumult X `[filter_remote]` resources remain supported through UniConf's dedicated remote-rule-set model. This matrix describes UniConf's current exporter behavior, not every feature a client may theoretically support. For example, `SCRIPT` stays unsupported for INI-style and Quantumult X exports until the generator can also emit the required client-specific script sections.
+## 生成器共同约束
+
+### 节点与引用
+
+- 只输出节点与来源均启用的节点
+- 节点组成员必须经过目标生成器协议过滤
+- 节点改名后，所有组引用使用最终名称
+- 策略组不能引用未导出的节点或组
+- sing-box WireGuard endpoint tag 与 outbound tag 同样参与引用校验
+
+### 兜底规则
+
+完整配置必须有最终路由：
+
+1. 已启用的 MATCH/FINAL
+2. 漏网之鱼组
+3. PROXY
+4. 第一个可用策略
+5. 目标客户端直连
+
+节点订阅不生成路由。
+
+### 远程规则集顺序
+
+生成器按系统管理顺序写入远程规则集，并放在兜底规则之前。不能依赖数据库查询偶然返回的顺序。
+
+### 目标客户端注意事项
+
+- Mihomo 的 `DIRECT`/`REJECT` 是内置策略，不生成伪策略组
+- sing-box 1.13 使用顶层 WireGuard `endpoints`
+- Surge 外部规则集直接写入 `[Rule]` 的 `RULE-SET`
+- Quantumult X `[server_local]` 使用原生行语法，不复用 URI 序列化
+- Egern 使用其原生嵌套 YAML 对象，不是 Clash flat YAML
+- 节点 URI 订阅只承诺 URI 可以表达的协议字段
+
+## 测试
+
+至少覆盖：
+
+- 每个声明支持的协议
+- 节点组展开和最终名称引用
+- 本地规则转换/省略
+- 远程规则集原生来源和转换来源
+- DNS 输出
+- 空数据与兜底规则
+- 无悬空节点、组、规则集引用
+- 目标产物解析或 Schema 校验
+- 预览、下载和公开订阅一致性
+
+相关测试集中在：
+
+- `apps/worker/src/generators/`
+- `apps/worker/src/services/export-*.test.ts`
+- `apps/worker/src/routes/export*.test.ts`
+- `apps/worker/src/routes/subscription.test.ts`
+- `apps/web/src/core/compatibility/`
+
+修改能力注册表后运行：
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm --filter @uni-conf/worker test
+pnpm --filter @uni-conf/web test
+```

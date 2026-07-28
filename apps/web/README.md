@@ -1,73 +1,40 @@
-# React + TypeScript + Vite
+# @uni-conf/web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+UniConf 的 React 单页应用。页面只负责管理数据、展示兼容性和调用导出接口；节点、规则和完整配置的最终序列化由 Worker 统一完成。
 
-Currently, two official plugins are available:
+## 页面
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `/`：概览、当前状态和快速导出
+- `/sources`：订阅链接、配置导入和导入历史
+- `/nodes`：节点搜索、筛选、批量启停和手动节点
+- `/collections`：节点组、过滤、重命名、去重和自动节点组设置
+- `/groups`：基础出口、业务分流场景、默认出口和自定义策略组
+- `/rules`：手动规则、排序和批量启停
+- `/remote-rule-sets`：系统规则、补充规则集、来源覆盖和转换预览
+- `/export`：默认导出与高级导出档案
+- `/preview`：按目标客户端查看配置、就绪度和转换报告
+- `/settings`：界面、分流、DNS、刷新和数据备份设置
 
-## React Compiler
+主导航不显示 `/preview`；预览页由概览和导出流程进入。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 开发
 
-## Expanding the ESLint configuration
+从仓库根目录运行：
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm dev
+pnpm --filter @uni-conf/web test
+pnpm --filter @uni-conf/web typecheck
+pnpm --filter @uni-conf/web lint
+pnpm --filter @uni-conf/web build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+开发服务器默认监听 `http://localhost:5173`，并将 `/api` 和 `/sub` 代理到 `http://localhost:8787`。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 约束
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- 用户可见文案放在 `src/i18n/zh.json` 和 `src/i18n/en.json`
+- 页面通过 `src/lib/api.ts` 访问 Worker
+- 导出格式、规则兼容性和客户端能力来自 `@uni-conf/shared`
+- 带有实际改动的表单接入统一的未保存更改保护
+- 样式使用全局设计变量和 CSS Modules，避免在页面内复制基础弹窗或表单行为

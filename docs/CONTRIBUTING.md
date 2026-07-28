@@ -1,149 +1,147 @@
-# Contributing to UniConf
+# UniConf 开发指南
 
-## Prerequisites
+## 环境要求
 
-- Node.js 24 recommended (minimum 20.19)
-- pnpm ≥ 11.17
-- Cloudflare account (for deployment)
+- Node.js 20.19+ 或 22.12+；CI 使用 Node.js 24
+- pnpm 11.17+
+- 部署时需要 Cloudflare 账户
 
-## Local Development Setup
+## 本地启动
 
 ```bash
-# 1. Install dependencies
 pnpm install
-
-# 2. Create local Worker env vars
 cp apps/worker/.env.example apps/worker/.env
-# Edit apps/worker/.env with your settings
+pnpm --filter @uni-conf/worker db:migrate:local
+```
 
-# 3. Initialize local D1 database
-pnpm --filter worker db:migrate:local
+分别启动：
 
-# 4. Start worker (in one terminal)
+```bash
 pnpm dev:worker
-
-# 5. Start frontend (in another terminal)
 pnpm dev
 ```
 
-Frontend: http://localhost:5173  
-Worker API: http://localhost:8787  
-Vite proxy automatically forwards `/api/*` and `/sub/*` to the worker.
+- Web：`http://localhost:5173`
+- Worker：`http://localhost:8787`
 
-## Project Structure
+本地可以不配置 `API_KEY` 和 `ALLOWED_ORIGIN`。生产环境必须配置两者。
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full architecture overview.
-
-## Running Tests
+## 常用命令
 
 ```bash
-pnpm test              # Run all tests
-pnpm test:golden       # Real-D1 fresh install, backup/restore, and all-format export acceptance
-pnpm test:coverage     # Run with coverage report
-pnpm --filter web test # Frontend tests only
-pnpm --filter worker test # Worker tests only
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:coverage
+pnpm test:golden
+pnpm build
+pnpm catalogs:refresh
 ```
 
-Coverage is enforced in CI. Worker coverage includes routes, services, and generators (global 80% statements/lines, 90% functions, 65% branches). Web coverage includes application wiring, shared components, core logic, API clients, every page, and all stores. Its current ratchet is 55% statements/lines and 45% functions/branches, with stricter per-directory floors for app, core, lib, and store code. Raise thresholds with new tests; do not narrow the include globs to make a gate pass.
+按包运行：
 
-`pnpm test:golden` is the release acceptance path rather than a mocked route test. It creates an empty Miniflare D1 database, applies every migration in order, imports one representative configuration, verifies every advertised subscription format, exports and validates a backup, clears the instance, confirms the old public token is unavailable, restores the backup, and verifies every format again with the restored token and routing graph.
+```bash
+pnpm --filter @uni-conf/web test
+pnpm --filter @uni-conf/worker test
+pnpm --filter @uni-conf/rule-set test
+pnpm --filter @uni-conf/types check:protocols
+```
 
-## Code Style
+Golden path 会从空 D1 应用当前基线，导入代表性配置，验证全部导出格式，再完成备份、清空、恢复和重复导出。
 
-- TypeScript strict mode (no `any`, no implicit `any`)
-- No default exports for non-component modules
-- CSS Modules for component styles
-- i18n for all user-facing strings (no hardcoded text in components)
-- All new features need tests
+## 代码边界
 
-## Git Workflow
+- `@uni-conf/types`：领域类型和协议注册表
+- `@uni-conf/rule-set`：无存储依赖的规则解析/转换
+- `@uni-conf/shared`：跨 Web/Worker 的能力和纯函数
+- Worker service：数据库、网络、安全和业务状态
+- Worker generator：纯配置序列化
+- Web：管理交互和服务端结果展示
 
-1. Create a feature branch: `git checkout -b feat/your-feature`
-2. Make changes with tests
-3. Run `pnpm lint && pnpm typecheck && pnpm test`
-4. Commit and open a PR
+不要：
 
-## Deployment
+- 在 Web 中复制导出器
+- 在页面内复制兼容性表
+- 在生成器中读取 D1/KV
+- 对无法保持语义的规则做猜测性转换
 
-### Cloudflare Setup
+## 编码约定
 
-1. Create a D1 database:
-   ```bash
-   wrangler d1 create uni-conf-db
-   ```
+- TypeScript strict
+- 非组件模块优先命名导出
+- 用户可见文案使用 i18n
+- 页面样式使用设计变量和 CSS Modules
+- 表单改动接入统一未保存更改保护
+- D1 多行关联写入使用 batch，并在写入前完成全量校验
+- 外部 URL 使用统一安全 fetch
+- 新能力增加与风险相称的测试；小改动优先跑目标测试，不要求每次都跑完整集成套件
 
-2. Create a KV namespace:
-   ```bash
-   wrangler kv namespace create KV
-   ```
+## 修改协议
 
-3. Update both `staging` and `production` entries in `apps/worker/wrangler.jsonc` with real D1/KV IDs and allowed origins.
-
-4. Follow [OPERATIONS.md](./OPERATIONS.md): deploy to staging, run the smoke test, then approve production and apply migrations before code deployment.
-   ```bash
-   pnpm --filter worker db:migrate
-   ```
-
-5. Deploy worker:
-   ```bash
-   pnpm --filter worker deploy
-   ```
-
-6. Build frontend assets and deploy the Worker:
-   ```bash
-   pnpm build
-   pnpm --filter worker deploy
-   ```
-
-### Environment Variables
-
-Worker production env vars (set in Cloudflare Dashboard):
-- `ENVIRONMENT=production`
-- `API_KEY=<your-admin-api-key>` (required in production; `/api/*` fails closed when it is missing)
-- `ALLOWED_ORIGIN=https://your-pages-domain.example` (recommended)
-
-Frontend env:
-- `VITE_API_URL=/api` is the default same-origin path and can usually be omitted.
-- Set `VITE_API_URL=https://api.example.com/api` only if the SPA is served from a separate origin.
-
-## Adding Features
-
-### New Proxy Protocol Support
-1. Sync protocol metadata in `packages/types/src/protocols.ts` from the upstream sing-box/mihomo schema sources.
-2. Add URI compatibility parsing in `apps/web/src/core/parser/proxy-link.parser.ts` only when the protocol has a share-link format.
-3. Prefer native mihomo/sing-box config objects in `rawConfig`; keep `parsedConfig` limited to searchable/display fields.
-4. Add explicit client conversion only when a lossless or well-understood mapping exists.
-
-After changing protocol metadata or upgrading schema packages, run:
+参考 [PROTOCOL_SCHEMA_SYNC.md](./PROTOCOL_SCHEMA_SYNC.md)。
 
 ```bash
 pnpm --filter @uni-conf/types generate:protocols
 pnpm --filter @uni-conf/types check:protocols
 ```
 
-`pnpm --filter @uni-conf/types typecheck` and root `pnpm typecheck` also run the protocol metadata check, so registry/schema drift is caught in the normal validation path.
+同步更新：
 
-### New Export Format
-See [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md).
+- 协议注册表和表单字段
+- 输入解析
+- 目标生成器
+- `EXPORT_CLIENT_CAPABILITIES`
+- 协议矩阵测试
 
-When adding or changing a client export format, update the shared rule and remote-rule-set compatibility matrices in `@uni-conf/shared` first, then wire the worker generator and web UI through those shared helpers. Do not add a second local compatibility table in a page or generator.
+## 修改导出格式
 
-### New Default Rule
-Default routing should prefer remote rule set presets in `@uni-conf/shared` and `apps/worker/src/services/default-rule-sets.ts`. Do not add worker-owned local rule templates; manual rules are user-created overrides for cases that cannot reasonably live in a remote rule set.
+参考 [EXPORTER_GUIDE.md](./EXPORTER_GUIDE.md)。能力变化必须更新共享注册表、生成器、产物校验和 Web 标签。
 
-## Debugging
+## 修改规则目录
 
-### Worker logs
-```bash
-wrangler tail --format=pretty
+目录定义位于：
+
+```text
+resources/rule-set-catalogs.json
+resources/rule-set-catalogs/*.json
 ```
 
-### D1 queries
+刷新：
+
 ```bash
-wrangler d1 execute DB --command="SELECT * FROM sources LIMIT 10"
+pnpm catalogs:refresh
 ```
 
-### Frontend build analysis
+生成结果应提交，保证离线部署时仍有默认规则集。系统默认条目与完整可选目录是两层概念：只有非 `optional` 条目自动写入 D1。
+
+## 修改 D1
+
+当前结构位于 `apps/worker/migrations/0001_initial_schema.sql`。修改结构后重新应用本地迁移，并运行 Worker 数据测试和 golden path：
+
 ```bash
-pnpm --filter web build -- --analyze
+pnpm --filter @uni-conf/worker db:migrate:local
+pnpm test:golden
 ```
+
+## 提交前
+
+根据改动范围至少运行目标测试、typecheck 和 lint。影响跨包能力、数据库或导出链路时运行：
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:golden
+pnpm build
+```
+
+CI 还会运行 coverage。
+
+## 部署
+
+1. 在 Cloudflare 创建 D1 和 KV。
+2. 替换 `apps/worker/wrangler.jsonc` 中 staging/production 占位 ID 和 origin。
+3. 配置 `API_KEY` secret。
+4. 使用 GitHub `Deploy` workflow，先 staging 后 production。
+
+详细步骤见 [OPERATIONS.md](./OPERATIONS.md)。

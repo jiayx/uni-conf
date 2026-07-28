@@ -1,124 +1,191 @@
-# Operations and Release Runbook
+# UniConf 部署与运维
 
-## Supported operating model
+## 运行模型
 
-UniConf v1 is a single-administrator, self-hosted service. Protect the admin API with `API_KEY`, restrict browser access with `ALLOWED_ORIGIN`, and treat export tokens and backups as secrets. Backups contain node credentials in plaintext by design so they can restore the instance.
+UniConf 当前是单管理员、自托管服务：
 
-Public export profiles can be paused without rotating their tokens. A paused profile returns a non-cacheable 404 from both the main subscription URL and its token-scoped rule-set conversion URLs; authenticated preview/download returns 403. Resuming restores the same URL. Rotate the token when an existing URL may have leaked: the old URL becomes a non-cacheable 404 immediately. The dashboard and source cards do not render token-bearing URLs in page text by default.
+- 一个 Cloudflare Worker 同时提供 SPA、管理 API 和公开订阅
+- D1 保存配置
+- KV 保存限流计数、规则目录、托管 DNS 资源和规则集转换缓存
+- Cron 每五分钟触发一次，但只处理已经到期的订阅和需要刷新的托管资源
 
-Cross-client rule-set conversion is deliberately narrow. The Worker converts Clash/Mihomo/Stash/Surge/Loon/Shadowrocket/Quantumult X/Egern/plain-text rule sets to sing-box source JSON, sing-box or Egern sources to Mihomo provider YAML, and incompatible parseable sources to target-native Surge/Loon/Shadowrocket/Quantumult X lists or Egern YAML only when individual conditions have exact mappings. The portable text target subset is domain, domain suffix, domain keyword, IPv4 CIDR, and IPv6 CIDR; Quantumult X aliases such as `HOST-SUFFIX` and `IP6-CIDR` are normalized explicitly. Egern output uses its native grouped `*_set` fields, while Egern configs reference remote sets directly through `rules[].rule_set.match`. Before serving the main export it downloads and converts each required source with a four-request concurrency ceiling, coalesces identical conversion inputs during that preflight, then stores the artifact in KV for 5 minutes to 24 hours according to the rule-set update interval. Reachability validation reuses a fresh persisted health snapshot before making network requests, probes no more than six unknown unique URLs per request, coalesces duplicates, and emits a visible aggregate warning when remaining checks are deferred. HEAD and ranged-GET fallback share one timeout budget. When automatic refresh is enabled, the five-minute scheduled job validates up to two enabled rule sets with missing or expired snapshots per run, so deferred checks continue outside the preview request. Both paths preserve source ordering in returned diagnostics. Input is streamed with a hard 4 MiB cap. It validates domain and CIDR payloads and rejects known-plus-unknown or other compound conditions that would become broader after flattening.
+备份、节点配置、订阅源和公开导出都可能包含凭据。不要把备份、API Key 或导出 Token 写入日志或公开工单。
 
-Surge exports reference external rule-set URLs directly from `RULE-SET` entries in `[Rule]`, matching the current Surge profile contract. Surge node serialization is independent from Shadowrocket: HTTPS uses the native `https` proxy type and positional credentials, SOCKS5 preserves credentials and optional UDP relay, VMess/Trojan preserve supported WebSocket and TLS fields, and Hysteria 2 maps its password, SNI, certificate policy, bandwidth, and Salamander password to native fields. Quantumult X full profiles use native `[server_local]` entries for Shadowsocks/SSR, VMess, VLESS, Trojan, AnyTLS, HTTP(S), and SOCKS5. Generic node subscription URIs remain available in raw/Base64 node subscriptions but are rejected inside Quantumult X profiles. The capability registry must be updated whenever a native serializer is added or removed, and its revision must be incremented for externally visible contract changes.
+## Cloudflare 资源
 
-Loon node lines follow its documented positional syntax rather than Surge-style named fields: Shadowsocks/SSR put cipher and password before optional parameters; VMess and VLESS put identity fields before `transport` and TLS options; Trojan and Hysteria 2 use positional passwords; and HTTP(S) use positional credentials. Loon exports SSR, VLESS, and Hysteria 2, but does not advertise AnyTLS or SOCKS5 until a documented native format is available. Undocumented VLESS `flow` and multi-value ALPN encodings are not invented. VMess/VLESS/Trojan transports outside Loon's documented `tcp`, `ws`, and `http` set are skipped with a node-specific compatibility warning instead of being rewritten as TCP.
+`apps/worker/wrangler.jsonc` 定义 local、staging 和 production。
 
-Remote fetches use manual redirects. Every redirect target is revalidated, cross-origin authorization/cookie/proxy-authorization headers are removed, and the chain is capped at five hops. Literal private, loopback, link-local, reserved, IPv4-mapped IPv6, NAT64-wrapped private IPv4, credential-bearing, and local/internal hostnames are rejected before fetch. Conversion and reachability KV keys use versioned SHA-256 digests, so query credentials never appear in KV metadata, 32-bit hash collisions cannot cross-contaminate artifacts, and a converter format change can invalidate its namespace by increasing the version.
+远程环境需要：
 
-The global rule-set conversion policy controls skipped directives. `compatible` is the default: safely convertible rules are delivered while unsupported directives are skipped with exact warnings. `strict` requires completeness: if even one directive would be skipped, authenticated downloads and public subscriptions return 409. Config preview and the rule-set compatibility preview remain available in both modes so operators can see converted/skipped counts and replace the source. Both modes block when nothing can be converted safely. Monitor upstream availability, `X-UniConf-Skipped-Rules`, and `X-UniConf-Skipped-Rule-Types`; a non-zero count or entries such as `SCRIPT=3`, `COMPOUND=2`, or `INVALID-CIDR=1` mean the source requires a native target-format source or manual replacement. Token-scoped conversion responses use `no-store`; KV is the only conversion cache, so public proxies cannot continue serving an artifact after a profile is paused or rotated.
+- D1 database
+- KV namespace
+- `API_KEY` secret
+- 精确的 `ALLOWED_ORIGIN`
+- `ENVIRONMENT=production`
 
-Conversion-preview issues include a machine-readable resolution. `repair-source-rule` is used for malformed domains/CIDRs, `remove-unsupported-option` only when an otherwise valid directive loses an optional behavior, and `use-native-source` for compound conditions or directives with no exact target equivalent. The UI localizes these actions and can open the exact target-native override field for editable custom rule sets. These recommendations never authorize lossy automatic rewrites.
+将 `REPLACE_WITH_STAGING_*` 和 `REPLACE_WITH_PRODUCTION_*` 替换为真实资源 ID。部署工作流会拒绝仍含占位符的环境。
 
-System-managed rule sets also accept target-native source overrides while keeping their canonical name, URL, format, behavior, routing target, order, and notes immutable. Default synchronization does not overwrite these overrides. If synchronization changes a canonical URL, format, or behavior, it deletes the old health snapshot in the same D1 batch; routing-only metadata changes retain it. This gives conversion-preview remediation a safe path for built-in content without allowing a preset to drift from its maintained definition.
+GitHub environment 需要：
 
-The routing-policy editor also applies the policy to validation results it currently knows: compatible mode requires acknowledgement before saving failed native sources, while strict mode blocks that editor save. Invalid URL/input errors are never acknowledgeable. Warnings such as a valid SRS header without per-rule inspection remain saveable. These editor checks do not turn CRUD writes into network transactions and cannot guarantee future upstream health; strict export/subscription preflight remains the final enforcement boundary.
+| 名称                    | 类型     |
+| ----------------------- | -------- |
+| `CLOUDFLARE_API_TOKEN`  | secret   |
+| `CLOUDFLARE_ACCOUNT_ID` | secret   |
+| `API_KEY`               | secret   |
+| `UNICONF_BASE_URL`      | variable |
 
-Every rendered artifact is structurally validated before an authenticated download or public subscription is returned. Besides syntax and required sections, validation rejects dangling policy/group references, missing Mihomo rule providers, missing or duplicate sing-box rule-set tags, invalid remote rule-set URLs, and malformed Egern `rules[].rule_set` objects. A validation failure blocks delivery instead of handing a parseable but unusable config to the client.
+production 应开启环境审批。
 
-The on-demand remote rule-set validator understands plain lists, Mihomo YAML payloads, sing-box source JSON/SRS headers, and native Egern grouped YAML. The editor can validate one target-native override or all configured overrides before saving them; batch checks accept at most one URL for each of the nine targets and download at most three concurrently. Every stored rule set exposes one whole-source health check: it validates the default source plus every override with the same three-request ceiling and returns the worst status, aggregate counts, and per-source diagnostics in stable order. The result is stored in the operational `remote_rule_set_source_health` table and remains visible after reload. Its expiry follows the rule set's update interval; expired results are retained as stale evidence and must not be presented as current. Editing a source URL, format, behavior, override mapping, or refresh interval deletes the snapshot, while toggling or renaming does not. Health snapshots are excluded from configuration backups and do not claim continuous monitoring. All checks use the same public-URL/redirect guard and interpret each response as that target's declared native format. Egern validation expands and counts every supported `*_set` array instead of inspecting only the first field; it validates domains, CIDRs, regular expressions, ports, and protocols against the selected behavior. A source can be valid for Egern yet still produce partial conversion diagnostics for a target that cannot represent fields such as `user_agent_set`; native validity and cross-client portability are intentionally reported separately.
+## 首次部署
 
-Source-affecting rule-set updates and their health-snapshot deletion are submitted in one D1 batch, so a failed invalidation cannot leave a new source paired with an old result. Managed defaults are synchronized before the update row is read, preventing a stale request snapshot from reverting canonical fields repaired during synchronization.
+```bash
+pnpm install --frozen-lockfile
+pnpm catalogs:refresh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:golden
+pnpm build
+```
 
-For larger libraries, the routing-policy toolbar can check missing or stale multi-source snapshots in bounded batches. Each request selects at most five enabled rule sets in stable rule order and processes one rule set at a time; downloads within that set use the existing three-request pool. The response reports checked and remaining counts, so operators can continue intentionally without one Worker request attempting every upstream URL. The scheduled handler also checks at most two pending rule sets per cron run after subscription refresh completes. It uses the existing automatic-refresh setting as its master switch; disabling automatic refresh prevents both subscription and rule-set background network traffic. A rule-set health failure is logged independently and does not fail an already completed subscription refresh.
+应用数据库并部署：
 
-When at least one enabled rule set has target-native overrides, the dashboard summarizes fresh valid/warning/invalid snapshots together with stale and pending counts, the latest check time, and the current automatic-refresh switch state. The Settings label intentionally describes both subscription and rule-source refresh; its interval field remains the default subscription interval only.
+```bash
+pnpm --dir apps/worker exec wrangler d1 migrations apply DB --env staging --remote
+pnpm --dir apps/worker exec wrangler deploy --env staging
+```
 
-All Worker responses include `X-Request-Id` (the Cloudflare Ray ID when available, otherwise a generated UUID). Public subscription and token-scoped conversion failures also include a stable `X-UniConf-Error-Code`; authenticated export-download JSON repeats the same value in `code`. Structured request logs record the request ID, redacted path, status, duration, and error code, but never the subscription token or upstream rule-set URL. The browser API client preserves `status`, `code`, and `requestId` on `ApiError`. Import, export, preview, and routing-policy error notices show the code/request ID as a selectable diagnostic reference with a copy action. Use that value when correlating a user-visible failure with Worker logs.
+生产环境将 `staging` 替换为 `production`。
 
-| Error code | Meaning |
-| --- | --- |
-| `subscription_format_invalid` / `export_format_invalid` | Requested export filename or format is unknown |
-| `subscription_unavailable` | Public profile is missing, paused, or its token was rotated |
-| `export_not_ready` | Selected export graph has a blocking readiness error |
-| `conversion_incomplete` | Required conversion failed or strict completeness rejected skipped directives |
-| `rule_set_out_of_scope` | Conversion URL requested a rule set outside the token profile |
-| `conversion_target_invalid` / `conversion_not_required` | Conversion filename is invalid or the requested rewrite is unnecessary |
-| `conversion_source_too_large` | Source exceeded the 4 MiB conversion limit |
-| `conversion_upstream_unavailable` | Upstream rule set could not be downloaded |
-| `conversion_invalid_content` | No semantics-preserving artifact could be produced |
-| `artifact_invalid` | Final rendered configuration failed format-aware structural validation |
+推荐直接使用 `.github/workflows/deploy.yml`。该流程会刷新规则目录、运行检查、应用 D1 基线、部署 Worker/静态资源并执行 smoke test。
 
-The authenticated `POST /api/remote-rule-sets/:id/conversion-preview` endpoint uses the same resolver, downloader, size limit, parser, and KV artifact as the export preflight. It returns `direct` without downloading when the source is already native, `unsupported` without guessing when no exact path exists, or exact converted/skipped counts, a per-directive skipped histogram, and at most 12 KiB of converted content. A 413 identifies oversized input, 502 identifies upstream download failure, and 422 identifies content with no semantics-preserving output.
+## 发布流程
 
-Subscription and remote rule-set URLs must be publicly routable HTTP(S) addresses. The Worker rejects URL credentials, localhost and local-only hostnames, private/reserved IP literals, and redirects to those targets; it also limits redirect depth. Keep this validation enabled even for a trusted administrator because imported backups and third-party redirects can otherwise turn server-side refresh into an unintended internal request. The Wrangler configuration also enables `global_fetch_strictly_public`, so Cloudflare's mediated HTTP egress remains the final control for hostnames whose DNS answers change after application validation.
+1. 影响数据结构时先从当前生产版本导出备份。
+2. 合并代码并确认 CI 通过。
+3. 手动触发 staging Deploy。
+4. 确认 smoke test：
+   - `/api/health`
+   - `/api/ready`
+   - SPA 根路径
+   - `/api/auth/check`
+5. 对导出器或 Schema 改动，手动验证至少 Mihomo、sing-box 和受影响客户端。
+6. 审批 production Deploy。
 
-## Environments and required configuration
+本地检查已部署环境：
 
-`apps/worker/wrangler.jsonc` contains separate local, staging, and production bindings. Before the first remote deployment, replace every `REPLACE_WITH_*` value and configure these GitHub environments:
+```bash
+UNICONF_BASE_URL=https://example.com \
+UNICONF_API_KEY=... \
+pnpm smoke
+```
 
-| Setting | Staging | Production |
-|---|---|---|
-| `CLOUDFLARE_API_TOKEN` secret | required | required |
-| `CLOUDFLARE_ACCOUNT_ID` secret | required | required |
-| `API_KEY` secret | required | required |
-| `UNICONF_BASE_URL` variable | required | required |
-| D1 and KV IDs in Wrangler | required | required |
-| `ALLOWED_ORIGIN` in Wrangler | exact public origin | exact public origin |
+## Readiness
 
-Keep GitHub environment approval enabled for production. The deploy workflow deliberately applies D1 migrations before the Worker and stops when any placeholder remains.
+`GET /api/health` 只表示 Worker 可响应。
 
-## Release procedure
+`GET /api/ready` 检查：
 
-1. Run `pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:golden && pnpm build`. The golden path uses a real empty Miniflare D1 database, applies the canonical schema, imports a representative configuration, downloads every advertised format, then proves backup validation, destructive clear, restore, token recovery, and every-format download again.
-2. Export a backup from Settings before a schema-changing release.
-3. Dispatch the `Deploy` workflow to `staging`.
-4. Confirm the automated smoke checks for `/api/health`, `/api/ready`, the SPA root, and authenticated `/api/auth/check`. Readiness verifies D1, KV, `API_KEY`, and `ALLOWED_ORIGIN` rather than only checking that the Worker process responds.
-5. Manually import a representative config and download at least Mihomo and sing-box output after schema or generator changes.
-6. Approve and dispatch production only after staging passes.
+- D1 可查询
+- KV 可读写
+- 生产环境已配置 API Key
+- 生产环境已配置 Allowed Origin
 
-Use `pnpm smoke` locally against a deployed target by setting `UNICONF_BASE_URL` and optionally `UNICONF_API_KEY`.
+部署验证使用 readiness，而不是只使用 health。
 
-## Rollback and recovery
+## D1 与备份
 
-Worker code and assets can be rolled back to the previous Cloudflare deployment. The repository keeps only a clean-install D1 baseline, so schema-changing releases require a current-version export, a replacement/recreated D1 database, baseline application, and validated restore; `wrangler d1 migrations apply` cannot retrofit an edited `0001` into a database that already recorded it. For a data rollback, deploy compatible code first, validate the backup through `/api/data/import/validate`, then restore it from Settings. Only a backup that explicitly declares the current version is accepted; versionless and older payloads are rejected. Validation mirrors D1's required/non-null columns and checked source/group/import-history enums, then rejects unknown tables/columns, duplicate row IDs or export tokens, malformed JSON relationship lists, dangling references from collections, groups, rules, rule sets, export scopes, settings, nodes, and import history, plus direct or indirect policy-group cycles. Normal writes enforce the same policy-group and node-group existence invariants; deletion is rejected while a node group or its linked policy group is still referenced. Validation failures occur before the destructive replacement batch is submitted. Never edit or replay an unvalidated backup directly against D1.
+部署流程在发布 Worker 前执行 `wrangler d1 migrations apply`。结构相关发布前应导出备份，并在 staging 验证来源、节点、分流图、默认导出 Token 和各导出格式。
 
-Backup exports are returned as non-cacheable attachments and contain plaintext credentials. The browser refuses files larger than 25 MiB before reading them; the API request-body limit independently enforces the same boundary for direct callers. An export endpoint error is displayed to the administrator and must never be saved as a `.json` backup file.
+备份导入会在写入前检查版本、表/列、JSON、枚举、唯一键、引用和策略组循环。不要绕过应用直接把未知备份写入 D1。
 
-## Observability
+## 导出档案与 Token
 
-Every non-test request emits one JSON log event named `http_request` containing request ID, method, path, response status, duration, and environment. The same request ID is returned as `X-Request-Id`; use it to correlate a browser failure with Worker logs. Unhandled failures emit `worker_error`. Scheduled subscription refreshes emit `source_auto_refresh` with checked, refreshed, failed, skipped, error, and duration fields; scheduled multi-source health checks emit `remote_rule_set_health_refresh` with checked, remaining, skipped, failed, and duration fields.
+- 默认档案由系统维护，不可删除
+- 暂停档案：主订阅和其 Token 范围内的转换 URL 都返回不可缓存的 404
+- 恢复档案：继续使用原 Token
+- 重置 Token：旧 URL 立即失效
+- 认证预览/下载在档案暂停时返回 403
 
-Recommended alerts:
+公开订阅响应不做边缘长期缓存，保证节点、规则和暂停状态在客户端下一次刷新时生效。规则集转换产物可以在 KV 中按内容和目标缓存，但每次访问仍先验证 Token 档案的当前状态和范围。
 
-- any production `worker_error`;
-- five-minute HTTP 5xx rate above 1%;
-- p95 admin API latency above 1 second or subscription generation above 3 seconds;
-- any scheduled subscription or remote-rule-set health failure for three consecutive cron runs;
-- smoke-test failure after deployment.
+## 远程网络与缓存
 
-Do not log authorization headers, export tokens, source raw content, node credentials, or backup bodies.
+所有订阅和规则集 URL 必须是公开 HTTP(S)：
 
-## Capacity baseline
+- 禁止 URL 用户名/密码
+- 禁止 localhost、本地域名、私网和保留 IP
+- 每次重定向重新校验
+- 跨 origin 重定向去除敏感请求头
+- 限制重定向次数、请求时间和响应大小
 
-The parser regression suite covers a 10,000-node raw subscription. Import/restore is capped at 100,000 rows total and request bodies/backup files at 25 MiB. Node and manual-rule batch enable/disable each accept at most 500 unique IDs, verify that every ID still exists, and write bounded SQL chunks through one D1 batch before resynchronizing zero-setup state. Manual-rule batch creation also accepts at most 500 items, validates every item and target before preparing writes, and submits all INSERT statements in one atomic D1 batch. Manual-rule enable/disable batches update only `enabled` and `updated_at`; they never rewrite global `sort_order`. Reordering requires a duplicate-free exact permutation of every current rule ID and submits the resulting updates through one D1 batch; a stale or partial permutation returns 409 without writes. Scheduled source refreshes use bounded concurrency of four to avoid serial backlog without creating unbounded outbound traffic or D1 writes. For larger installations, measure Worker CPU time, D1 row counts, generated payload size, and cron duration in staging before raising these limits.
+Worker 还启用 `global_fetch_strictly_public`。
 
-## Import semantics
+KV 主要用于：
 
-Import is preview-first. The preview compares nodes, Clash/Mihomo manual rules, and HTTP rule providers with the current database and classifies every item as new, existing, conflicting, or unmapped. The response caps displayed items at 100 per section while keeping authoritative totals. Node credential and transport changes are reported only as a configuration change; secret values are never returned.
+- API/订阅限流
+- 第三方规则目录快照
+- QuixoticHeart fake-ip-filter 刷新结果
+- 规则集转换产物
 
-Pasted and uploaded source content is limited to 4 MiB measured as UTF-8 bytes. The browser rejects an oversized file before calling `File.text()` and validates pasted/malformed-decoded text again before preview. Both preview and import APIs independently enforce the same limit, so direct callers cannot bypass it. Stored source content is checked before node/rule retry as well.
+规则集来源健康状态由用户在规则集管理页主动检查后写入 D1。过期状态会标为 stale；它不是持续探测服务，也不会在每次配置预览时探测全部 URL。
 
-Clash/Mihomo documents containing supported `rules` or referenced HTTP `rule-providers` do not need a `proxies` section. Auto detection recognizes these as rules-only Mihomo configs. Their preview explicitly reports that no nodes will be created, and confirmation stores the original source content while treating the zero-node phase as successful before atomically importing the structured objects. A rules-only source therefore receives a successful history row and remains fully undoable. Content with neither usable nodes nor mapped/duplicate/conflicting structured candidates still fails preview validation.
+## 定时任务
 
-The default node mode imports the complete source so it can subsequently be refreshed as one unit. The optional `new-only` mode stores only nodes classified as new, removes skipped members from imported source groups, and rejects the request when nothing new remains. Rules with the same matcher but a different target and rule providers with the same URL but different target, behavior, or update interval are conflicts. The default decision keeps the existing value. A preview item can explicitly choose the imported value only when it maps to exactly one existing object; managed rule providers and ambiguous matches cannot be overwritten. Unsupported or unmapped rules, DNS, and client-specific settings remain in the source's original config and are reported in the preview; they are never silently reinterpreted.
+Cron 表达式为 `*/5 * * * *`。
 
-Node/source persistence and optional structured migration are reported as separate import phases. All new manual rules and remote rule sets from one import are submitted in a single D1 batch, so a structured write failure does not leave only part of that rule batch behind. The already-imported source and nodes remain usable, and the API returns `structuredImportError`; the Sources page keeps that partial-success warning visible after closing the import dialog. Operators can correct the cause and retry without losing the preserved original content.
+一次触发会：
 
-Every clipboard/file import creates a summary-only audit run. Import history never stores raw source content, node endpoints, node configuration, or detailed parser/database errors. It stores only the routing fields needed to undo an explicitly accepted conflict. “Undo import” removes the source, its nodes, and structured objects still carrying that source's ownership marker in one D1 batch, restores overwritten routing fields only while they still match the imported values, then retains the run as `undone`. Later user edits are therefore preserved. Objects whose ownership marker was deliberately changed after import are treated as user-managed and are not removed by undo.
+1. 查找并刷新已到期且启用的订阅源
+2. 到期时刷新规则目录快照
+3. 到期时刷新托管 DNS 真实 IP 例外
 
-If nodes were stored but the atomic rules/rule-set batch failed, the history row remains `partial` and offers “Retry rules”. Opening it rebuilds the database-aware preview from the source content already stored by the original import. Confirming retries only the structured phase, including any newly selected conflict decisions; it does not create or update nodes again. A second submission while the retry is claimed is rejected, and a handled retry failure returns the history row to a retryable partial state.
+全局“自动刷新”开关只控制第 1 项订阅刷新。规则目录和托管 DNS 资源按各自六小时缓存周期维护，避免用户关闭订阅刷新后让导出所需的系统资源永久停更。默认订阅间隔为 240 分钟，Cron 的五分钟只是调度粒度。
 
-Node inserts, updates, removals, and the source node summary are committed as one D1 batch. If parsing or that batch fails, history offers “Retry nodes” whenever the stored raw content now yields usable nodes. The preview excludes the current source from global duplicate classification. Retrying an `all` import reconciles its complete node set; retrying `new-only` retains only nodes still absent from other sources/manual nodes and safely handles rows already owned by the current source. Rules and rule sets are not run again. If both phases failed, either retry may be completed first and the row remains `partial` until the other generic phase error is cleared.
+## 可观测性
 
-URL subscription responses use the same 4 MiB boundary. A declared oversized `Content-Length` is rejected before body consumption; responses without a trustworthy length are read as a stream and cancelled as soon as the accumulated bytes exceed the limit. Oversized upstream content is never cached in `sources.raw_content`.
+非测试请求记录结构化 `http_request`：
 
-Import and structured-retry claims older than ten minutes are treated as interrupted Worker executions. Reading import history or invoking an import-history action automatically converts those stale `running` rows to `partial`; an interrupted initial import receives a generic node-phase error, while an interrupted structured retry retains its generic structured error and becomes retryable again. Fresh `running` rows are left untouched. History also reports skipped nodes/rules and conflict decisions so partial outcomes can be assessed without inspecting source content.
+- request ID
+- method
+- 已脱敏 path
+- status
+- duration
+- environment
+- 可用时记录 error code
+
+未捕获异常记录 `worker_error`。订阅 Token 在日志路径中替换为 `[redacted]`。
+
+响应包含 `X-Request-Id`。公开订阅和导出错误还使用稳定的 `X-UniConf-Error-Code`：
+
+| Code                                                    | 含义                           |
+| ------------------------------------------------------- | ------------------------------ |
+| `subscription_format_invalid` / `export_format_invalid` | 格式未知                       |
+| `subscription_unavailable`                              | Token 不存在、已重置或档案暂停 |
+| `export_not_ready`                                      | 导出图存在阻断问题             |
+| `conversion_incomplete`                                 | 严格转换不完整或转换失败       |
+| `rule_set_out_of_scope`                                 | 规则集不属于该 Token 档案      |
+| `conversion_target_invalid`                             | 转换目标非法                   |
+| `conversion_not_required`                               | 不需要该转换                   |
+| `conversion_source_too_large`                           | 上游规则集超过限制             |
+| `conversion_upstream_unavailable`                       | 上游不可用                     |
+| `conversion_invalid_content`                            | 无法生成保持语义的内容         |
+| `artifact_invalid`                                      | 最终配置结构校验失败           |
+
+用户报告问题时优先索取诊断编号，而不是订阅 URL 或完整配置。
+
+## 容量边界
+
+- 管理 API body：25 MiB
+- 单个粘贴/上传/远程配置源：4 MiB UTF-8
+- 备份总行数：100,000
+- 节点批量启停：500 个唯一 ID
+- 手动规则批量创建/启停：500 条
+- 订阅刷新使用有界并发
+- 规则集转换和来源校验使用有界并发与流式大小限制
+
+超过这些规模前，应在 staging 测量 Worker CPU、D1 行数、生成配置大小和 Cron 时长。
+
+## 回滚
+
+代码和静态资源可以回滚到前一个 Worker deployment。回滚后重新验证 `/api/ready`、管理页、默认导出和公开订阅。
