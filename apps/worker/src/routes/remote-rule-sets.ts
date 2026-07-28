@@ -5,7 +5,6 @@ import type { ExportFormat, RemoteRuleSet, RemoteRuleSetConversionPreview, Remot
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   isFullConfigExportFormat,
-  isManagedRuleSetActiveForUnmatchedPolicy,
   isRuleSetFormat,
   isRuleSetFormatCompatible,
   resolveRemoteRuleSetForExport,
@@ -19,12 +18,10 @@ import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import { listSourceRemoteRuleSets } from '../services/source-rule-sets'
-import { getAppSettings } from '../services/app-settings'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
-
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM remote_rule_sets ORDER BY sort_order ASC, created_at ASC'
   ).all<Record<string, unknown>>()
@@ -366,12 +363,7 @@ app.put('/:id', async (c) => {
   if (
     managed
     && validation.enabled === true
-    && !(await isManagedRuleSetUsableByCurrentRouting(
-      c.env.DB,
-      existing,
-      nextOverrideTargetGroupId,
-      nextEffectiveTargetGroupId,
-    ))
+    && !(await isEnabledTargetGroup(c.env.DB, nextEffectiveTargetGroupId))
   ) {
     return c.json({
       success: false,
@@ -457,19 +449,6 @@ export interface ManagedRemoteRuleSetFields {
 
 export function isManagedRemoteRuleSet(row: ManagedRemoteRuleSetFields): boolean {
   return Boolean(row.preset_source && row.preset_id)
-}
-
-async function isManagedRuleSetUsableByCurrentRouting(
-  db: D1Database,
-  row: Record<string, unknown>,
-  overrideTargetGroupId: string | null,
-  effectiveTargetGroupId: string,
-): Promise<boolean> {
-  if (!(await isEnabledTargetGroup(db, effectiveTargetGroupId))) return false
-  if (overrideTargetGroupId) return true
-  if (row.preset_source !== 'quixotic' || typeof row.preset_id !== 'string') return true
-  const settings = await getAppSettings(db)
-  return isManagedRuleSetActiveForUnmatchedPolicy(row.preset_id, settings.unmatchedTrafficPolicy)
 }
 
 export function isManagedRemoteRuleSetUpdate(body: Partial<RemoteRuleSet>): boolean {

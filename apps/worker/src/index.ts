@@ -9,6 +9,7 @@ import collectionsRouter from './routes/collections'
 import groupsRouter from './routes/groups'
 import rulesRouter from './routes/rules'
 import remoteRuleSetsRouter from './routes/remote-rule-sets'
+import ruleSetCatalogsRouter from './routes/rule-set-catalogs'
 import dashboardRouter from './routes/dashboard'
 import settingsRouter from './routes/settings'
 import dataRouter from './routes/data'
@@ -18,6 +19,9 @@ import { subscriptionRouter } from './routes/subscription'
 import type { Env } from './types'
 import { refreshDueSources } from './services/source-auto-refresh'
 import { kvRateLimit } from './middleware/rate-limit'
+import { refreshRuleSetCatalogSnapshotIfDue } from './services/rule-set-catalogs'
+import { ensureDefaultRemoteRuleSets } from './services/default-rule-sets'
+import { getAppSettings } from './services/app-settings'
 
 type AppVariables = { requestId: string }
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>()
@@ -106,6 +110,7 @@ app.route('/api/collections', collectionsRouter)
 app.route('/api/groups', groupsRouter)
 app.route('/api/rules', rulesRouter)
 app.route('/api/remote-rule-sets', remoteRuleSetsRouter)
+app.route('/api/rule-set-catalogs', ruleSetCatalogsRouter)
 app.route('/api/export', exportRouter)
 app.route('/api/dashboard', dashboardRouter)
 app.route('/api/settings', settingsRouter)
@@ -137,6 +142,7 @@ export default {
   async scheduled(_event, env) {
     const startedAt = Date.now()
     const result = await refreshDueSources(env.DB)
+    const catalogResult = await refreshCatalogsForSchedule(env)
     const { errors, ...summary } = result
     logEvent('source_auto_refresh', {
       ...summary,
@@ -144,7 +150,12 @@ export default {
       durationMs: Date.now() - startedAt,
       environment: env.ENVIRONMENT,
     }, result.failedCount > 0 ? 'error' : 'log')
-
+    if (catalogResult) {
+      logEvent('rule_set_catalog_refresh', {
+        ...catalogResult,
+        environment: env.ENVIRONMENT,
+      }, catalogResult.error ? 'error' : 'log')
+    }
   },
 } satisfies ExportedHandler<Env>
 
@@ -152,6 +163,31 @@ export function redactLogPath(path: string): string {
   if (!path.startsWith('/sub/')) return path
   const [, prefix, , ...rest] = path.split('/')
   return `/${prefix}/[redacted]${rest.length > 0 ? `/${rest.join('/')}` : ''}`
+}
+
+async function refreshCatalogsForSchedule(env: Env): Promise<{
+  catalogCount?: number
+  ruleSetCount?: number
+  error?: string
+} | null> {
+  try {
+    const snapshot = await refreshRuleSetCatalogSnapshotIfDue(env)
+    if (!snapshot) return null
+    const timestamp = new Date().toISOString()
+    const settings = await getAppSettings(env.DB)
+    await ensureDefaultRemoteRuleSets(
+      env.DB,
+      timestamp,
+      settings.unmatchedTrafficPolicy,
+      snapshot,
+    )
+    return {
+      catalogCount: snapshot.catalogs.length,
+      ruleSetCount: snapshot.catalogs.reduce((sum, catalog) => sum + catalog.items.length, 0),
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 export async function checkReadiness(env: Env): Promise<{

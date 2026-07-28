@@ -1,0 +1,293 @@
+{
+  "id": "quixotic",
+  "name": "Quixotic",
+  "repository": {
+    "url": "https://github.com/QuixoticHeart/rule-set",
+    "branch": "ruleset",
+    "commit": "c4e432b6b7723c8976e23d12c2e92d3bb4d2c929"
+  },
+  "syncedAt": "2026-07-28T02:29:11.140Z",
+  "sourceProfiles": {
+    "mihomo": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/{id}.list",
+      "format": "mihomo",
+      "behavior": "classical",
+      "nativeTargets": ["mihomo", "clash"]
+    },
+    "stash": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/stash/{id}.list",
+      "format": "stash",
+      "behavior": "classical",
+      "nativeTargets": ["stash"]
+    },
+    "singbox": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/singbox/version5/{id}.srs",
+      "format": "singbox",
+      "behavior": "classical",
+      "nativeTargets": ["singbox"]
+    },
+    "surge": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/surge/{id}.list",
+      "format": "surge",
+      "behavior": "classical",
+      "nativeTargets": ["surge"]
+    },
+    "loon": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/loon/{id}.list",
+      "format": "loon",
+      "behavior": "classical",
+      "nativeTargets": ["loon"]
+    },
+    "shadowrocket": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/shadowrocket/{id}.list",
+      "format": "shadowrocket",
+      "behavior": "classical",
+      "nativeTargets": ["shadowrocket"]
+    },
+    "quantumultx": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/quantumultx/{id}.list",
+      "format": "quantumultx",
+      "behavior": "classical",
+      "nativeTargets": ["quantumultx"]
+    },
+    "egern": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/egern/{id}.yaml",
+      "format": "egern",
+      "behavior": "classical",
+      "nativeTargets": ["egern"]
+    },
+    "text": {
+      "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/master/meta/domain/{id}.list",
+      "format": "text",
+      "behavior": "domain",
+      "nativeTargets": []
+    }
+  },
+  "defaultSourceSet": "standard",
+  "sourceSets": {
+    "standard": {
+      "defaultSource": "mihomo",
+      "sources": [
+        "mihomo",
+        "stash",
+        "singbox",
+        "surge",
+        "loon",
+        "shadowrocket",
+        "quantumultx",
+        "egern"
+      ]
+    },
+    "fake-ip-filter": {
+      "defaultSource": "text",
+      "sources": ["singbox", "text"]
+    },
+    "without-singbox-quantumultx": {
+      "defaultSource": "mihomo",
+      "sources": ["mihomo", "stash", "surge", "loon", "shadowrocket", "egern"]
+    }
+  },
+  "routingGroups": [
+    {
+      "routing": {
+        "category": "general",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 10,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["private"]
+    },
+    {
+      "routing": {
+        "category": "privacy",
+        "target": "REJECT",
+        "provisioning": "foundation",
+        "order": 20,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [
+        { "id": "adrules", "name": "Advertising" },
+        { "id": "httpdns", "name": "HTTPDNS" }
+      ]
+    },
+    {
+      "routing": {
+        "category": "direct",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 30,
+        "activeForUnmatchedPolicies": ["proxy"]
+      },
+      "rules": [
+        { "id": "apns", "name": "APNs" },
+        "apple-cn",
+        "bilibili",
+        "cdn",
+        { "id": "cn", "name": "China Domain" },
+        { "id": "cncidr", "name": "China IP" },
+        {
+          "id": "cncidr-resolve",
+          "name": "China IP Resolve",
+          "sourceSet": "without-singbox-quantumultx"
+        },
+        "douyin",
+        "games-cn",
+        "microsoft-cn",
+        { "id": "socialmedia-cn", "name": "Social Media CN" }
+      ]
+    },
+    {
+      "routing": {
+        "category": "privacy",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 30,
+        "activeForUnmatchedPolicies": ["proxy"]
+      },
+      "rules": [{ "id": "dmca", "name": "DMCA" }]
+    },
+    {
+      "sourceSet": "fake-ip-filter",
+      "routing": {
+        "category": "dns",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 30,
+        "activeForUnmatchedPolicies": ["proxy"]
+      },
+      "rules": [{ "id": "fake-ip-filter", "name": "Fake IP Filter" }]
+    },
+    {
+      "routing": {
+        "category": "ai",
+        "target": "AI",
+        "provisioning": "scenario",
+        "order": 40,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [{ "id": "ai", "name": "AI" }]
+    },
+    {
+      "routing": {
+        "category": "streaming",
+        "target": "Streaming",
+        "provisioning": "scenario",
+        "order": 60,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [
+        "abema",
+        "apple-tv",
+        "bahamut",
+        { "id": "dazn", "name": "DAZN" },
+        "disney",
+        { "id": "dmm", "name": "DMM" },
+        { "id": "hbo", "name": "HBO" },
+        "hulu",
+        { "id": "mytvsuper", "name": "MyTV Super" },
+        "netflix",
+        "niconico",
+        { "id": "primevideo", "name": "Prime Video" },
+        "spotify",
+        "twitch",
+        { "id": "youtube", "name": "YouTube" }
+      ]
+    },
+    {
+      "routing": {
+        "category": "developer",
+        "target": "GitHub",
+        "provisioning": "scenario",
+        "order": 70,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [{ "id": "gits", "name": "GitHub" }]
+    },
+    {
+      "routing": {
+        "category": "apple",
+        "target": "Apple",
+        "provisioning": "scenario",
+        "order": 80,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["apple", "apple-proxy"]
+    },
+    {
+      "routing": {
+        "category": "microsoft",
+        "target": "Microsoft",
+        "provisioning": "scenario",
+        "order": 90,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["microsoft", { "id": "onedrive", "name": "OneDrive" }]
+    },
+    {
+      "routing": {
+        "category": "google",
+        "target": "Google",
+        "provisioning": "scenario",
+        "order": 100,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["google", { "id": "googlefcm", "name": "Google FCM" }]
+    },
+    {
+      "routing": {
+        "category": "gaming",
+        "target": "Gaming",
+        "provisioning": "scenario",
+        "order": 110,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["games"]
+    },
+    {
+      "routing": {
+        "category": "finance",
+        "target": "Crypto",
+        "provisioning": "scenario",
+        "order": 120,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["crypto"]
+    },
+    {
+      "routing": {
+        "category": "social",
+        "target": "Social",
+        "provisioning": "scenario",
+        "order": 130,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [
+        "forum",
+        { "id": "socialmedia", "name": "Social Media" },
+        "talkatone",
+        { "id": "tiktok", "name": "TikTok" }
+      ]
+    },
+    {
+      "routing": {
+        "category": "proxy",
+        "target": "PROXY",
+        "provisioning": "foundation",
+        "order": 140,
+        "activeForUnmatchedPolicies": ["direct"]
+      },
+      "rules": ["gfw", "proxy", "tld-proxy"]
+    },
+    {
+      "routing": {
+        "category": "diagnostics",
+        "target": "Speedtest",
+        "provisioning": "scenario",
+        "order": 150,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": ["speedtest"]
+    }
+  ]
+}

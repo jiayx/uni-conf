@@ -775,7 +775,7 @@ export function Export() {
                 const compatible = compatibilityMode !== 'unsupported'
                 const formatLabel = item.presetSource === 'quixotic'
                   ? t('export.remote_set_dynamic_preset')
-                  : item.presetSource === 'uni-conf'
+                  : item.presetSource
                     ? t('export.remote_set_builtin_format', { format: item.format })
                     : item.format
                 return {

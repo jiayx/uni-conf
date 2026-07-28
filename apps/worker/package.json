@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run --env=\"\" --outdir dist",
+    "predeploy": "pnpm --dir ../.. catalogs:refresh",
     "deploy": "wrangler deploy",
+    "predeploy:staging": "pnpm --dir ../.. catalogs:refresh",
     "deploy:staging": "wrangler deploy --env staging",
+    "predeploy:production": "pnpm --dir ../.. catalogs:refresh",
     "deploy:production": "wrangler deploy --env production",
     "lint": "oxlint src --type-aware --deny-warnings",
     "typecheck": "tsc --noEmit",

@@ -55,15 +55,6 @@ const groupRows = [
     is_builtin: 1,
   },
   {
-    id: 'builtin-telegram',
-    name: 'Telegram',
-    type: 'select',
-    collection_ids: '[]',
-    group_ids: '["builtin-proxy"]',
-    enabled: 1,
-    is_builtin: 1,
-  },
-  {
     id: 'builtin-direct',
     name: 'DIRECT',
     type: 'direct',
@@ -248,7 +239,7 @@ describe('routing policy group sync', () => {
       ],
     ],
     [
-      ['communication', 'gaming', 'finance', 'platform'],
+      ['communication', 'gaming', 'finance', 'brokerage', 'platform'],
       [
         'PROXY',
         'DIRECT',
@@ -257,10 +248,10 @@ describe('routing policy group sync', () => {
         '节点选择',
         '自动选择',
         '故障切换',
-        'TELEGRAM',
         'SOCIAL',
         'GAMING',
         'CRYPTO',
+        'BROKER',
         'APPLE',
         'MICROSOFT',
         'GOOGLE',
@@ -308,10 +299,10 @@ describe('routing policy group sync', () => {
       'MICROSOFT',
       'DEVELOPER',
       'STREAMING',
-      'TELEGRAM',
       'SOCIAL',
       'GAMING',
       'CRYPTO',
+      'BROKER',
       'SPEEDTEST',
       'APPLE',
     ]);
@@ -341,7 +332,6 @@ describe('routing policy group sync', () => {
       'builtin-ai',
       'builtin-streaming',
       'builtin-github',
-      'builtin-telegram',
       'custom-downloads',
     ]);
   });
@@ -353,7 +343,6 @@ describe('routing policy group sync', () => {
       'builtin-ai',
       'builtin-streaming',
       'builtin-github',
-      'builtin-telegram',
       'custom-downloads',
     ];
 
@@ -368,9 +357,6 @@ describe('routing policy group sync', () => {
     );
     expect(rows.find((row) => row.id === 'builtin-github')?.group_ids).toBe(
       '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'
-    );
-    expect(rows.find((row) => row.id === 'builtin-telegram')?.group_ids).toBe(
-      '["sg-auto","hk-auto","jp-auto","us-auto","builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","streaming-auto","native-auto"]'
     );
     expect(rows.find((row) => row.id === 'custom-downloads')?.group_ids).toBe(
       '["builtin-auto-select","builtin-node-select","builtin-fallback-select","builtin-all-nodes","builtin-proxy","builtin-direct","builtin-reject","us-auto","hk-auto","jp-auto","sg-auto","streaming-auto","native-auto"]'

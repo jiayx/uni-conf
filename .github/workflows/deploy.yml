@@ -28,6 +28,9 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm catalogs:refresh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: pnpm lint && pnpm typecheck && pnpm test && pnpm test:golden && pnpm build
       - name: Verify Cloudflare resource configuration
         run: |

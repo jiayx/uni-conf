@@ -9,6 +9,7 @@
     "dev:worker": "pnpm --filter worker dev",
     "build": "pnpm --filter types build && pnpm --filter web build && pnpm --filter worker build",
     "build:worker": "pnpm --filter worker build",
+    "catalogs:refresh": "node scripts/generate-rule-set-catalogs.mjs",
     "smoke": "node scripts/smoke-deployment.mjs",
     "test": "pnpm -r test",
     "test:golden": "pnpm --filter @uni-conf/worker test:golden",

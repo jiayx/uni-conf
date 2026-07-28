@@ -47,7 +47,7 @@ describe('Settings data safety', () => {
 
   it('validates an uploaded backup before destructive restore', async () => {
     vi.mocked(api.settings.validateImportData).mockResolvedValue({
-      version: 6, totalRows: 4, tables: { sources: 1, nodes: 3 }, containsSensitiveData: true,
+      version: 7, totalRows: 4, tables: { sources: 1, nodes: 3 }, containsSensitiveData: true,
     })
     vi.mocked(api.settings.importData).mockResolvedValue(undefined)
     const user = userEvent.setup()
@@ -55,7 +55,7 @@ describe('Settings data safety', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     await waitForImportReady()
 
-    await user.upload(input, new File([JSON.stringify({ version: 6, tables: {} })], 'backup.json', { type: 'application/json' }))
+    await user.upload(input, new File([JSON.stringify({ version: 7, tables: {} })], 'backup.json', { type: 'application/json' }))
 
     expect(api.settings.validateImportData).toHaveBeenCalledOnce()
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('4 rows'))
@@ -95,7 +95,7 @@ describe('Settings data safety', () => {
 
   it('keeps restore failures diagnosable and does not reload settings after a rejected import', async () => {
     vi.mocked(api.settings.validateImportData).mockResolvedValue({
-      version: 6, totalRows: 1, tables: { sources: 1 }, containsSensitiveData: true,
+      version: 7, totalRows: 1, tables: { sources: 1 }, containsSensitiveData: true,
     })
     vi.mocked(api.settings.importData).mockRejectedValueOnce(
       new ApiError('Backup restore failed', 409, 'backup_conflict', 'request-backup-1'),
@@ -105,7 +105,7 @@ describe('Settings data safety', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     await waitForImportReady()
 
-    await user.upload(input, new File([JSON.stringify({ version: 6, tables: {} })], 'backup.json', { type: 'application/json' }))
+    await user.upload(input, new File([JSON.stringify({ version: 7, tables: {} })], 'backup.json', { type: 'application/json' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Backup restore failed')
     expect(screen.getByText('backup_conflict · request-backup-1')).toBeInTheDocument()

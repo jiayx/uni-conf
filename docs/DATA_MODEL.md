@@ -141,7 +141,6 @@ Full-config exporters preserve this managed health-check baseline when the targe
 - `builtin-proxy` → PROXY (select)
 - `builtin-ai` → AI (select)
 - `builtin-streaming` → Streaming (select)
-- `builtin-telegram` → Telegram (select)
 - `builtin-social` → Social (select)
 - `builtin-github` → GitHub (select)
 - `builtin-apple` → Apple (select)
@@ -164,7 +163,7 @@ Built-in groups have distinct product roles:
 | Rule target foundations | PROXY, DIRECT, REJECT | Always enabled by every routing policy template and always available as direct rule targets |
 | Global node outlets | 全部节点, 节点选择, 自动选择, 故障切换 | Always enabled by every routing policy template, backed by the system default usable node pool, and only used as outlet candidates inside routing groups |
 | Outlet groups | 全部节点, 节点选择, 自动选择, 故障切换, country auto groups | Added as candidates inside business routing groups |
-| Business routing groups | AI, Streaming, Telegram, Social, GitHub, Google, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
+| Business routing groups | AI, Streaming, Social, GitHub, Google, Apple, Microsoft, 漏网之鱼, Crypto, Gaming, Broker, Developer | Used by remote rule sets, manual rules, and MATCH fallback |
 
 `PROXY` has no hard-coded builtin members; sync fills its outlet candidates from the current enabled foundation, global-node, and node-backed outlet groups. The four global node outlets reference the managed `builtin-default-node-pool` collection named `默认可用节点`, whose notes are `[uni-conf:default-node-pool]` and whose default filter is `tag not_in ["high-multiplier"]`. This keeps global outlets usable in zero setup without making high-multiplier nodes default candidates; users who want high-multiplier nodes can create a manual node group. Fresh database migrations also normalize these managed rows statically, and runtime zero-setup sync re-applies the same model before user-facing reads and exports. `DIRECT` and `REJECT` are system foundation outlets, not user-created policy group types. User-created groups may use `select`, `url-test`, `fallback`, or `load-balance`; the API rejects custom `direct` / `reject` groups so rules and generated exporters keep one canonical representation for direct and reject traffic. Exporters do not emit `DIRECT` / `REJECT` as ordinary policy groups. Mihomo-compatible and text-based clients reference the native `DIRECT` / `REJECT` policies directly whenever rules or nested groups target a `direct` / `reject` row; sing-box maps the same rows to `direct` / `block` outbounds.
 
@@ -186,7 +185,6 @@ Readiness validation checks the final export graph, not only stored IDs. A polic
 |---------------|------------------------|
 | AI | Native Auto, then US, JP, SG country auto groups, then 自动选择 / 节点选择 / 故障切换 |
 | Streaming | Streaming Auto, Native Auto, then HK, JP, SG, TW, US country auto groups, then 自动选择 |
-| Telegram | SG, HK, JP, US country auto groups, then 自动选择 |
 | Speedtest | DIRECT, then 自动选择 / 节点选择 / 故障切换 / 全部节点 and node-backed groups |
 | PROXY, GitHub, and other groups | 自动选择 / 节点选择 / 故障切换 / 全部节点, then country auto groups |
 
@@ -196,7 +194,7 @@ Readiness validation checks the final export graph, not only stored IDs. A polic
 |----------|----------------------------------------------------|
 | `ai-development` | AI, GitHub, Google, Microsoft, Developer |
 | `streaming` | Streaming |
-| `communication` | Telegram, Social |
+| `communication` | Social (including Telegram) |
 | `gaming` | Gaming |
 | `finance` | Crypto |
 | `diagnostics` | Speedtest |
@@ -206,7 +204,7 @@ The UI offers shortcuts without storing another abstraction: **Basic** selects n
 
 Remote rule sets and manual rules target enabled rule-target groups only. A rule-target group is `PROXY`, `DIRECT`, `REJECT`, or an enabled business policy group with no direct `collection_ids`. Global node outlets (`全部节点`, `节点选择`, `自动选择`, `故障切换`), country auto groups, and other node-backed groups remain outlet candidates inside policy groups, but are not direct rule targets. Enabled custom non-node groups are treated as business routing groups too, so a user-created group such as `Downloads` automatically receives the same foundation outlets, global node outlets, and node-backed outlet groups as the built-in scenario groups. Built-in managed rule sets resolve targets from the full built-in group set and only enable rows whose target is active. If a managed rule set targets a business group that the active scenario selection has not enabled, the worker creates or updates that managed row as disabled with an internal missing-target note instead of hiding it or silently falling back to `PROXY`; selecting a scenario that enables the group re-enables and retargets only rows with that internal note. User-disabled managed rows stay disabled. Foundation targets (`PROXY`, `DIRECT`, `REJECT`) remain available for every selection. Custom remote rule set and manual rule create APIs default an omitted or blank target to `PROXY`; explicit update targets must still be enabled rule-target groups. The API rejects disabled, missing, global-node-outlet, or node-backed targets, and web target selectors follow the same rule so preview/export does not produce dangling policy references.
 
-Quixotic managed presets include common gaming traffic such as Steam. Steam targets the `Gaming` business group and uses the gaming priority band, so it is enabled by the gaming scenario and system-disabled when that scenario is not selected.
+Gaming resources discovered in the current catalog target the `Gaming` business group and use the gaming priority band, so they are enabled by the gaming scenario and system-disabled when that scenario is not selected. Upstream removals disappear from the next generated snapshot instead of being preserved by an old hard-coded list.
 
 Export data applies the same rule again after resolving the final exported group set: enabled manual rules and remote rule sets whose `target_group_id` is not present in the exported groups are skipped. This prevents partial export configs or later group disable operations from generating client configs that reference non-existent policies.
 
@@ -232,6 +230,33 @@ Manual rules are local overrides for exceptional cases; the default routing path
 
 Manual rules are an advanced override path. Writes validate `type` against the shared rule compatibility matrix, require a payload for every rule except `MATCH`, and default omitted create targets to `PROXY`. Explicit targets must be enabled rule-target groups. Batch imports fail fast on the first invalid row instead of silently dropping malformed rules.
 
+### Rule Set Repository Catalogs
+
+System rule sources are not D1 entities. `resources/rule-set-catalogs.json`
+indexes QuixoticHeart and Broker; their declarations contain repository paths,
+target mappings and exceptional sources. The generator validates every
+repository before replacing the deployment snapshots. Snapshots include only
+managed `foundation` and `scenario` items.
+
+The Worker refreshes the complete catalogs from GitHub into KV and falls back to
+the bundled snapshots on failure. Quixotic supplies the default graph and the
+supplemental picker; Broker is a scenario-managed system rule. Other repositories
+are added through a manual URL.
+
+The complete Quixotic catalog contains 58 logical rule sets: 52 generated
+top-level families from the `ruleset` branch plus six unique `master/custom`
+rules after duplicate names are merged. `custom/telegram.list` is included in
+this selectable catalog. The deployment snapshot remains the smaller managed
+subset (49 Quixotic items plus Broker); the complete catalog is fetched on
+demand and retained in KV.
+
+Quixotic `iplocation-direct` and `iplocation-proxy` are deliberately excluded
+from the managed graph. They are a paired, opt-in IP-attribution modification
+scheme for domestic applications rather than general DIRECT/PROXY traffic
+classification, and upstream warns that using them can cause account risk. A
+user who needs that behavior may select them from the Quixotic supplemental
+picker, but must choose their targets and ordering explicitly.
+
 ### `remote_rule_sets` — Remote Rule Set References
 
 | Column | Type | Description |
@@ -241,7 +266,7 @@ Manual rules are an advanced override path. Writes validate `type` against the s
 | url | TEXT | Remote URL |
 | format | TEXT | `clash` \| `mihomo` \| `singbox` \| `surge` \| `text` |
 | behavior | TEXT | `domain` \| `ipcidr` \| `classical` |
-| preset_source | TEXT? | Built-in preset provider: `quixotic` or `uni-conf` |
+| preset_source | TEXT? | Managed system catalog id, currently `quixotic` or `broker-rules` |
 | preset_id | TEXT? | Provider-specific preset id |
 | source_overrides | TEXT | JSON object mapping a full-config target client to its native rule-set URL |
 | target_group_id | TEXT FK→groups | |
@@ -253,11 +278,11 @@ Manual rules are an advanced override path. Writes validate `type` against the s
 | created_at | TEXT | |
 | updated_at | TEXT | |
 
-Built-in remote rule sets use deterministic `sort_order` buckets so exported configs keep the intended priority. `preset_source = 'quixotic'` means the URL is resolved dynamically per export format from QuixoticHeart/rule-set; `preset_source = 'uni-conf'` means a UniConf-maintained built-in rule set. Quixotic `fake-ip-filter` is an exception to the generated `ruleset/{format}` path: it resolves to `https://github.com/QuixoticHeart/rule-set/raw/refs/heads/master/custom/domain/fake-ip-filter.list` and uses `domain` behavior. The Telegram default is `uni-conf:telegram`, backed by MetaCubeX/meta-rules-dat `geosite/telegram.list`, because the Quixotic preset list currently folds Telegram into `socialmedia`.
+Managed remote rule sets use deterministic `sort_order` buckets from the repository mapping so exported configs keep the intended priority. `preset_source` is the catalog id. Quixotic `fake-ip-filter` is a small path override because it lives outside the normal generated branch. Telegram is covered by Quixotic `socialmedia` together with other overseas social services.
 
 For a system-managed row, the effective target is `target_override_group_id ?? target_group_id`. Default synchronization may update `target_group_id` as the built-in routing graph evolves, but it never overwrites the user override. An override activates the managed rule set according to the selected target group's availability instead of the default business-scenario gate. Clearing the override restores the current system default; export filtering, dependency checks, and serializers all use the effective target. Custom rows continue to store their only target in `target_group_id` and do not use the override column.
 
-Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`; the UniConf Telegram domain list uses `domain`.
+Remote rule set `format` and `behavior` are separate fields. `format` describes the source ecosystem or downloadable file type used for client compatibility and URL resolution. `behavior` describes what the rule set matches (`domain`, `ipcidr`, or `classical`) and is used by Mihomo rule-provider export. Quixotic presets default to `classical`.
 
 Custom rows may store sparse `source_overrides` for `mihomo`, `clash`, `singbox`, `surge`, `loon`, `shadowrocket`, `quantumultx`, `stash`, or `egern`. Each value is a validated public http(s) URL whose format is native to that target. Resolution order is target-specific override, managed preset source, default `url + format`, then semantics-preserving conversion when the resolved source is not directly compatible. Clash, Stash, and Mihomo overrides remain separate even though their generated full configurations can share the Mihomo-compatible YAML serializer. When one of those targets needs a token-scoped converted YAML rule provider, the provider URL retains the requested target context so its later fetch cannot silently select another target's override. An empty object preserves the original single-source behavior. Node-only subscription formats are never accepted as override keys. Backup validation checks both the JSON shape and the same SSRF-safe URL policy used by normal writes.
 
@@ -274,13 +299,20 @@ Known-repository source discovery is editor-only assistance and does not add pro
 
 This operational table is deliberately excluded from configuration backups. A source-affecting edit (`url`, `format`, `behavior`, `source_overrides`, or `update_interval`) deletes the snapshot; enable/disable and display-only edits preserve it. Expired rows remain available for diagnosis but are returned with `stale: true`, so the UI can retain evidence without presenting it as current health.
 
-Rows with both `preset_source` and `preset_id` are system-managed presets. Users can disable them with the top-level rule-set switch, but editing and deletion are reserved for custom remote rule sets so a refresh cannot silently recreate or overwrite a row the UI appeared to let the user own. Default restoration also normalizes managed preset metadata: Quixotic rows are kept at the canonical Mihomo/classical source URL used as the database baseline, while export rendering still resolves the final URL dynamically for the requested client format. Managed presets follow the active routing scenarios: service-specific rows are stored for their canonical business target but enabled only when that target business group is enabled, while foundation rows for `PROXY`, `DIRECT`, and `REJECT` stay available for every selection. Scenario-driven disables use an internal note marker so later scenario changes can restore those rows without overriding a user's explicit disabled switch.
+Rows with both `preset_source` and `preset_id` are system-managed. Users may disable or override their target, but cannot edit their canonical source or delete them. Synchronization updates catalog metadata without replacing user target overrides or explicit disables. Scenario items follow their business group; foundation items follow the unmatched-traffic policy.
 
-The Quixotic resource catalog is broader than the system-managed default graph. Provisioning is derived as `foundation`, `scenario`, or `optional`: foundation presets follow the unmatched-traffic policy, scenario presets follow their business scenario, and optional presets are offered only in the supplemental rule-set picker. Ecommerce and PayPal are optional because neither has a universally correct direct/proxy decision. If rows from those presets were previously system-managed, synchronization removes those managed rows; a user-added supplemental row remains a normal custom rule set.
+Source mappings classify discovered items as `foundation`, `scenario`, or
+`optional`: foundation entries follow the unmatched-traffic policy, scenario
+entries follow their business scenario, and optional entries are excluded from
+the managed graph and deployment snapshot. The add-supplement picker exposes the
+complete Quixotic runtime catalog, including optional entries, but optional items
+do not carry a suggested target and require an explicit user choice. A
+supplemental row remains a normal custom rule set whether it was pre-filled from
+Quixotic or created from a manually supplied URL.
 
 The routing-policy UI groups remote rule sets by the target used after a match, not by source URL. It shows `PROXY / DIRECT / REJECT` as fixed foundations, marks managed presets as system-maintained, and labels user-created rows as supplemental rule sets. `apps/web/src/core/remote-rules/remote-rule-sets-i18n.test.ts` guards those localized zero-setup labels so the page keeps presenting rule-set work as an optional override instead of required configuration.
 
-Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, optional target-native source overrides, positive update interval, and integer sort order are checked and trimmed. Create requests default omitted targets to `PROXY`; explicit targets must be enabled rule-target groups. Enabling an existing rule set also validates its current target group, so a scenario-disabled managed rule set cannot be manually switched on while its business target is still disabled. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`. Resource-library selections in the UI fill a normal custom rule set URL and remain deletable.
+Remote rule set API writes validate custom rule sets before persistence. Names, http(s) URLs, format, behavior, optional target-native source overrides, positive update interval, and integer sort order are checked and trimmed. Create requests default omitted targets to `PROXY`; explicit targets must be enabled rule-target groups. Enabling an existing rule set also validates its current target group, so a scenario-disabled managed rule set cannot be manually switched on while its business target is still disabled. `preset_source` and `preset_id` are not client-authored through the generic API; defaults and managed presets are maintained only by `ensureDefaultRemoteRuleSets`.
 
 | Order | Rule set intent |
 |-------|-----------------|
@@ -288,10 +320,9 @@ Remote rule set API writes validate custom rule sets before persistence. Names, 
 | 20 | Reject / privacy blocking |
 | 30 | Direct China and client-local rules |
 | 40 | AI |
-| 50 | Telegram |
 | 60 | Streaming |
 | 70-120 | GitHub, Apple, Microsoft, Google, Gaming, Crypto |
-| 130-150 | Social, proxy, ecommerce, speedtest, DMCA |
+| 130-150 | Social (including Telegram), proxy, speedtest |
 | 900 | Unknown presets |
 
 ### `export_configs` — Export Configuration
@@ -456,7 +487,7 @@ If refresh fails, the created source remains stored and `refreshError` contains 
 
 Public subscription responses aggregate cached `subscription-userinfo` from enabled URL sources. `upload`, `download`, and `total` are summed; `expire` uses the earliest cached expiry. If no source has cached userinfo, UniConf returns a stable default header so clients that display subscription traffic still have a valid value.
 
-Data backup export runs zero-setup default restoration before reading tables. The current backup contract is version 6 and only explicitly versioned v6 payloads are accepted. Before the destructive D1 batch begins, validation checks the schema's required and non-null columns, checked enums, table/column allowlists, row and token uniqueness, direct foreign keys, the target-specific DNS policy, and the JSON-encoded graph edges used by collections, groups, rules, and export scopes. A backup cannot therefore pass preview with a row D1 would reject for a missing required value, or while still referring to a missing source, node, collection, group, rule, remote rule set, export token, or import source. A fresh or recently cleared database exports the same managed default export config, policy groups, node pools, and remote rule set rows that normal UI/API reads would materialize, instead of serializing an uninitialized skeleton. Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, import history, and export configs, then immediately restores the default export config, automatic node group settings, built-in routing policy groups, and managed remote rule sets. Data import runs the same default restoration after replacing tables, keeping backup, reset, and import states ready for the zero-setup flow: paste a subscription URL and export a usable config.
+Data backup export runs zero-setup default restoration before reading tables. The current backup contract is version 7 and only explicitly versioned v7 payloads are accepted. Before the destructive D1 batch begins, validation checks the schema's required and non-null columns, checked enums, table/column allowlists, row and token uniqueness, direct foreign keys, the target-specific DNS policy, and the JSON-encoded graph edges used by collections, groups, rules, and export scopes. A backup cannot therefore pass preview with a row D1 would reject for a missing required value, or while still referring to a missing source, node, collection, group, rule, remote rule set, export token, or import source. Catalog snapshots are deployment/KV data and are intentionally excluded from backup. Clearing all data removes user sources, nodes, node groups, rules, remote rule sets, import history, and export configs, then immediately restores the default export config, automatic node group settings, built-in routing policy groups, and managed remote rule sets from the bundled catalog snapshot.
 
 Default cleanup excludes subscription info nodes such as official site, user center, subscription renewal, remaining/used/total traffic, package/plan/quota, expiry, reset, and multiplier hint entries. It also skips parsed nodes whose protocol maps outside the mainstream protocol registry, and nodes whose parsed/native config is missing protocol-required fields such as Trojan password, VMess UUID, AnyTLS password, TUIC UUID/password, or WireGuard keys. The same worker protocol validator is used by subscription refresh and manual node writes so default export pools are not polluted by nodes that can be parsed syntactically but cannot produce a usable client config.
 

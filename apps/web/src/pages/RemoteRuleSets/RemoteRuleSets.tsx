@@ -12,16 +12,10 @@ import { Modal, ModalClose } from '@/components/ui/Modal/Modal'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
 import { getDefaultRuleTargetGroupId, isRuleTargetGroup } from '@/core/groups/rule-target-groups'
 import { getRemoteRuleSetCompatibilityMode } from '@/core/remote-rules/compatibility'
-import { visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
+import { isSystemDisabledRemoteRuleSet, visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
 import {
-  buildQuixoticRuleSetUrl,
   inferQuixoticRuleSetSourceFromUrl,
-  inferQuixoticTargetGroup,
-  QUIXOTIC_RULE_SET_PRESETS,
   RULE_SET_FORMAT_OPTIONS,
-  resolveQuixoticRuleSetBehavior,
-  resolveQuixoticRuleSetSortOrder,
-  type QuixoticRuleSetPreset,
 } from '@/core/remote-rules/quixotic-presets'
 import { api, ApiError } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
@@ -31,7 +25,6 @@ import { useSettingsStore } from '@/store/settings.store'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
-  isManagedRuleSetActiveForUnmatchedPolicy,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
   resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport,
 } from '@uni-conf/shared'
@@ -45,26 +38,14 @@ import type {
   RemoteRuleSetSourceValidationInput,
   RemoteRuleSetValidationResult,
   RuleSetBehavior,
+  RuleSetCatalog,
+  RuleSetCatalogItem,
   RuleSetFormat,
   SourceRemoteRuleSetCandidate,
 } from '@uni-conf/types'
 import styles from './RemoteRuleSets.module.css'
 
 type RemoteSetForm = Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>
-
-const PRESET_CATEGORY_LABELS: Record<QuixoticRuleSetPreset['category'], string> = {
-  ai: 'AI',
-  streaming: 'Streaming',
-  social: 'Social',
-  china: 'China',
-  apple: 'Apple',
-  microsoft: 'Microsoft',
-  google: 'Google',
-  privacy: 'Privacy',
-  gaming: 'Gaming',
-  developer: 'Developer',
-  general: 'General',
-}
 
 const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; labelKey: string }> = [
   { value: 'domain', labelKey: 'remoteRuleSets.behavior_domain' },
@@ -116,17 +97,19 @@ export function RemoteRuleSets() {
   const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
   const { groups, fetchGroups } = useGroupsStore()
-  const unmatchedTrafficPolicy = useSettingsStore(state => state.unmatchedTrafficPolicy)
   const applySettings = useSettingsStore(state => state.applySettings)
   const [sets, setSets] = useState<RemoteRuleSet[]>([])
   const [sources, setSources] = useState<ProxySource[]>([])
+  const [quixoticCatalog, setQuixoticCatalog] = useState<RuleSetCatalog | null>(null)
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogError, setCatalogError] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingSet, setEditingSet] = useState<RemoteRuleSet | null>(null)
   const [form, setForm] = useState<RemoteSetForm>(() => createEmptyForm())
   const [initialForm, setInitialForm] = useState<RemoteSetForm>(() => createEmptyForm())
-  const [selectedPresetId, setSelectedPresetId] = useState('')
+  const [selectedCatalogItemKey, setSelectedCatalogItemKey] = useState('')
   const [selectedSourceId, setSelectedSourceId] = useState('')
   const [sourceCandidates, setSourceCandidates] = useState<SourceRemoteRuleSetCandidate[]>([])
   const [loadingSourceCandidates, setLoadingSourceCandidates] = useState(false)
@@ -185,7 +168,6 @@ export function RemoteRuleSets() {
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
   const defaultTargetGroupId = getDefaultRuleTargetGroupId(targetGroups)
-  const presetsByCategory = groupPresetsByCategory(QUIXOTIC_RULE_SET_PRESETS)
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const defaultExpandedGroupIds = useMemo(
     () => new Set(setsByTargetGroup.length <= 3 ? setsByTargetGroup.map(section => section.groupId) : []),
@@ -231,7 +213,7 @@ export function RemoteRuleSets() {
   const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)
   const editingManagedSet = Boolean(editingSet && !canEditRemoteRuleSet(editingSet))
   const editingPresetId = editingSet?.presetSource === 'quixotic' ? editingSet.presetId : undefined
-  const formPresetId = (form.presetId ?? selectedPresetId) || editingPresetId
+  const formPresetId = form.presetId || editingPresetId
   const formSourceLinked = Boolean(form.sourceId && form.sourceRuleSetKey)
   const inferredQuixoticSource = formPresetId
     ? { id: formPresetId, format: form.format }
@@ -283,6 +265,19 @@ export function RemoteRuleSets() {
     }
   }
 
+  const loadQuixoticCatalog = async () => {
+    if (catalogLoading || quixoticCatalog) return
+    setCatalogLoading(true)
+    setCatalogError('')
+    try {
+      setQuixoticCatalog(await api.ruleSetCatalogs.getQuixotic())
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : t('remoteRuleSets.quixotic_load_error'))
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
   const resetSourceOverrideValidations = () => {
     for (const target of SOURCE_OVERRIDE_TARGETS) {
       sourceOverrideRequestIds.current[target] = (sourceOverrideRequestIds.current[target] ?? 0) + 1
@@ -297,7 +292,7 @@ export function RemoteRuleSets() {
     setEditingSet(null)
     setForm(nextForm)
     setInitialForm(nextForm)
-    setSelectedPresetId('')
+    setSelectedCatalogItemKey('')
     setSelectedSourceId('')
     setSourceCandidates([])
     setSourceCandidateError('')
@@ -307,6 +302,7 @@ export function RemoteRuleSets() {
     setSourceOverrideFocusTarget(null)
     resetSourceOverrideValidations()
     setShowModal(true)
+    void loadQuixoticCatalog()
   }
 
   const openEdit = (set: RemoteRuleSet, focusTarget?: RemoteRuleSetSourceOverrideTarget) => {
@@ -328,7 +324,7 @@ export function RemoteRuleSets() {
     setEditingSet(set)
     setForm(nextForm)
     setInitialForm(nextForm)
-    setSelectedPresetId(set.presetSource === 'quixotic' ? set.presetId ?? '' : '')
+    setSelectedCatalogItemKey('')
     setSelectedSourceId(set.sourceId ?? '')
     setSourceCandidates([])
     setSourceCandidateError('')
@@ -360,18 +356,54 @@ export function RemoteRuleSets() {
     resetSourceOverrideValidations()
   }
 
-  const findSuggestedGroupId = (preset: QuixoticRuleSetPreset): string => {
-    const wanted = inferQuixoticTargetGroup(preset).toUpperCase()
-    return targetGroups.find(group => group.name.toUpperCase() === wanted)?.id ?? defaultTargetGroupId
-  }
+  const applyCatalogItem = (item: RuleSetCatalogItem, selection: string) => {
+    const defaultSource = item.sources.find(source => source.default)
+    if (!defaultSource) return
+    const sourceOverrides = Object.fromEntries(
+      item.sources
+        .filter(source => !source.default)
+        .flatMap(source => source.nativeFor.map(target => [target, source.url] as const)),
+    )
+    const suggestedTarget = item.suggestedTarget?.toUpperCase()
+    const targetGroupId = suggestedTarget
+      ? targetGroups.find(group => group.name.toUpperCase() === suggestedTarget)?.id ?? ''
+      : ''
 
-  const applyPreset = (presetId: string, format = form.format) => {
     setSelectedSourceId('')
+    setSelectedCatalogItemKey(selection)
     setSourceCandidates([])
     setSourceCandidateError('')
-    setSelectedPresetId(presetId)
-    const preset = QUIXOTIC_RULE_SET_PRESETS.find(item => item.id === presetId)
-    if (!preset) {
+    resetSourceOverrideValidations()
+    setForm(current => ({
+      ...current,
+      name: item.name,
+      url: defaultSource.url,
+      format: defaultSource.format,
+      behavior: defaultSource.behavior,
+      sourceOverrides,
+      targetGroupId,
+      updateInterval: 24,
+      enabled: true,
+      sortOrder: item.sortOrder ?? 500,
+      notes: '',
+      sourceId: undefined,
+      sourceRuleSetKey: undefined,
+      sourceMissing: false,
+      presetSource: undefined,
+      presetId: undefined,
+    }))
+  }
+
+  const handleSourceOptionChange = async (value: string) => {
+    if (value.startsWith('catalog:')) {
+      const id = decodeURIComponent(value.slice('catalog:'.length))
+      const item = quixoticCatalog?.items.find(candidate => candidate.id === id)
+      if (item) applyCatalogItem(item, value)
+      return
+    }
+    if (!value.startsWith('source:')) {
+      setSelectedCatalogItemKey('')
+      setSelectedSourceId('')
       setForm(current => ({
         ...current,
         sourceId: undefined,
@@ -382,36 +414,8 @@ export function RemoteRuleSets() {
       }))
       return
     }
-
-    resetSourceOverrideValidations()
-
-    setForm(current => ({
-      ...current,
-      name: preset.name,
-      url: buildQuixoticRuleSetUrl(preset.id, format),
-      format,
-      behavior: resolveQuixoticRuleSetBehavior(preset.id),
-      sourceOverrides: {},
-      presetSource: 'quixotic',
-      presetId: preset.id,
-      targetGroupId: findSuggestedGroupId(preset),
-      updateInterval: 24,
-      enabled: true,
-      sortOrder: resolveQuixoticRuleSetSortOrder(preset.id),
-      notes: `QuixoticHeart/rule-set:${preset.id} ${preset.description}`,
-      sourceId: undefined,
-      sourceRuleSetKey: undefined,
-      sourceMissing: false,
-    }))
-  }
-
-  const handleSourceOptionChange = async (value: string) => {
-    if (!value.startsWith('source:')) {
-      applyPreset(value)
-      return
-    }
     const sourceId = value.slice('source:'.length)
-    setSelectedPresetId('')
+    setSelectedCatalogItemKey('')
     setSelectedSourceId(sourceId)
     setSourceCandidates([])
     setSourceCandidateError('')
@@ -461,10 +465,6 @@ export function RemoteRuleSets() {
   }
 
   const handleFormatChange = (format: RuleSetFormat) => {
-    if (selectedPresetId) {
-      applyPreset(selectedPresetId, format)
-      return
-    }
     setFormValue('format', format, setForm)
   }
 
@@ -473,7 +473,7 @@ export function RemoteRuleSets() {
       ...form,
       name: form.name.trim(),
       url: form.url.trim(),
-      targetGroupId: form.targetGroupId || defaultTargetGroupId,
+      targetGroupId: form.targetGroupId,
       notes: form.notes?.trim() ?? '',
       updateInterval: Number(form.updateInterval) || 24,
       sortOrder: Number(form.sortOrder) || 500,
@@ -941,7 +941,7 @@ export function RemoteRuleSets() {
             const sectionExpanded = listFilterActive || resolvedExpandedGroupIds.has(section.groupId)
             const contentId = `rule-set-section-${section.groupId}`
             const activeCount = section.sets.filter(set =>
-              set.enabled && isRuleSetUsableByCurrentRouting(set, section.targetEnabled, unmatchedTrafficPolicy)
+              set.enabled && isRuleSetUsableByCurrentRouting(section.targetEnabled)
             ).length
             return (
             <section key={section.groupId} className={styles.ruleSetSection}>
@@ -964,12 +964,12 @@ export function RemoteRuleSets() {
                       })}
                     </div>
                   </div>
+                  {!section.targetEnabled && (
+                    <span className={styles.sectionStatus}>
+                      <Badge variant="default">{t('remoteRuleSets.target_disabled')}</Badge>
+                    </span>
+                  )}
                 </button>
-                {!section.targetEnabled && (
-                  <div className={styles.sectionActions}>
-                    <Badge variant="default">{t('remoteRuleSets.target_disabled')}</Badge>
-                  </div>
-                )}
               </div>
               {sectionExpanded && <div id={contentId} className={styles.grid}>
                 {section.sets.map(set => {
@@ -978,12 +978,11 @@ export function RemoteRuleSets() {
                   const sourceHealthStale = Boolean(sourceHealth && 'stale' in sourceHealth && sourceHealth.stale)
                   const managed = !canEditRemoteRuleSet(set)
                   const usableByCurrentRouting = isRuleSetUsableByCurrentRouting(
-                    set,
                     section.targetEnabled,
-                    unmatchedTrafficPolicy,
                   )
-                  const automaticallyUnused = managed && !usableByCurrentRouting
-                  const effective = usableByCurrentRouting && set.enabled
+                  const automaticallyUnused = managed
+                    && (!usableByCurrentRouting || isSystemDisabledRemoteRuleSet(set.notes))
+                  const effective = usableByCurrentRouting && set.enabled && !automaticallyUnused
                   return (
                   <Card key={set.id} className={`${styles.card} ${effective ? '' : styles.cardInactive}`}>
                     <div className={styles.cardHeader}>
@@ -1228,7 +1227,9 @@ export function RemoteRuleSets() {
             <select
               id="remote-rule-set-preset"
               className={styles.select}
-              value={selectedSourceId ? `source:${selectedSourceId}` : selectedPresetId}
+              value={selectedSourceId
+                ? `source:${selectedSourceId}`
+                : selectedCatalogItemKey}
               onChange={e => void handleSourceOptionChange(e.target.value)}
             >
               <option value="">{t('remoteRuleSets.manual_url_option')}</option>
@@ -1239,17 +1240,25 @@ export function RemoteRuleSets() {
                   ))}
                 </optgroup>
               )}
-              {Object.entries(presetsByCategory).map(([category, presets]) => (
-                <optgroup key={category} label={PRESET_CATEGORY_LABELS[category as QuixoticRuleSetPreset['category']] ?? category}>
-                  {presets.map(preset => (
-                    <option key={preset.id} value={preset.id}>{preset.name} - {preset.description}</option>
+              {catalogLoading && <option disabled>{t('common.loading')}</option>}
+              {quixoticCatalog && (
+                <optgroup label="QuixoticHeart">
+                  {quixoticCatalog.items.map(item => (
+                    <option key={item.id} value={`catalog:${encodeURIComponent(item.id)}`}>
+                      {item.name}
+                    </option>
                   ))}
                 </optgroup>
-              ))}
+              )}
             </select>
             <div className={styles.helperText}>
               {t('remoteRuleSets.preset_help')}
             </div>
+            {catalogError && (
+              <div className={styles.formError} role="alert">
+                {t('remoteRuleSets.quixotic_load_error')}: {catalogError}
+              </div>
+            )}
             {selectedSourceId && (
               <div>
                 <label className={styles.label} htmlFor="remote-rule-set-source-candidate">
@@ -1684,16 +1693,9 @@ function omitRecordKey<T>(record: Record<string, T>, key: string): Record<string
   return next
 }
 
-function groupPresetsByCategory(presets: QuixoticRuleSetPreset[]) {
-  return presets.reduce<Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>>((acc, preset) => {
-    acc[preset.category] = [...(acc[preset.category] ?? []), preset]
-    return acc
-  }, {} as Record<QuixoticRuleSetPreset['category'], QuixoticRuleSetPreset[]>)
-}
-
 function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>, t: (key: string) => string): string {
   if (set.presetSource === 'quixotic') return t('remoteRuleSets.preset_badge')
-  if (set.presetSource === 'uni-conf') return t('remoteRuleSets.builtin_badge')
+  if (set.presetSource) return t('remoteRuleSets.builtin_badge')
   return set.format
 }
 
@@ -1742,15 +1744,9 @@ function groupSetsByTargetGroup(sets: RemoteRuleSet[], groups: Array<{ id: strin
 }
 
 function isRuleSetUsableByCurrentRouting(
-  set: RemoteRuleSet,
   targetEnabled: boolean,
-  unmatchedTrafficPolicy: 'proxy' | 'direct',
 ): boolean {
-  if (!targetEnabled) return false
-  if (canEditRemoteRuleSet(set) || set.targetOverrideGroupId || set.presetSource !== 'quixotic' || !set.presetId) {
-    return true
-  }
-  return isManagedRuleSetActiveForUnmatchedPolicy(set.presetId, unmatchedTrafficPolicy)
+  return targetEnabled
 }
 
 function filterRuleSetSections<T extends { groupName: string; sets: RemoteRuleSet[] }>(sections: T[], query: string): T[] {

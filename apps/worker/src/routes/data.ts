@@ -26,7 +26,7 @@ const TABLES = [
 ] as const
 
 const MAX_BACKUP_ROWS = 100_000
-const BACKUP_VERSION = 6
+const BACKUP_VERSION = 7
 
 const TABLE_COLUMNS = {
   sources: ['id', 'name', 'type', 'url', 'format', 'enabled', 'node_count', 'last_updated', 'last_refresh_error', 'update_interval', 'user_agent', 'notes', 'tags', 'source_groups', 'raw_content', 'upload_bytes', 'download_bytes', 'total_bytes', 'expire_time', 'created_at', 'updated_at'],

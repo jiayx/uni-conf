@@ -157,7 +157,7 @@ UniConf 的默认体验不是让用户从空白配置开始搭建，而是：
 
 概览页的配置流程不能只在空实例展示固定教程，也不能在第一个节点出现后消失。流程必须持续根据服务端统计和所选客户端的权威就绪度标记“订阅源与节点 → 节点组与分流 → 校验与导出”三个阶段：无可用节点时只把输入阶段标为下一步；节点组、策略组或默认导出档案缺失时准确定位对应管理页；默认链接暂停、兼容性阻断或检查失败时把导出阶段标为阻断/待处理，并优先使用结构化 remediation 跳到具体修复对象；就绪或仅有非阻断提示时分别显示完成或需检查。等待中的后续阶段不提供误导性的操作入口。
 
-预置远程规则集的默认顺序必须固定在共享排序函数中：私有网络、广告 / HTTPDNS、国内直连规则排在最前；随后是 AI、Telegram、流媒体、GitHub、Apple、Microsoft、Google、游戏、Crypto、Social；最后才是普通代理、下载 / 电商 / 支付等通用规则。导出器按这个顺序把远程规则集写入规则区，并始终放在兜底 MATCH 之前，避免用户为了得到可用配置而手动排序。
+预置远程规则集的默认顺序必须固定在共享排序函数中：私有网络、广告 / HTTPDNS、国内直连规则排在最前；随后是 AI、流媒体、GitHub、Apple、Microsoft、Google、游戏、Crypto、Social；最后才是普通代理、下载 / 电商 / 支付等通用规则。导出器按这个顺序把远程规则集写入规则区，并始终放在兜底 MATCH 之前，避免用户为了得到可用配置而手动排序。
 
 分流策略页面需要支持“只看需要处理”的运行状态筛选。该筛选只统计当前组合中已启用的规则集，并聚合原生来源待检查、检查结果过期、来源警告 / 无效、即时内容校验异常，以及所选目标客户端完全不支持的规则集；停用策略和停用规则集不应制造告警噪音。运行状态筛选要与名称搜索、目标客户端及兼容性筛选组合生效，并在筛选后自动展开命中的策略段，让管理员可以直接处理问题而不必逐组翻找。
 
@@ -198,7 +198,7 @@ REJECT
 
 导出时需要按客户端语义处理基础出口。以 Mihomo / Stash 为例，`DIRECT` 和 `REJECT` 是客户端内置策略名，不应该额外导出成 `type: direct` / `type: reject` 的 `proxy-groups`；规则和其他策略组可以直接引用这两个内置策略名。sing-box 则会把它们转换成 `direct` / `block` outbound。
 
-业务分流策略组只展示 AI、Streaming、Telegram、GitHub、Speedtest 等用户真正需要理解和调整的流量意图；这些分流组会自动包含基础出口和可用节点出口，用户不需要手动关联。系统内置业务分流组由当前场景选择维护，不提供单独启停、编辑或删除入口；用户只需要调整默认出口偏好，或新增自定义业务分流组。
+业务分流策略组只展示 AI、Streaming、Social、GitHub、Speedtest 等用户真正需要理解和调整的流量意图；这些分流组会自动包含基础出口和可用节点出口，用户不需要手动关联。Telegram 已包含在 Social 中，不再提供一个没有独立规则来源的 Telegram 出口。系统内置业务分流组由当前场景选择维护，不提供单独启停、编辑或删除入口；用户只需要调整默认出口偏好，或新增自定义业务分流组。
 
 ### 业务分流场景
 
@@ -210,7 +210,7 @@ REJECT
 |------|------------------------|
 | AI 与开发 | AI、GitHub、Google、Microsoft、Developer |
 | 流媒体 | Streaming |
-| 通讯与社交 | Telegram、Social |
+| 通讯与社交 | Social（包含 Telegram） |
 | 游戏 | Gaming |
 | 加密货币 | Crypto |
 | 网络诊断 | Speedtest |
@@ -233,7 +233,6 @@ PROXY / GitHub -> 自动选择、节点选择、故障切换、全部节点、�
 AI -> 美国自动、日本自动、新加坡自动、自动选择、节点选择、故障切换
 Streaming -> 香港自动、日本自动、新加坡自动、台湾自动、美国自动、自动选择
 Speedtest -> DIRECT、自动选择、节点选择、故障切换、全部节点、国家自动组
-Telegram -> 新加坡自动、香港自动、日本自动、美国自动、自动选择
 ```
 
 如果某个国家 / 地区自动组不存在，系统会跳过它并继续使用后面的可用候选。
@@ -253,8 +252,7 @@ Telegram -> 新加坡自动、香港自动、日本自动、美国自动、自�
 广告 / 追踪 / 恶意域名 / HTTPDNS -> REJECT
 AI 服务 -> AI
 流媒体 -> Streaming
-Telegram -> Telegram
-国外社交 -> Social
+Telegram / 国外社交 -> Social
 Git 服务 -> GitHub
 Apple 代理规则 -> Apple
 Microsoft / OneDrive -> Microsoft
@@ -266,9 +264,11 @@ Microsoft / OneDrive -> Microsoft
 
 如果当前场景选择没有启用某个专用业务策略组，对应的系统托管规则集会以“系统停用”的状态创建或更新，而不是隐藏起来或回退到 `PROXY`。选择包含该业务组的场景后，系统再自动启用并指回对应策略组；但如果是用户手动关闭了某条托管规则集，后台同步不会强行打开。`PROXY / DIRECT / REJECT` 这些基础目标始终存在，所以国内直连、广告拦截、默认代理等基础规则不受场景选择影响。如果没有启用的 MATCH 规则，导出器按“未匹配流量”设置落到 `PROXY` 或 `DIRECT`，不会产生悬空规则。
 
-QuixoticHeart/rule-set 是默认远程规则包来源。Advertising 与 HTTPDNS 规则承担广告、追踪、恶意域名和 HTTPDNS 拦截，并统一分配到 `REJECT`；AI 聚合规则承担 OpenAI、Gemini、Copilot、Claude 等 AI 服务分流；Netflix、YouTube、Disney+、Spotify 等规则进入 `Streaming`；TikTok、Talkatone、论坛和国外社交进入 `Social`；Git 仓库规则进入 `GitHub`；Games 与 Steam 进入 `Gaming`；Speedtest 进入默认直连的 `Speedtest`。对于 Quixotic 当前没有独立拆分的 Telegram，系统额外内置 MetaCubeX/meta-rules-dat 的 `geosite/telegram.list`，并把它分配到 `Telegram` 策略组。Gaming、Crypto 等规则会创建托管行，但在对应场景未启用时保持“系统停用”，选择“游戏”或“加密货币”后再自动启用；DIRECT / REJECT 基础规则不受场景选择影响。
+QuixoticHeart/rule-set 是默认远程规则包来源。Advertising 与 HTTPDNS 进入 `REJECT`；AI 聚合规则进入 `AI`；流媒体规则进入 `Streaming`；`SocialMedia` 覆盖 Telegram 等海外社交服务并进入 `Social`；Git、Games、Speedtest 等规则分别进入对应业务组。未启用业务场景时，对应托管规则保持系统停用；DIRECT / REJECT 基础规则不受场景选择影响。
 
-规则资源库与系统默认规则图分开管理：基础规则由未匹配流量策略维护，业务规则由场景维护，Ecommerce、PayPal 等没有统一直连 / 代理结论的规则只作为可选资源提供。它们不会自动出现在当前分流中；用户需要固定出口时，可以把资源添加为补充规则集并选择 PROXY 或自定义策略组。
+系统只集成 QuixoticHeart 与 forecho/broker-rules：基础规则由未匹配流量策略维护，业务规则由场景维护，Broker 聚合规则在选择“券商”场景后启用独立策略组。“添加补充规则集”弹窗提供完整的 QuixoticHeart 规则下拉选择，未进入默认图的条目只负责预填来源，不自动推荐出口。其他第三方仓库不进入下拉列表；用户需要时直接填写规则集 URL、格式、内容类型和流量去向。
+
+规则来源映射没有独立管理页面。仓库中的 `resources/rule-set-catalogs.json` 索引 QuixoticHeart 与 Broker，构建时生成内置快照；运行时刷新完整目录到 KV，失败时回退到 KV 或内置快照。补充规则选择器展示完整 QuixoticHeart 目录，保存结果与手动 URL 一样写入 `remote_rule_sets`。
 
 预置和内置规则集的默认目标分流组由系统根据当前业务场景自动维护，用户界面在分流策略页顶部固定展示 `PROXY / DIRECT / REJECT` 和全局节点出口，分组标题使用“分流目标”表达规则命中后的去向。规则分组只展示“生效 / 未生效”数量，不提供容易与系统状态冲突的批量开关。当前方案使用的单条规则集可以由用户暂停或恢复；当前方案未使用的托管规则集不显示启用开关，只标记“当前方案未使用”，并提供“调整分流方案”和“更改目标”。后端也必须拒绝直接启用这类规则，不能先返回成功再由默认同步关闭。托管规则集不开放 URL、格式和行为等系统字段，但提供独立的目标覆盖；选择其他目标后，卡片明确显示“默认目标 → 当前目标”，恢复系统默认时只清除覆盖值。后台同步可以继续升级默认映射，但不能覆盖用户选择，所有导出都使用当前有效目标。覆盖到已启用目标时，不再受默认业务场景是否启用的限制；清除覆盖后重新遵循当前场景。需要本地补充匹配时再添加“补充规则集”。
 
@@ -279,10 +279,9 @@ QuixoticHeart/rule-set 是默认远程规则包来源。Advertising 与 HTTPDNS 
 广告 / 追踪 / 恶意域名 / HTTPDNS 拦截
 国内直连
 AI
-Telegram
 流媒体
 GitHub / Apple / Microsoft / Google / 游戏 / Crypto
-社交 / 常规代理 / 其他服务
+社交（含 Telegram）/ 常规代理 / 其他服务
 ```
 
 ### 节点自动处理
@@ -735,7 +734,7 @@ SG 新加坡 03 → 新加坡 03
 
 - 基础出口：`PROXY / DIRECT / REJECT`
 - 全局节点出口：`全部节点 / 节点选择 / 自动选择 / 故障切换`，默认引用排除高倍率节点后的默认可用节点池
-- 业务分流策略组：`AI / Streaming / Telegram / GitHub / 漏网之鱼` 等流量意图
+- 业务分流策略组：`AI / Streaming / Social / GitHub / 漏网之鱼` 等流量意图
 
 节点组本质上是“可被选择的出口候选”，由节点过滤条件和 select / url-test / fallback 等选择方式组成。内置业务分流策略组和用户新增的非节点业务组都会自动包含基础出口、全局节点出口和可用节点组，用户不需要手动把每个节点组绑定到每个业务策略组。
 
@@ -761,7 +760,6 @@ Social
 Apple
 Microsoft
 Google
-Telegram
 Game
 DIRECT
 REJECT
@@ -912,20 +910,16 @@ Global
 
 ### 规则来源
 
-可以参考和兼容常见规则集生态，例如：
+系统自动维护的规则来源只有：
 
 ```text
 QuixoticHeart/rule-set
-MetaCubeX/meta-rules-dat
-blackmatrix7/ios_rule_script
-SukkaW/Surge
-ACL4SSR
-Loyalsoldier/v2ray-rules-dat
-ConnersHua/RuleGo
-Cats-Team/AdRules
+forecho/broker-rules
 ```
 
-例如 QuixoticHeart/rule-set 明确面向 mihomo/clash.meta、Surge、Loon、Stash、Shadowrocket、Quantumult X、Egern 和 sing-box 等多个代理工具提供规则集；其 README 也提到该项目会每天自动构建，并包含不同客户端的规则集目录。([GitHub][1])
+QuixoticHeart/rule-set 面向 Mihomo、Surge、Loon、Stash、Shadowrocket、Quantumult X、Egern 和 sing-box 等多个代理工具提供规则集；其 README 也提到该项目会每天自动构建，并包含不同客户端的规则集目录。([GitHub][1]) MetaCubeX、blackmatrix7、RuleGo 等其他第三方规则不接入系统目录；需要使用时由用户在“添加补充规则集”中手动填写 URL 和目标。
+
+QuixoticHeart 的 `iplocation-direct` 与 `iplocation-proxy` 属于成套的国内 App IP 属地修改方案，不是普通的直连 / 代理流量分类。系统默认规则图不自动创建这两条规则；确有需要时可从 QuixoticHeart 补充规则下拉框选择，但必须自行选择出口、维护直连例外优先于代理规则的顺序，并承担上游提示的账号风控风险。
 
 ## 十一、远程规则集引用
 
@@ -1436,7 +1430,6 @@ Base64 节点订阅
 9. 策略组组合：
    - AI
    - Streaming
-   - Telegram
    - Social
    - GitHub
    - Apple

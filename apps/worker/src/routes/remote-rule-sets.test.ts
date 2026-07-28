@@ -11,14 +11,9 @@ import {
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
 import { getConvertedRemoteRuleSet, RuleSetConversionError } from '../services/rule-set-conversion'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { getAppSettings } from '../services/app-settings'
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(),
-}))
-
-vi.mock('../services/app-settings', () => ({
-  getAppSettings: vi.fn(async () => ({ unmatchedTrafficPolicy: 'proxy' })),
 }))
 
 vi.mock('../services/remote-rule-set-validation', () => ({
@@ -33,7 +28,7 @@ vi.mock('../services/rule-set-conversion', async () => {
 describe('remote rule set routes', () => {
   it('treats provider presets as managed rows', () => {
     expect(isManagedRemoteRuleSet({ preset_source: 'quixotic', preset_id: 'ai' })).toBe(true)
-    expect(isManagedRemoteRuleSet({ preset_source: 'uni-conf', preset_id: 'telegram' })).toBe(true)
+    expect(isManagedRemoteRuleSet({ preset_source: 'broker-rules', preset_id: 'broker' })).toBe(true)
     expect(isManagedRemoteRuleSet({ preset_source: null, preset_id: null })).toBe(false)
     expect(isManagedRemoteRuleSet({ preset_source: 'quixotic', preset_id: null })).toBe(false)
   })
@@ -231,32 +226,6 @@ describe('remote rule set routes', () => {
     expect(db.updates[0]?.[10]).toBe(0)
     expect(db.healthDeletes).toHaveLength(0)
     expect(db.batches).toHaveLength(0)
-  })
-
-  it('rejects enabling a managed rule set that the current routing plan does not use', async () => {
-    vi.mocked(getAppSettings).mockResolvedValueOnce({ unmatchedTrafficPolicy: 'proxy' } as never)
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({
-        preset_id: 'proxy',
-        target_group_id: 'builtin-proxy',
-        enabled: 0,
-        notes: '[uni-conf:auto-disabled:missing-target]',
-      }),
-      enabledTargetGroupIds: new Set(['builtin-proxy']),
-    })
-
-    const response = await remoteRuleSetsApp.request('/preset-ai', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ enabled: true }),
-    }, { DB: db })
-
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toMatchObject({
-      success: false,
-      code: 'managed_rule_set_unused',
-    })
-    expect(db.updates).toHaveLength(0)
   })
 
   it('stores and clears a managed target override without changing the canonical target', async () => {

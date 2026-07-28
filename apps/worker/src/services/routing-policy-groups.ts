@@ -37,7 +37,6 @@ const GENERAL_OUTLET_ORDER = [
 const ROUTING_COUNTRY_PREFERENCES: Record<string, string[]> = {
   AI: ['US', 'JP', 'SG'],
   STREAMING: ['HK', 'JP', 'SG', 'TW', 'US'],
-  TELEGRAM: ['SG', 'HK', 'JP', 'US'],
 };
 
 const ROUTING_TAG_GROUP_PREFERENCES: Record<string, string[]> = {
@@ -53,15 +52,15 @@ const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-proxy', name: 'PROXY', type: 'select', sortOrder: 0, builtins: [], collectionIds: [] },
   { id: 'builtin-ai', name: 'AI', type: 'select', sortOrder: 1, builtins: [], collectionIds: [] },
   { id: 'builtin-streaming', name: 'Streaming', type: 'select', sortOrder: 2, builtins: [], collectionIds: [] },
-  { id: 'builtin-telegram', name: 'Telegram', type: 'select', sortOrder: 3, builtins: [], collectionIds: [] },
-  { id: 'builtin-social', name: 'Social', type: 'select', sortOrder: 4, builtins: [], collectionIds: [] },
-  { id: 'builtin-github', name: 'GitHub', type: 'select', sortOrder: 5, builtins: [], collectionIds: [] },
-  { id: 'builtin-google', name: 'Google', type: 'select', sortOrder: 6, builtins: [], collectionIds: [] },
-  { id: 'builtin-apple', name: 'Apple', type: 'select', sortOrder: 7, builtins: [], collectionIds: [] },
-  { id: 'builtin-microsoft', name: 'Microsoft', type: 'select', sortOrder: 8, builtins: [], collectionIds: [] },
-  { id: 'builtin-speedtest', name: 'Speedtest', type: 'select', sortOrder: 9, builtins: [], collectionIds: [] },
-  { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 10, builtins: [], collectionIds: [] },
-  { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 11, builtins: [], collectionIds: [] },
+  { id: 'builtin-social', name: 'Social', type: 'select', sortOrder: 3, builtins: [], collectionIds: [] },
+  { id: 'builtin-github', name: 'GitHub', type: 'select', sortOrder: 4, builtins: [], collectionIds: [] },
+  { id: 'builtin-google', name: 'Google', type: 'select', sortOrder: 5, builtins: [], collectionIds: [] },
+  { id: 'builtin-apple', name: 'Apple', type: 'select', sortOrder: 6, builtins: [], collectionIds: [] },
+  { id: 'builtin-microsoft', name: 'Microsoft', type: 'select', sortOrder: 7, builtins: [], collectionIds: [] },
+  { id: 'builtin-speedtest', name: 'Speedtest', type: 'select', sortOrder: 8, builtins: [], collectionIds: [] },
+  { id: 'builtin-crypto', name: 'Crypto', type: 'select', sortOrder: 9, builtins: [], collectionIds: [] },
+  { id: 'builtin-gaming', name: 'Gaming', type: 'select', sortOrder: 10, builtins: [], collectionIds: [] },
+  { id: 'builtin-broker', name: 'Broker', type: 'select', sortOrder: 11, builtins: [], collectionIds: [] },
   { id: 'builtin-developer', name: 'Developer', type: 'select', sortOrder: 12, builtins: [], collectionIds: [] },
   { id: 'builtin-direct', name: 'DIRECT', type: 'direct', sortOrder: 13, builtins: ['DIRECT'], collectionIds: [] },
   { id: 'builtin-reject', name: 'REJECT', type: 'reject', sortOrder: 14, builtins: ['REJECT'], collectionIds: [] },

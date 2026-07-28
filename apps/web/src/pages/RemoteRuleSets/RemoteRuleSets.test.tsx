@@ -45,6 +45,10 @@ vi.mock('@/lib/api', async () => {
         validateSources: vi.fn(),
         previewConversion: vi.fn(),
       },
+      ruleSetCatalogs: {
+        ...actual.api.ruleSetCatalogs,
+        getQuixotic: vi.fn(),
+      },
     },
   }
 })
@@ -78,6 +82,14 @@ describe('RemoteRuleSets content validation', () => {
     }])
     vi.mocked(api.sources.list).mockResolvedValue([])
     vi.mocked(api.sources.listRuleSets).mockResolvedValue([])
+    vi.mocked(api.ruleSetCatalogs.getQuixotic).mockResolvedValue({
+      id: 'quixotic',
+      name: 'Quixotic',
+      repositoryUrl: 'https://github.com/QuixoticHeart/rule-set',
+      branch: 'ruleset',
+      syncedAt: '2026-07-28T00:00:00.000Z',
+      items: [],
+    })
     vi.mocked(api.remoteRuleSets.validate).mockResolvedValue({
       status: 'warning',
       checkedAt: '2026-07-14T00:00:00.000Z',
@@ -501,36 +513,6 @@ describe('RemoteRuleSets content validation', () => {
     })
   })
 
-  it('replaces the ineffective enable switch with routing actions for an automatically unused set', async () => {
-    vi.mocked(api.remoteRuleSets.list).mockResolvedValue([{
-      ...makeRuleSet('managed-proxy', 'Managed Proxy', 'builtin-proxy', 'mihomo'),
-      presetSource: 'quixotic',
-      presetId: 'proxy',
-      defaultTargetGroupId: 'builtin-proxy',
-      enabled: false,
-    }])
-
-    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
-
-    expect(await screen.findByText('Not used by current plan')).toBeInTheDocument()
-    expect(screen.getByText('The current Routing Plan does not use this managed rule set.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Adjust Routing Plan' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change target' })).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-  })
-
-  it('keeps target-native sources available after selecting a library preset', async () => {
-    const user = userEvent.setup()
-    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
-
-    await user.click(await screen.findByRole('button', { name: 'Add Supplemental Rule Set' }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Rule set source' }), 'ai')
-    await user.click(screen.getByText('Target-native sources (optional)'))
-
-    expect(screen.getByRole('textbox', { name: 'sing-box native rule-set URL' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Discover native sources (9)' })).toBeInTheDocument()
-  })
-
   it('associates every primary rule-set form select with its visible label', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
@@ -541,6 +523,44 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.getByRole('combobox', { name: 'Rule Set Format' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Match Content' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Traffic destination' })).toBeInTheDocument()
+  })
+
+  it('offers non-default Quixotic rules without assuming an outlet', async () => {
+    vi.mocked(api.ruleSetCatalogs.getQuixotic).mockResolvedValue({
+      id: 'quixotic',
+      name: 'Quixotic',
+      repositoryUrl: 'https://github.com/QuixoticHeart/rule-set',
+      branch: 'ruleset',
+      syncedAt: '2026-07-28T00:00:00.000Z',
+      items: [{
+        id: 'iplocation-proxy',
+        name: 'IP Location Proxy',
+        provisioning: 'optional',
+        sortOrder: 900,
+        sources: [{
+          sourceId: 'mihomo',
+          url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/meta/iplocation-proxy.list',
+          format: 'mihomo',
+          behavior: 'classical',
+          default: true,
+          nativeFor: ['mihomo'],
+        }],
+      }],
+    })
+    const user = userEvent.setup()
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Add Supplemental Rule Set' }))
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: 'Rule set source' }),
+      'catalog:iplocation-proxy',
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('IP Location Proxy')
+    expect(screen.getByRole('textbox', { name: 'URL' })).toHaveValue(
+      'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/meta/iplocation-proxy.list',
+    )
+    expect(screen.getByRole('combobox', { name: 'Traffic destination' })).toHaveValue('')
   })
 
   it('creates a supplemental rule set linked to a subscription provider', async () => {
@@ -909,6 +929,20 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.getByText('Netflix')).toBeInTheDocument()
     expect(screen.queryByText('Proxy Domains')).not.toBeInTheDocument()
     expect(screen.getByText('1 matching rule sets across 1 policies')).toBeInTheDocument()
+  })
+
+  it('keeps the full policy header row inside the expand button', async () => {
+    groupStore.groups.splice(0, groupStore.groups.length, {
+      id: 'builtin-gaming', name: 'Gaming', type: 'select', collectionIds: [], groupIds: [], builtins: [],
+      enabled: false, order: 0, isBuiltin: true,
+    })
+    vi.mocked(api.remoteRuleSets.list).mockResolvedValue([
+      makeRuleSet('games', 'Games', 'builtin-gaming'),
+    ])
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    const toggle = await screen.findByRole('button', { name: 'Toggle rule sets for Gaming' })
+    expect(screen.getByText('Disabled by current scenarios').closest('button')).toBe(toggle)
   })
 
   it('places active rule sets before inactive rule sets within a target', async () => {

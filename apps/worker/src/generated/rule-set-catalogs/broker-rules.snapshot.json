@@ -1,0 +1,74 @@
+{
+  "id": "broker-rules",
+  "name": "Broker Rules",
+  "repository": {
+    "url": "https://github.com/forecho/broker-rules",
+    "branch": "main",
+    "commit": "11b63acf8cba1af7d827516caa4ca079d983cba9"
+  },
+  "syncedAt": "2026-07-28T02:29:18.010Z",
+  "sourceProfiles": {
+    "mihomo": {
+      "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Clash/Broker.yaml",
+      "format": "mihomo",
+      "behavior": "classical",
+      "nativeTargets": ["mihomo", "clash"]
+    },
+    "stash": {
+      "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Stash/Broker.yaml",
+      "format": "stash",
+      "behavior": "classical",
+      "nativeTargets": ["stash"]
+    },
+    "surge": {
+      "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Surge/Broker.list",
+      "format": "surge",
+      "behavior": "classical",
+      "nativeTargets": ["surge"]
+    },
+    "loon": {
+      "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Loon/Broker.list",
+      "format": "loon",
+      "behavior": "classical",
+      "nativeTargets": ["loon"]
+    },
+    "shadowrocket": {
+      "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Shadowrocket/Broker.list",
+      "format": "shadowrocket",
+      "behavior": "classical",
+      "nativeTargets": ["shadowrocket"]
+    },
+    "quantumultx": {
+      "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/QuantumultX/Broker.list",
+      "format": "quantumultx",
+      "behavior": "classical",
+      "nativeTargets": ["quantumultx"]
+    }
+  },
+  "defaultSourceSet": "standard",
+  "sourceSets": {
+    "standard": {
+      "defaultSource": "mihomo",
+      "sources": [
+        "mihomo",
+        "stash",
+        "surge",
+        "loon",
+        "shadowrocket",
+        "quantumultx"
+      ]
+    }
+  },
+  "routingGroups": [
+    {
+      "routing": {
+        "category": "finance",
+        "target": "Broker",
+        "provisioning": "scenario",
+        "order": 125,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [{ "id": "broker", "name": "Broker" }]
+    }
+  ]
+}

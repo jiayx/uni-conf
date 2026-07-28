@@ -19,6 +19,7 @@ import type {
   RemoteRuleSetSourceValidationBatchResult,
   RemoteRuleSetSourceHealthResult,
   RemoteRuleSetConversionPreview,
+  RuleSetCatalog,
   ExportConfig,
   ExportFormat,
   SourceRefreshResult,
@@ -152,6 +153,10 @@ const sources = {
 
 const system = {
   initialize: (): Promise<{ initialized: true }> => post('/initialize'),
+}
+
+const ruleSetCatalogs = {
+  getQuixotic: (): Promise<RuleSetCatalog> => get('/rule-set-catalogs/quixotic'),
 }
 
 // ============================================================
@@ -434,6 +439,7 @@ const authApi = {
 export const api = {
   system,
   sources,
+  ruleSetCatalogs,
   nodes,
   collections,
   groups,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildQuixoticRuleSetUrl, inferQuixoticRuleSetSourceFromUrl, inferQuixoticTargetGroup, QUIXOTIC_RULE_SET_PRESETS, resolveQuixoticPresetProvisioning, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
+import { buildQuixoticRuleSetUrl, inferQuixoticRuleSetSourceFromUrl, resolveQuixoticRuleSetBehavior } from './quixotic-presets'
 import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, isRemoteRuleSetCompatible, isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from './compatibility'
 import type { RemoteRuleSet } from '@uni-conf/types'
 
@@ -101,26 +101,6 @@ describe('remote rule set compatibility', () => {
     expect(isRemoteRuleSetCompatible('mihomo', fakeIpFilterSet)).toBe(true)
     expect(isRemoteRuleSetCompatible('singbox', fakeIpFilterSet)).toBe(true)
     expect(getRemoteRuleSetCompatibilityMode('singbox', fakeIpFilterSet)).toBe('converted')
-  })
-
-  it('infers target groups from preset category and known direct/reject exceptions', () => {
-    expect(inferQuixoticTargetGroup({ id: 'ai', name: 'AI', description: '', category: 'ai' })).toBe('AI')
-    expect(inferQuixoticTargetGroup({ id: 'netflix', name: 'Netflix', description: '', category: 'streaming' })).toBe('Streaming')
-    expect(inferQuixoticTargetGroup({ id: 'telegram', name: 'Telegram', description: '', category: 'social' })).toBe('Telegram')
-    expect(inferQuixoticTargetGroup({ id: 'speedtest', name: 'Speedtest', description: '', category: 'general' })).toBe('Speedtest')
-    expect(inferQuixoticTargetGroup({ id: 'games', name: 'Games', description: '', category: 'gaming' })).toBe('Gaming')
-    expect(inferQuixoticTargetGroup({ id: 'talkatone', name: 'Talkatone', description: '', category: 'social' })).toBe('Social')
-    expect(inferQuixoticTargetGroup({ id: 'bilibili', name: 'Bilibili', description: '', category: 'streaming' })).toBe('DIRECT')
-    expect(inferQuixoticTargetGroup({ id: 'adrules', name: 'Advertising', description: '', category: 'privacy' })).toBe('REJECT')
-  })
-
-  it('keeps ecommerce and PayPal in the optional resource catalog', () => {
-    const provisioning = Object.fromEntries(
-      QUIXOTIC_RULE_SET_PRESETS
-        .filter(preset => ['ecommerce', 'paypal'].includes(preset.id))
-        .map(preset => [preset.id, resolveQuixoticPresetProvisioning(preset)]),
-    )
-    expect(provisioning).toEqual({ ecommerce: 'optional', paypal: 'optional' })
   })
 
   it('describes unsupported exporters without remote rule set support', () => {

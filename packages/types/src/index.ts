@@ -280,13 +280,49 @@ export interface SourceRemoteRuleSetCandidate {
   referenced: boolean;
 }
 
+export interface RuleSetCatalogItemSource {
+  sourceId: string;
+  url: string;
+  format: RuleSetFormat;
+  behavior: RuleSetBehavior;
+  default: boolean;
+  nativeFor: RemoteRuleSetSourceOverrideTarget[];
+}
+
+export interface RuleSetCatalogItem {
+  id: string;
+  name: string;
+  category?: string;
+  suggestedTarget?: string;
+  provisioning?: 'foundation' | 'scenario' | 'optional';
+  sortOrder?: number;
+  activeForUnmatchedPolicies?: UnmatchedTrafficPolicy[];
+  sources: RuleSetCatalogItemSource[];
+}
+
+export interface RuleSetCatalog {
+  id: string;
+  name: string;
+  repositoryUrl: string;
+  branch: string;
+  items: RuleSetCatalogItem[];
+  commitSha?: string;
+  syncedAt: string;
+}
+
+export interface RuleSetCatalogSnapshot {
+  schemaVersion: 1;
+  generatedAt: string;
+  catalogs: RuleSetCatalog[];
+}
+
 export interface RemoteRuleSet {
   id: string;
   name: string;
   url: string;
   format: RuleSetFormat;
   behavior: RuleSetBehavior;
-  presetSource?: 'quixotic' | 'uni-conf';
+  presetSource?: string;
   presetId?: string;
   sourceOverrides: RemoteRuleSetSourceOverrides;
   sourceId?: string;
@@ -445,6 +481,7 @@ export type RoutingPolicyScenarioId =
   | 'communication'
   | 'gaming'
   | 'finance'
+  | 'brokerage'
   | 'diagnostics'
   | 'platform';
 export type DnsAddressMode = 'fake-ip' | 'real-ip';

@@ -1,0 +1,406 @@
+{
+  "id": "quixotic",
+  "name": "Quixotic",
+  "repositoryUrl": "https://github.com/QuixoticHeart/rule-set",
+  "branch": "ruleset",
+  "defaultSourceId": "mihomo",
+  "sources": [
+    {
+      "id": "mihomo",
+      "path": "meta",
+      "include": [
+        "*.list"
+      ],
+      "format": "mihomo",
+      "behavior": "classical",
+      "nativeFor": [
+        "mihomo",
+        "clash"
+      ]
+    },
+    {
+      "id": "stash",
+      "path": "stash",
+      "include": [
+        "*.list"
+      ],
+      "format": "stash",
+      "behavior": "classical",
+      "nativeFor": [
+        "stash"
+      ]
+    },
+    {
+      "id": "singbox",
+      "path": "singbox/version5",
+      "include": [
+        "*.srs"
+      ],
+      "format": "singbox",
+      "behavior": "classical",
+      "nativeFor": [
+        "singbox"
+      ]
+    },
+    {
+      "id": "surge",
+      "path": "surge",
+      "include": [
+        "*.list"
+      ],
+      "format": "surge",
+      "behavior": "classical",
+      "nativeFor": [
+        "surge"
+      ]
+    },
+    {
+      "id": "loon",
+      "path": "loon",
+      "include": [
+        "*.list"
+      ],
+      "format": "loon",
+      "behavior": "classical",
+      "nativeFor": [
+        "loon"
+      ]
+    },
+    {
+      "id": "shadowrocket",
+      "path": "shadowrocket",
+      "include": [
+        "*.list"
+      ],
+      "format": "shadowrocket",
+      "behavior": "classical",
+      "nativeFor": [
+        "shadowrocket"
+      ]
+    },
+    {
+      "id": "quantumultx",
+      "path": "quantumultx",
+      "include": [
+        "*.list"
+      ],
+      "format": "quantumultx",
+      "behavior": "classical",
+      "nativeFor": [
+        "quantumultx"
+      ]
+    },
+    {
+      "id": "egern",
+      "path": "egern",
+      "include": [
+        "*.yaml"
+      ],
+      "format": "egern",
+      "behavior": "classical",
+      "nativeFor": [
+        "egern"
+      ]
+    },
+    {
+      "id": "custom",
+      "repositoryUrl": "https://github.com/QuixoticHeart/rule-set",
+      "branch": "master",
+      "path": "custom",
+      "include": [
+        "*.list"
+      ],
+      "format": "text",
+      "behavior": "classical",
+      "nativeFor": []
+    }
+  ],
+  "defaults": {
+    "category": "general",
+    "provisioning": "optional",
+    "sortOrder": 900,
+    "activeForUnmatchedPolicies": [
+      "proxy",
+      "direct"
+    ]
+  },
+  "mappings": [
+    {
+      "ids": [
+        "private"
+      ],
+      "category": "general",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 10
+    },
+    {
+      "ids": [
+        "adrules",
+        "httpdns"
+      ],
+      "category": "privacy",
+      "target": "REJECT",
+      "provisioning": "foundation",
+      "sortOrder": 20
+    },
+    {
+      "ids": [
+        "cn",
+        "cncidr",
+        "cncidr-resolve",
+        "apple-cn",
+        "microsoft-cn",
+        "games-cn",
+        "socialmedia-cn",
+        "apns",
+        "cdn",
+        "douyin",
+        "bilibili"
+      ],
+      "category": "direct",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 30,
+      "activeForUnmatchedPolicies": [
+        "proxy"
+      ]
+    },
+    {
+      "ids": [
+        "fake-ip-filter"
+      ],
+      "category": "dns",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 30,
+      "activeForUnmatchedPolicies": [
+        "proxy"
+      ]
+    },
+    {
+      "ids": [
+        "dmca"
+      ],
+      "category": "privacy",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 30,
+      "activeForUnmatchedPolicies": [
+        "proxy"
+      ]
+    },
+    {
+      "ids": [
+        "ai"
+      ],
+      "category": "ai",
+      "target": "AI",
+      "provisioning": "scenario",
+      "sortOrder": 40
+    },
+    {
+      "ids": [
+        "abema",
+        "apple-tv",
+        "bahamut",
+        "dazn",
+        "disney",
+        "dmm",
+        "hbo",
+        "hulu",
+        "mytvsuper",
+        "netflix",
+        "niconico",
+        "primevideo",
+        "spotify",
+        "twitch",
+        "youtube"
+      ],
+      "category": "streaming",
+      "target": "Streaming",
+      "provisioning": "scenario",
+      "sortOrder": 60
+    },
+    {
+      "ids": [
+        "gits"
+      ],
+      "category": "developer",
+      "target": "GitHub",
+      "provisioning": "scenario",
+      "sortOrder": 70
+    },
+    {
+      "ids": [
+        "apple",
+        "apple-proxy"
+      ],
+      "category": "apple",
+      "target": "Apple",
+      "provisioning": "scenario",
+      "sortOrder": 80
+    },
+    {
+      "ids": [
+        "microsoft",
+        "onedrive"
+      ],
+      "category": "microsoft",
+      "target": "Microsoft",
+      "provisioning": "scenario",
+      "sortOrder": 90
+    },
+    {
+      "ids": [
+        "google",
+        "googlefcm"
+      ],
+      "category": "google",
+      "target": "Google",
+      "provisioning": "scenario",
+      "sortOrder": 100
+    },
+    {
+      "ids": [
+        "games"
+      ],
+      "category": "gaming",
+      "target": "Gaming",
+      "provisioning": "scenario",
+      "sortOrder": 110
+    },
+    {
+      "ids": [
+        "crypto"
+      ],
+      "category": "finance",
+      "target": "Crypto",
+      "provisioning": "scenario",
+      "sortOrder": 120
+    },
+    {
+      "ids": [
+        "forum",
+        "socialmedia",
+        "talkatone",
+        "tiktok"
+      ],
+      "category": "social",
+      "target": "Social",
+      "provisioning": "scenario",
+      "sortOrder": 130
+    },
+    {
+      "ids": [
+        "gfw",
+        "proxy",
+        "tld-proxy"
+      ],
+      "category": "proxy",
+      "target": "PROXY",
+      "provisioning": "foundation",
+      "sortOrder": 140,
+      "activeForUnmatchedPolicies": [
+        "direct"
+      ]
+    },
+    {
+      "ids": [
+        "speedtest"
+      ],
+      "category": "diagnostics",
+      "target": "Speedtest",
+      "provisioning": "scenario",
+      "sortOrder": 150
+    }
+  ],
+  "overrides": {
+    "adrules": {
+      "name": "Advertising"
+    },
+    "ai": {
+      "name": "AI"
+    },
+    "apns": {
+      "name": "APNs"
+    },
+    "cn": {
+      "name": "China Domain"
+    },
+    "cncidr": {
+      "name": "China IP"
+    },
+    "cncidr-resolve": {
+      "name": "China IP Resolve"
+    },
+    "dazn": {
+      "name": "DAZN"
+    },
+    "dmca": {
+      "name": "DMCA"
+    },
+    "dmm": {
+      "name": "DMM"
+    },
+    "gits": {
+      "name": "GitHub"
+    },
+    "googlefcm": {
+      "name": "Google FCM"
+    },
+    "hbo": {
+      "name": "HBO"
+    },
+    "httpdns": {
+      "name": "HTTPDNS"
+    },
+    "iplocation-direct": {
+      "name": "IP Location Direct"
+    },
+    "iplocation-proxy": {
+      "name": "IP Location Proxy"
+    },
+    "mytvsuper": {
+      "name": "MyTV Super"
+    },
+    "onedrive": {
+      "name": "OneDrive"
+    },
+    "paypal": {
+      "name": "PayPal"
+    },
+    "primevideo": {
+      "name": "Prime Video"
+    },
+    "socialmedia": {
+      "name": "Social Media"
+    },
+    "socialmedia-cn": {
+      "name": "Social Media CN"
+    },
+    "tiktok": {
+      "name": "TikTok"
+    },
+    "youtube": {
+      "name": "YouTube"
+    },
+    "fake-ip-filter": {
+      "name": "Fake IP Filter",
+      "sources": [
+        {
+          "id": "text",
+          "repositoryUrl": "https://github.com/QuixoticHeart/rule-set",
+          "branch": "master",
+          "path": "meta/domain/fake-ip-filter.list",
+          "format": "text",
+          "behavior": "domain",
+          "nativeFor": []
+        }
+      ]
+    },
+    "telegram": {
+      "name": "Telegram"
+    }
+  }
+}

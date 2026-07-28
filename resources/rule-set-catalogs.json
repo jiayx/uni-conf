@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "catalogFiles": [
+    "rule-set-catalogs/quixotic.json",
+    "rule-set-catalogs/broker-rules.json"
+  ]
+}

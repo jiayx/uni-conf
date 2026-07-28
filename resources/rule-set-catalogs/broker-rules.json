@@ -1,0 +1,107 @@
+{
+  "id": "broker-rules",
+  "name": "Broker Rules",
+  "repositoryUrl": "https://github.com/forecho/broker-rules",
+  "branch": "main",
+  "defaultSourceId": "mihomo",
+  "sources": [
+    {
+      "id": "mihomo",
+      "path": "rule/Clash/Broker.yaml",
+      "include": [
+        "Broker.yaml"
+      ],
+      "format": "mihomo",
+      "behavior": "classical",
+      "nativeFor": [
+        "mihomo",
+        "clash"
+      ]
+    },
+    {
+      "id": "stash",
+      "path": "rule/Stash/Broker.yaml",
+      "include": [
+        "Broker.yaml"
+      ],
+      "format": "stash",
+      "behavior": "classical",
+      "nativeFor": [
+        "stash"
+      ]
+    },
+    {
+      "id": "surge",
+      "path": "rule/Surge/Broker.list",
+      "include": [
+        "Broker.list"
+      ],
+      "format": "surge",
+      "behavior": "classical",
+      "nativeFor": [
+        "surge"
+      ]
+    },
+    {
+      "id": "loon",
+      "path": "rule/Loon/Broker.list",
+      "include": [
+        "Broker.list"
+      ],
+      "format": "loon",
+      "behavior": "classical",
+      "nativeFor": [
+        "loon"
+      ]
+    },
+    {
+      "id": "shadowrocket",
+      "path": "rule/Shadowrocket/Broker.list",
+      "include": [
+        "Broker.list"
+      ],
+      "format": "shadowrocket",
+      "behavior": "classical",
+      "nativeFor": [
+        "shadowrocket"
+      ]
+    },
+    {
+      "id": "quantumultx",
+      "path": "rule/QuantumultX/Broker.list",
+      "include": [
+        "Broker.list"
+      ],
+      "format": "quantumultx",
+      "behavior": "classical",
+      "nativeFor": [
+        "quantumultx"
+      ]
+    }
+  ],
+  "defaults": {
+    "category": "finance",
+    "provisioning": "optional",
+    "sortOrder": 900,
+    "activeForUnmatchedPolicies": [
+      "proxy",
+      "direct"
+    ]
+  },
+  "mappings": [
+    {
+      "ids": [
+        "broker"
+      ],
+      "category": "finance",
+      "target": "Broker",
+      "provisioning": "scenario",
+      "sortOrder": 125
+    }
+  ],
+  "overrides": {
+    "broker": {
+      "name": "Broker"
+    }
+  }
+}

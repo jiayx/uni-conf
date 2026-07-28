@@ -1,29 +1,14 @@
 import type { RuleSetFormat } from '@uni-conf/types'
 import {
   buildQuixoticRuleSetUrl,
-  inferQuixoticTargetGroup,
   inferQuixoticRuleSetSourceFromUrl,
-  QUIXOTIC_RULE_SET_PRESETS,
-  resolveQuixoticPresetProvisioning,
   resolveQuixoticRuleSetBehavior,
-  resolveQuixoticRuleSetSortOrder,
-  type InferredRuleSetTargetGroup,
-  type QuixoticRuleSetPreset,
 } from '@uni-conf/shared'
 
 export {
   buildQuixoticRuleSetUrl,
-  inferQuixoticTargetGroup,
   inferQuixoticRuleSetSourceFromUrl,
-  QUIXOTIC_RULE_SET_PRESETS,
-  resolveQuixoticPresetProvisioning,
   resolveQuixoticRuleSetBehavior,
-  resolveQuixoticRuleSetSortOrder,
-}
-
-export type {
-  InferredRuleSetTargetGroup,
-  QuixoticRuleSetPreset,
 }
 
 export const RULE_SET_FORMAT_OPTIONS: Array<{ value: RuleSetFormat; label: string; exportTargets: string }> = [
