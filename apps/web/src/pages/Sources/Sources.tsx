@@ -734,10 +734,12 @@ export function Sources() {
               )}
               {refreshResults[source.id] && (
                 <div className={styles.refreshStatus}>
-                  {t('sources.refresh_success', { count: refreshResults[source.id].nodeCount })}
-                  <span>
-                    +{refreshResults[source.id].addedCount} / ~{refreshResults[source.id].updatedCount ?? 0} / -{refreshResults[source.id].removedCount}
-                  </span>
+                  {t('sources.refresh_success', {
+                    count: refreshResults[source.id].nodeCount,
+                    added: refreshResults[source.id].addedCount,
+                    updated: refreshResults[source.id].updatedCount ?? 0,
+                    removed: refreshResults[source.id].removedCount,
+                  })}
                 </div>
               )}
               {source.type === 'url' && (refreshErrors[source.id] || source.lastRefreshError) && (
@@ -831,6 +833,10 @@ export function Sources() {
               min="0"
               value={form.updateInterval}
               onChange={e => setForm(f => ({ ...f, updateInterval: Number(e.target.value) }))}
+              onBlur={e => {
+                const value = Number(e.target.value)
+                setForm(f => ({ ...f, updateInterval: value > 0 ? Math.max(5, value) : 0 }))
+              }}
               helperText={t('sources.update_interval_hint')}
             />
             <div>
@@ -911,6 +917,10 @@ export function Sources() {
           min="0"
           value={form.updateInterval}
           onChange={e => setForm(f => ({ ...f, updateInterval: Number(e.target.value) }))}
+          onBlur={e => {
+            const value = Number(e.target.value)
+            setForm(f => ({ ...f, updateInterval: value > 0 ? Math.max(5, value) : 0 }))
+          }}
           helperText={t('sources.update_interval_hint')}
         />
         <div>

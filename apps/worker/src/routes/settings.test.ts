@@ -70,6 +70,7 @@ describe('settings route helpers', () => {
 
   it('rejects invalid auto refresh intervals', () => {
     expect(validateSettingsPatch({ autoRefreshInterval: 0 })).toBe('invalid auto refresh interval')
+    expect(validateSettingsPatch({ autoRefreshInterval: 4 })).toBe('invalid auto refresh interval')
     expect(validateSettingsPatch({ autoRefreshInterval: 1.5 })).toBe('invalid auto refresh interval')
     expect(validateSettingsPatch({ autoRefreshInterval: Number.NaN })).toBe('invalid auto refresh interval')
   })

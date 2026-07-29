@@ -223,6 +223,10 @@ rule-providers:
       valid: false,
       error: 'updateInterval must be a non-negative integer',
     })
+    expect(validateSourceMutableFields({ updateInterval: 4 })).toEqual({
+      valid: false,
+      error: 'updateInterval must be 0 or at least 5 minutes',
+    })
     expect(validateSourceMutableFields({ tags: ['ok', 1] })).toEqual({
       valid: false,
       error: 'tags must be an array of strings',

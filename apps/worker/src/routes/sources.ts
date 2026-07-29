@@ -1330,6 +1330,9 @@ export function validateSourceMutableFields(body: {
   if (body.updateInterval !== undefined && updateInterval === undefined) {
     return { valid: false, error: 'updateInterval must be a non-negative integer' };
   }
+  if (updateInterval !== undefined && updateInterval > 0 && updateInterval < 5) {
+    return { valid: false, error: 'updateInterval must be 0 or at least 5 minutes' };
+  }
   if (body.userAgent !== undefined && body.userAgent !== null && typeof body.userAgent !== 'string') {
     return { valid: false, error: 'userAgent must be a string or null' };
   }

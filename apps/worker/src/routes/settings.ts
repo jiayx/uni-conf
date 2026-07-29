@@ -228,7 +228,7 @@ export function validateSettingsPatch(value: unknown): string | null {
   }
   if (
     body.autoRefreshInterval !== undefined
-    && (!Number.isInteger(body.autoRefreshInterval) || body.autoRefreshInterval <= 0)
+    && (!Number.isInteger(body.autoRefreshInterval) || body.autoRefreshInterval < 5)
   ) {
     return 'invalid auto refresh interval'
   }

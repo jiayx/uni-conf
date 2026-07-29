@@ -95,7 +95,7 @@ pnpm exec wrangler kv namespace create uni-conf-kv
 
 ### 3. 配置生产环境
 
-编辑 `apps/worker/wrangler.jsonc`，替换 production 中的三个占位符：
+编辑根目录的 `wrangler.jsonc`，替换 production 中的三个占位符：
 
 | 占位符                           | 填写内容                                                  |
 | -------------------------------- | --------------------------------------------------------- |
@@ -157,7 +157,7 @@ unset UNICONF_API_KEY
 
 在 Cloudflare 控制台进入对应 Worker，打开域名与路由设置并添加自定义域名。
 
-然后将 `apps/worker/wrangler.jsonc` 中 production 的 `ALLOWED_ORIGIN` 改为新的完整地址并重新部署：
+然后将根目录 `wrangler.jsonc` 中 production 的 `ALLOWED_ORIGIN` 改为新的完整地址并重新部署：
 
 ```bash
 pnpm --filter @uni-conf/worker deploy:production

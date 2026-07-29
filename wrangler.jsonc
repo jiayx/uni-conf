@@ -1,11 +1,11 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
+  "$schema": "./apps/worker/node_modules/wrangler/config-schema.json",
   "name": "uni-conf",
-  "main": "src/index.ts",
+  "main": "apps/worker/src/index.ts",
   "compatibility_date": "2026-06-23",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
-    "directory": "../web/dist",
+    "directory": "apps/web/dist",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/sub/*"]
   },
@@ -17,7 +17,7 @@
       "binding": "DB",
       "database_name": "uni-conf-db",
       "database_id": "local",
-      "migrations_dir": "migrations"
+      "migrations_dir": "apps/worker/migrations"
     }
   ],
   "kv_namespaces": [
@@ -45,7 +45,7 @@
           "binding": "DB",
           "database_name": "uni-conf-db-staging",
           "database_id": "REPLACE_WITH_STAGING_D1_ID",
-          "migrations_dir": "migrations"
+          "migrations_dir": "apps/worker/migrations"
         }
       ],
       "kv_namespaces": [
@@ -66,7 +66,7 @@
           "binding": "DB",
           "database_name": "uni-conf-db",
           "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
-          "migrations_dir": "migrations"
+          "migrations_dir": "apps/worker/migrations"
         }
       ],
       "kv_namespaces": [
