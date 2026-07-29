@@ -1,191 +1,137 @@
-# UniConf 部署与运维
+# 日常维护与故障处理
 
-## 运行模型
+首次部署请阅读[部署到 Cloudflare](./CLOUDFLARE_DEPLOYMENT.md)。
 
-UniConf 当前是单管理员、自托管服务：
+## 更新 UniConf
 
-- 一个 Cloudflare Worker 同时提供 SPA、管理 API 和公开订阅
-- D1 保存配置
-- KV 保存限流计数、规则目录、托管 DNS 资源和规则集转换缓存
-- Cron 每五分钟触发一次，但只处理已经到期的订阅和需要刷新的托管资源
+### 一键部署
 
-备份、节点配置、订阅源和公开导出都可能包含凭据。不要把备份、API Key 或导出 Token 写入日志或公开工单。
+一键部署创建的仓库已经连接 Workers Builds。将上游新版本同步到自己的生产分支后，Cloudflare 会自动重新部署。
 
-## Cloudflare 资源
+部署完成后打开管理页面，确认订阅刷新和配置预览正常。
 
-`apps/worker/wrangler.jsonc` 定义 local、staging 和 production。
+### 命令行部署
 
-远程环境需要：
-
-- D1 database
-- KV namespace
-- `API_KEY` secret
-- 精确的 `ALLOWED_ORIGIN`
-- `ENVIRONMENT=production`
-
-将 `REPLACE_WITH_STAGING_*` 和 `REPLACE_WITH_PRODUCTION_*` 替换为真实资源 ID。部署工作流会拒绝仍含占位符的环境。
-
-GitHub environment 需要：
-
-| 名称                    | 类型     |
-| ----------------------- | -------- |
-| `CLOUDFLARE_API_TOKEN`  | secret   |
-| `CLOUDFLARE_ACCOUNT_ID` | secret   |
-| `API_KEY`               | secret   |
-| `UNICONF_BASE_URL`      | variable |
-
-production 应开启环境审批。
-
-## 首次部署
+获取新版本后，在仓库根目录执行：
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm catalogs:refresh
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:golden
 pnpm build
+pnpm --filter @uni-conf/worker db:migrate:production
+pnpm --filter @uni-conf/worker deploy:production
 ```
 
-应用数据库并部署：
+更新数据库后再部署应用，可以避免新版本访问旧数据结构时出现 `no such table` 或 `no such column`。
+
+## 修改管理端访问密钥
+
+在仓库根目录执行：
 
 ```bash
-pnpm --dir apps/worker exec wrangler d1 migrations apply DB --env staging --remote
-pnpm --dir apps/worker exec wrangler deploy --env staging
+pnpm --dir apps/worker exec wrangler secret put API_KEY --env production
 ```
 
-生产环境将 `staging` 替换为 `production`。
+输入新的访问密钥后，重新打开管理页面并使用新密钥登录。
 
-推荐直接使用 `.github/workflows/deploy.yml`。该流程会刷新规则目录、运行检查、应用 D1 基线、部署 Worker/静态资源并执行 smoke test。
+修改管理端访问密钥不会改变已有的客户端订阅链接。
 
-## 发布流程
+## 备份和恢复
 
-1. 影响数据结构时先从当前生产版本导出备份。
-2. 合并代码并确认 CI 通过。
-3. 手动触发 staging Deploy。
-4. 确认 smoke test：
-   - `/api/health`
-   - `/api/ready`
-   - SPA 根路径
-   - `/api/auth/check`
-5. 对导出器或 Schema 改动，手动验证至少 Mihomo、sing-box 和受影响客户端。
-6. 审批 production Deploy。
+在“设置 > 数据管理”中可以：
 
-本地检查已部署环境：
+- 导出当前数据
+- 校验并恢复备份
+- 清空当前配置
 
-```bash
-UNICONF_BASE_URL=https://example.com \
-UNICONF_API_KEY=... \
-pnpm smoke
+建议在以下操作前导出备份：
+
+- 更新 UniConf
+- 大批量调整节点或规则
+- 恢复其他备份
+- 清空配置
+
+备份包含订阅地址、节点凭据和导出 Token。不要公开上传、发送或粘贴完整备份。
+
+## 订阅刷新
+
+默认自动刷新间隔为 240 分钟。定时任务每五分钟检查一次，但只刷新已经到期的订阅。
+
+订阅没有按预期刷新时，依次检查：
+
+1. 全局自动刷新是否开启。
+2. 该订阅是否启用。
+3. 该订阅是否设置了独立刷新间隔。
+4. 在订阅页面手动刷新是否成功。
+5. 上游订阅地址是否仍然有效。
+
+停用订阅后，其中的节点不会参与节点组和配置导出。
+
+## 远程规则集
+
+远程规则集必须使用公开的 HTTP 或 HTTPS 地址，不能使用：
+
+- 带用户名和密码的 URL
+- localhost 或本地域名
+- 私网或保留 IP 地址
+
+规则集无法下载时：
+
+1. 在浏览器中确认原地址可以访问。
+2. 检查 URL 是否发生失效或重定向。
+3. 在规则集管理页面重新检查。
+4. 如果目标客户端提供原生规则集格式，可以为该客户端设置原生来源。
+5. 如果转换后会丢失规则，选择其他来源或使用严格模式阻止导出。
+
+## 配置导出和订阅 Token
+
+### 暂停
+
+暂停导出档案后，其订阅链接停止提供配置。恢复后继续使用原链接。
+
+### 重置 Token
+
+重置后旧链接立即失效。需要将新链接重新添加到客户端。
+
+### 客户端无法更新
+
+依次检查：
+
+1. 导出档案是否被暂停。
+2. 客户端中的订阅链接是否完整。
+3. Token 是否已经重置。
+4. 配置预览是否存在阻断问题。
+5. 严格转换模式是否检测到无法转换的规则。
+
+不要公开发送完整订阅链接。需要排查问题时，优先提供页面显示的诊断编号。
+
+## 服务状态
+
+可以通过以下地址检查部署状态：
+
+```text
+https://你的部署地址/api/health
+https://你的部署地址/api/ready
 ```
 
-## Readiness
+- `/api/health` 成功：站点可以响应请求。
+- `/api/ready` 成功：部署所需的服务和配置均可使用。
 
-`GET /api/health` 只表示 Worker 可响应。
+如果页面可以打开但 `/api/ready` 失败，请查看返回内容并按以下项目检查。
 
-`GET /api/ready` 检查：
+## 常见问题
 
-- D1 可查询
-- KV 可读写
-- 生产环境已配置 API Key
-- 生产环境已配置 Allowed Origin
+| 现象                                          | 处理方法                                                         |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| 无法使用访问密钥登录                          | 确认输入的是管理端 `API_KEY`，而不是导出订阅 Token               |
+| 提示缺少 `API_KEY`                            | 重新设置 production 环境的访问密钥                               |
+| 提示 `ALLOWED_ORIGIN` 错误                    | 检查配置中的地址是否与浏览器访问地址一致，并去掉路径和结尾 `/`   |
+| `/api/ready` 提示 D1 或 KV 不可用             | 检查 Cloudflare 中对应资源是否存在，以及配置中的资源 ID 是否正确 |
+| `D1_ERROR: no such table` 或 `no such column` | 执行 production 数据库更新命令后重新部署                         |
+| 页面仍显示旧版本                              | 等待当前部署完成；命令行部署时重新执行构建和部署                 |
+| 配置预览被阻止                                | 根据预览中的错误修正节点、节点组、规则引用或规则集转换问题       |
+| 订阅链接返回不存在                            | 检查档案是否暂停、Token 是否重置，以及客户端是否仍在使用旧链接   |
+| 远程订阅或规则集偶尔失败                      | 手动重试；持续失败时检查上游地址、DNS 和重定向                   |
 
-部署验证使用 readiness，而不是只使用 health。
+## 自定义域名变更
 
-## D1 与备份
-
-部署流程在发布 Worker 前执行 `wrangler d1 migrations apply`。结构相关发布前应导出备份，并在 staging 验证来源、节点、分流图、默认导出 Token 和各导出格式。
-
-备份导入会在写入前检查版本、表/列、JSON、枚举、唯一键、引用和策略组循环。不要绕过应用直接把未知备份写入 D1。
-
-## 导出档案与 Token
-
-- 默认档案由系统维护，不可删除
-- 暂停档案：主订阅和其 Token 范围内的转换 URL 都返回不可缓存的 404
-- 恢复档案：继续使用原 Token
-- 重置 Token：旧 URL 立即失效
-- 认证预览/下载在档案暂停时返回 403
-
-公开订阅响应不做边缘长期缓存，保证节点、规则和暂停状态在客户端下一次刷新时生效。规则集转换产物可以在 KV 中按内容和目标缓存，但每次访问仍先验证 Token 档案的当前状态和范围。
-
-## 远程网络与缓存
-
-所有订阅和规则集 URL 必须是公开 HTTP(S)：
-
-- 禁止 URL 用户名/密码
-- 禁止 localhost、本地域名、私网和保留 IP
-- 每次重定向重新校验
-- 跨 origin 重定向去除敏感请求头
-- 限制重定向次数、请求时间和响应大小
-
-Worker 还启用 `global_fetch_strictly_public`。
-
-KV 主要用于：
-
-- API/订阅限流
-- 第三方规则目录快照
-- QuixoticHeart fake-ip-filter 刷新结果
-- 规则集转换产物
-
-规则集来源健康状态由用户在规则集管理页主动检查后写入 D1。过期状态会标为 stale；它不是持续探测服务，也不会在每次配置预览时探测全部 URL。
-
-## 定时任务
-
-Cron 表达式为 `*/5 * * * *`。
-
-一次触发会：
-
-1. 查找并刷新已到期且启用的订阅源
-2. 到期时刷新规则目录快照
-3. 到期时刷新托管 DNS 真实 IP 例外
-
-全局“自动刷新”开关只控制第 1 项订阅刷新。规则目录和托管 DNS 资源按各自六小时缓存周期维护，避免用户关闭订阅刷新后让导出所需的系统资源永久停更。默认订阅间隔为 240 分钟，Cron 的五分钟只是调度粒度。
-
-## 可观测性
-
-非测试请求记录结构化 `http_request`：
-
-- request ID
-- method
-- 已脱敏 path
-- status
-- duration
-- environment
-- 可用时记录 error code
-
-未捕获异常记录 `worker_error`。订阅 Token 在日志路径中替换为 `[redacted]`。
-
-响应包含 `X-Request-Id`。公开订阅和导出错误还使用稳定的 `X-UniConf-Error-Code`：
-
-| Code                                                    | 含义                           |
-| ------------------------------------------------------- | ------------------------------ |
-| `subscription_format_invalid` / `export_format_invalid` | 格式未知                       |
-| `subscription_unavailable`                              | Token 不存在、已重置或档案暂停 |
-| `export_not_ready`                                      | 导出图存在阻断问题             |
-| `conversion_incomplete`                                 | 严格转换不完整或转换失败       |
-| `rule_set_out_of_scope`                                 | 规则集不属于该 Token 档案      |
-| `conversion_target_invalid`                             | 转换目标非法                   |
-| `conversion_not_required`                               | 不需要该转换                   |
-| `conversion_source_too_large`                           | 上游规则集超过限制             |
-| `conversion_upstream_unavailable`                       | 上游不可用                     |
-| `conversion_invalid_content`                            | 无法生成保持语义的内容         |
-| `artifact_invalid`                                      | 最终配置结构校验失败           |
-
-用户报告问题时优先索取诊断编号，而不是订阅 URL 或完整配置。
-
-## 容量边界
-
-- 管理 API body：25 MiB
-- 单个粘贴/上传/远程配置源：4 MiB UTF-8
-- 备份总行数：100,000
-- 节点批量启停：500 个唯一 ID
-- 手动规则批量创建/启停：500 条
-- 订阅刷新使用有界并发
-- 规则集转换和来源校验使用有界并发与流式大小限制
-
-超过这些规模前，应在 staging 测量 Worker CPU、D1 行数、生成配置大小和 Cron 时长。
-
-## 回滚
-
-代码和静态资源可以回滚到前一个 Worker deployment。回滚后重新验证 `/api/ready`、管理页、默认导出和公开订阅。
+更换自定义域名后，还需要更新 production 的 `ALLOWED_ORIGIN` 并重新部署。否则管理页面的 API 请求会被拒绝。

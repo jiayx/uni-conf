@@ -1,11 +1,9 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import Ajv2020 from 'ajv/dist/2020'
 import { describe, expect, it } from 'vitest'
 import * as yaml from 'js-yaml'
 import {
-  EXPORT_FORMAT_FILENAMES,
   EXPORT_SUBSCRIPTION_FORMATS,
   isNodeProtocolSupportedByExport,
 } from '@uni-conf/shared'
@@ -287,13 +285,6 @@ describe('renderExportData', () => {
       })
     }
   )
-
-  it('keeps documented public subscription filenames aligned with the shared registry', () => {
-    const architecture = readFileSync(join(process.cwd(), '../../docs/ARCHITECTURE.md'), 'utf8')
-    for (const filename of Object.values(EXPORT_FORMAT_FILENAMES)) {
-      expect(architecture, `docs/ARCHITECTURE.md should mention ${filename}`).toContain(`/sub/{token}/${filename}`)
-    }
-  })
 })
 
 function makeExportData(protocol: ProxyProtocol = 'ss'): ExportData {

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "uni-conf-worker",
+  "name": "uni-conf",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-23",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -35,7 +35,7 @@
   },
   "env": {
     "staging": {
-      "name": "uni-conf-worker-staging",
+      "name": "uni-conf-staging",
       "vars": {
         "ENVIRONMENT": "production",
         "ALLOWED_ORIGIN": "REPLACE_WITH_STAGING_ORIGIN"
@@ -56,7 +56,7 @@
       ]
     },
     "production": {
-      "name": "uni-conf-worker",
+      "name": "uni-conf",
       "vars": {
         "ENVIRONMENT": "production",
         "ALLOWED_ORIGIN": "REPLACE_WITH_PRODUCTION_ORIGIN"

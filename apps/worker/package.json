@@ -12,6 +12,8 @@
     "deploy:staging": "wrangler deploy --env staging",
     "predeploy:production": "pnpm --dir ../.. catalogs:refresh",
     "deploy:production": "wrangler deploy --env production",
+    "predeploy:cloudflare": "pnpm --dir ../.. catalogs:refresh",
+    "deploy:cloudflare": "wrangler d1 migrations apply DB --env production --remote && wrangler deploy --env production",
     "lint": "oxlint src --type-aware --deny-warnings",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
