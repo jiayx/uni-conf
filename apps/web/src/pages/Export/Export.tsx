@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { QRCodeSVG } from 'qrcode.react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
@@ -88,6 +90,7 @@ export function Export() {
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [previewModal, setPreviewModal] = useState<PreviewModalState | null>(null)
+  const [subscriptionQr, setSubscriptionQr] = useState<{ title: string; url: string } | null>(null)
   const [revealedUrlScopes, setRevealedUrlScopes] = useState<Set<string>>(() => new Set())
   const selectedFormatCapabilities = getExportClientCapabilities(form.format)
   const formDirty = showModal && !formValuesEqual(form, initialForm)
@@ -453,29 +456,47 @@ export function Export() {
                     const actionKey = `${defaultConfig.id}:${item.value}`
                     return (
                       <div key={item.value} className={styles.quickFormatRow}>
-                        <strong className={styles.quickFormatName}>{t(`export.formats.${item.value}`)}</strong>
-                        <code className={styles.urlCode}>{revealedUrlScopes.has(defaultConfig.id) ? subUrl : maskSubscriptionTokenUrl(subUrl)}</code>
+                        <button
+                          type="button"
+                          className={styles.quickFormatPreview}
+                          disabled={!defaultConfig.enabled}
+                          aria-label={t('export.preview_format', {
+                            name: t(`export.formats.${item.value}`),
+                          })}
+                          onClick={() => void handlePreviewFormat(
+                            actionKey,
+                            t(`export.formats.${item.value}`),
+                            item.value,
+                          )}
+                        >
+                          <strong className={styles.quickFormatName}>{t(`export.formats.${item.value}`)}</strong>
+                          <code className={styles.urlCode}>{revealedUrlScopes.has(defaultConfig.id) ? subUrl : maskSubscriptionTokenUrl(subUrl)}</code>
+                        </button>
                         <div className={styles.quickFormatActions}>
-                          <Button
-                            variant="ghost" size="sm"
-                            disabled={!defaultConfig.enabled}
-                            loading={previewModal?.key === actionKey && previewModal.status === 'loading'}
-                            onClick={() => void handlePreviewFormat(actionKey, t(`export.formats.${item.value}`), item.value)}
-                          >{t('common.preview')}</Button>
-                          <Button
-                            variant="ghost" size="sm"
-                            disabled={!defaultConfig.enabled}
-                            onClick={() => void copyUrl(subUrl, actionKey)}
-                          >{copied === actionKey ? t('common.copied') : t('common.copy')}</Button>
                           <Button
                             variant="secondary"
                             size="sm"
                             disabled={!defaultConfig.enabled}
-                            loading={downloadingId === actionKey}
-                            onClick={() => void handleDownloadFormat(defaultConfig, item.value)}
-                          >
-                            {t('common.download')}
-                          </Button>
+                            onClick={() => void copyUrl(subUrl, actionKey)}
+                          >{copied === actionKey ? t('common.copied') : t('export.copy_url')}</Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!defaultConfig.enabled}
+                            onClick={() => setSubscriptionQr({
+                              title: t('export.qr_title', { name: t(`export.formats.${item.value}`) }),
+                              url: subUrl,
+                            })}
+                          >{t('export.scan_to_add')}</Button>
+                          <QuickExportMoreMenu
+                            disabled={!defaultConfig.enabled || downloadingId === actionKey}
+                            onPreview={() => void handlePreviewFormat(
+                              actionKey,
+                              t(`export.formats.${item.value}`),
+                              item.value,
+                            )}
+                            onDownload={() => void handleDownloadFormat(defaultConfig, item.value)}
+                          />
                         </div>
                       </div>
                     )
@@ -526,13 +547,13 @@ export function Export() {
                       disabled={!cfg.enabled || deletingId === cfg.id}
                       loading={previewModal?.key === `${cfg.id}:${cfg.format}` && previewModal.status === 'loading'}
                       onClick={() => void handlePreviewFormat(`${cfg.id}:${cfg.format}`, `${cfg.name} · ${t(`export.formats.${cfg.format}`)}`, cfg.format, cfg.id)}
-                    >{t('common.preview')}</Button>
+                    >{t('export.preview_config')}</Button>
                     <Button
                       variant="secondary" size="sm"
                       disabled={!cfg.enabled || deletingId === cfg.id}
                       loading={downloadingId === `${cfg.id}:${cfg.format}`}
                       onClick={() => void handleDownload(cfg)}
-                    >{t('common.download')}</Button>
+                    >{t('export.download')}</Button>
                     <Button
                       variant="secondary" size="sm"
                       disabled={deletingId === cfg.id}
@@ -555,14 +576,23 @@ export function Export() {
                   <span className={styles.urlLabel}>{t('export.subscription_url')}</span>
                   <div className={styles.urlBox}>
                     <code className={styles.urlCode}>{revealedUrlScopes.has(cfg.id) ? subUrl : maskSubscriptionTokenUrl(subUrl)}</code>
+                    <Button
+                      variant="secondary" size="sm"
+                      disabled={!cfg.enabled}
+                      onClick={() => void copyUrl(subUrl, cfg.id)}
+                    >{copied === cfg.id ? t('common.copied') : t('export.copy_url')}</Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!cfg.enabled}
+                      onClick={() => setSubscriptionQr({
+                        title: t('export.qr_title', { name: cfg.name }),
+                        url: subUrl,
+                      })}
+                    >{t('export.scan_to_add')}</Button>
                     <Button variant="ghost" size="sm" onClick={() => toggleUrlVisibility(cfg.id)}>
                       {t(revealedUrlScopes.has(cfg.id) ? 'export.hide_url' : 'export.reveal_url')}
                     </Button>
-                    <Button
-                      variant="ghost" size="sm"
-                      disabled={!cfg.enabled}
-                      onClick={() => void copyUrl(subUrl, cfg.id)}
-                    >{copied === cfg.id ? t('common.copied') : t('common.copy')}</Button>
                   </div>
                 </div>
               </Card>
@@ -684,6 +714,27 @@ export function Export() {
         </details>
       </Modal>
       <Modal
+        open={Boolean(subscriptionQr)}
+        onOpenChange={open => {
+          if (!open) setSubscriptionQr(null)
+        }}
+        title={subscriptionQr?.title ?? ''}
+        description={t('export.qr_security_hint')}
+        size="sm"
+      >
+        {subscriptionQr && (
+          <div className={styles.qrCode}>
+            <QRCodeSVG
+              value={subscriptionQr.url}
+              size={240}
+              level="M"
+              marginSize={2}
+              title={t('export.qr_image_label')}
+            />
+          </div>
+        )}
+      </Modal>
+      <Modal
         open={Boolean(previewModal)}
         onOpenChange={open => {
           if (!open) setPreviewModal(null)
@@ -704,6 +755,39 @@ export function Export() {
         )}
       </Modal>
     </div>
+  )
+}
+
+function QuickExportMoreMenu({
+  disabled,
+  onPreview,
+  onDownload,
+}: {
+  disabled: boolean
+  onPreview: () => void
+  onDownload: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger className={styles.moreTrigger} disabled={disabled}>
+        <span>{t('export.more_actions')}</span>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+          <path d="m6 8 4 4 4-4" />
+        </svg>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className={styles.moreMenu} align="end" sideOffset={6}>
+          <DropdownMenu.Item className={styles.moreMenuItem} onSelect={onPreview}>
+            {t('export.preview_config')}
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={styles.moreMenuItem} onSelect={onDownload}>
+            {t('export.download')}
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   )
 }
 

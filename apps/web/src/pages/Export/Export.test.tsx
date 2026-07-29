@@ -84,7 +84,7 @@ describe('Export', () => {
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Copy' }))[0]!)
+    await user.click((await screen.findAllByRole('button', { name: 'Copy URL' }))[0]!)
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining(
       '/sub/default-token/mihomo.yaml?name=UniConf%20%C2%B7%20Mihomo',
@@ -99,7 +99,7 @@ describe('Export', () => {
 
     expect(await screen.findByText('Mobile')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Validate' })).not.toBeInTheDocument()
-    const previews = screen.getAllByRole('button', { name: 'Preview' })
+    const previews = screen.getAllByRole('button', { name: 'Preview Config' })
     await user.click(previews.at(-1)!)
 
     expect(api.export.previewFormat).toHaveBeenCalledWith('singbox', 'advanced-1')
@@ -122,7 +122,7 @@ describe('Export', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Preview' }))[0]!)
+    await user.click(await screen.findByRole('button', { name: 'Preview Mihomo config' }))
 
     for (let index = 1; index <= 4; index += 1) {
       expect(await screen.findByText(`Notice ${index}`)).toBeInTheDocument()
@@ -134,10 +134,20 @@ describe('Export', () => {
     render(<MemoryRouter><Export /></MemoryRouter>)
 
     expect(screen.queryByText(/mobile-token/)).not.toBeInTheDocument()
-    await user.click((await screen.findAllByRole('button', { name: /Reveal/ })).at(-1)!)
+    await user.click(await screen.findByRole('button', { name: 'Show Link' }))
     expect(screen.getByText(/mobile-token/)).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: /Hide/ }).at(-1)!)
+    await user.click(screen.getByRole('button', { name: 'Hide link' }))
     expect(screen.queryByText(/mobile-token/)).not.toBeInTheDocument()
+  })
+
+  it('shows a scannable QR code for each subscription URL', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    await user.click((await screen.findAllByRole('button', { name: 'Scan to Add' })).at(-1)!)
+
+    expect(screen.getByRole('dialog', { name: 'Mobile Subscription QR Code' })).toBeInTheDocument()
+    expect(screen.getByTitle('Subscription URL QR code')).toBeInTheDocument()
   })
 
   it('names the affected export profile in subscription and token confirmations', async () => {
