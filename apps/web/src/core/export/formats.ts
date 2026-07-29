@@ -1,6 +1,20 @@
 import { EXPORT_SUBSCRIPTION_FORMATS } from '@uni-conf/shared'
 import type { ExportFormat } from '@uni-conf/types'
 
+export const EXPORT_FORMAT_NAMES: Record<ExportFormat, string> = {
+  mihomo: 'Mihomo',
+  clash: 'Clash',
+  singbox: 'sing-box',
+  loon: 'Loon',
+  surge: 'Surge',
+  shadowrocket: 'Shadowrocket',
+  quantumultx: 'Quantumult X',
+  stash: 'Stash',
+  egern: 'Egern',
+  nodes_base64: 'Node Subscription (Base64)',
+  nodes_raw: 'Node Subscription (Raw)',
+}
+
 const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
   mihomo: 'Mihomo YAML',
   clash: 'Clash YAML',

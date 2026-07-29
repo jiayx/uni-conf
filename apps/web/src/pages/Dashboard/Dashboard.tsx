@@ -87,6 +87,7 @@ export function Dashboard() {
     window.location.origin,
     stats?.defaultExportToken,
     stats?.defaultExportEnabled !== false,
+    stats?.defaultExportName,
   )
   const selectedQuickLink = quickSubscriptionLinks.find(item => item.value === selectedQuickFormat)
   const attentionItems = stats

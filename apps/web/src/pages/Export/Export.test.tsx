@@ -34,7 +34,7 @@ vi.mock('@/lib/api', async () => {
 
 const configs: ExportConfig[] = [{
   id: 'default-mihomo',
-  name: 'Default',
+  name: 'UniConf',
   format: 'mihomo',
   token: 'default-token',
   enabled: true,
@@ -86,7 +86,9 @@ describe('Export', () => {
 
     await user.click((await screen.findAllByRole('button', { name: 'Copy' }))[0]!)
 
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/sub/default-token/mihomo.yaml'))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(
+      '/sub/default-token/mihomo.yaml?name=UniConf%20%C2%B7%20Mihomo',
+    ))
     expect(api.export.previewFormat).not.toHaveBeenCalled()
     writeText.mockRestore()
   })

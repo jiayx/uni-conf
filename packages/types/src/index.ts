@@ -798,6 +798,7 @@ export interface DashboardStats {
   ruleCount: number;
   exportConfigCount: number;
   defaultExportToken?: string;
+  defaultExportName?: string;
   defaultExportFormat?: ExportFormat;
   defaultExportEnabled?: boolean;
   lastRefreshedAt?: string;

@@ -7,8 +7,8 @@ import {
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
-    expect(resolveExportConfigName(undefined, 'mihomo')).toBe('默认 Mihomo 配置')
-    expect(resolveExportConfigName('', 'singbox')).toBe('默认 sing-box 配置')
+    expect(resolveExportConfigName(undefined, 'mihomo')).toBe('Mihomo 配置')
+    expect(resolveExportConfigName('', 'singbox')).toBe('sing-box 配置')
   })
 
   it('trims user-provided export config names', () => {
@@ -17,8 +17,8 @@ describe('export route helpers', () => {
 
   it('normalizes update names only when the client submits a name field', () => {
     expect(resolveExportConfigUpdateName(undefined, 'singbox', 'mihomo')).toBeUndefined()
-    expect(resolveExportConfigUpdateName('', 'singbox', 'mihomo')).toBe('默认 sing-box 配置')
-    expect(resolveExportConfigUpdateName('   ', undefined, 'stash')).toBe('默认 Stash 配置')
+    expect(resolveExportConfigUpdateName('', 'singbox', 'mihomo')).toBe('sing-box 配置')
+    expect(resolveExportConfigUpdateName('   ', undefined, 'stash')).toBe('Stash 配置')
     expect(resolveExportConfigUpdateName('  Travel  ', 'mihomo', 'singbox')).toBe('Travel')
   })
 

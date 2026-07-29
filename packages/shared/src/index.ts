@@ -1210,7 +1210,7 @@ const SINGBOX_EXPORT_NODE_PROTOCOLS = [
   'wireguard',
 ] as const satisfies readonly ProxyProtocol[];
 
-const TEXT_CLIENT_EXPORT_NODE_PROTOCOLS = [
+const SHADOWROCKET_EXPORT_NODE_PROTOCOLS = [
   'ss',
   'ssr',
   'vmess',
@@ -1375,7 +1375,7 @@ export const EXPORT_CLIENT_CAPABILITIES = {
   },
   shadowrocket: {
     outputKind: 'full-config',
-    nodeProtocols: TEXT_CLIENT_EXPORT_NODE_PROTOCOLS,
+    nodeProtocols: SHADOWROCKET_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['shadowrocket', 'surge', 'text'],
     dns: {
       engine: 'native-fake-ip',

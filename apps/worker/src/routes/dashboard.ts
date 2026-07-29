@@ -70,6 +70,7 @@ app.get('/stats', async (c) => {
       ruleCount,
       exportConfigCount,
       defaultExportToken: defaultExportConfig.token,
+      defaultExportName: defaultExportConfig.name,
       defaultExportFormat: defaultExportConfig.format,
       defaultExportEnabled: defaultExportConfig.enabled,
       lastRefreshedAt: lastRefresh?.last_refreshed_at ?? undefined,

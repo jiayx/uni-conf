@@ -3,7 +3,7 @@ import dashboardApp from './dashboard'
 
 vi.mock('../export-data', () => ({
   getExportConfigById: vi.fn(async () => ({
-    token: 'default-token', format: 'mihomo', enabled: true,
+    name: 'UniConf', token: 'default-token', format: 'mihomo', enabled: true,
   })),
 }))
 
@@ -44,6 +44,7 @@ describe('dashboard rule-set health stats', () => {
       success: true,
       data: {
         sourceRefreshFailureCount: 2,
+        defaultExportName: 'UniConf',
         ruleSetHealth: {
           total: 5, valid: 1, warning: 1, invalid: 1, stale: 1, pending: 1,
           lastCheckedAt: '2026-07-18T03:00:00.000Z',

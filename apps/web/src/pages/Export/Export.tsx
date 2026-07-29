@@ -14,10 +14,18 @@ import { TransformationReport } from '@/components/export/TransformationReport/T
 import { api } from '@/lib/api'
 import { saveExportDownload } from '@/core/export/download-file'
 import { maskSubscriptionTokenUrl } from '@/core/sources/source-url-privacy'
-import { EXPORT_FORMAT_OPTIONS, QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
+import {
+  EXPORT_FORMAT_NAMES,
+  EXPORT_FORMAT_OPTIONS,
+  QUICK_EXPORT_OPTIONS,
+} from '@/core/export/formats'
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
 import { countContentLines } from '@/core/export/content-preview'
+import {
+  buildPublicSubscriptionUrl,
+  buildSubscriptionDisplayName,
+} from '@/core/export/quick-subscriptions'
 import { writeClipboardText } from '@/core/clipboard/write-text'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
@@ -432,7 +440,15 @@ export function Export() {
                 <div className={styles.quickFormatList}>
                   {QUICK_EXPORT_OPTIONS.map(item => {
                     const filename = getExportSubscriptionFilename(item.value)
-                    const subUrl = `${BASE_URL}/sub/${defaultConfig.token}/${filename}`
+                    const subUrl = buildPublicSubscriptionUrl(
+                      BASE_URL,
+                      defaultConfig.token,
+                      filename,
+                      buildSubscriptionDisplayName(
+                        defaultConfig.name,
+                        EXPORT_FORMAT_NAMES[item.value],
+                      ),
+                    )
                     const actionKey = `${defaultConfig.id}:${item.value}`
                     return (
                       <div key={item.value} className={styles.quickFormatRow}>
@@ -470,7 +486,12 @@ export function Export() {
           {advancedConfigs.length > 0 && <div className={styles.sectionLabel}>{t('export.advanced_profiles')}</div>}
           {advancedConfigs.map(cfg => {
             const filename = getExportSubscriptionFilename(cfg.format)
-            const subUrl = `${BASE_URL}/sub/${cfg.token}/${filename}`
+            const subUrl = buildPublicSubscriptionUrl(
+              BASE_URL,
+              cfg.token,
+              filename,
+              buildSubscriptionDisplayName(cfg.name, EXPORT_FORMAT_NAMES[cfg.format]),
+            )
             const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets, t)
             return (
               <Card key={cfg.id} className={styles.configCard}>

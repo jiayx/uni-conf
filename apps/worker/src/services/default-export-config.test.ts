@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_EXPORT_CONFIG_ID, ensureDefaultExportConfig, generateExportToken } from './default-export-config';
+import {
+  DEFAULT_EXPORT_CONFIG_ID,
+  DEFAULT_EXPORT_CONFIG_NAME,
+  ensureDefaultExportConfig,
+  generateExportToken,
+} from './default-export-config';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
 describe('default export config', () => {
-  it('uses a 256-bit URL-safe cryptographic token', () => {
+  it('uses a 128-bit URL-safe cryptographic token', () => {
     const tokens = new Set(Array.from({ length: 100 }, () => generateExportToken()));
 
     expect(tokens.size).toBe(100);
-    for (const token of tokens) expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    for (const token of tokens) expect(token).toMatch(/^[A-Za-z0-9_-]{22}$/);
   });
 
   it('creates a default Mihomo export config and stores its token', async () => {
@@ -18,7 +23,7 @@ describe('default export config', () => {
     const config = await ensureDefaultExportConfig(db, createdAt);
 
     expect(config.id).toBe(DEFAULT_EXPORT_CONFIG_ID);
-    expect(config.name).toBe('默认 Mihomo 配置');
+    expect(config.name).toBe(DEFAULT_EXPORT_CONFIG_NAME);
     expect(config.format).toBe('mihomo');
     expect(config.includeCollectionIds).toEqual([]);
     expect(state.settings.default_export_token).toBe(config.token);
@@ -35,7 +40,7 @@ describe('default export config', () => {
     const config = await ensureDefaultExportConfig(db, createdAt);
 
     expect(config.token).toBe('existing-token');
-    expect(config.name).toBe('Existing Default');
+    expect(config.name).toBe(DEFAULT_EXPORT_CONFIG_NAME);
     expect(state.exportConfigs).toHaveLength(1);
   });
 
@@ -68,7 +73,7 @@ function createState(patch: Partial<TestState> = {}): TestState {
 function makeRow(patch: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
     id: DEFAULT_EXPORT_CONFIG_ID,
-    name: '默认 Mihomo 配置',
+    name: DEFAULT_EXPORT_CONFIG_NAME,
     format: 'mihomo',
     token: 'token',
     enabled: 1,

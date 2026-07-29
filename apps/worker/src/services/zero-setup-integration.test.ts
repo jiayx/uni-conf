@@ -9,7 +9,7 @@ describe('zero setup defaults integration', () => {
 
     expect(config).toMatchObject({
       id: 'default-mihomo',
-      name: '默认 Mihomo 配置',
+      name: 'UniConf',
       format: 'mihomo',
       enabled: true,
       includeCollectionIds: [],
@@ -268,7 +268,7 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
   if (sql.includes('INSERT INTO export_configs')) {
     state.exportConfigs.push({
       id: args[0],
-      name: '默认 Mihomo 配置',
+      name: 'UniConf',
       format: 'mihomo',
       token: args[1],
       enabled: 1,

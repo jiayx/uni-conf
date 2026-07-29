@@ -101,7 +101,7 @@ export function resolveExportConfigName(name: unknown, format: ExportConfig['for
     nodes_base64: '节点订阅 Base64',
     nodes_raw: '节点订阅明文',
   }
-  return `默认 ${labels[format ?? 'mihomo'] ?? 'Mihomo'} 配置`
+  return `${labels[format ?? 'mihomo'] ?? 'Mihomo'} 配置`
 }
 
 export function resolveExportConfigUpdateName(

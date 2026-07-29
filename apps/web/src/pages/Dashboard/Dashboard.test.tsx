@@ -28,6 +28,7 @@ const stats: DashboardStats = {
   ruleCount: 1,
   exportConfigCount: 1,
   defaultExportToken: 'token-1',
+  defaultExportName: 'UniConf',
   defaultExportFormat: 'mihomo',
   defaultExportEnabled: true,
 }
