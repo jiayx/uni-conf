@@ -500,7 +500,15 @@ function validateTextClientReferences(
   for (const [index, line] of groupLines.entries()) {
     const assignment = splitAssignment(line)
     if (!assignment) continue
-    const values = assignment.value.split(',').map(item => item.trim()).filter(Boolean)
+    const values = splitIniCsv(assignment.value)
+    if (format === 'loon' && !['select', 'url-test', 'fallback', 'load-balance'].includes(values[0]?.toLowerCase() ?? '')) {
+      issues.push(issue(
+        'invalid_entry',
+        `proxy group[${index}]`,
+        `Loon 策略组类型 ${values[0] || '(empty)'} 无效`,
+        `The Loon proxy group type ${values[0] || '(empty)'} is invalid.`
+      ))
+    }
     const members = values.slice(1).filter(item => !item.includes('='))
     if (members.length === 0) {
       issues.push(issue('empty_section', `proxy group[${index}]`, `策略组 ${assignment.name} 没有成员`, `Proxy group ${assignment.name} has no members.`))
@@ -537,7 +545,7 @@ function validateTextClientReferences(
 }
 
 const SURGE_PROXY_PROTOCOLS = new Set([
-  'http', 'https', 'socks5', 'ss', 'vmess', 'trojan', 'hysteria2', 'tuic-v5', 'anytls',
+  'http', 'https', 'socks5', 'ss', 'vmess', 'trojan', 'hysteria2', 'anytls',
   'ssh', 'wireguard', 'snell', 'trust-tunnel',
 ])
 
@@ -572,7 +580,6 @@ function validateSurgeProxyEntries(lines: string[]): ExportArtifactValidationIss
     let required: string[] = []
     if (protocol === 'ss') required = ['encrypt-method', 'password']
     else if (protocol === 'vmess' || protocol === 'ssh') required = ['username']
-    else if (protocol === 'tuic-v5') required = ['uuid', 'password']
     else if (protocol === 'snell') required = ['psk', 'version']
     else if (protocol === 'trust-tunnel') required = ['username', 'password']
     else if (['trojan', 'hysteria2', 'anytls'].includes(protocol)) required = ['password']
@@ -636,6 +643,14 @@ function validateLoonProxyEntries(lines: string[]): ExportArtifactValidationIssu
       issues.push(issue('invalid_entry', path, 'Loon AnyTLS 必须使用位置式密码字段', 'Loon AnyTLS requires a positional password field.'))
     }
     const parameters = new Set(values.slice(minimumFields).map(value => value.split('=', 1)[0]?.toLowerCase()))
+    if (parameters.has('tls-name')) {
+      issues.push(issue(
+        'invalid_entry',
+        path,
+        'Loon TLS 服务器名称必须使用 sni 参数',
+        'The Loon TLS server name must use the sni parameter.'
+      ))
+    }
     if (protocol === 'http' && (parameters.has('over-tls') || parameters.has('tls'))) {
       issues.push(issue('invalid_entry', path, 'Loon HTTPS 节点必须使用 https 类型', 'A Loon HTTPS proxy must use the https type.'))
     }
@@ -694,7 +709,27 @@ function validateQuantumultXReferences(sections: ReadonlyMap<string, string[]>):
       issues.push(issue('invalid_entry', `policy[${index}]`, '策略行格式无效', 'The policy line is malformed.'))
       continue
     }
+    const policyType = assignment.name.toLowerCase()
+    if (!['static', 'available', 'round-robin', 'url-latency-benchmark'].includes(policyType)) {
+      issues.push(issue(
+        'invalid_entry',
+        `policy[${index}]`,
+        `Quantumult X 策略类型 ${assignment.name} 无效`,
+        `The Quantumult X policy type ${assignment.name} is invalid.`
+      ))
+    }
     const values = assignment.value.split(',').map(item => item.trim()).filter(Boolean)
+    if (
+      policyType === 'url-latency-benchmark'
+      && values.some(value => /^(?:interval|url)\s*=/i.test(value))
+    ) {
+      issues.push(issue(
+        'invalid_entry',
+        `policy[${index}]`,
+        'Quantumult X 自动测速策略应使用全局 server_check_url 和 check-interval 参数',
+        'A Quantumult X latency policy must use the global server_check_url and the check-interval parameter.'
+      ))
+    }
     const name = values.shift() ?? ''
     if (!name) {
       issues.push(issue('missing_name', `policy[${index}]`, '策略组缺少名称', 'A policy group is missing its name.'))

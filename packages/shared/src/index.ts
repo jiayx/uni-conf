@@ -1235,7 +1235,6 @@ const SURGE_EXPORT_NODE_PROTOCOLS = [
   'vmess',
   'trojan',
   'hysteria2',
-  'tuic',
   'anytls',
   'socks5',
   'http',

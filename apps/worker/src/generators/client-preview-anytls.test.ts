@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as yaml from 'js-yaml'
 import { generateEgern, generateQuantumultX, generateShadowrocket, generateSurge } from './client-configs'
 import { generateLoon } from './loon'
-import { generateNodeSubscriptionRaw } from './node-subscription'
+import { generateNodeSubscriptionBase64, generateNodeSubscriptionRaw } from './node-subscription'
 
 const anytlsRow: Record<string, unknown> = {
   id: 'node-anytls',
@@ -444,13 +444,33 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('sni=gateway.example.com')
   })
 
+  it('encodes Unicode node metadata and credentials as UTF-8 Base64', () => {
+    const unicodeSs = {
+      ...anytlsRow,
+      name: '香港节点',
+      protocol: 'ss',
+      parsed_config: JSON.stringify({
+        protocol: 'ss',
+        server: 'hk.example.com',
+        port: 443,
+        password: '密码',
+        extra: { cipher: 'aes-256-gcm' },
+      }),
+    }
+    const raw = generateNodeSubscriptionRaw([unicodeSs])
+    const encoded = generateNodeSubscriptionBase64([unicodeSs])
+
+    expect(raw).toContain('#%E9%A6%99%E6%B8%AF%E8%8A%82%E7%82%B9')
+    expect(Buffer.from(encoded, 'base64').toString('utf8')).toBe(raw)
+  })
+
   it('exports AnyTLS with native Loon positional fields', () => {
     const content = generateLoon([anytlsRow], [autoGroupRow], [], [], collectionNodeNames)
 
     expect(content).toContain(
       'HK AnyTLS = AnyTLS,hk.example.com,443,"secret",sni=hk.example.com,skip-cert-verify=false,udp=true,tls-profile=chrome'
     )
-    expect(content).toContain('HK Auto = url-latency-benchmark, HK AnyTLS')
+    expect(content).toContain('HK Auto = url-test, HK AnyTLS')
   })
 
   it('exports Hysteria 2 with native Loon positional fields', () => {
@@ -463,9 +483,10 @@ describe('AnyTLS preview generators', () => {
     )
 
     expect(content).toContain(
-      'Hysteria 2 = Hysteria2,hy2.example.com,443,"hy2-secret",tls-name=hy2.example.com,skip-cert-verify=true'
+      'Hysteria 2 = Hysteria2,hy2.example.com,443,"hy2-secret",sni=hy2.example.com,skip-cert-verify=true'
     )
-    expect(content).toContain('HK Auto = url-latency-benchmark, Hysteria 2')
+    expect(content).toContain('salamander-password="obfs-secret"')
+    expect(content).toContain('HK Auto = url-test, Hysteria 2')
   })
 
   it('exports SOCKS5 and WireGuard with native Loon fields', () => {
@@ -508,12 +529,10 @@ describe('AnyTLS preview generators', () => {
     )
   })
 
-  it('exports TUIC v5, SSH, and WireGuard with native Surge sections', () => {
+  it('skips incompatible TUIC v5 and exports SSH and WireGuard with native Surge sections', () => {
     const content = generateSurge([tuicRow, sshRow, wireguardRow], [], [], [])
 
-    expect(content).toContain(
-      'TUIC Proxy = tuic-v5, tuic.example.com, 443, uuid=00000000-0000-4000-8000-000000000002, password=tuic-pass, sni=tuic.example.com, skip-cert-verify=true, alpn=h3',
-    )
+    expect(content).not.toContain('TUIC Proxy =')
     expect(content).toContain('SSH Proxy = ssh, ssh.example.com, 22, username=root, password=ssh-pass')
     expect(content).toContain('US WireGuard = wireguard, section-name=wg_node-wireguard')
     expect(content).toContain('[WireGuard wg_node-wireguard]')
@@ -594,6 +613,7 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('tag=HK AnyTLS')
     expect(content).not.toContain('anytls://')
     expect(content).toContain('url-latency-benchmark=HK Auto, HK AnyTLS')
+    expect(content).toContain('check-interval=300')
   })
 
   it('exports AnyTLS nodes in Egern preview', () => {
@@ -630,8 +650,8 @@ describe('AnyTLS preview generators', () => {
       policy_groups: Array<{ auto_test?: { name: string; policies: string[] } }>;
     }
 
-    expect(loon).toContain('HK Auto = url-latency-benchmark, HTTPS Proxy')
-    expect(loon).not.toContain('HK Auto = url-latency-benchmark, HTTPS Proxy, SOCKS Proxy')
+    expect(loon).toContain('HK Auto = url-test, HTTPS Proxy')
+    expect(loon).not.toContain('HK Auto = url-test, HTTPS Proxy, SOCKS Proxy')
     expect(loon).toContain('SOCKS Proxy = socks5,')
     expect(surge).toContain('HK Auto = url-test, HK AnyTLS')
     expect(surge).not.toContain('HK Auto = url-test, HK AnyTLS, US AnyTLS')

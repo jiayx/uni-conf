@@ -315,7 +315,8 @@ function nodeToMihomo(
       const pass = cfg.password ?? (cfg.extra?.auth as string) ?? '';
       const obfs = cfg.extra?.obfs as string | undefined;
       const obfsPassword = cfg.extra?.obfsPassword as string | undefined;
-      let obj = `{name: "${name}", type: hysteria2, server: ${node.server}, port: ${node.port}, password: "${pass}"`;
+      const credentialField = target === 'stash' ? 'auth' : 'password';
+      let obj = `{name: "${name}", type: hysteria2, server: ${node.server}, port: ${node.port}, ${credentialField}: "${pass}"`;
       if (obfs) obj += `, obfs: "${obfs}"`;
       if (obfsPassword) obj += `, obfs-password: "${obfsPassword}"`;
       if (cfg.sni) obj += `, sni: "${cfg.sni}"`;
@@ -328,7 +329,10 @@ function nodeToMihomo(
       const protocol = (cfg.extra?.protocol as string) ?? 'udp';
       const upMbps = (cfg.extra?.upMbps as number) ?? 100;
       const downMbps = (cfg.extra?.downMbps as number) ?? 100;
-      let obj = `{name: "${name}", type: hysteria, server: ${node.server}, port: ${node.port}, auth-str: "${authStr}", protocol: "${protocol}", up: "${upMbps} Mbps", down: "${downMbps} Mbps"`;
+      const bandwidthFields = target === 'stash'
+        ? `up-speed: ${upMbps}, down-speed: ${downMbps}`
+        : `up: "${upMbps} Mbps", down: "${downMbps} Mbps"`;
+      let obj = `{name: "${name}", type: hysteria, server: ${node.server}, port: ${node.port}, auth-str: "${authStr}", protocol: "${protocol}", ${bandwidthFields}`;
       if (cfg.sni) obj += `, sni: "${cfg.sni}"`;
       if (cfg.skipCertVerify) obj += `, skip-cert-verify: true`;
       obj += '}';
@@ -337,7 +341,9 @@ function nodeToMihomo(
     case 'tuic': {
       const uuid = cfg.uuid ?? '';
       const pass = cfg.password ?? '';
-      let obj = `{name: "${name}", type: tuic, server: ${node.server}, port: ${node.port}, uuid: "${uuid}", password: "${pass}"`;
+      let obj = `{name: "${name}", type: tuic, server: ${node.server}, port: ${node.port}`;
+      if (target === 'stash') obj += ', version: 5';
+      obj += `, uuid: "${uuid}", password: "${pass}"`;
       if (cfg.sni) obj += `, sni: "${cfg.sni}"`;
       if (cfg.skipCertVerify) obj += `, skip-cert-verify: true`;
       obj += '}';

@@ -100,6 +100,9 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
     case 'hysteria2': {
       const fields = ['Hysteria2', server, String(port), quoteLoonValue(password || String(extra['auth'] ?? ''))]
       appendLoonTls(fields, parsed, { includeOverTls: false })
+      if (extra['obfs'] === 'salamander' && extra['obfsPassword']) {
+        fields.push(`salamander-password=${quoteLoonValue(String(extra['obfsPassword']))}`)
+      }
       appendBooleanField(fields, 'udp', extra['udp'])
       appendBooleanField(fields, 'fast-open', extra['fastOpen'])
       return `${name} = ${fields.join(',')}`
@@ -125,7 +128,7 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
     case 'https': {
       const username = String(extra['username'] ?? '')
       const fields = [protocol, server, String(port)]
-      if (username || password) fields.push(username, quoteLoonValue(password))
+      if (username || password) fields.push(quoteLoonValue(username), quoteLoonValue(password))
       if (protocol === 'https') appendLoonTls(fields, parsed, { includeOverTls: false })
       return `${name} = ${fields.join(',')}`
     }
@@ -192,7 +195,7 @@ function appendLoonTls(
   options: { includeOverTls?: boolean } = {},
 ): void {
   if (options.includeOverTls !== false) fields.push(`over-tls=${Boolean(parsed['tls'])}`)
-  if (parsed['sni']) fields.push(`tls-name=${String(parsed['sni'])}`)
+  if (parsed['sni']) fields.push(`sni=${String(parsed['sni'])}`)
   if (parsed['skipCertVerify'] !== undefined) {
     fields.push(`skip-cert-verify=${Boolean(parsed['skipCertVerify'])}`)
   }
@@ -256,7 +259,7 @@ function groupToLoon(
   if (type === 'url-test') {
     const testUrl = String(group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl)
     const interval = Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval)
-    return `${name} = url-latency-benchmark, ${members}, url=${testUrl}, interval=${interval}`
+    return `${name} = url-test, ${members}, url=${testUrl}, interval=${interval}`
   }
   if (type === 'fallback') {
     const testUrl = String(group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl)

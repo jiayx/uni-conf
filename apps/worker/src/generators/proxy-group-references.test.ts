@@ -618,7 +618,7 @@ describe('proxy group references', () => {
     expect(loon).toContain('wifi-access-http-port = 7222')
     expect(loon).toContain('proxy-test-url = http://www.gstatic.com/generate_204')
     expect(loon).toContain(
-      'Auto = url-latency-benchmark, Supported SS, url=http://www.gstatic.com/generate_204, interval=300',
+      'Auto = url-test, Supported SS, url=http://www.gstatic.com/generate_204, interval=300',
     )
     expect(loon).toContain('[Proxy Group]')
     expect(loon).toContain('FINAL, PROXY')
@@ -643,7 +643,7 @@ describe('proxy group references', () => {
     expect(quantumultx).toContain('[general]')
     expect(quantumultx).toContain('server_check_url=http://www.gstatic.com/generate_204')
     expect(quantumultx).toContain(
-      'url-latency-benchmark=Auto, Supported SS, url=http://www.gstatic.com/generate_204, interval=300',
+      'url-latency-benchmark=Auto, Supported SS, check-interval=300',
     )
     expect(quantumultx).toContain('[policy]')
     expect(quantumultx).toContain('FINAL,PROXY')
@@ -1101,7 +1101,7 @@ describe('proxy group references', () => {
 
     const loon = generateLoon(nodeRows, rows, [], [], collectionNodeNames)
     expect(loon).toContain(`${ssNode.name} = Shadowsocks`)
-    expect(loon).toContain(`${autoGroup.name} = url-latency-benchmark, ${ssNode.name}`)
+    expect(loon).toContain(`${autoGroup.name} = url-test, ${ssNode.name}`)
 
     const surge = generateSurge(nodeRows, rows, [], [], collectionNodeNames)
     expect(surge).toContain(`${ssNode.name} = ss`)

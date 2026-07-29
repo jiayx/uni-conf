@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import Ajv from 'ajv'
 import Ajv2020 from 'ajv/dist/2020'
 import { describe, expect, it } from 'vitest'
 import * as yaml from 'js-yaml'
@@ -14,6 +15,10 @@ import { renderExportData } from './export-renderer'
 import { validateRenderedExport } from '../services/export-artifact-validation'
 
 const require = createRequire(import.meta.url)
+const mihomoSchema = JSON.parse(
+  readFileSync(require.resolve('meta-json-schema/schemas/meta-json-schema.json'), 'utf8')
+) as Record<string, unknown>
+const validateMihomoSchema = new Ajv({ strict: false }).compile(mihomoSchema)
 const singboxSchema = JSON.parse(
   readFileSync(require.resolve('@black-duty/sing-box-schema/schema.json'), 'utf8')
 ) as Record<string, unknown>
@@ -91,6 +96,41 @@ describe('renderExportData', () => {
         route: { default_domain_resolver: 'localDns' },
       })
     }
+  })
+
+  it('matches the current Mihomo schema for every advertised node protocol', () => {
+    for (const protocol of Object.keys(PROXY_PROTOCOL_REGISTRY) as ProxyProtocol[]) {
+      if (!isNodeProtocolSupportedByExport(protocol, 'mihomo')) continue
+      const rendered = renderExportData(makeExportData(protocol), 'mihomo')
+      const parsed = yaml.load(rendered?.content ?? '') as Record<string, unknown>
+
+      expect(
+        validateMihomoSchema(parsed),
+        `${protocol}: ${JSON.stringify(validateMihomoSchema.errors)}`
+      ).toBe(true)
+    }
+  })
+
+  it('uses Stash-native credential and protocol fields', () => {
+    const hysteria = yaml.load(renderExportData(makeExportData('hysteria'), 'stash')?.content ?? '') as {
+      proxies: Array<Record<string, unknown>>;
+    }
+    const hysteria2 = yaml.load(renderExportData(makeExportData('hysteria2'), 'stash')?.content ?? '') as {
+      proxies: Array<Record<string, unknown>>;
+    }
+    const tuic = yaml.load(renderExportData(makeExportData('tuic'), 'stash')?.content ?? '') as {
+      proxies: Array<Record<string, unknown>>;
+    }
+
+    expect(hysteria.proxies[0]).toMatchObject({
+      type: 'hysteria',
+      'up-speed': 100,
+      'down-speed': 100,
+    })
+    expect(hysteria.proxies[0]).not.toHaveProperty('up')
+    expect(hysteria2.proxies[0]).toMatchObject({ type: 'hysteria2', auth: 'password' })
+    expect(hysteria2.proxies[0]).not.toHaveProperty('password')
+    expect(tuic.proxies[0]).toMatchObject({ type: 'tuic', version: 5 })
   })
 
   it('keeps imported multi-peer WireGuard endpoints valid against the stable sing-box schema', () => {
@@ -329,6 +369,7 @@ function makeNode(protocol: ProxyProtocol = 'ss'): ProxyNode {
       port: 8388,
       password: 'password',
       uuid: '00000000-0000-4000-8000-000000000001',
+      tls: protocol === 'vless',
       extra: {
         cipher: 'aes-256-gcm',
         username: 'user',

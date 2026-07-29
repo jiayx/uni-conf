@@ -1,5 +1,5 @@
 export function generateNodeSubscriptionBase64(nodes: Record<string, unknown>[]): string {
-  return btoa(generateNodeSubscriptionRaw(nodes))
+  return encodeBase64Utf8(generateNodeSubscriptionRaw(nodes))
 }
 
 export function generateNodeSubscriptionRaw(nodes: Record<string, unknown>[]): string {
@@ -22,7 +22,7 @@ export function nodeToSubscriptionUri(node: Record<string, unknown>): string | n
   if (protocol === 'ss') {
     const cipher = String(extra?.['cipher'] ?? 'aes-256-gcm')
     const password = String(parsed?.['password'] ?? '')
-    const credentials = btoa(`${cipher}:${password}`)
+    const credentials = encodeBase64Utf8(`${cipher}:${password}`)
     return `ss://${credentials}@${server}:${port}#${name}`
   }
 
@@ -64,7 +64,7 @@ export function nodeToSubscriptionUri(node: Record<string, unknown>): string | n
       tls: parsed?.['tls'] ? 'tls' : '',
       sni: String(parsed?.['sni'] ?? ''),
     }
-    return `vmess://${btoa(JSON.stringify(vmessObj))}`
+    return `vmess://${encodeBase64Utf8(JSON.stringify(vmessObj))}`
   }
 
   if (protocol === 'vless') {
@@ -192,9 +192,14 @@ function getWsHost(parsed: Record<string, unknown> | null): string | undefined {
 }
 
 function encodeBase64Url(value: string): string {
-  return btoa(encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_, hex: string) =>
-    String.fromCharCode(parseInt(hex, 16))
-  )).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+  return encodeBase64Utf8(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function encodeBase64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
 
 function normalizeAddressParam(value: unknown): string {

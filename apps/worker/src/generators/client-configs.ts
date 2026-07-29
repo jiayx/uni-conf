@@ -400,28 +400,16 @@ function nodeToSurgeProxy(node: Row): string | null {
   if (protocol === 'hysteria2') {
     const fields = [`password=${password || String(extra['auth'] ?? '')}`, ...surgeTlsFields(parsed, extra)]
     if (extra['downMbps']) fields.push(`download-bandwidth=${Number(extra['downMbps'])}`)
-    if (extra['obfs'] === 'salamander' && extra['obfsPassword']) {
-      fields.push(`salamander-password=${String(extra['obfsPassword'])}`)
-    }
-    return `${prefix}, ${fields.join(', ')}`
-  }
-  if (protocol === 'tuic') {
-    const uuid = String(parsed['uuid'] ?? '')
-    if (!uuid || !password) return null
-    const fields = [
-      `uuid=${uuid}`,
-      `password=${password}`,
-      ...surgeTlsFields(parsed, extra),
-    ]
-    const alpn = Array.isArray(extra['alpn']) ? extra['alpn'].map(String).filter(Boolean) : []
-    fields.push(`alpn=${alpn[0] ?? 'h3'}`)
     if (extra['ports'] ?? extra['portHopping']) {
       fields.push(`port-hopping=${String(extra['ports'] ?? extra['portHopping'])}`)
     }
     if (extra['portHoppingInterval'] !== undefined) {
       fields.push(`port-hopping-interval=${Number(extra['portHoppingInterval'])}`)
     }
-    return `${name} = tuic-v5, ${server}, ${port}, ${fields.join(', ')}`
+    if (extra['obfs'] === 'salamander' && extra['obfsPassword']) {
+      fields.push(`salamander-password=${String(extra['obfsPassword'])}`)
+    }
+    return `${prefix}, ${fields.join(', ')}`
   }
   if (protocol === 'ssh') {
     const username = String(extra['username'] ?? extra['user'] ?? '')
@@ -907,9 +895,11 @@ function groupToQuantumultX(
   const type = String(group['type'] ?? 'select')
   const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames).join(',')
   if (type === 'url-test')
-    return `url-latency-benchmark=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+    return `url-latency-benchmark=${name}, ${members}, check-interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   if (type === 'fallback')
-    return `fallback=${name}, ${members}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+    return `available=${name}, ${members}`
+  if (type === 'load-balance')
+    return `round-robin=${name}, ${members}`
   return `static=${name}, ${members}`
 }
 

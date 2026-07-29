@@ -22,8 +22,9 @@
     "@cloudflare/vitest-pool-workers": "^0.18.8",
     "@cloudflare/workers-types": "^5.20260724.1",
     "@types/node": "catalog:",
-    "ajv": "^8.17.1",
     "@vitest/coverage-v8": "catalog:",
+    "ajv": "^8.17.1",
+    "meta-json-schema": "1.19.29",
     "miniflare": "^4.20260722.0",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -223,11 +223,25 @@ describe('export artifact validation', () => {
     expect(validation.issues).not.toContainEqual(expect.objectContaining({ path: 'proxy[2]' }))
   })
 
+  it('rejects legacy Loon policy and TLS parameter names', () => {
+    const validation = validateRenderedExport('loon', [
+      '[General]', 'dns-server=system',
+      '[Proxy]',
+      'Legacy TLS = Trojan,legacy.example.com,443,"secret",tls-name=legacy.example.com',
+      '[Proxy Group]', 'AUTO = url-latency-benchmark, Legacy TLS, url=https://example.com/generate_204, interval=300',
+      '[Rule]', 'FINAL,AUTO',
+    ].join('\n'))
+
+    expect(validation.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'invalid_entry', path: 'proxy[0]' }),
+      expect.objectContaining({ code: 'invalid_entry', path: 'proxy group[0]' }),
+    ]))
+  })
+
   it('accepts current Surge and Loon protocol declarations', () => {
     const surge = validateRenderedExport('surge', [
       '[General]', 'dns-server=system',
       '[Proxy]',
-      'TUIC = tuic-v5, tuic.example.com, 443, uuid=id, password=secret, alpn=h3',
       'SSH = ssh, ssh.example.com, 22, username=root, password=secret',
       'WG = wireguard, section-name=wg_node',
       'Snell = snell, snell.example.com, 44046, psk=secret, version=4',
@@ -236,16 +250,17 @@ describe('export artifact validation', () => {
       'private-key = private',
       'self-ip = 10.0.0.2',
       'peer = (public-key = public, allowed-ips = 0.0.0.0/0, endpoint = wg.example.com:51820)',
-      '[Proxy Group]', 'PROXY = select, TUIC, SSH, WG, Snell, Trust',
+      '[Proxy Group]', 'PROXY = select, SSH, WG, Snell, Trust',
       '[Rule]', 'FINAL,PROXY',
     ].join('\n'))
     const loon = validateRenderedExport('loon', [
       '[General]', 'dns-server=system',
       '[Proxy]',
       'SOCKS = socks5,socks.example.com,1080,"user","password",udp=true',
+      'TLS = Trojan,tls.example.com,443,"secret",sni=tls.example.com',
       'WG = wireguard,interface-ip=10.0.0.2,private-key="private",peers=[{public-key="public",allowed-ips="0.0.0.0/0",endpoint=wg.example.com:51820}],udp=true',
-      '[Proxy Group]', 'PROXY = select, SOCKS, WG',
-      '[Rule]', 'FINAL,PROXY',
+      '[Proxy Group]', 'AUTO = url-test, SOCKS, TLS, WG, url=https://example.com/generate_204, interval=300',
+      '[Rule]', 'FINAL,AUTO',
     ].join('\n'))
 
     expect(surge.issues).toEqual([])
@@ -263,6 +278,22 @@ describe('export artifact validation', () => {
       expect.objectContaining({ code: 'invalid_entry', path: 'server_local[0]' }),
       expect.objectContaining({ code: 'missing_reference', path: 'policy[0]' }),
       expect.objectContaining({ code: 'missing_reference', path: 'filter_local[0]' }),
+    ]))
+  })
+
+  it('rejects policy syntax borrowed from other clients in Quantumult X', () => {
+    const validation = validateRenderedExport('quantumultx', [
+      '[general]', 'server_check_url=https://example.com/generate_204',
+      '[server_local]', 'shadowsocks=example.com:443, method=aes-256-gcm, password=secret, tag=Node',
+      '[policy]',
+      'url-latency-benchmark=AUTO, Node, url=https://example.com/generate_204, interval=300',
+      'fallback=BACKUP, Node',
+      '[filter_local]', 'FINAL,AUTO',
+    ].join('\n'))
+
+    expect(validation.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'invalid_entry', path: 'policy[0]' }),
+      expect.objectContaining({ code: 'invalid_entry', path: 'policy[1]' }),
     ]))
   })
 
