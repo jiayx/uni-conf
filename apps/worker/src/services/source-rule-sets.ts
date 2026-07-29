@@ -5,6 +5,7 @@ import type {
   SourceRemoteRuleSetCandidate,
 } from '@uni-conf/types'
 import { isSafeRemoteHttpUrl } from './safe-remote-fetch'
+import { DEFAULT_WORKSPACE_ID } from './workspaces'
 
 export function discoverSourceRemoteRuleSets(
   rawContent: string,
@@ -66,10 +67,11 @@ export function discoverSourceRemoteRuleSets(
 export async function listSourceRemoteRuleSets(
   db: D1Database,
   sourceId: string,
+  workspaceId = DEFAULT_WORKSPACE_ID,
 ): Promise<SourceRemoteRuleSetCandidate[] | null> {
   const source = await db.prepare(
-    'SELECT raw_content, format, url FROM sources WHERE id = ? AND type != ?'
-  ).bind(sourceId, 'manual').first<{
+    'SELECT raw_content, format, url FROM sources WHERE id = ? AND workspace_id = ? AND type != ?'
+  ).bind(sourceId, workspaceId, 'manual').first<{
     raw_content: string | null
     format: SourceFormat
     url: string | null
@@ -82,20 +84,21 @@ export async function syncSourceLinkedRemoteRuleSets(
   db: D1Database,
   sourceId: string,
   ts: string,
+  workspaceId = DEFAULT_WORKSPACE_ID,
 ): Promise<void> {
-  const candidates = await listSourceRemoteRuleSets(db, sourceId)
+  const candidates = await listSourceRemoteRuleSets(db, sourceId, workspaceId)
   if (candidates === null) return
   const candidateByKey = new Map(candidates.map(candidate => [candidate.key, candidate]))
   const { results } = await db.prepare(
     `SELECT id, source_rule_set_key
      FROM remote_rule_sets
-     WHERE source_id = ?`
-  ).bind(sourceId).all<{ id: string; source_rule_set_key: string | null }>()
+     WHERE source_id = ? AND workspace_id = ?`
+  ).bind(sourceId, workspaceId).all<{ id: string; source_rule_set_key: string | null }>()
   if (results.length === 0) return
 
   const statements: D1PreparedStatement[] = [
-    db.prepare('UPDATE remote_rule_sets SET source_missing = 1, updated_at = ? WHERE source_id = ?')
-      .bind(ts, sourceId),
+    db.prepare('UPDATE remote_rule_sets SET source_missing = 1, updated_at = ? WHERE source_id = ? AND workspace_id = ?')
+      .bind(ts, sourceId, workspaceId),
   ]
   for (const row of results) {
     const candidate = row.source_rule_set_key ? candidateByKey.get(row.source_rule_set_key) : undefined

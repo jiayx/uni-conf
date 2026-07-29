@@ -49,7 +49,6 @@ const REQUIRED_EXPORT_KEYS = [
   'validation_warning_summary',
   'validation_blocked_summary',
   'validation_summary_with_lines',
-  'validation_more',
 ]
 
 describe('export i18n keys', () => {

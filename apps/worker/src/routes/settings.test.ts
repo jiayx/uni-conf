@@ -79,7 +79,7 @@ describe('settings route helpers', () => {
 
     expect(language.sql).toContain('language = ?')
     expect(language.sql).not.toContain('theme = ?')
-    expect(language.values).toEqual(['en', '2026-07-24T00:00:00.000Z'])
+    expect(language.values).toEqual(['en', '2026-07-24T00:00:00.000Z', 'default'])
   })
 
   it('updates routing scenarios independently from other settings', () => {
@@ -90,7 +90,7 @@ describe('settings route helpers', () => {
 
     expect(update.sql).toContain('routing_policy_scenarios = ?')
     expect(update.sql).not.toContain('language = ?')
-    expect(update.values).toEqual(['["streaming","diagnostics"]', '2026-07-24T00:00:00.000Z'])
+    expect(update.values).toEqual(['["streaming","diagnostics"]', '2026-07-24T00:00:00.000Z', 'default'])
   })
 
   it('updates the unmatched traffic policy independently', () => {
@@ -100,7 +100,7 @@ describe('settings route helpers', () => {
     )
 
     expect(update.sql).toContain('unmatched_traffic_policy = ?')
-    expect(update.values).toEqual(['direct', '2026-07-24T00:00:00.000Z'])
+    expect(update.values).toEqual(['direct', '2026-07-24T00:00:00.000Z', 'default'])
   })
 
   it('stores the global DNS policy in canonical form', () => {
@@ -115,6 +115,7 @@ describe('settings route helpers', () => {
       'single',
       '["*.example.local","api.example.com"]',
       '2026-07-24T00:00:00.000Z',
+      'default',
     ])
   })
 
@@ -134,6 +135,7 @@ describe('settings route helpers', () => {
       '["select","fallback"]',
       null,
       '2026-07-24T00:00:00.000Z',
+      'default',
     ])
   })
 })

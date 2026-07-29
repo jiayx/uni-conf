@@ -18,6 +18,7 @@ describe('database migrations', () => {
 
   it('contains every current table and recently added field', () => {
     for (const table of [
+      'workspaces',
       'sources',
       'source_import_runs',
       'nodes',
@@ -38,6 +39,24 @@ describe('database migrations', () => {
     expect(tableDefinition('remote_rule_sets')).toContain('source_overrides TEXT NOT NULL DEFAULT')
     expect(tableDefinition('export_configs')).toContain('rule_set_conversion_policy TEXT')
     expect(tableDefinition('app_settings')).toContain('rule_set_conversion_policy TEXT NOT NULL')
+
+    for (const table of [
+      'sources',
+      'source_import_runs',
+      'nodes',
+      'collections',
+      'groups',
+      'rules',
+      'remote_rule_sets',
+      'export_configs',
+    ]) {
+      const definition = tableDefinition(table)
+      expect(definition).toContain('workspace_id TEXT NOT NULL')
+      expect(definition).toContain('FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE')
+    }
+
+    const settings = tableDefinition('app_settings')
+    expect(settings).toContain('FOREIGN KEY (id) REFERENCES workspaces(id) ON DELETE CASCADE')
   })
 
   it('keeps the managed zero-setup graph in the canonical schema', () => {

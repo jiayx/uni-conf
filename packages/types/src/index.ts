@@ -87,6 +87,14 @@ export type CompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupported';
 // Core Data Models
 // ============================================================
 
+export interface Workspace {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProxySource {
   id: string;
   name: string;
@@ -452,6 +460,7 @@ export interface RemoteRuleSetConversionPreview {
 
 export interface ExportConfig {
   id: string;
+  workspaceId?: string;
   name: string;
   format: ExportFormat;
   token: string; // for /sub/:token/:format URLs

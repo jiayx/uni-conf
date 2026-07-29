@@ -201,24 +201,55 @@ describe('export artifact validation', () => {
     ]))
   })
 
-  it('rejects generic named fields and undocumented protocols in Loon proxy entries', () => {
+  it('accepts native AnyTLS and rejects generic named fields in Loon proxy entries', () => {
     const validation = validateRenderedExport('loon', [
       '[General]', 'dns-server=system',
       '[Proxy]',
       'Legacy SS = Shadowsocks, example.com, 443, encrypt-method=aes-256-gcm, password=secret',
       'Legacy VMess = vmess, vmess.example.com, 443, username=uuid',
-      'Guessed AnyTLS = anytls, anytls.example.com, 443, password=secret',
+      'Native AnyTLS = AnyTLS, anytls.example.com, 443, "secret", sni=anytls.example.com, udp=true',
+      'Legacy AnyTLS = AnyTLS, legacy-anytls.example.com, 443, password=secret',
       'gRPC VLESS = VLESS, grpc.example.com, 443, "uuid", transport=grpc, over-tls=true',
-      '[Proxy Group]', 'PROXY = select, Legacy SS, Legacy VMess, Guessed AnyTLS, gRPC VLESS',
+      '[Proxy Group]', 'PROXY = select, Legacy SS, Legacy VMess, Native AnyTLS, Legacy AnyTLS, gRPC VLESS',
       '[Rule]', 'FINAL,PROXY',
     ].join('\n'))
 
     expect(validation.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'invalid_entry', path: 'proxy[0]' }),
       expect.objectContaining({ code: 'missing_field', path: 'proxy[1]' }),
-      expect.objectContaining({ code: 'invalid_entry', path: 'proxy[2]' }),
-      expect.objectContaining({ code: 'invalid_value', path: 'proxy[3]' }),
+      expect.objectContaining({ code: 'invalid_entry', path: 'proxy[3]' }),
+      expect.objectContaining({ code: 'invalid_value', path: 'proxy[4]' }),
     ]))
+    expect(validation.issues).not.toContainEqual(expect.objectContaining({ path: 'proxy[2]' }))
+  })
+
+  it('accepts current Surge and Loon protocol declarations', () => {
+    const surge = validateRenderedExport('surge', [
+      '[General]', 'dns-server=system',
+      '[Proxy]',
+      'TUIC = tuic-v5, tuic.example.com, 443, uuid=id, password=secret, alpn=h3',
+      'SSH = ssh, ssh.example.com, 22, username=root, password=secret',
+      'WG = wireguard, section-name=wg_node',
+      'Snell = snell, snell.example.com, 44046, psk=secret, version=4',
+      'Trust = trust-tunnel, trust.example.com, 443, username=user, password=secret',
+      '[WireGuard wg_node]',
+      'private-key = private',
+      'self-ip = 10.0.0.2',
+      'peer = (public-key = public, allowed-ips = 0.0.0.0/0, endpoint = wg.example.com:51820)',
+      '[Proxy Group]', 'PROXY = select, TUIC, SSH, WG, Snell, Trust',
+      '[Rule]', 'FINAL,PROXY',
+    ].join('\n'))
+    const loon = validateRenderedExport('loon', [
+      '[General]', 'dns-server=system',
+      '[Proxy]',
+      'SOCKS = socks5,socks.example.com,1080,"user","password",udp=true',
+      'WG = wireguard,interface-ip=10.0.0.2,private-key="private",peers=[{public-key="public",allowed-ips="0.0.0.0/0",endpoint=wg.example.com:51820}],udp=true',
+      '[Proxy Group]', 'PROXY = select, SOCKS, WG',
+      '[Rule]', 'FINAL,PROXY',
+    ].join('\n'))
+
+    expect(surge.issues).toEqual([])
+    expect(loon.issues).toEqual([])
   })
 
   it('detects dangling Quantumult X policy and rule references', () => {

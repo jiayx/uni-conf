@@ -199,7 +199,16 @@ function parseURLStyle(
     let uuid: string | undefined
     let username: string | undefined
 
-    if (protocol === 'vless' || protocol === 'trojan' || protocol === 'hysteria' || protocol === 'hysteria2' || protocol === 'anytls' || protocol === 'shadowtls') {
+    if (
+      protocol === 'vless'
+      || protocol === 'trojan'
+      || protocol === 'hysteria'
+      || protocol === 'hysteria2'
+      || protocol === 'anytls'
+      || protocol === 'shadowtls'
+      || protocol === 'snell'
+      || protocol === 'sudoku'
+    ) {
       // userinfo is password or uuid (no colon separator for trojan/vless)
       if (userinfo.includes(':')) {
         // tuic: uuid:password
@@ -210,7 +219,7 @@ function parseURLStyle(
         if (protocol === 'vless') uuid = decodeURIComponent(userinfo)
         else password = decodeURIComponent(userinfo)
       }
-    } else if (protocol === 'tuic') {
+    } else if (protocol === 'tuic' || protocol === 'juicity') {
       const colonIdx = userinfo.indexOf(':')
       uuid = decodeURIComponent(userinfo.slice(0, colonIdx))
       password = decodeURIComponent(userinfo.slice(colonIdx + 1))
@@ -242,6 +251,8 @@ function parseURLStyle(
       protocol === 'anytls' ||
       protocol === 'shadowtls' ||
       protocol === 'naive' ||
+      protocol === 'trusttunnel' ||
+      protocol === 'juicity' ||
       params.get('security') === 'tls' ||
       params.get('tls') === '1' ||
       params.get('security') === 'reality'
@@ -269,6 +280,8 @@ function parseURLStyle(
     extra.ip = params.get('address') || params.get('ip') || undefined
     extra.alpn = params.get('alpn') || undefined
     extra.fingerprint = params.get('fp') || params.get('fingerprint') || undefined
+    extra.psk = protocol === 'snell' ? password : params.get('psk') || undefined
+    extra.key = protocol === 'sudoku' ? password : params.get('key') || undefined
     extra.tls = tls
     extra.sni = sni
     extra.skipCertVerify = skipCertVerify
@@ -343,6 +356,18 @@ export function parseProxyLink(uri: string, sourceId: string): ProxyNode | null 
     partial = parseURLStyle(trimmed, 'wg', 'wireguard')
   } else if (trimmed.startsWith('ssh://')) {
     partial = parseURLStyle(trimmed, 'ssh', 'ssh')
+  } else if (trimmed.startsWith('snell://')) {
+    partial = parseURLStyle(trimmed, 'snell', 'snell')
+  } else if (trimmed.startsWith('mieru://')) {
+    partial = parseURLStyle(trimmed, 'mieru', 'mieru')
+  } else if (trimmed.startsWith('sudoku://')) {
+    partial = parseURLStyle(trimmed, 'sudoku', 'sudoku')
+  } else if (trimmed.startsWith('trusttunnel://')) {
+    partial = parseURLStyle(trimmed, 'trusttunnel', 'trusttunnel')
+  } else if (trimmed.startsWith('trust-tunnel://')) {
+    partial = parseURLStyle(trimmed, 'trust-tunnel', 'trusttunnel')
+  } else if (trimmed.startsWith('juicity://')) {
+    partial = parseURLStyle(trimmed, 'juicity', 'juicity')
   } else if (trimmed.startsWith('naive+https://')) {
     partial = parseURLStyle(trimmed, 'naive+https', 'naive')
   } else if (trimmed.startsWith('naive://')) {

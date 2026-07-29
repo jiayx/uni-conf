@@ -11,6 +11,7 @@ import {
 import { isEnabledTargetGroup, listEnabledTargetGroupIds, normalizeRuleTargetGroupId } from '../services/group-targets';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { validateOptionalBooleanFields } from '../services/request-validation';
+import { requestWorkspaceId } from '../services/workspaces';
 
 const app = new Hono<{ Bindings: Env }>();
 const RULE_BATCH_SQL_CHUNK_SIZE = 90;
@@ -18,10 +19,10 @@ const RULE_BATCH_SQL_CHUNK_SIZE = 90;
 // ─── List rules ───────────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-
+  const workspaceId = requestWorkspaceId(c);
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM rules ORDER BY sort_order ASC, created_at ASC'
-  ).all<Record<string, unknown>>();
+    'SELECT * FROM rules WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC'
+  ).bind(workspaceId).all<Record<string, unknown>>();
 
   return c.json({ success: true, data: results.map(mapRule) });
 });
@@ -29,14 +30,15 @@ app.get('/', async (c) => {
 // ─── Reorder rules ────────────────────────────────────────────────────────────
 
 app.post('/reorder', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const validation = validateRuleReorderInput(await c.req.json<unknown>());
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
   }
 
   const { results: currentRows } = await c.env.DB.prepare(
-    'SELECT id FROM rules'
-  ).all<{ id: string }>();
+    'SELECT id FROM rules WHERE workspace_id = ?'
+  ).bind(workspaceId).all<{ id: string }>();
   const currentIds = new Set(currentRows.map(row => row.id));
   if (
     validation.ids.length !== currentRows.length
@@ -55,15 +57,15 @@ app.post('/reorder', async (c) => {
   const ts = now();
   const stmts = validation.ids.map((id, index) =>
     c.env.DB.prepare(
-      'UPDATE rules SET sort_order = ?, updated_at = ? WHERE id = ?'
-    ).bind(index, ts, id)
+      'UPDATE rules SET sort_order = ?, updated_at = ? WHERE id = ? AND workspace_id = ?'
+    ).bind(index, ts, id, workspaceId)
   );
 
   await c.env.DB.batch(stmts);
 
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM rules ORDER BY sort_order ASC, created_at ASC'
-  ).all<Record<string, unknown>>();
+    'SELECT * FROM rules WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC'
+  ).bind(workspaceId).all<Record<string, unknown>>();
 
   return c.json({ success: true, data: results.map(mapRule) });
 });
@@ -71,6 +73,7 @@ app.post('/reorder', async (c) => {
 // ─── Batch create rules ───────────────────────────────────────────────────────
 
 app.post('/batch', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const validation = validateRuleBatchCreateInput(await c.req.json<unknown>());
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
@@ -84,13 +87,13 @@ app.post('/batch', async (c) => {
   }
 
   const ts = now();
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
   const maxRow = await c.env.DB.prepare(
-    'SELECT MAX(sort_order) as max_order FROM rules'
-  ).first<{ max_order: number | null }>();
+    'SELECT MAX(sort_order) as max_order FROM rules WHERE workspace_id = ?'
+  ).bind(workspaceId).first<{ max_order: number | null }>();
   let nextOrder = (maxRow?.max_order ?? -1) + 1;
-  const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB);
+  const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB, workspaceId);
   const prepared: Array<{
     id: string;
     rule: Partial<ProxyRule> & Pick<ProxyRule, 'type'>;
@@ -100,7 +103,7 @@ app.post('/batch', async (c) => {
   }> = [];
 
   for (const rule of validation.rules) {
-    const targetGroupId = normalizeRuleTargetGroupId(rule.targetGroupId);
+    const targetGroupId = normalizeRuleTargetGroupId(rule.targetGroupId, workspaceId);
     if (!enabledTargetGroupIds.has(targetGroupId)) {
       return c.json({ success: false, error: `target group is disabled or missing: ${targetGroupId}` }, 400);
     }
@@ -123,8 +126,8 @@ app.post('/batch', async (c) => {
 
   const statements = prepared.map(({ id, rule, targetGroupId, sortOrder, compatibility }) =>
     c.env.DB.prepare(
-      `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
@@ -138,7 +141,8 @@ app.post('/batch', async (c) => {
         normalizeNullableRuleText(rule.notes),
         jsonStringify(compatibility),
         ts,
-        ts
+        ts,
+        workspaceId
       )
   );
   await c.env.DB.batch(statements);
@@ -164,6 +168,7 @@ app.post('/batch', async (c) => {
 // ─── Batch enable / disable rules ─────────────────────────────────────────────
 
 app.put('/batch-enabled', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const validation = validateRuleBatchEnabledInput(await c.req.json<unknown>());
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
@@ -173,9 +178,9 @@ app.put('/batch-enabled', async (c) => {
   for (const ids of chunkValues(validation.ids, RULE_BATCH_SQL_CHUNK_SIZE)) {
     const placeholders = ids.map(() => '?').join(', ');
     const { results } = await c.env.DB.prepare(
-      `SELECT id FROM rules WHERE id IN (${placeholders})`
+      `SELECT id FROM rules WHERE workspace_id = ? AND id IN (${placeholders})`
     )
-      .bind(...ids)
+      .bind(workspaceId, ...ids)
       .all<{ id: string }>();
     for (const row of results) existingIds.add(row.id);
   }
@@ -191,11 +196,11 @@ app.put('/batch-enabled', async (c) => {
   const statements = chunkValues(validation.ids, RULE_BATCH_SQL_CHUNK_SIZE).map(ids => {
     const placeholders = ids.map(() => '?').join(', ');
     return c.env.DB.prepare(
-      `UPDATE rules SET enabled = ?, updated_at = ? WHERE id IN (${placeholders})`
-    ).bind(validation.enabled ? 1 : 0, ts, ...ids);
+      `UPDATE rules SET enabled = ?, updated_at = ? WHERE workspace_id = ? AND id IN (${placeholders})`
+    ).bind(validation.enabled ? 1 : 0, ts, workspaceId, ...ids);
   });
   await c.env.DB.batch(statements);
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
   return c.json({
     success: true,
@@ -210,34 +215,35 @@ app.put('/batch-enabled', async (c) => {
 // ─── Create rule ──────────────────────────────────────────────────────────────
 
 app.post('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const body = await c.req.json<Partial<ProxyRule>>();
   const error = validateRuleInput(body);
   if (error) {
     return c.json({ success: false, error }, 400);
   }
   const ruleType = body.type as ProxyRule['type'];
-  const targetGroupId = normalizeRuleTargetGroupId(body.targetGroupId);
+  const targetGroupId = normalizeRuleTargetGroupId(body.targetGroupId, workspaceId);
   const normalizedPayload = validateAndNormalizeRulePayload(ruleType, body.payload);
   if (!normalizedPayload.valid) {
     return c.json({ success: false, error: normalizedPayload.message }, 400);
   }
   const payload = normalizedPayload.payload;
   const ts = now();
-  await ensureZeroSetupDefaults(c.env.DB, ts);
-  if (!(await isEnabledTargetGroup(c.env.DB, targetGroupId))) {
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
+  if (!(await isEnabledTargetGroup(c.env.DB, targetGroupId, workspaceId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
   }
 
   const id = newId();
 
   const maxRow = await c.env.DB.prepare(
-    'SELECT MAX(sort_order) as max_order FROM rules'
-  ).first<{ max_order: number | null }>();
+    'SELECT MAX(sort_order) as max_order FROM rules WHERE workspace_id = ?'
+  ).bind(workspaceId).first<{ max_order: number | null }>();
   const sortOrder = body.order ?? (maxRow?.max_order ?? -1) + 1;
 
   await c.env.DB.prepare(
-    `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -251,12 +257,13 @@ app.post('/', async (c) => {
       body.notes ?? null,
       jsonStringify(getRuleCompatibilityForPayload(ruleType, payload)),
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run();
 
-  const row = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapRule(row!) }, 201);
@@ -265,9 +272,9 @@ app.post('/', async (c) => {
 // ─── Get rule ─────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-
-  const row = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c);
+  const row = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) return c.json({ success: false, error: 'Rule not found' }, 404);
@@ -277,9 +284,10 @@ app.get('/:id', async (c) => {
 // ─── Update rule ──────────────────────────────────────────────────────────────
 
 app.put('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ?')
-    .bind(id)
+  const existing = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Rule not found' }, 404);
@@ -288,7 +296,7 @@ app.put('/:id', async (c) => {
   const booleanError = validateOptionalBooleanFields(body, ['noResolve', 'enabled']);
   if (booleanError) return c.json({ success: false, error: booleanError }, 400);
   const ts = now();
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
   const nextType = (body.type ?? existing.type) as ProxyRule['type'];
   const nextPayload = (body.payload ?? existing.payload) as string;
   if (!isValidRuleType(nextType)) {
@@ -301,7 +309,7 @@ app.put('/:id', async (c) => {
   if (body.targetGroupId !== undefined && !isNonEmptyString(body.targetGroupId)) {
     return c.json({ success: false, error: 'targetGroupId is required' }, 400);
   }
-  if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId))) {
+  if (body.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, body.targetGroupId, workspaceId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400);
   }
 
@@ -310,7 +318,7 @@ app.put('/:id', async (c) => {
       name = ?, type = ?, payload = ?, no_resolve = ?,
       target_group_id = ?, enabled = ?, sort_order = ?,
       notes = ?, compatibility = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   )
     .bind(
       body.name !== undefined ? normalizeNullableRuleText(body.name) : existing.name,
@@ -323,12 +331,13 @@ app.put('/:id', async (c) => {
       body.notes !== undefined ? normalizeNullableRuleText(body.notes) : existing.notes,
       jsonStringify(getRuleCompatibilityForPayload(nextType, normalizedPayload.payload)),
       ts,
-      id
+      id,
+      workspaceId
     )
     .run();
 
-  const updated = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ?')
-    .bind(id)
+  const updated = await c.env.DB.prepare('SELECT * FROM rules WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapRule(updated!) });
@@ -337,12 +346,13 @@ app.put('/:id', async (c) => {
 // ─── Delete rule ──────────────────────────────────────────────────────────────
 
 app.delete('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT id FROM rules WHERE id = ?').bind(id).first();
+  const row = await c.env.DB.prepare('SELECT id FROM rules WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).first();
 
   if (!row) return c.json({ success: false, error: 'Rule not found' }, 404);
-  await c.env.DB.prepare('DELETE FROM rules WHERE id = ?').bind(id).run();
-  await ensureZeroSetupDefaults(c.env.DB, now());
+  await c.env.DB.prepare('DELETE FROM rules WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).run();
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId);
   return c.json({ success: true, data: { id } });
 });
 

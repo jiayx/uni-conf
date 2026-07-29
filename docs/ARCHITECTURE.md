@@ -164,6 +164,8 @@ URL
 
 预览、下载和公开订阅复用同一数据构建与生成链路。节点订阅会跳过策略组、规则集和 DNS，因为这些内容不在 URI 订阅中。
 
+公开订阅文件名：`/sub/{token}/mihomo.yaml`、`/sub/{token}/clash.yaml`、`/sub/{token}/singbox.json`、`/sub/{token}/loon.conf`、`/sub/{token}/surge.conf`、`/sub/{token}/shadowrocket.conf`、`/sub/{token}/quantumultx.conf`、`/sub/{token}/stash.yaml`、`/sub/{token}/egern.yaml`、`/sub/{token}/nodes.txt`、`/sub/{token}/nodes-raw.txt`。
+
 ### 规则目录
 
 根目录 `resources/rule-set-catalogs.json` 列出目录定义。生成脚本读取每个仓库映射并生成紧凑快照，Worker 将该快照打包为离线初始值。运行时可以从 GitHub 刷新目录并存入 KV。
@@ -175,6 +177,8 @@ URL
 - 生产环境在缺少 `API_KEY` 或 `ALLOWED_ORIGIN` 时 readiness 失败
 - `/api/health` 和 `/api/ready` 公开，其他管理 API 使用可选 Bearer Token；生产必须配置
 - `/sub/*` 使用导出档案 Token，并有独立 KV 限流
+- 管理 API 通过 `X-Workspace-Id` 选择配置空间；没有请求头时使用默认空间
+- 公开订阅通过唯一导出 Token 反查配置空间，不要求使用者拥有管理身份
 - 管理 API body 上限 25 MiB；配置源内容上限 4 MiB
 - 远程 URL 必须是公开 HTTP(S)，禁止 URL 凭据、私网/保留地址和危险重定向
 - Worker 启用 `global_fetch_strictly_public`

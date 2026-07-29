@@ -5,6 +5,17 @@
 ## 关系概览
 
 ```text
+workspaces
+  ├─ sources
+  ├─ source_import_runs
+  ├─ nodes
+  ├─ collections
+  ├─ groups
+  ├─ rules
+  ├─ remote_rule_sets
+  ├─ export_configs
+  └─ app_settings
+
 sources
   ├─ nodes
   ├─ source_import_runs
@@ -25,8 +36,14 @@ export_configs
   └─ 通过 JSON ID 列表选择 collections/groups/rules/remote_rule_sets
 
 app_settings
-  └─ singleton
+  └─ 每个 workspace 一行，主键同时是 workspace ID
 ```
+
+## `workspaces`
+
+单管理员部署中的配置隔离单元。默认空间 ID 为 `default`，不能删除；其他空间可以创建、重命名和删除。
+
+`sources`、`source_import_runs`、`nodes`、`collections`、`groups`、`rules`、`remote_rule_sets` 和 `export_configs` 都通过 `workspace_id` 归属空间，删除空间时级联清理。管理 API 使用 `X-Workspace-Id` 选择当前空间，未提供时使用默认空间。公开订阅不依赖该请求头，而是通过导出 Token 自动确定所属空间。
 
 ## `sources`
 
@@ -195,11 +212,11 @@ app_settings
 - `rule_set_conversion_policy`：`compatible`、`strict` 或 `NULL` 继承全局
 - `extra_config`：预留的目标格式扩展对象
 
-系统默认档案 ID 固定，由服务自动创建，不可删除，只允许暂停/恢复。它可以针对任意请求格式生成全量配置。高级档案固定一个格式并使用自己的范围。
+每个配置空间都有自己的系统默认档案，由服务自动创建，不可删除，只允许暂停/恢复。它可以针对任意请求格式生成全量配置。高级档案固定一个格式并使用自己的范围。
 
 ## `app_settings`
 
-固定主键 `singleton`。
+每个配置空间一行，主键为对应的 `workspaces.id`。
 
 | 字段                           | 当前含义                                                            |
 | ------------------------------ | ------------------------------------------------------------------- |

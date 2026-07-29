@@ -81,10 +81,10 @@ describe('source auto refresh', () => {
 
     expect(refreshSourceById).toHaveBeenCalledTimes(2);
     expect(ensureZeroSetupDefaults).toHaveBeenCalledTimes(2);
-    expect(ensureZeroSetupDefaults).toHaveBeenNthCalledWith(1, db, '2026-06-21T12:00:00.000Z');
-    expect(ensureZeroSetupDefaults).toHaveBeenNthCalledWith(2, db, '2026-06-21T12:00:00.000Z');
-    expect(refreshSourceById).toHaveBeenNthCalledWith(1, db, 'source-ok');
-    expect(refreshSourceById).toHaveBeenNthCalledWith(2, db, 'source-fail');
+    expect(ensureZeroSetupDefaults).toHaveBeenNthCalledWith(1, db, '2026-06-21T12:00:00.000Z', 'default');
+    expect(ensureZeroSetupDefaults).toHaveBeenNthCalledWith(2, db, '2026-06-21T12:00:00.000Z', 'default');
+    expect(refreshSourceById).toHaveBeenNthCalledWith(1, db, 'source-ok', 'default');
+    expect(refreshSourceById).toHaveBeenNthCalledWith(2, db, 'source-fail', 'default');
     expect(recordSourceRefreshError).toHaveBeenCalledWith(db, 'source-fail', 'network failed');
     expect(result).toMatchObject({
       checkedCount: 3,
@@ -125,8 +125,8 @@ describe('source auto refresh', () => {
 
 function createMockDb(rows: Array<{ id: string; last_updated: string | null; update_interval: number | null }>): D1Database {
   return {
-    prepare: vi.fn(() => ({
-      all: async () => ({ results: rows }),
+    prepare: vi.fn((sql: string) => ({
+      all: async () => ({ results: sql.includes('FROM workspaces') ? [{ id: 'default' }] : rows }),
       bind: vi.fn(() => ({
         all: async () => ({ results: rows }),
         first: async () => null,

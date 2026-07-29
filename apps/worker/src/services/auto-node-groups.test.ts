@@ -224,7 +224,7 @@ function createMockDb({
 }) {
   const operations: Array<Record<string, unknown>> = [];
   const selectAll = async (sql: string) => {
-    if (sql.includes("FROM collections WHERE notes IS NOT NULL AND notes != ''")) {
+    if (sql.includes('FROM collections WHERE workspace_id = ?') && sql.includes("notes IS NOT NULL AND notes != ''")) {
       return { results: autoCollections };
     }
     if (sql.includes('SELECT country_code, country, tags')) {
@@ -241,8 +241,8 @@ function createMockDb({
       bind: (...args: unknown[]) => ({
         all: async () => selectAll(sql),
         first: async () => {
-          if (sql.includes('SELECT id FROM groups WHERE is_builtin = 0')) {
-            const collectionIds = String(args[0]);
+          if (sql.includes('SELECT id FROM groups WHERE workspace_id = ? AND is_builtin = 0')) {
+            const collectionIds = String(args[1]);
             const id = linkedGroups[collectionIds];
             return id ? { id } : null;
           }
@@ -264,7 +264,7 @@ function createMockDb({
 
 function operationFromSql(sql: string, args: unknown[]): Record<string, unknown> {
   if (sql.startsWith('DELETE FROM groups')) {
-    return { operation: 'delete-groups', collectionIds: args[0] };
+    return { operation: 'delete-groups', collectionIds: args[1] };
   }
   if (sql.startsWith('DELETE FROM collections')) {
     return { operation: 'delete-collection', id: args[0] };

@@ -37,7 +37,7 @@ describe('export validation', () => {
 
   it('blocks downloads when no node protocol can be rendered for the target format', () => {
     expect(findBlockingNodeExportWarning(makeExportData({
-      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+      nodes: [makeNode('node-naive', 'Naive 01', { protocol: 'naive' })],
     }), 'mihomo')).toEqual(expect.objectContaining({
       client: 'mihomo',
       level: 'unsupported',
@@ -45,7 +45,7 @@ describe('export validation', () => {
     }));
 
     expect(findBlockingNodeExportWarning(makeExportData({
-      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+      nodes: [makeNode('node-ssh', 'SSH 01', { protocol: 'ssh' })],
     }), 'singbox')).toBeNull();
   });
 
@@ -84,7 +84,7 @@ describe('export validation', () => {
 
   it('keeps no-supported-node readiness warnings when compatibility warnings are disabled', () => {
     const warnings = resolveExportWarnings(makeExportData({
-      nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
+      nodes: [makeNode('node-naive', 'Naive 01', { protocol: 'naive' })],
     }), 'mihomo', {
       showCompatibilityWarnings: false,
     });
@@ -95,8 +95,8 @@ describe('export validation', () => {
       message: expect.stringContaining('没有可导出到 mihomo 的节点'),
     }));
     expect(warnings).not.toContainEqual(expect.objectContaining({
-      nodeId: 'node-wg',
-      message: expect.stringContaining('wireguard'),
+      nodeId: 'node-naive',
+      message: expect.stringContaining('naive'),
     }));
   });
 
@@ -188,32 +188,32 @@ describe('export validation', () => {
     const warnings = validateExportData(makeExportData({
       nodes: [
         makeNode('node-ss', 'HK 01'),
-        makeNode('node-wg', 'WG 01', { protocol: 'wireguard' }),
-        makeNode('manual-wg', 'Manual WG', {
-          protocol: 'wireguard',
+        makeNode('node-naive', 'Naive 01', { protocol: 'naive' }),
+        makeNode('manual-naive', 'Manual Naive', {
+          protocol: 'naive',
           sourceId: 'manual',
           isManual: true,
         }),
       ],
       groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
-      collectionNodeNames: { 'collection-auto': ['HK 01', 'WG 01'] },
+      collectionNodeNames: { 'collection-auto': ['HK 01', 'Naive 01'] },
     }), 'mihomo');
 
     expect(warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        nodeId: 'node-wg',
+        nodeId: 'node-naive',
         level: 'partial',
-        message: expect.stringContaining('wireguard'),
+        message: expect.stringContaining('naive'),
         remediation: { target: 'sources', id: 'source-1' },
       }),
       expect.objectContaining({
-        nodeId: 'manual-wg',
-        remediation: { target: 'nodes', id: 'manual-wg' },
+        nodeId: 'manual-naive',
+        remediation: { target: 'nodes', id: 'manual-naive' },
       }),
       expect.objectContaining({
         groupId: 'auto',
         level: 'unsupported',
-        message: expect.stringContaining('WG 01'),
+        message: expect.stringContaining('Naive 01'),
       }),
     ]));
   });

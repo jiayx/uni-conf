@@ -290,7 +290,7 @@ describe('rules route helpers', () => {
     const statements = db.__batch.mock.calls[0]?.[0] as Array<{ __sql: string }>
     expect(statements).toHaveLength(1)
     expect(statements[0]?.__sql).not.toContain('sort_order')
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('rejects a batch when any selected rule no longer exists', async () => {
@@ -321,8 +321,8 @@ describe('rules route helpers', () => {
     expect(db.__batch).toHaveBeenCalledOnce()
     const statements = db.__batch.mock.calls[0]?.[0] as Array<{ __args: unknown[] }>
     expect(statements.map(statement => statement.__args)).toEqual([
-      [0, expect.any(String), 'rule-2'],
-      [1, expect.any(String), 'rule-1'],
+      [0, expect.any(String), 'rule-2', 'default'],
+      [1, expect.any(String), 'rule-1', 'default'],
     ])
   })
 
@@ -414,7 +414,9 @@ function createRuleBatchMockDb(existingIds: string[]): D1Database & {
         first: async () => null,
         all: async () => ({
           results: sql.includes('SELECT id FROM rules')
-            ? existingIds.filter(id => args.includes(id)).map(id => ({ id }))
+            ? (args.length === 1
+              ? existingIds
+              : existingIds.filter(id => args.includes(id))).map(id => ({ id }))
             : [],
         }),
         run: async () => ({ success: true }),
@@ -445,7 +447,7 @@ function createAtomicRuleCreateMockDb(): D1Database & {
   const db = {
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
-        first: async () => null,
+        first: async () => sql.includes('SELECT MAX(sort_order)') ? { max_order: 7 } : null,
         all: async () => ({
           results: sql.includes('SELECT id, collection_ids FROM groups')
             ? enabledRuleTargetIds.map(id => ({ id, collection_ids: '[]' }))

@@ -1,5 +1,6 @@
 import type { ExportConfig } from '@uni-conf/types';
 import { mapExportConfig } from '../db/helpers';
+import { DEFAULT_WORKSPACE_ID, defaultExportConfigId } from './workspaces';
 
 export const DEFAULT_EXPORT_CONFIG_ID = 'default-mihomo';
 
@@ -10,31 +11,37 @@ export function generateExportToken(): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-export async function ensureDefaultExportConfig(db: D1Database, ts: string): Promise<ExportConfig> {
+export async function ensureDefaultExportConfig(
+  db: D1Database,
+  ts: string,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<ExportConfig> {
   await db.prepare('INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES (?, ?)')
-    .bind('singleton', ts)
+    .bind(workspaceId, ts)
     .run();
 
   const settings = await db
-    .prepare("SELECT default_export_token FROM app_settings WHERE id = 'singleton'")
+    .prepare('SELECT default_export_token FROM app_settings WHERE id = ?')
+    .bind(workspaceId)
     .first<{ default_export_token: string | null }>();
 
   if (settings?.default_export_token) {
     const byToken = await db
-      .prepare('SELECT * FROM export_configs WHERE token = ? AND enabled = 1')
-      .bind(settings.default_export_token)
+      .prepare('SELECT * FROM export_configs WHERE token = ? AND workspace_id = ? AND enabled = 1')
+      .bind(settings.default_export_token, workspaceId)
       .first<Record<string, unknown>>();
     if (byToken) return mapExportConfig(byToken);
   }
 
+  const configId = defaultExportConfigId(workspaceId);
   const existing = await db
-    .prepare('SELECT * FROM export_configs WHERE id = ?')
-    .bind(DEFAULT_EXPORT_CONFIG_ID)
+    .prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(configId, workspaceId)
     .first<Record<string, unknown>>();
 
   if (existing) {
     const config = mapExportConfig(existing);
-    await setDefaultExportToken(db, config.token, ts);
+    await setDefaultExportToken(db, config.token, ts, workspaceId);
     return config;
   }
 
@@ -42,24 +49,29 @@ export async function ensureDefaultExportConfig(db: D1Database, ts: string): Pro
   await db
     .prepare(
       `INSERT INTO export_configs
-        (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, extra_config, created_at, updated_at)
-       VALUES (?, '默认 Mihomo 配置', 'mihomo', ?, 1, '[]', '[]', '[]', '[]', NULL, ?, ?)`
+        (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, extra_config, created_at, updated_at, workspace_id)
+       VALUES (?, '默认 Mihomo 配置', 'mihomo', ?, 1, '[]', '[]', '[]', '[]', NULL, ?, ?, ?)`
     )
-    .bind(DEFAULT_EXPORT_CONFIG_ID, token, ts, ts)
+    .bind(configId, token, ts, ts, workspaceId)
     .run();
-  await setDefaultExportToken(db, token, ts);
+  await setDefaultExportToken(db, token, ts, workspaceId);
 
   const row = await db
-    .prepare('SELECT * FROM export_configs WHERE id = ?')
-    .bind(DEFAULT_EXPORT_CONFIG_ID)
+    .prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(configId, workspaceId)
     .first<Record<string, unknown>>();
   if (!row) throw new Error('Failed to create default export config');
   return mapExportConfig(row);
 }
 
-async function setDefaultExportToken(db: D1Database, token: string, ts: string): Promise<void> {
+async function setDefaultExportToken(
+  db: D1Database,
+  token: string,
+  ts: string,
+  workspaceId: string,
+): Promise<void> {
   await db
-    .prepare("UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = 'singleton'")
-    .bind(token, ts)
+    .prepare('UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = ?')
+    .bind(token, ts, workspaceId)
     .run();
 }

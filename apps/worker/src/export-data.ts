@@ -26,6 +26,10 @@ import { enabledNodeRowsQuery } from './services/enabled-node-rows'
 import { getAppSettings } from './services/app-settings'
 import { applyCollectionTransforms } from './services/collection-transforms'
 import { listSourceHealthSnapshots } from './services/remote-rule-set-health'
+import {
+  DEFAULT_WORKSPACE_ID,
+  workspaceEntityId,
+} from './services/workspaces'
 
 export interface ExportData {
   config?: ExportConfig
@@ -44,11 +48,12 @@ export interface ExportData {
 
 export async function getExportConfigById(
   db: D1Database,
-  id: string
+  id: string,
+  workspaceId?: string,
 ): Promise<ExportConfig | null> {
   const row = await db
-    .prepare('SELECT * FROM export_configs WHERE id = ?')
-    .bind(id)
+    .prepare(`SELECT * FROM export_configs WHERE id = ?${workspaceId ? ' AND workspace_id = ?' : ''}`)
+    .bind(...(workspaceId ? [id, workspaceId] : [id]))
     .first<Record<string, unknown>>()
   return row ? mapExportConfig(row) : null
 }
@@ -67,15 +72,17 @@ export async function getEnabledExportConfigByToken(
 export async function buildExportData(
   db: D1Database,
   config?: ExportConfig,
-  requestedFormat?: ExportConfig['format']
+  requestedFormat?: ExportConfig['format'],
+  requestedWorkspaceId?: string,
 ): Promise<ExportData> {
-  const settings = await getAppSettings(db)
+  const workspaceId = requestedWorkspaceId ?? config?.workspaceId ?? DEFAULT_WORKSPACE_ID
+  const settings = await getAppSettings(db, workspaceId)
 
-  const allNodeRows = await selectRows(db, enabledNodeRowsQuery())
-  const collectionRows = await buildCollectionNodeRows(db, allNodeRows)
-  const autoCollectionKeysById = await listAutoCollectionKeysById(db)
+  const allNodeRows = await selectRows(db, enabledNodeRowsQuery(undefined, workspaceId))
+  const collectionRows = await buildCollectionNodeRows(db, allNodeRows, workspaceId)
+  const autoCollectionKeysById = await listAutoCollectionKeysById(db, workspaceId)
   const allGroupRows = applyRoutingPolicyGroupLinks(
-    await selectRows(db, 'SELECT * FROM groups WHERE enabled = 1 ORDER BY sort_order ASC'),
+    await selectRows(db, `SELECT * FROM groups WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC`),
     settings.routingOutletPreferences,
     autoCollectionKeysById
   )
@@ -84,7 +91,7 @@ export async function buildExportData(
   const nodeRows = collectionScopeIds.length
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
     : allNodeRows
-  const sourceNameById = await buildSourceNameById(db)
+  const sourceNameById = await buildSourceNameById(db, workspaceId)
   const exportNodeRows = applyExportNodeNames(
     applyDefaultExportDedup(nodeRows),
     sourceNameById,
@@ -95,18 +102,18 @@ export async function buildExportData(
   const configuredRuleRows = filterRowsByTargetGroup(
     await selectRows(
       db,
-      'SELECT * FROM rules WHERE enabled = 1 ORDER BY sort_order ASC',
+      `SELECT * FROM rules WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC`,
       config?.includeRuleIds
     ),
     exportGroupIds
   )
   const finalTargetGroupId = settings.unmatchedTrafficPolicy === 'direct'
-    ? 'builtin-direct'
-    : 'builtin-proxy'
+    ? workspaceEntityId(workspaceId, 'builtin-direct')
+    : workspaceEntityId(workspaceId, 'builtin-proxy')
   const ruleRows = [
     ...configuredRuleRows.filter((row) => String(row.type) !== 'MATCH'),
     {
-      id: 'builtin-unmatched-traffic',
+      id: workspaceEntityId(workspaceId, 'builtin-unmatched-traffic'),
       name: 'Unmatched traffic',
       type: 'MATCH',
       payload: '',
@@ -123,17 +130,17 @@ export async function buildExportData(
   const remoteSetRows = filterRowsByTargetGroup(
     await selectRows(
       db,
-      'SELECT * FROM remote_rule_sets WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC',
+      `SELECT * FROM remote_rule_sets WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC, created_at ASC`,
       config?.includeRemoteSetIds
     ),
     exportGroupIds
   )
   const sourceRows = await selectRows(
     db,
-    "SELECT * FROM sources WHERE enabled = 1 AND type = 'url' ORDER BY created_at ASC"
+    `SELECT * FROM sources WHERE workspace_id = '${workspaceId}' AND enabled = 1 AND type = 'url' ORDER BY created_at ASC`
   )
   const sourceHealthByRuleSetId = remoteSetRows.length > 0
-    ? await listSourceHealthSnapshots(db)
+    ? await listSourceHealthSnapshots(db, workspaceId)
     : new Map()
 
   return {
@@ -246,10 +253,12 @@ function parseStringArray(value: unknown): string[] {
 
 async function buildCollectionNodeRows(
   db: D1Database,
-  allNodeRows: Record<string, unknown>[]
+  allNodeRows: Record<string, unknown>[],
+  workspaceId: string,
 ): Promise<Map<string, Record<string, unknown>[]>> {
   const { results } = await db
-    .prepare('SELECT * FROM collections WHERE enabled = 1')
+    .prepare('SELECT * FROM collections WHERE workspace_id = ? AND enabled = 1')
+    .bind(workspaceId)
     .all<Record<string, unknown>>()
 
   const collections = results.map(mapCollection)
@@ -310,8 +319,10 @@ export function buildCollectionNodeNames(
   return result
 }
 
-async function buildSourceNameById(db: D1Database): Promise<Map<string, string>> {
-  const { results } = await db.prepare('SELECT id, name FROM sources').all<{ id: string; name: string }>()
+async function buildSourceNameById(db: D1Database, workspaceId: string): Promise<Map<string, string>> {
+  const { results } = await db.prepare('SELECT id, name FROM sources WHERE workspace_id = ?')
+    .bind(workspaceId)
+    .all<{ id: string; name: string }>()
   return new Map(results.map((row) => [row.id, row.name]))
 }
 

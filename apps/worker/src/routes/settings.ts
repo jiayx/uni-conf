@@ -7,11 +7,12 @@ import { syncAutoNodeGroups } from '../services/auto-node-groups'
 import { syncRoutingPolicyGroups } from '../services/routing-policy-groups'
 import { ensureDefaultRemoteRuleSets } from '../services/default-rule-sets'
 import { ALL_ROUTING_POLICY_SCENARIO_IDS, isAutoNodeGroupType, isCanonicalAutoNodeGroupKey, normalizeDnsRealIpDomainList } from '@uni-conf/shared'
+import { DEFAULT_WORKSPACE_ID, requestWorkspaceId } from '../services/workspaces'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
-  const settings = await getSettings(c.env.DB)
+  const settings = await getSettings(c.env.DB, requestWorkspaceId(c))
   return c.json({ success: true, data: settings })
 })
 
@@ -21,31 +22,32 @@ app.put('/', async (c) => {
   if (validationError) return c.json({ success: false, error: validationError }, 400)
   const body = rawBody as AppSettingsPatch
   const ts = now()
-  const update = buildSettingsUpdate(body, ts)
+  const workspaceId = requestWorkspaceId(c)
+  const update = buildSettingsUpdate(body, ts, workspaceId)
   await c.env.DB.prepare(update.sql).bind(...update.values).run()
 
   const autoGroupsChanged = body.autoNodeGroupsEnabled !== undefined
     || body.autoNodeGroupTypes !== undefined
     || body.autoNodeGroupKeys !== undefined
     || body.autoNodeGroupIncludeFlag !== undefined
-  if (autoGroupsChanged) await syncAutoNodeGroups(c.env.DB, ts)
+  if (autoGroupsChanged) await syncAutoNodeGroups(c.env.DB, ts, workspaceId)
   if (
     autoGroupsChanged
     || body.unmatchedTrafficPolicy !== undefined
     || body.routingPolicyScenarios !== undefined
     || body.routingOutletPreferences !== undefined
   ) {
-    await syncRoutingPolicyGroups(c.env.DB, ts)
-    const effectiveSettings = await getSettings(c.env.DB)
-    await ensureDefaultRemoteRuleSets(c.env.DB, ts, effectiveSettings.unmatchedTrafficPolicy)
+    await syncRoutingPolicyGroups(c.env.DB, ts, workspaceId)
+    const effectiveSettings = await getSettings(c.env.DB, workspaceId)
+    await ensureDefaultRemoteRuleSets(c.env.DB, ts, effectiveSettings.unmatchedTrafficPolicy, undefined, workspaceId)
   }
 
-  const settings = await getSettings(c.env.DB)
+  const settings = await getSettings(c.env.DB, workspaceId)
   return c.json({ success: true, data: settings })
 })
 
-async function getSettings(db: D1Database): Promise<AppSettings> {
-  return getAppSettings(db)
+async function getSettings(db: D1Database, workspaceId: string): Promise<AppSettings> {
+  return getAppSettings(db, workspaceId)
 }
 
 const LANGUAGES: ReadonlySet<Language> = new Set(['zh', 'en'])
@@ -87,7 +89,11 @@ export interface SettingsUpdate {
   values: SettingsSqlValue[]
 }
 
-export function buildSettingsUpdate(body: AppSettingsPatch, ts: string): SettingsUpdate {
+export function buildSettingsUpdate(
+  body: AppSettingsPatch,
+  ts: string,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): SettingsUpdate {
   const assignments: string[] = []
   const values: SettingsSqlValue[] = []
   const set = (column: string, value: SettingsSqlValue) => {
@@ -140,8 +146,8 @@ export function buildSettingsUpdate(body: AppSettingsPatch, ts: string): Setting
 
   set('updated_at', ts)
   return {
-    sql: `UPDATE app_settings SET ${assignments.join(', ')} WHERE id = 'singleton'`,
-    values,
+    sql: `UPDATE app_settings SET ${assignments.join(', ')} WHERE id = ?`,
+    values: [...values, workspaceId],
   }
 }
 

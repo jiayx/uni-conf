@@ -35,7 +35,7 @@ export function generateMihomoYaml(
   const lines: string[] = [];
   const ruleSetExportFormat = options.ruleSetExportFormat ?? 'mihomo';
   const serializedNodes = nodes
-    .map((node) => ({ node, proxy: nodeToMihomo(node) }))
+    .map((node) => ({ node, proxy: nodeToMihomo(node, ruleSetExportFormat) }))
     .filter((item): item is { node: ProxyNode; proxy: string } => item.proxy !== null);
   const serializableNodes = serializedNodes.map((item) => item.node);
   const serializableNodeNames = new Set(serializableNodes.map((node) => node.name));
@@ -241,7 +241,10 @@ function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
 
 // ─── Node serialization ───────────────────────────────────────────────────────
 
-function nodeToMihomo(node: ProxyNode): string | null {
+function nodeToMihomo(
+  node: ProxyNode,
+  target: Extract<ExportFormat, 'mihomo' | 'clash' | 'stash'>
+): string | null {
   const nativeProxy = nativeMihomoProxy(node);
   if (nativeProxy) return JSON.stringify(nativeProxy);
 
@@ -339,6 +342,213 @@ function nodeToMihomo(node: ProxyNode): string | null {
       if (cfg.skipCertVerify) obj += `, skip-cert-verify: true`;
       obj += '}';
       return obj;
+    }
+    case 'wireguard': {
+      const addresses = configStringArray(cfg.extra?.ip ?? cfg.extra?.localAddress);
+      const ipv4 = addresses.find((address) => !address.includes(':'))?.split('/', 1)[0];
+      const ipv6 = addresses.find((address) => address.includes(':'))?.split('/', 1)[0];
+      const allowedIps = configStringArray(
+        cfg.extra?.allowedIPs ?? cfg.extra?.allowedIps ?? cfg.extra?.allowed_ips
+      );
+      const dns = configStringArray(cfg.extra?.dns);
+      const reserved = normalizeWireGuardReserved(cfg.extra?.reserved);
+      const keepalive = cfg.extra?.keepalive ?? cfg.extra?.persistentKeepalive;
+      const privateKey = String(cfg.extra?.privateKey ?? cfg.extra?.['private-key'] ?? '');
+      const publicKey = String(cfg.extra?.publicKey ?? cfg.extra?.['public-key'] ?? '');
+      if (!privateKey || !publicKey || (!ipv4 && !ipv6)) return null;
+      return JSON.stringify({
+        name: node.name,
+        type: 'wireguard',
+        server: node.server,
+        port: node.port,
+        ip: ipv4,
+        ...(ipv6 ? { ipv6 } : {}),
+        'private-key': privateKey,
+        'public-key': publicKey,
+        ...(cfg.extra?.presharedKey || cfg.extra?.['pre-shared-key']
+          ? { 'pre-shared-key': String(cfg.extra?.presharedKey ?? cfg.extra?.['pre-shared-key']) }
+          : {}),
+        'allowed-ips': allowedIps.length > 0 ? allowedIps : ['0.0.0.0/0'],
+        ...(reserved ? { reserved } : {}),
+        ...(keepalive !== undefined
+          ? { [target === 'stash' ? 'keepalive' : 'persistent-keepalive']: Number(keepalive) }
+          : {}),
+        ...(cfg.extra?.mtu !== undefined ? { mtu: Number(cfg.extra.mtu) } : {}),
+        ...(dns.length > 0 ? { dns } : {}),
+        udp: cfg.extra?.udp === undefined ? true : Boolean(cfg.extra.udp),
+      });
+    }
+    case 'ssh': {
+      const username = String(cfg.extra?.username ?? cfg.extra?.user ?? '');
+      const hostKeys = configStringArray(cfg.extra?.hostKeys ?? cfg.extra?.['host-key']);
+      const privateKey = cfg.extra?.privateKey ?? cfg.extra?.['private-key'];
+      if (!username || (!cfg.password && !privateKey)) return null;
+      return JSON.stringify({
+        name: node.name,
+        type: 'ssh',
+        server: node.server,
+        port: node.port,
+        [target === 'stash' ? 'user' : 'username']: username,
+        ...(cfg.password ? { password: cfg.password } : {}),
+        ...(privateKey
+          ? { 'private-key': String(privateKey) }
+          : {}),
+        ...(cfg.extra?.privateKeyPassphrase || cfg.extra?.['private-key-passphrase']
+          ? {
+              'private-key-passphrase': String(
+                cfg.extra?.privateKeyPassphrase ?? cfg.extra?.['private-key-passphrase']
+              ),
+            }
+          : {}),
+        ...(target !== 'stash' && hostKeys.length > 0 ? { 'host-key': hostKeys } : {}),
+      });
+    }
+    case 'snell': {
+      const psk = String(cfg.extra?.psk ?? cfg.password ?? '');
+      if (!psk) return null;
+      const obfs = String(cfg.extra?.obfs ?? '');
+      return JSON.stringify({
+        name: node.name,
+        type: 'snell',
+        server: node.server,
+        port: node.port,
+        psk,
+        version: Number(cfg.extra?.version ?? 4),
+        udp: cfg.extra?.udp === undefined ? true : Boolean(cfg.extra.udp),
+        ...(cfg.extra?.reuse !== undefined ? { reuse: Boolean(cfg.extra.reuse) } : {}),
+        ...(['http', 'tls'].includes(obfs)
+          ? {
+              'obfs-opts': {
+                mode: obfs,
+                ...(cfg.extra?.obfsHost ? { host: String(cfg.extra.obfsHost) } : {}),
+              },
+            }
+          : {}),
+      });
+    }
+    case 'mieru': {
+      if (target === 'stash') return null;
+      const username = String(cfg.extra?.username ?? '');
+      const password = String(cfg.password ?? cfg.extra?.password ?? '');
+      if (!username || !password) return null;
+      return JSON.stringify({
+        name: node.name,
+        type: 'mieru',
+        server: node.server,
+        port: node.port,
+        username,
+        password,
+        transport: String(cfg.extra?.transport ?? 'TCP').toUpperCase(),
+        multiplexing: String(cfg.extra?.multiplexing ?? 'MULTIPLEXING_LOW'),
+        ...(cfg.extra?.trafficPattern
+          ? { 'traffic-pattern': String(cfg.extra.trafficPattern) }
+          : {}),
+      });
+    }
+    case 'sudoku': {
+      if (target === 'stash') return null;
+      const key = String(cfg.extra?.key ?? cfg.password ?? '');
+      if (!key) return null;
+      return JSON.stringify({
+        name: node.name,
+        type: 'sudoku',
+        server: node.server,
+        port: node.port,
+        key,
+        'aead-method': String(cfg.extra?.aeadMethod ?? 'chacha20-poly1305'),
+        'padding-min': Number(cfg.extra?.paddingMin ?? 2),
+        'padding-max': Number(cfg.extra?.paddingMax ?? 7),
+        'table-type': String(cfg.extra?.tableType ?? 'prefer_ascii'),
+        httpmask: {
+          disable: Boolean(cfg.extra?.httpMaskDisable ?? false),
+          mode: String(cfg.extra?.httpMaskMode ?? 'legacy'),
+          tls: Boolean(cfg.extra?.httpMaskTls ?? false),
+          'mask-host': String(cfg.extra?.httpMaskHost ?? ''),
+          'path-root': String(cfg.extra?.httpMaskPathRoot ?? ''),
+          multiplex: String(cfg.extra?.httpMaskMultiplex ?? 'off'),
+        },
+        'enable-pure-downlink': Boolean(cfg.extra?.enablePureDownlink ?? false),
+      });
+    }
+    case 'trusttunnel': {
+      const username = String(cfg.extra?.username ?? '');
+      const password = String(cfg.password ?? cfg.extra?.password ?? '');
+      if (!username || !password) return null;
+      const alpn = configStringArray(cfg.extra?.alpn);
+      return JSON.stringify({
+        name: node.name,
+        type: 'trusttunnel',
+        server: node.server,
+        port: node.port,
+        username,
+        password,
+        ...(cfg.sni ? { sni: cfg.sni } : {}),
+        ...(alpn.length > 0 ? { alpn } : {}),
+        ...(cfg.skipCertVerify !== undefined ? { 'skip-cert-verify': Boolean(cfg.skipCertVerify) } : {}),
+        ...(cfg.extra?.quic !== undefined ? { quic: Boolean(cfg.extra.quic) } : {}),
+        udp: cfg.extra?.udp === undefined ? true : Boolean(cfg.extra.udp),
+      });
+    }
+    case 'juicity': {
+      if (target !== 'stash') return null;
+      const uuid = String(cfg.uuid ?? '');
+      const password = String(cfg.password ?? '');
+      if (!uuid || !password) return null;
+      const alpn = configStringArray(cfg.extra?.alpn);
+      return JSON.stringify({
+        name: node.name,
+        type: 'juicity',
+        server: node.server,
+        port: node.port,
+        uuid,
+        password,
+        ...(cfg.sni ? { sni: cfg.sni } : {}),
+        alpn: alpn.length > 0 ? alpn : ['h3'],
+        ...(cfg.skipCertVerify !== undefined ? { 'skip-cert-verify': Boolean(cfg.skipCertVerify) } : {}),
+      });
+    }
+    case 'masque': {
+      if (target === 'stash') return null;
+      const privateKey = String(cfg.extra?.privateKey ?? cfg.extra?.['private-key'] ?? '');
+      const publicKey = String(cfg.extra?.publicKey ?? cfg.extra?.['public-key'] ?? '');
+      if (!privateKey || !publicKey) return null;
+      const dns = configStringArray(cfg.extra?.dns);
+      return JSON.stringify({
+        name: node.name,
+        type: 'masque',
+        server: node.server,
+        port: node.port,
+        'private-key': privateKey,
+        'public-key': publicKey,
+        ...(cfg.extra?.ip ? { ip: String(cfg.extra.ip) } : {}),
+        ...(cfg.extra?.ipv6 ? { ipv6: String(cfg.extra.ipv6) } : {}),
+        ...(cfg.extra?.mtu !== undefined ? { mtu: Number(cfg.extra.mtu) } : {}),
+        ...(cfg.extra?.udp !== undefined ? { udp: Boolean(cfg.extra.udp) } : {}),
+        ...(cfg.sni ? { sni: cfg.sni } : {}),
+        ...(cfg.extra?.network ? { network: String(cfg.extra.network) } : {}),
+        ...(cfg.extra?.remoteDnsResolve !== undefined || cfg.extra?.['remote-dns-resolve'] !== undefined
+          ? {
+              'remote-dns-resolve': Boolean(
+                cfg.extra?.remoteDnsResolve ?? cfg.extra?.['remote-dns-resolve']
+              ),
+            }
+          : {}),
+        ...(dns.length > 0 ? { dns } : {}),
+        ...(cfg.extra?.congestionController || cfg.extra?.['congestion-controller']
+          ? {
+              'congestion-controller': String(
+                cfg.extra?.congestionController ?? cfg.extra?.['congestion-controller']
+              ),
+            }
+          : {}),
+        ...(cfg.extra?.handshakeTimeout !== undefined || cfg.extra?.['handshake-timeout'] !== undefined
+          ? {
+              'handshake-timeout': Number(
+                cfg.extra?.handshakeTimeout ?? cfg.extra?.['handshake-timeout']
+              ),
+            }
+          : {}),
+      });
     }
     case 'anytls': {
       const pass = cfg.password ?? '';
@@ -511,6 +721,26 @@ function defaultPolicyName(groups: ProxyGroup[]): string | undefined {
 
 function escapeName(name: string): string {
   return name.replace(/"/g, '\\"');
+}
+
+function configStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (typeof value !== 'string') return [];
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeWireGuardReserved(value: unknown): number[] | string | undefined {
+  if (Array.isArray(value)) {
+    const bytes = value.map(Number);
+    return bytes.length === 3 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+      ? bytes
+      : undefined;
+  }
+  if (typeof value !== 'string' || !value) return undefined;
+  const bytes = value.split(',').map((item) => Number(item.trim()));
+  return bytes.length === 3 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+    ? bytes
+    : value;
 }
 
 function resolveMihomoPolicyName(group: ProxyGroup): string {

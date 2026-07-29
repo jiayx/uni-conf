@@ -3,7 +3,6 @@ import {
   type AutoNodeGroupMarker,
   countryCodeToFlag,
   DEFAULT_HEALTH_CHECK,
-  DEFAULT_NODE_POOL_COLLECTION_ID,
   DEFAULT_NODE_POOL_PREFIX,
   makeCountryAutoNodeGroupMarker,
   makeTagAutoNodeGroupMarker,
@@ -13,6 +12,7 @@ import { jsonStringify, newId } from '../db/helpers';
 import { enabledNodeRowsQuery } from './enabled-node-rows';
 import { getAppSettings } from './app-settings';
 import type { AutoNodeGroupType } from '@uni-conf/types';
+import { DEFAULT_WORKSPACE_ID, defaultNodePoolId } from './workspaces';
 
 interface CountrySummary {
   countryCode: string;
@@ -35,21 +35,25 @@ const EXCLUDE_HIGH_MULTIPLIER_FILTER = {
   value: ['high-multiplier'],
   enabled: true,
 } as const;
-export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<void> {
-  const settings = await getAppSettings(db);
-  await ensureDefaultNodePoolCollection(db, ts);
+export async function syncAutoNodeGroups(
+  db: D1Database,
+  ts: string,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<void> {
+  const settings = await getAppSettings(db, workspaceId);
+  await ensureDefaultNodePoolCollection(db, ts, workspaceId);
   const enabledTypes = settings.autoNodeGroupsEnabled ? settings.autoNodeGroupTypes : [];
-  const autoCollections = await listAutoCollections(db);
+  const autoCollections = await listAutoCollections(db, workspaceId);
 
   if (enabledTypes.length === 0) {
     for (const item of autoCollections) {
-      await deleteCollectionAndLinkedGroups(db, item.id);
+      await deleteCollectionAndLinkedGroups(db, item.id, workspaceId);
     }
     return;
   }
 
-  const countries = await listCountriesWithNodes(db);
-  const tagKeys = await listTagGroupKeysWithNodes(db);
+  const countries = await listCountriesWithNodes(db, workspaceId);
+  const tagKeys = await listTagGroupKeysWithNodes(db, workspaceId);
   const selectedKeys = settings.autoNodeGroupKeys !== undefined ? new Set(settings.autoNodeGroupKeys) : null;
   const plans = buildAutoNodeGroupPlans(countries, tagKeys, enabledTypes, settings.autoNodeGroupIncludeFlag)
     .filter((plan) => selectedKeys === null || selectedKeys.has(plan.key));
@@ -57,7 +61,7 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
 
   for (const item of autoCollections) {
     if (planKeys.has(item.marker.key)) continue;
-    await deleteCollectionAndLinkedGroups(db, item.id);
+    await deleteCollectionAndLinkedGroups(db, item.id, workspaceId);
   }
 
   const existingByKey = new Map(
@@ -69,25 +73,26 @@ export async function syncAutoNodeGroups(db: D1Database, ts: string): Promise<vo
 
     if (existing) {
       await updateAutoCollection(db, existing.id, plan.name, plan.filters, plan.markerText, ts);
-      await ensureLinkedGroup(db, existing.id, plan.name, plan.type, ts);
+      await ensureLinkedGroup(db, existing.id, plan.name, plan.type, ts, workspaceId);
     } else {
       const collectionId = newId();
-      await createAutoCollection(db, collectionId, plan.name, plan.filters, plan.markerText, ts);
-      await createLinkedGroup(db, collectionId, plan.name, plan.type, ts);
+      await createAutoCollection(db, collectionId, plan.name, plan.filters, plan.markerText, ts, workspaceId);
+      await createLinkedGroup(db, collectionId, plan.name, plan.type, ts, workspaceId);
     }
   }
 
 }
 
-async function ensureDefaultNodePoolCollection(db: D1Database, ts: string): Promise<void> {
+async function ensureDefaultNodePoolCollection(db: D1Database, ts: string, workspaceId: string): Promise<void> {
   const filters = jsonStringify([{ ...EXCLUDE_HIGH_MULTIPLIER_FILTER }]);
+  const collectionId = defaultNodePoolId(workspaceId);
   await db
     .prepare(
       `INSERT OR IGNORE INTO collections
-        (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
-       VALUES (?, '默认节点池', '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
+        (id, workspace_id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
+       VALUES (?, ?, '默认节点池', '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
     )
-    .bind(DEFAULT_NODE_POOL_COLLECTION_ID, filters, DEFAULT_NODE_POOL_PREFIX, ts, ts)
+    .bind(collectionId, workspaceId, filters, DEFAULT_NODE_POOL_PREFIX, ts, ts)
     .run();
   await db
     .prepare(
@@ -95,17 +100,17 @@ async function ensureDefaultNodePoolCollection(db: D1Database, ts: string): Prom
         name = '默认节点池', source_ids = '[]', node_ids = '[]',
         filters = ?, renames = '[]', dedup = 'full_config', sort = 'name',
         sort_country_order = '[]', enabled = 1, notes = ?, updated_at = ?
-       WHERE id = ?`
+       WHERE id = ? AND workspace_id = ?`
     )
-    .bind(filters, DEFAULT_NODE_POOL_PREFIX, ts, DEFAULT_NODE_POOL_COLLECTION_ID)
+    .bind(filters, DEFAULT_NODE_POOL_PREFIX, ts, collectionId, workspaceId)
     .run();
 }
 
-async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]> {
+async function listCountriesWithNodes(db: D1Database, workspaceId: string): Promise<CountrySummary[]> {
   const { results } = await db
     .prepare(
       `SELECT country_code, country, tags
-       FROM (${enabledNodeRowsQuery()}) enabled_nodes
+       FROM (${enabledNodeRowsQuery(undefined, workspaceId)}) enabled_nodes
        WHERE country_code IS NOT NULL
          AND country_code != ''
        ORDER BY country_code ASC`
@@ -134,9 +139,9 @@ async function listCountriesWithNodes(db: D1Database): Promise<CountrySummary[]>
   return [...byCode.values()].sort((a, b) => (b.nodeCount ?? 0) - (a.nodeCount ?? 0) || a.countryCode.localeCompare(b.countryCode));
 }
 
-async function listTagGroupKeysWithNodes(db: D1Database): Promise<string[]> {
+async function listTagGroupKeysWithNodes(db: D1Database, workspaceId: string): Promise<string[]> {
   const { results } = await db
-    .prepare(`SELECT tags FROM (${enabledNodeRowsQuery()}) enabled_nodes`)
+    .prepare(`SELECT tags FROM (${enabledNodeRowsQuery(undefined, workspaceId)}) enabled_nodes`)
     .all<{ tags: string | null }>();
   const seenTags = new Set<string>();
   for (const row of results) {
@@ -190,9 +195,10 @@ export function buildAutoNodeGroupPlans(
   return [...countryPlans, ...tagPlans];
 }
 
-async function listAutoCollections(db: D1Database): Promise<Array<{ id: string; marker: AutoNodeGroupMarker }>> {
+async function listAutoCollections(db: D1Database, workspaceId: string): Promise<Array<{ id: string; marker: AutoNodeGroupMarker }>> {
   const { results } = await db
-    .prepare("SELECT id, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")
+    .prepare("SELECT id, notes FROM collections WHERE workspace_id = ? AND notes IS NOT NULL AND notes != ''")
+    .bind(workspaceId)
     .all<{ id: string; notes: string | null }>();
 
   return results
@@ -206,15 +212,16 @@ async function createAutoCollection(
   name: string,
   filters: Array<Record<string, unknown>>,
   marker: string,
-  ts: string
+  ts: string,
+  workspaceId: string,
 ): Promise<void> {
   await db
     .prepare(
       `INSERT INTO collections
-        (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
-       VALUES (?, ?, '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?)`
+        (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at, workspace_id)
+       VALUES (?, ?, '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?, ?)`
     )
-    .bind(id, name, jsonStringify(filters), marker, ts, ts)
+    .bind(id, name, jsonStringify(filters), marker, ts, ts, workspaceId)
     .run();
 }
 
@@ -243,18 +250,20 @@ async function createLinkedGroup(
   collectionId: string,
   name: string,
   type: AutoNodeGroupType,
-  ts: string
+  ts: string,
+  workspaceId: string,
 ): Promise<void> {
   const maxRow = await db
-    .prepare('SELECT MAX(sort_order) as max_order FROM groups')
+    .prepare('SELECT MAX(sort_order) as max_order FROM groups WHERE workspace_id = ?')
+    .bind(workspaceId)
     .first<{ max_order: number | null }>();
   const sortOrder = (maxRow?.max_order ?? -1) + 1;
 
   await db
     .prepare(
       `INSERT INTO groups
-        (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, ?, '[]', '[]', ?, ?, ?, ?, 1, ?, 0, ?, ?)`
+        (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, '[]', '[]', ?, ?, ?, ?, 1, ?, 0, ?, ?, ?)`
     )
     .bind(
       newId(),
@@ -267,7 +276,8 @@ async function createLinkedGroup(
       DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
       sortOrder,
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run();
 }
@@ -277,15 +287,16 @@ async function ensureLinkedGroup(
   collectionId: string,
   name: string,
   type: AutoNodeGroupType,
-  ts: string
+  ts: string,
+  workspaceId: string,
 ): Promise<void> {
   const row = await db
-    .prepare(`SELECT id FROM groups WHERE is_builtin = 0 AND collection_ids = ? ORDER BY sort_order ASC LIMIT 1`)
-    .bind(jsonStringify([collectionId]))
+    .prepare(`SELECT id FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ? ORDER BY sort_order ASC LIMIT 1`)
+    .bind(workspaceId, jsonStringify([collectionId]))
     .first<{ id: string }>();
 
   if (!row) {
-    await createLinkedGroup(db, collectionId, name, type, ts);
+    await createLinkedGroup(db, collectionId, name, type, ts, workspaceId);
     return;
   }
 
@@ -310,10 +321,15 @@ async function ensureLinkedGroup(
     .run();
 }
 
-async function deleteCollectionAndLinkedGroups(db: D1Database, collectionId: string): Promise<void> {
+async function deleteCollectionAndLinkedGroups(
+  db: D1Database,
+  collectionId: string,
+  workspaceId: string,
+): Promise<void> {
   const collectionIds = jsonStringify([collectionId]);
-  await db.prepare('DELETE FROM groups WHERE is_builtin = 0 AND collection_ids = ?').bind(collectionIds).run();
-  await db.prepare('DELETE FROM collections WHERE id = ?').bind(collectionId).run();
+  await db.prepare('DELETE FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ?')
+    .bind(workspaceId, collectionIds).run();
+  await db.prepare('DELETE FROM collections WHERE id = ? AND workspace_id = ?').bind(collectionId, workspaceId).run();
 }
 
 function makeCountryFilter(countryCode: string) {

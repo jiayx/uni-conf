@@ -21,7 +21,34 @@ export interface AutoRefreshResult {
 }
 
 export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Promise<AutoRefreshResult> {
-  const settings = await getAppSettings(db);
+  const { results: workspaces } = await db.prepare('SELECT id FROM workspaces ORDER BY created_at ASC')
+    .all<{ id: string }>();
+  const totals: AutoRefreshResult = {
+    checkedCount: 0,
+    refreshedCount: 0,
+    failedCount: 0,
+    skipped: true,
+    refreshedSourceIds: [],
+    errors: [],
+  };
+  for (const workspace of workspaces) {
+    const result = await refreshDueSourcesInWorkspace(db, workspace.id, nowMs);
+    totals.checkedCount += result.checkedCount;
+    totals.refreshedCount += result.refreshedCount;
+    totals.failedCount += result.failedCount;
+    totals.skipped = totals.skipped && result.skipped;
+    totals.refreshedSourceIds.push(...result.refreshedSourceIds);
+    totals.errors.push(...result.errors);
+  }
+  return totals;
+}
+
+async function refreshDueSourcesInWorkspace(
+  db: D1Database,
+  workspaceId: string,
+  nowMs: number
+): Promise<AutoRefreshResult> {
+  const settings = await getAppSettings(db, workspaceId);
   if (!settings.enableAutoRefresh) {
     return {
       checkedCount: 0,
@@ -33,13 +60,13 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
     };
   }
 
-  await ensureZeroSetupDefaults(db, new Date(nowMs).toISOString());
+  await ensureZeroSetupDefaults(db, new Date(nowMs).toISOString(), workspaceId);
 
   const { results } = await db.prepare(
     `SELECT id, last_updated, update_interval
      FROM sources
-     WHERE enabled = 1 AND type = 'url' AND url IS NOT NULL`
-  ).all<AutoRefreshSourceRow>();
+     WHERE workspace_id = ? AND enabled = 1 AND type = 'url' AND url IS NOT NULL`
+  ).bind(workspaceId).all<AutoRefreshSourceRow>();
 
   const dueSources = resolveDueSources(results, settings.autoRefreshInterval, nowMs);
   const refreshedSourceIds: string[] = [];
@@ -47,7 +74,7 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
 
   for (let offset = 0; offset < dueSources.length; offset += AUTO_REFRESH_CONCURRENCY) {
     const batch = dueSources.slice(offset, offset + AUTO_REFRESH_CONCURRENCY);
-    const results = await Promise.allSettled(batch.map((source) => refreshSourceById(db, source.id)));
+    const results = await Promise.allSettled(batch.map((source) => refreshSourceById(db, source.id, workspaceId)));
     for (const [index, result] of results.entries()) {
       const source = batch[index]!;
       if (result.status === 'fulfilled') {
@@ -61,7 +88,7 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
   }
 
   if (dueSources.length > 0) {
-    await ensureZeroSetupDefaults(db, new Date(nowMs).toISOString());
+    await ensureZeroSetupDefaults(db, new Date(nowMs).toISOString(), workspaceId);
   }
 
   return {

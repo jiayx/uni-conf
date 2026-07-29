@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
 import { Card } from '@/components/ui/Card/Card'
@@ -10,7 +9,6 @@ import { Input } from '@/components/ui/Input/Input'
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog'
-import { ConfigContentPreview } from '@/components/export/ConfigContentPreview/ConfigContentPreview'
 import { CompatibilityWarningNotice } from '@/components/export/CompatibilityWarningNotice/CompatibilityWarningNotice'
 import { TransformationReport } from '@/components/export/TransformationReport/TransformationReport'
 import { api } from '@/lib/api'
@@ -19,7 +17,7 @@ import { maskSubscriptionTokenUrl } from '@/core/sources/source-url-privacy'
 import { EXPORT_FORMAT_OPTIONS, QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
-import { countContentLines, INLINE_CONTENT_PREVIEW_LIMITS } from '@/core/export/content-preview'
+import { countContentLines } from '@/core/export/content-preview'
 import { writeClipboardText } from '@/core/clipboard/write-text'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
@@ -28,7 +26,7 @@ import {
   getExportClientCapabilities,
   getExportSubscriptionFilename,
 } from '@uni-conf/shared'
-import type { CompatibilityWarning, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
+import type { CompatibilityWarning, ExportArtifactValidationResult, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
 import styles from './Export.module.css'
 
 const BASE_URL = window.location.origin
@@ -59,7 +57,6 @@ const EMPTY_FORM: ExportForm = {
 export function Export() {
   const { t } = useTranslation()
   const confirmAction = useConfirmDialog()
-  const navigate = useNavigate()
   const [configs, setConfigs] = useState<ExportConfig[]>([])
   const [globalRuleSetConversionPolicy, setGlobalRuleSetConversionPolicy] =
     useState<RuleSetConversionPolicy | null>(null)
@@ -311,12 +308,6 @@ export function Export() {
     await handleDownloadFormat(config, config.format)
   }
 
-  const openFullPreview = (format: ExportFormat, configId?: string) => {
-    const params = new URLSearchParams({ format })
-    if (configId) params.set('configId', configId)
-    void navigate(`/preview?${params.toString()}`)
-  }
-
   const handlePreviewFormat = async (key: string, title: string, format: ExportFormat, configId?: string) => {
     const requestId = previewRequestRef.current + 1
     previewRequestRef.current = requestId
@@ -338,6 +329,7 @@ export function Export() {
         content: result.content,
         contentType: result.contentType,
         warnings: result.warnings ?? [],
+        artifactValidation: result.artifactValidation,
         readiness: result.readiness,
         refreshing: false,
       })
@@ -674,13 +666,12 @@ export function Export() {
         onOpenChange={open => {
           if (!open) setPreviewModal(null)
         }}
-        title={previewModal?.title ?? t('preview.title')}
+        title={previewModal?.title ?? ''}
         size="lg"
       >
         {previewModal && (
           <PreviewModalContent
             preview={previewModal}
-            onOpenFull={() => openFullPreview(previewModal.format, previewModal.configId)}
             onRefresh={() => void handlePreviewFormat(
               previewModal.key,
               previewModal.title,
@@ -705,6 +696,7 @@ type PreviewModalState =
       content: string
       contentType: string
       warnings: CompatibilityWarning[]
+      artifactValidation: ExportArtifactValidationResult
       readiness: ExportDownloadReadiness
       refreshing?: boolean
       refreshError?: string
@@ -713,11 +705,9 @@ type PreviewModalState =
 
 function PreviewModalContent({
   preview,
-  onOpenFull,
   onRefresh,
 }: {
   preview: PreviewModalState
-  onOpenFull: () => void
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
@@ -761,54 +751,50 @@ function PreviewModalContent({
   const summary = summarizeExportWarnings(preview.warnings)
   const canUsePreview = preview.readiness.ready && !preview.refreshing && !preview.refreshError
   const diagnosticWarnings = preview.warnings.filter(warning => !warning.transformation)
-  const visibleWarnings = diagnosticWarnings.slice(0, 3)
 
   return (
     <>
       <div className={styles.previewModalHeader}>
         <div>
           <span>{preview.contentType} · {t('preview.line_count', { count: lineCount })}</span>
+          <span className={preview.artifactValidation.valid ? styles.structureValid : styles.structureInvalid}>
+            {preview.artifactValidation.valid
+              ? t('preview.structure_valid', { kind: preview.artifactValidation.kind.toUpperCase() })
+              : t('preview.structure_invalid', { count: preview.artifactValidation.issues.length })}
+          </span>
         </div>
         <div className={styles.previewModalActions}>
           <Button variant="secondary" size="sm" loading={preview.refreshing} onClick={onRefresh}>
             {t('common.refresh')}
           </Button>
           <Button variant="ghost" size="sm" disabled={!canUsePreview} onClick={() => void handleCopy()}>{copied ? t('common.copied') : t('common.copy')}</Button>
-          <Button variant="secondary" size="sm" onClick={onOpenFull}>{t('preview.title')}</Button>
         </div>
       </div>
-      <div className={`${styles.validation} ${canUsePreview ? styles.validationReady : styles.validationBlocked}`}>
-        <strong>
-          {preview.refreshError
-            ? t('preview.stale_title')
-            : preview.readiness.ready
-              ? t('export.validation_ready')
+      {(preview.refreshError || !preview.readiness.ready) && (
+        <div className={`${styles.validation} ${styles.validationBlocked}`}>
+          <strong>
+            {preview.refreshError
+              ? t('preview.stale_title')
               : t('export.validation_blocked')}
-        </strong>
-        <span>
-          {preview.refreshError
-            ? t('preview.stale_after_refresh_error')
-            : exportWarningSummaryText(summary, t, preview.readiness)}
-        </span>
-      </div>
+          </strong>
+          <span>
+            {preview.refreshError
+              ? t('preview.stale_after_refresh_error')
+              : exportWarningSummaryText(summary, t, preview.readiness)}
+          </span>
+        </div>
+      )}
       {preview.refreshError && <ErrorNotice error={new Error(preview.refreshError)} />}
       {copyError != null && <ErrorNotice error={copyError} />}
       <TransformationReport warnings={preview.warnings} />
-      {visibleWarnings.length > 0 && (
+      {diagnosticWarnings.length > 0 && (
         <div className={styles.validationWarnings}>
-          {visibleWarnings.map((warning, index) => (
+          {diagnosticWarnings.map((warning, index) => (
             <CompatibilityWarningNotice key={`${warning.level}-${index}`} warning={warning} className={styles.validationWarning} />
           ))}
-          {diagnosticWarnings.length > visibleWarnings.length && (
-            <div className={styles.validationMore}>{t('export.validation_more', { count: diagnosticWarnings.length - visibleWarnings.length })}</div>
-          )}
         </div>
       )}
-      <ConfigContentPreview
-        content={preview.content}
-        codeClassName={styles.previewModalCode}
-        {...INLINE_CONTENT_PREVIEW_LIMITS}
-      />
+      <pre className={styles.previewModalCode}>{preview.content}</pre>
     </>
   )
 }

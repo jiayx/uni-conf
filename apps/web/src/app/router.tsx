@@ -8,8 +8,8 @@ import { Groups } from '@/pages/Groups/Groups'
 import { Rules } from '@/pages/Rules/Rules'
 import { RemoteRuleSets } from '@/pages/RemoteRuleSets/RemoteRuleSets'
 import { Export } from '@/pages/Export/Export'
-import { Preview } from '@/pages/Preview/Preview'
 import { Settings } from '@/pages/Settings/Settings'
+import { NotFound } from '@/pages/NotFound/NotFound'
 
 export const appRoutes: RouteObject[] = [
   {
@@ -24,8 +24,8 @@ export const appRoutes: RouteObject[] = [
       { path: 'rules', element: <Rules /> },
       { path: 'remote-rule-sets', element: <RemoteRuleSets /> },
       { path: 'export', element: <Export /> },
-      { path: 'preview', element: <Preview /> },
       { path: 'settings', element: <Settings /> },
+      { path: '*', element: <NotFound /> },
     ],
   },
 ]

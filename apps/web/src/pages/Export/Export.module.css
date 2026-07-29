@@ -61,10 +61,14 @@
 .previewModalHeader > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 0.25rem; }
 .previewModalHeader strong { color: var(--color-text-primary); font-size: 0.875rem; }
 .previewModalHeader span { color: var(--color-text-secondary); font-size: 0.75rem; }
+.previewModalHeader .structureValid { color: var(--color-success); }
+.previewModalHeader .structureInvalid { color: var(--color-error); }
 .previewModalActions { display: flex; flex-shrink: 0; gap: 0.5rem; }
 .previewModalEmpty { color: var(--color-text-secondary); font-size: 0.8125rem; }
 .previewModalCode {
+  min-height: 14rem;
   max-height: 52vh;
+  flex: 0 0 auto;
   overflow: auto;
   margin: 0;
   padding: 0.875rem;
@@ -83,7 +87,6 @@
   background: var(--color-surface2); color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.45;
 }
 .validation strong { color: var(--color-text-primary); font-size: 0.875rem; }
-.validationReady { border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.08); }
 .validationBlocked { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); }
 .validationWarnings { display: grid; }
 .validationWarning {
@@ -91,7 +94,6 @@
   background: transparent; color: var(--color-text-primary);
 }
 .validationWarning:first-child { border-top: 0; }
-.validationMore { color: var(--color-text-tertiary); }
 .selectLabel { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
 .select { width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-primary); font-family: inherit; font-size: 0.875rem; outline: none; }
 .formatCapabilityHint { margin-top: 0.375rem; color: var(--color-text-tertiary); font-size: 0.75rem; line-height: 1.5; }
@@ -113,6 +115,7 @@
 .optionDescription { color: var(--color-text-tertiary); font-size: 0.75rem; white-space: normal; }
 
 @media (max-width: 640px) {
+  .previewModalCode { min-height: 10rem; }
   .configHeader { flex-direction: column; }
   .configActions { width: 100%; flex-wrap: wrap; }
   .urlBox { align-items: stretch; flex-direction: column; }

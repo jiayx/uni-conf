@@ -19,39 +19,42 @@ import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import { listSourceRemoteRuleSets } from '../services/source-rule-sets'
+import { requestWorkspaceId, workspaceEntityId } from '../services/workspaces'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM remote_rule_sets ORDER BY sort_order ASC, created_at ASC'
-  ).all<Record<string, unknown>>()
-  const healthByRuleSetId = await listSourceHealthSnapshots(c.env.DB)
+    'SELECT * FROM remote_rule_sets WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC'
+  ).bind(workspaceId).all<Record<string, unknown>>()
+  const healthByRuleSetId = await listSourceHealthSnapshots(c.env.DB, workspaceId)
 
   return c.json({ success: true, data: results.map(row => attachSourceHealth(mapRemoteRuleSet(row), healthByRuleSetId.get(String(row.id)))) })
 })
 
 app.post('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const body = await c.req.json<Partial<RemoteRuleSet>>()
   const validation = validateRemoteRuleSetWrite(body, { create: true })
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400)
   }
-  let createInput = requireCreateRemoteRuleSet(validation)
+  let createInput = scopeDefaultTarget(requireCreateRemoteRuleSet(validation), workspaceId)
   const ts = now()
-  await ensureZeroSetupDefaults(c.env.DB, ts)
-  const resolvedInput = await resolveLinkedSourceRuleSet(c.env.DB, createInput)
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
+  const resolvedInput = await resolveLinkedSourceRuleSet(c.env.DB, createInput, workspaceId)
   if (!resolvedInput) return c.json({ success: false, error: 'subscription source rule set is missing or unsupported' }, 400)
   createInput = resolvedInput
-  if (!(await isEnabledTargetGroup(c.env.DB, createInput.targetGroupId))) {
+  if (!(await isEnabledTargetGroup(c.env.DB, createInput.targetGroupId, workspaceId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
 
   const id = newId()
   await c.env.DB.prepare(
     `INSERT INTO remote_rule_sets
-      (id, name, url, format, behavior, preset_source, preset_id, source_overrides, source_id, source_rule_set_key, source_missing, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, name, url, format, behavior, preset_source, preset_id, source_overrides, source_id, source_rule_set_key, source_missing, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -71,17 +74,19 @@ app.post('/', async (c) => {
       createInput.lastUpdated ?? null,
       createInput.notes ?? null,
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run()
 
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>()
   return c.json({ success: true, data: mapRemoteRuleSet(row!) }, 201)
 })
 
 app.post('/batch', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const body = await c.req.json<{ sets?: Array<Partial<RemoteRuleSet>> }>()
   const sets = body.sets ?? []
   if (!Array.isArray(sets) || sets.length === 0) {
@@ -90,16 +95,16 @@ app.post('/batch', async (c) => {
 
   const ts = now()
   const createdIds: string[] = []
-  await ensureZeroSetupDefaults(c.env.DB, ts)
-  const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB)
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
+  const enabledTargetGroupIds = await listEnabledTargetGroupIds(c.env.DB, workspaceId)
 
   for (const [index, set] of sets.entries()) {
     const validation = validateRemoteRuleSetWrite(set, { create: true })
     if (!validation.valid) {
       return c.json({ success: false, error: `invalid remote rule set at index ${index}: ${validation.error}` }, 400)
     }
-    let createInput = requireCreateRemoteRuleSet(validation)
-    const resolvedInput = await resolveLinkedSourceRuleSet(c.env.DB, createInput)
+    let createInput = scopeDefaultTarget(requireCreateRemoteRuleSet(validation), workspaceId)
+    const resolvedInput = await resolveLinkedSourceRuleSet(c.env.DB, createInput, workspaceId)
     if (!resolvedInput) {
       return c.json({ success: false, error: `subscription source rule set is missing or unsupported at index ${index}` }, 400)
     }
@@ -111,8 +116,8 @@ app.post('/batch', async (c) => {
     createdIds.push(id)
     await c.env.DB.prepare(
       `INSERT INTO remote_rule_sets
-        (id, name, url, format, behavior, preset_source, preset_id, source_overrides, source_id, source_rule_set_key, source_missing, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, name, url, format, behavior, preset_source, preset_id, source_overrides, source_id, source_rule_set_key, source_missing, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
@@ -132,7 +137,8 @@ app.post('/batch', async (c) => {
         createInput.lastUpdated ?? null,
         createInput.notes ?? null,
         ts,
-        ts
+        ts,
+        workspaceId
       )
       .run()
   }
@@ -143,9 +149,9 @@ app.post('/batch', async (c) => {
 
   const placeholders = createdIds.map(() => '?').join(',')
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM remote_rule_sets WHERE id IN (${placeholders}) ORDER BY sort_order ASC, created_at ASC`
+    `SELECT * FROM remote_rule_sets WHERE workspace_id = ? AND id IN (${placeholders}) ORDER BY sort_order ASC, created_at ASC`
   )
-    .bind(...createdIds)
+    .bind(workspaceId, ...createdIds)
     .all<Record<string, unknown>>()
 
   return c.json({ success: true, data: results.map(mapRemoteRuleSet) }, 201)
@@ -196,8 +202,9 @@ app.post('/validate-sources', async (c) => {
 })
 
 app.post('/:id/validate', async (c) => {
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c)
+  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>()
 
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
@@ -206,8 +213,9 @@ app.post('/:id/validate', async (c) => {
 })
 
 app.post('/:id/validate-all', async (c) => {
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c)
+  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>()
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
 
@@ -223,12 +231,13 @@ app.post('/:id/validate-all', async (c) => {
 })
 
 app.post('/:id/conversion-preview', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const body: { targetFormat?: unknown } = await c.req.json<{ targetFormat?: unknown }>().catch(() => ({}))
   if (!isFullConfigExportFormat(body.targetFormat)) {
     return c.json({ success: false, error: 'invalid conversion preview target' }, 400)
   }
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(c.req.param('id'))
+  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>()
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
 
@@ -309,9 +318,9 @@ app.post('/:id/conversion-preview', async (c) => {
 })
 
 app.get('/:id', async (c) => {
-
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c)
+  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>()
 
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
@@ -320,11 +329,12 @@ app.get('/:id', async (c) => {
 })
 
 app.put('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const id = c.req.param('id')
   const ts = now()
-  await ensureZeroSetupDefaults(c.env.DB, ts)
-  const existing = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(id)
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
+  const existing = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>()
   if (!existing) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
 
@@ -340,12 +350,12 @@ app.put('/:id', async (c) => {
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400)
   }
-  if (validation.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, validation.targetGroupId))) {
+  if (validation.targetGroupId !== undefined && !(await isEnabledTargetGroup(c.env.DB, validation.targetGroupId, workspaceId))) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
   if (
     typeof validation.targetOverrideGroupId === 'string'
-    && !(await isEnabledTargetGroup(c.env.DB, validation.targetOverrideGroupId))
+    && !(await isEnabledTargetGroup(c.env.DB, validation.targetOverrideGroupId, workspaceId))
   ) {
     return c.json({ success: false, error: 'target override group is disabled or missing' }, 400)
   }
@@ -364,7 +374,7 @@ app.put('/:id', async (c) => {
   if (
     managed
     && validation.enabled === true
-    && !(await isEnabledTargetGroup(c.env.DB, nextEffectiveTargetGroupId))
+    && !(await isEnabledTargetGroup(c.env.DB, nextEffectiveTargetGroupId, workspaceId))
   ) {
     return c.json({
       success: false,
@@ -375,7 +385,7 @@ app.put('/:id', async (c) => {
   if (
     nextEnabled
     && !(managed && validation.targetOverrideGroupId === null)
-    && !(await isEnabledTargetGroup(c.env.DB, nextEffectiveTargetGroupId))
+    && !(await isEnabledTargetGroup(c.env.DB, nextEffectiveTargetGroupId, workspaceId))
   ) {
     return c.json({ success: false, error: 'target group is disabled or missing' }, 400)
   }
@@ -383,7 +393,7 @@ app.put('/:id', async (c) => {
     `UPDATE remote_rule_sets SET
       name = ?, url = ?, format = ?, behavior = ?, preset_source = ?, preset_id = ?, source_overrides = ?, target_group_id = ?, target_override_group_id = ?, update_interval = ?,
       enabled = ?, sort_order = ?, last_updated = ?, notes = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   )
     .bind(
       validation.name ?? existing.name,
@@ -405,7 +415,8 @@ app.put('/:id', async (c) => {
       validation.lastUpdated !== undefined ? validation.lastUpdated : existing.last_updated,
       validation.notes !== undefined ? validation.notes : existing.notes,
       ts,
-      id
+      id,
+      workspaceId
     )
 
   const sourceChanged = remoteRuleSetSourceChanged(validation, existing)
@@ -419,27 +430,28 @@ app.put('/:id', async (c) => {
   }
 
   if (managed && validation.targetOverrideGroupId !== undefined) {
-    await ensureZeroSetupDefaults(c.env.DB, now())
+    await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
   }
-  const updated = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?')
-    .bind(id)
+  const updated = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>()
   const sourceHealth = sourceChanged ? undefined : await getSourceHealthSnapshot(c.env.DB, id)
   return c.json({ success: true, data: attachSourceHealth(mapRemoteRuleSet(updated!), sourceHealth) })
 })
 
 app.delete('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const id = c.req.param('id')
-  const row = await c.env.DB.prepare('SELECT id, preset_source, preset_id FROM remote_rule_sets WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT id, preset_source, preset_id FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>()
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
   if (isManagedRemoteRuleSet(row)) {
     return c.json({ success: false, error: 'built-in remote rule sets can be disabled but not deleted' }, 400)
   }
 
-  await c.env.DB.prepare('DELETE FROM remote_rule_sets WHERE id = ?').bind(id).run()
-  await ensureZeroSetupDefaults(c.env.DB, now())
+  await c.env.DB.prepare('DELETE FROM remote_rule_sets WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).run()
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
   return c.json({ success: true, data: { id } })
 })
 
@@ -508,9 +520,10 @@ function requireCreateRemoteRuleSet(
 async function resolveLinkedSourceRuleSet(
   db: D1Database,
   input: CreateRemoteRuleSetInput,
+  workspaceId: string,
 ): Promise<CreateRemoteRuleSetInput | null> {
   if (!input.sourceId || !input.sourceRuleSetKey) return input
-  const candidates = await listSourceRemoteRuleSets(db, input.sourceId)
+  const candidates = await listSourceRemoteRuleSets(db, input.sourceId, workspaceId)
   const candidate = candidates?.find(item => item.key === input.sourceRuleSetKey)
   if (!candidate) return null
   return {
@@ -520,6 +533,12 @@ async function resolveLinkedSourceRuleSet(
     behavior: candidate.behavior,
     updateInterval: candidate.updateInterval,
   }
+}
+
+function scopeDefaultTarget(input: CreateRemoteRuleSetInput, workspaceId: string): CreateRemoteRuleSetInput {
+  return input.targetGroupId === DEFAULT_RULE_TARGET_GROUP_ID
+    ? { ...input, targetGroupId: workspaceEntityId(workspaceId, DEFAULT_RULE_TARGET_GROUP_ID) }
+    : input
 }
 
 function attachSourceHealth(ruleSet: RemoteRuleSet, sourceHealth?: RemoteRuleSetSourceHealthSnapshot): RemoteRuleSet {

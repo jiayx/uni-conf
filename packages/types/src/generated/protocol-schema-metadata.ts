@@ -640,7 +640,25 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
       ],
       "required": []
     },
+    "masque": {
+      "fields": [
+        "type"
+      ],
+      "required": []
+    },
+    "mieru": {
+      "fields": [
+        "type"
+      ],
+      "required": []
+    },
     "reject": {
+      "fields": [
+        "type"
+      ],
+      "required": []
+    },
+    "snell": {
       "fields": [
         "type"
       ],
@@ -670,7 +688,19 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
       ],
       "required": []
     },
+    "sudoku": {
+      "fields": [
+        "type"
+      ],
+      "required": []
+    },
     "trojan": {
+      "fields": [
+        "type"
+      ],
+      "required": []
+    },
+    "trusttunnel": {
       "fields": [
         "type"
       ],

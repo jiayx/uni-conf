@@ -112,7 +112,7 @@ describe('groups route helpers', () => {
     }, { DB: db })
 
     expect(response.status).toBe(201)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('initializes zero-setup defaults after updating a group', async () => {
@@ -125,7 +125,7 @@ describe('groups route helpers', () => {
     }, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('rejects missing nested groups before creating a custom group', async () => {
@@ -238,7 +238,7 @@ describe('groups route helpers', () => {
     const response = await groupsApp.request('/custom-downloads', { method: 'DELETE' }, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('rejects deleting a group that is still nested in another policy group', async () => {
@@ -331,7 +331,24 @@ function createGroupRouteMockDb(): D1Database {
           }
           return null
         },
-        all: async () => ({ results: [] }),
+        all: async () => {
+          if (sql.includes('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups')) {
+            return { results: [...groups.values()] }
+          }
+          if (sql.includes('SELECT id, group_ids FROM groups')) {
+            return { results: [...groups.values()].map(row => ({ id: row.id, group_ids: row.group_ids })) }
+          }
+          if (sql.includes('SELECT id, name, include_group_ids FROM export_configs')) {
+            return { results: [...exportConfigs.values()] }
+          }
+          if (sql.includes('SELECT id FROM groups')) {
+            return { results: [...groups.keys()].map(id => ({ id })) }
+          }
+          if (sql.includes('SELECT * FROM groups')) {
+            return { results: [...groups.values()].sort((a, b) => Number(a.sort_order) - Number(b.sort_order)) }
+          }
+          return { results: [] }
+        },
         run: async () => {
           if (sql.includes('INSERT INTO groups')) {
             groups.set(String(args[0]), groupRow(String(args[0]), String(args[1]), Number(args[11] ?? 11)))

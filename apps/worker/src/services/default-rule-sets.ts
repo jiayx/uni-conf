@@ -5,6 +5,7 @@ import type {
   UnmatchedTrafficPolicy,
 } from '@uni-conf/types'
 import { getRuleSetCatalogSnapshot } from './rule-set-catalogs'
+import { DEFAULT_WORKSPACE_ID } from './workspaces'
 
 type TargetGroupInfo = { id: string; enabled: boolean }
 type TargetGroupIndex = {
@@ -31,11 +32,12 @@ export async function ensureDefaultRemoteRuleSets(
   ts: string,
   unmatchedTrafficPolicy: UnmatchedTrafficPolicy = 'proxy',
   snapshot?: RuleSetCatalogSnapshot,
+  workspaceId = DEFAULT_WORKSPACE_ID,
 ): Promise<void> {
   const refreshCanonicalFields = snapshot !== undefined
   const catalogSnapshot = snapshot ?? await getRuleSetCatalogSnapshot()
-  const groups = await listTargetGroups(db)
-  const existingPresets = await listExistingPresetRows(db)
+  const groups = await listTargetGroups(db, workspaceId)
+  const existingPresets = await listExistingPresetRows(db, workspaceId)
   const healthInvalidationIds = new Set<string>()
   const statements: D1PreparedStatement[] = []
   const managedPresetKeys = new Set(catalogSnapshot.catalogs.flatMap(catalog =>
@@ -108,8 +110,8 @@ export async function ensureDefaultRemoteRuleSets(
       statements.push(db
         .prepare(
           `INSERT INTO remote_rule_sets
-            (id, name, url, format, behavior, preset_source, preset_id, source_overrides, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 24, ?, ?, NULL, ?, ?, ?)`,
+            (id, name, url, format, behavior, preset_source, preset_id, source_overrides, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at, workspace_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 24, ?, ?, NULL, ?, ?, ?, ?)`,
         )
         .bind(
           newId(),
@@ -126,6 +128,7 @@ export async function ensureDefaultRemoteRuleSets(
           state.notes,
           ts,
           ts,
+          workspaceId,
         ))
     }
   }
@@ -136,9 +139,10 @@ export async function ensureDefaultRemoteRuleSets(
   if (statements.length > 0) await db.batch(statements)
 }
 
-async function listTargetGroups(db: D1Database): Promise<TargetGroupIndex> {
+async function listTargetGroups(db: D1Database, workspaceId: string): Promise<TargetGroupIndex> {
   const { results } = await db
-    .prepare('SELECT id, name, enabled FROM groups')
+    .prepare('SELECT id, name, enabled FROM groups WHERE workspace_id = ?')
+    .bind(workspaceId)
     .all<{ id: string; name: string; enabled: number | boolean | null }>()
   const entries = results.map(group => ({
     id: group.id,
@@ -157,9 +161,10 @@ async function listTargetGroups(db: D1Database): Promise<TargetGroupIndex> {
   }
 }
 
-async function listExistingPresetRows(db: D1Database): Promise<Map<string, ExistingPreset>> {
+async function listExistingPresetRows(db: D1Database, workspaceId: string): Promise<Map<string, ExistingPreset>> {
   const { results } = await db
-    .prepare('SELECT id, url, format, behavior, preset_source, preset_id, source_overrides, target_group_id, target_override_group_id, enabled, sort_order, notes FROM remote_rule_sets WHERE preset_source IS NOT NULL AND preset_id IS NOT NULL')
+    .prepare('SELECT id, url, format, behavior, preset_source, preset_id, source_overrides, target_group_id, target_override_group_id, enabled, sort_order, notes FROM remote_rule_sets WHERE workspace_id = ? AND preset_source IS NOT NULL AND preset_id IS NOT NULL')
+    .bind(workspaceId)
     .all<Omit<ExistingPreset, 'source_overrides'> & { preset_source: string; preset_id: string; source_overrides: string | null }>()
   return new Map(results.map(row => [
     presetKey(row.preset_source, row.preset_id),

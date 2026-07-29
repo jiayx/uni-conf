@@ -12,11 +12,27 @@
     "rules": "Manual Rules",
     "remote_rule_sets": "Rule Set Management",
     "export": "Export",
-    "preview": "Preview",
     "settings": "Settings",
     "primary_navigation": "Primary navigation",
     "open_menu": "Open primary navigation",
     "close_menu": "Close primary navigation"
+  },
+  "workspaces": {
+    "current": "Configuration space",
+    "manage": "Manage configuration spaces",
+    "description": "Each configuration space keeps its own sources, nodes, routing rules, DNS settings, and export profiles.",
+    "name_placeholder": "For example: Friend A",
+    "load_failed": "Could not load configuration spaces.",
+    "create_failed": "Could not create the configuration space.",
+    "rename_failed": "Could not rename the configuration space.",
+    "delete_failed": "Could not delete the configuration space.",
+    "delete_title": "Delete configuration space",
+    "delete_confirm": "Delete “{{name}}”? Its sources, nodes, rules, and export links will also be removed."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "This address may be incorrect or the page may have moved.",
+    "back_home": "Back to dashboard"
   },
   "common": {
     "add": "Add",
@@ -782,7 +798,6 @@
     "validation_warning_summary": "Config ready with {{unsupported}} non-blocking notices, {{partial}} automatic adjustments, and {{convert}} conversion notes",
     "validation_blocked_summary": "{{unsupported}} blocking issues need attention, with {{partial}} automatic adjustments and {{convert}} conversion notes",
     "validation_summary_with_lines": "{{summary}} · {{lineCount}} preview lines",
-    "validation_more": "{{count}} more notices. Open Config Preview for details.",
     "reset_token_title": "Reset Subscription Token",
     "reset_token_confirm_named": "Reset the subscription token for export profile “{{name}}”? All existing public links for this profile will be invalidated immediately.",
     "token_reset_success": "Token reset successfully",
@@ -793,12 +808,6 @@
     "link_paused_hint": "The public subscription for this export profile is paused. Preview, copy, and download remain unavailable until it is resumed."
   },
   "preview": {
-    "title": "Config Preview",
-    "select_format": "Select Format",
-    "default_config": "Default export config",
-    "config_selector": "Export profile",
-    "config_load_error_title": "Could not load export profiles",
-    "warnings": "Compatibility Warnings",
     "transformation_title": "Export transformation report",
     "transformation_desc": "Only transformations with explicit semantic outcomes are shown. Rules that cannot be represented safely are never guessed or broadened.",
     "transformation_filter_label": "Filter export transformations",
@@ -815,22 +824,11 @@
     "transformation_not_exported": "Not written to target config",
     "transformation_rule_counts": "{{converted}} kept · {{skipped}} not exported",
     "line_count": "{{count}} lines",
-    "capability_profile": "{{format}} capability profile r{{revision}}",
-    "capability_profile_help": "This is the UniConf exporter capability revision used to generate the config, not the target client app version.",
     "stale_title": "Previous preview retained",
     "stale_after_refresh_error": "The latest recheck failed. This content is kept only for comparison; recheck successfully before copying it.",
     "structure_valid": "{{kind}} structure valid",
     "structure_invalid": "Structure invalid ({{count}} issues)",
-    "copy_success": "Config copied",
-    "no_warnings": "No compatibility issues",
-    "ready_title": "Config ready",
-    "ready_desc": "The preview has no issues that need attention and can be copied or downloaded.",
-    "blocked_title": "Config needs attention",
     "generating": "Generating config...",
-    "content_truncated": "Showing {{shownLines}}/{{totalLines}} lines and {{shownCharacters}}/{{totalCharacters}} characters. Copy still uses the full config.",
-    "full_content_shown": "Full config shown: {{lineCount}} lines, {{characterCount}} characters.",
-    "show_full": "Show full config",
-    "show_compact": "Show compact preview",
     "fix_sources": "Open source",
     "fix_nodes": "Review nodes",
     "fix_groups": "Edit policy group",
@@ -838,9 +836,7 @@
     "fix_remote_rule_sets": "Edit rule set",
     "fix_collections": "Open node group",
     "fix_export": "Open export profiles",
-    "fix_settings": "Review setting",
-    "empty": "No preview content",
-    "error": "Preview failed"
+    "fix_settings": "Review setting"
   },
   "settings": {
     "title": "Settings",
@@ -918,7 +914,7 @@
     "title": "UniConf is Protected",
     "description": "Enter the access key to continue.",
     "placeholder": "Access key",
-    "unlock": "Unlock",
+    "unlock": "Continue",
     "invalid_key": "Invalid access key"
   },
   "dashboard": {

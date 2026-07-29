@@ -5,7 +5,7 @@ describe('zero setup defaults integration', () => {
   it('materializes the default export graph from recognized subscription nodes', async () => {
     const db = createZeroSetupDb();
 
-    const config = await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
+    const config = await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z', 'default');
 
     expect(config).toMatchObject({
       id: 'default-mihomo',
@@ -66,7 +66,7 @@ describe('zero setup defaults integration', () => {
   it('keeps an empty scenario selection limited to foundation targets and node outlets', async () => {
     const db = createZeroSetupDb({ routingPolicyScenarios: [] });
 
-    await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
+    await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z', 'default');
 
     const groupsByName = new Map(db.state.groups.map((row) => [row.name, row]));
     expect(groupsByName.get('PROXY')?.enabled).toBe(1);
@@ -97,7 +97,7 @@ describe('zero setup defaults integration', () => {
   it('keeps foundation routing and default rules when auto node groups are disabled', async () => {
     const db = createZeroSetupDb({ autoNodeGroupsEnabled: false });
 
-    await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
+    await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z', 'default');
 
     expect(db.state.collections.map((row) => row.name)).toEqual(['默认节点池']);
     const defaultNodePool = db.state.collections[0];
@@ -145,7 +145,7 @@ function createZeroSetupDb(patch: {
 } = {}): D1Database & { state: ZeroSetupState } {
   const state: ZeroSetupState = {
     appSettings: {
-      id: 'singleton',
+      id: 'default',
       language: 'zh',
       theme: 'system',
       routing_policy_scenarios: JSON.stringify(

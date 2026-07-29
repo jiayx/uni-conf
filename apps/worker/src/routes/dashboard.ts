@@ -3,13 +3,14 @@ import type { Env } from '../types'
 import { enabledNodeRowsQuery } from '../services/enabled-node-rows'
 import { now } from '../db/helpers'
 import { getExportConfigById } from '../export-data'
-import { DEFAULT_EXPORT_CONFIG_ID } from '../services/default-export-config'
+import { defaultExportConfigId, requestWorkspaceId } from '../services/workspaces'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/stats', async (c) => {
   const ts = now()
-  const defaultExportConfig = await getExportConfigById(c.env.DB, DEFAULT_EXPORT_CONFIG_ID)
+  const workspaceId = requestWorkspaceId(c)
+  const defaultExportConfig = await getExportConfigById(c.env.DB, defaultExportConfigId(workspaceId), workspaceId)
   if (!defaultExportConfig) throw new Error('Default export config is not initialized')
   const [
     sourceCount,
@@ -23,15 +24,16 @@ app.get('/stats', async (c) => {
     lastRefresh,
     ruleSetHealth,
   ] = await Promise.all([
-    count(c.env.DB, 'sources', "type <> 'manual'"),
-    count(c.env.DB, 'sources', "type = 'url' AND last_refresh_error IS NOT NULL AND TRIM(last_refresh_error) <> ''"),
-    count(c.env.DB, 'nodes'),
-    countEnabledExportNodes(c.env.DB),
-    count(c.env.DB, 'collections'),
-    count(c.env.DB, 'groups'),
-    count(c.env.DB, 'rules'),
-    count(c.env.DB, 'export_configs'),
-    c.env.DB.prepare("SELECT MAX(last_updated) as last_refreshed_at FROM sources WHERE type = 'url'")
+    count(c.env.DB, 'sources', workspaceId, "type <> 'manual'"),
+    count(c.env.DB, 'sources', workspaceId, "type = 'url' AND last_refresh_error IS NOT NULL AND TRIM(last_refresh_error) <> ''"),
+    count(c.env.DB, 'nodes', workspaceId),
+    countEnabledExportNodes(c.env.DB, workspaceId),
+    count(c.env.DB, 'collections', workspaceId),
+    count(c.env.DB, 'groups', workspaceId),
+    count(c.env.DB, 'rules', workspaceId),
+    count(c.env.DB, 'export_configs', workspaceId),
+    c.env.DB.prepare("SELECT MAX(last_updated) as last_refreshed_at FROM sources WHERE workspace_id = ? AND type = 'url'")
+      .bind(workspaceId)
       .first<{ last_refreshed_at: string | null }>(),
     c.env.DB.prepare(
       `SELECT
@@ -44,8 +46,8 @@ app.get('/stats', async (c) => {
         MAX(h.checked_at) AS last_checked_at
        FROM remote_rule_sets r
        LEFT JOIN remote_rule_set_source_health h ON h.remote_rule_set_id = r.id
-       WHERE r.enabled = 1 AND r.source_overrides IS NOT NULL AND r.source_overrides <> '{}'`
-    ).bind(ts, ts, ts, ts).first<{
+       WHERE r.workspace_id = ? AND r.enabled = 1 AND r.source_overrides IS NOT NULL AND r.source_overrides <> '{}'`
+    ).bind(ts, ts, ts, ts, workspaceId).first<{
       total: number | null
       valid: number | null
       warning: number | null
@@ -84,14 +86,15 @@ app.get('/stats', async (c) => {
   })
 })
 
-async function count(db: D1Database, table: string, where?: string): Promise<number> {
-  const row = await db.prepare(`SELECT COUNT(*) as count FROM ${table}${where ? ` WHERE ${where}` : ''}`)
+async function count(db: D1Database, table: string, workspaceId: string, where?: string): Promise<number> {
+  const row = await db.prepare(`SELECT COUNT(*) as count FROM ${table} WHERE workspace_id = ?${where ? ` AND ${where}` : ''}`)
+    .bind(workspaceId)
     .first<{ count: number }>()
   return row?.count ?? 0
 }
 
-async function countEnabledExportNodes(db: D1Database): Promise<number> {
-  const row = await db.prepare(`SELECT COUNT(*) as count FROM (${enabledNodeRowsQuery()}) enabled_nodes`)
+async function countEnabledExportNodes(db: D1Database, workspaceId: string): Promise<number> {
+  const row = await db.prepare(`SELECT COUNT(*) as count FROM (${enabledNodeRowsQuery(undefined, workspaceId)}) enabled_nodes`)
     .first<{ count: number }>()
   return row?.count ?? 0
 }

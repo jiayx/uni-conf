@@ -190,7 +190,7 @@ describe('collections route helpers', () => {
     }, { DB: db })
 
     expect(response.status).toBe(201)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('creates a collection and its dedicated group in one database batch', async () => {
@@ -248,7 +248,7 @@ describe('collections route helpers', () => {
     }, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('initializes zero-setup defaults after deleting a collection', async () => {
@@ -258,7 +258,7 @@ describe('collections route helpers', () => {
 
     expect(response.status).toBe(200)
     expect(readCollectionDb(db).groups.size).toBe(0)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('rejects deleting a collection referenced by a multi-collection policy group', async () => {
@@ -346,7 +346,18 @@ function createCollectionRouteMockDb(): D1Database {
           }
           return null
         },
-        all: async () => ({ results: sql.includes('SELECT * FROM collections') ? [...stored.values()] : [] }),
+        all: async () => {
+          if (sql.includes('SELECT id, name, is_builtin, collection_ids FROM groups')) {
+            return { results: [...groups.values()] }
+          }
+          if (sql.includes('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups')) {
+            return { results: [...groups.values()] }
+          }
+          if (sql.includes('SELECT id, name, include_collection_ids FROM export_configs')) {
+            return { results: [] }
+          }
+          return { results: sql.includes('SELECT * FROM collections') ? [...stored.values()] : [] }
+        },
         run: async () => {
           if (sql.includes('INSERT INTO collections')) {
             stored.set(String(args[0]), collectionRow(String(args[0]), String(args[1]), {
@@ -380,7 +391,7 @@ function createCollectionRouteMockDb(): D1Database {
           }
           if (sql.includes('DELETE FROM groups')) {
             for (const [id, row] of groups) {
-              if (row.collection_ids === args[0]) groups.delete(id)
+              if (row.collection_ids === args[1]) groups.delete(id)
             }
           }
           if (sql.includes('DELETE FROM collections WHERE id = ?')) {

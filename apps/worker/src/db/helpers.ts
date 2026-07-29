@@ -6,6 +6,7 @@ import type {
   ProxyRule,
   RemoteRuleSet,
   ExportConfig,
+  Workspace,
 } from '@uni-conf/types';
 
 // ─── Primitive helpers ────────────────────────────────────────────────────────
@@ -32,6 +33,16 @@ export function now(): string {
 }
 
 // ─── Row mappers ──────────────────────────────────────────────────────────────
+
+export function mapWorkspace(row: Record<string, unknown>): Workspace {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    isDefault: Boolean(row.is_default),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
 
 export function mapSource(row: Record<string, unknown>): ProxySource {
   return {
@@ -172,6 +183,7 @@ export function mapRemoteRuleSet(row: Record<string, unknown>): RemoteRuleSet {
 export function mapExportConfig(row: Record<string, unknown>): ExportConfig {
   return {
     id: row.id as string,
+    workspaceId: (row.workspace_id as string | null) ?? undefined,
     name: row.name as string,
     format: row.format as ExportConfig['format'],
     token: row.token as string,

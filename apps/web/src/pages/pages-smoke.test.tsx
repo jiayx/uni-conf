@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router'
 import i18n from '@/i18n'
 import { Dashboard } from './Dashboard/Dashboard'
 import { Export } from './Export/Export'
-import { Preview } from './Preview/Preview'
 import { Collections } from './Collections/Collections'
 import { Groups } from './Groups/Groups'
 import { Nodes } from './Nodes/Nodes'
@@ -72,7 +71,6 @@ describe('main page smoke rendering', () => {
   for (const [name, Component, title] of [
     ['Dashboard', Dashboard, 'Dashboard'],
     ['Export', Export, 'Config Export'],
-    ['Preview', Preview, 'Config Preview'],
     ['Collections', Collections, 'Node Groups'],
     ['Groups', Groups, 'Routing Plan'],
     ['Nodes', Nodes, 'Node List'],

@@ -273,7 +273,7 @@ describe('manual node input', () => {
     expect(response.status).toBe(201);
     expect(payload.success).toBe(true);
     expect(payload.data).toMatchObject({ name: '🇩🇪 DE 01', countryCode: 'DE' });
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default');
   });
 
   it('rejects structured manual nodes that miss protocol-required fields', async () => {
@@ -311,7 +311,7 @@ describe('manual node input', () => {
     }, { DB: db });
 
     expect(response.status).toBe(200);
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default');
   });
 
   it('allows subscription nodes to be disabled without changing their source-owned config', async () => {
@@ -327,7 +327,7 @@ describe('manual node input', () => {
 
     expect(response.status).toBe(200);
     expect(payload).toMatchObject({ success: true, data: { enabled: false } });
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default');
   });
 
   it('keeps parsedConfig core fields aligned when updating manual node address fields', async () => {
@@ -381,7 +381,7 @@ describe('manual node input', () => {
     const response = await nodesApp.request('/node-1', { method: 'DELETE' }, { DB: db });
 
     expect(response.status).toBe(200);
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default');
   });
 
   it('validates and deduplicates batch enable input', () => {
@@ -418,7 +418,7 @@ describe('manual node input', () => {
       updatedCount: 2,
     });
     expect((db as unknown as { __batch: ReturnType<typeof vi.fn> }).__batch).toHaveBeenCalledOnce();
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String));
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default');
   });
 
   it('rejects a batch when any selected node no longer exists', async () => {
@@ -449,7 +449,8 @@ describe('node listing', () => {
     expect(response.status).toBe(200);
     expect(executed.some((item) => item.sql.includes('LIKE'))).toBe(false);
     expect(executed.some((item) => item.sql.includes('instr(lower(name), lower(?)) > 0'))).toBe(true);
-    expect(executed[0]?.args[0]).toBe(search.slice(0, MAX_NODE_SEARCH_LENGTH));
+    expect(executed[0]?.args[0]).toBe('default');
+    expect(executed[0]?.args[1]).toBe(search.slice(0, MAX_NODE_SEARCH_LENGTH));
   });
 
   it('normalizes node search input before it reaches SQLite', () => {

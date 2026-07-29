@@ -325,15 +325,27 @@ proxies:
     - { name: 'Node 1', type: trojan, server: server1.com, port: 443, password: pwd1 }
     - { name: 'Node 2', type: anytls, server: server2.com, port: 443, password: pwd2 }
     - { name: 'Node 3', type: vmess, server: server3.com, port: 443, uuid: test-uuid }
+    - { name: 'Node 4', type: masque, server: server4.com, port: 443, private-key: client-key, public-key: server-key, ip: 172.16.0.2/32 }
 `
     const nodes = parseClashYaml(inlineYaml)
-    expect(nodes.length).toBe(3)
+    expect(nodes.length).toBe(4)
     expect(nodes[0]!.name).toBe('Node 1')
     expect(nodes[0]!.protocol).toBe('trojan')
     expect(nodes[1]!.name).toBe('Node 2')
     expect(nodes[1]!.protocol).toBe('anytls')
     expect(nodes[2]!.name).toBe('Node 3')
     expect(nodes[2]!.protocol).toBe('vmess')
+    expect(nodes[3]).toMatchObject({
+      name: 'Node 4',
+      protocol: 'masque',
+      parsedConfig: {
+        extra: {
+          privateKey: 'client-key',
+          publicKey: 'server-key',
+          ip: '172.16.0.2/32',
+        },
+      },
+    })
   })
 
   it('should parse block format nodes (multi-line)', () => {
@@ -383,6 +395,10 @@ proxies:
       'wireguard://private-key@us.example.com:51820?public-key=peer-key&address=172.16.0.2#US%20WireGuard',
       'naive+https://user:pass@jp.example.com:443#JP%20Naive',
       'hysteria://auth-secret@tw.example.com:443?sni=tw.example.com#TW%20Hysteria',
+      'snell://snell-psk@snell.example.com:44046?version=4#Snell',
+      'mieru://user:pass@mieru.example.com:2999?transport=TCP#Mieru',
+      'trusttunnel://user:pass@trust.example.com:443?sni=trust.example.com#TrustTunnel',
+      'juicity://id:pass@juicity.example.com:443?sni=juicity.example.com#Juicity',
     ].join('\n'), 'raw')
 
     expect(result.format).toBe('raw')
@@ -400,6 +416,16 @@ proxies:
           tls: true,
           sni: 'tw.example.com',
         }),
+      }),
+      expect.objectContaining({ name: 'Snell', protocol: 'snell', server: 'snell.example.com', port: 44046 }),
+      expect.objectContaining({ name: 'Mieru', protocol: 'mieru', server: 'mieru.example.com', port: 2999 }),
+      expect.objectContaining({ name: 'TrustTunnel', protocol: 'trusttunnel', server: 'trust.example.com', port: 443 }),
+      expect.objectContaining({
+        name: 'Juicity',
+        protocol: 'juicity',
+        server: 'juicity.example.com',
+        port: 443,
+        parsedConfig: expect.objectContaining({ uuid: 'id', password: 'pass', tls: true }),
       }),
     ])
   })
@@ -786,7 +812,7 @@ proxies:
       { operation: 'undo-import-runs', sourceId: 'source-1' },
       { operation: 'delete-source', sourceId: 'source-1' },
     ])
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z')
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'default')
   })
 
   it('does not initialize defaults when deleting a missing source', async () => {
@@ -828,7 +854,7 @@ proxies:
       country: 'Hong Kong',
       countryCode: 'HK',
     }))
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('updates a stable subscription node when its server changes instead of replacing its row', async () => {
@@ -930,7 +956,7 @@ proxy-groups:
       expireTime: 1893456000,
       id: 'source-1',
     })
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('initializes zero-setup defaults after creating a subscription source', async () => {
@@ -951,7 +977,7 @@ proxy-groups:
     expect(response.status).toBe(201)
     expect(payload.success).toBe(true)
     expect(payload.data.source.name).toBe('BigME.Pro')
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('defaults source type to url when creating with only a subscription URL', async () => {
@@ -977,7 +1003,7 @@ proxy-groups:
       type: 'url',
       url: 'https://only-url.example/sub',
     })
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('refreshes a subscription source by default when creating it with only a URL', async () => {
@@ -1049,7 +1075,7 @@ proxy-groups:
       server: 'us.example.com',
       countryCode: 'US',
     }))
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('imports a clipboard source from pasted Clash YAML content', async () => {
@@ -1094,7 +1120,7 @@ proxy-groups:
       server: 'us.example.com',
       countryCode: 'US',
     }))
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('writes imported rules and remote rule sets in one database batch', async () => {
@@ -1233,7 +1259,7 @@ proxy-groups:
       operation: 'record-refresh-error',
       error: expect.stringContaining('No usable proxy nodes parsed'),
     }))
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('rejects importing with empty content', async () => {
@@ -1500,7 +1526,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
         all: async () => {
           if (sql.includes('SELECT id, name, server, port, protocol')) return { results: nodes }
           if (sql.includes('SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?')) return { results: [{ cnt: nodes.length }] }
-          if (sql.includes("SELECT id, node_ids, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")) return { results: [collection] }
+          if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE workspace_id = ?')) return { results: [collection] }
           if (sql.includes('SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0 AND enabled = 1')) {
             return { results: nodes.filter(node => node.enabled !== 0).map(node => ({ id: node.id, name: node.name })) }
           }
@@ -1552,7 +1578,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
       }),
       first: async () => null,
       all: async () => {
-        if (sql.includes("SELECT id, node_ids, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")) return { results: [collection] }
+        if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE workspace_id = ?')) return { results: [collection] }
         return { results: [] }
       },
       run: async () => ({ success: true }),
@@ -1720,7 +1746,7 @@ function createCreateRefreshMockDb(
           return null
         },
         all: async () => {
-          if (sql.includes('SELECT id, name FROM groups WHERE enabled = 1')) {
+          if (sql.includes('SELECT id, name FROM groups WHERE workspace_id = ? AND enabled = 1')) {
             return { results: [{ id: 'builtin-proxy', name: 'PROXY' }, { id: 'builtin-reject', name: 'REJECT' }] }
           }
           return { results: [] }
@@ -1774,7 +1800,7 @@ function createCreateRefreshMockDb(
       }),
       first: async () => sql.includes('SELECT MAX(sort_order)') ? { max_order: null } : null,
       all: async () => {
-        if (sql.includes('SELECT id, name FROM groups WHERE enabled = 1')) {
+        if (sql.includes('SELECT id, name FROM groups WHERE workspace_id = ? AND enabled = 1')) {
           return { results: [{ id: 'builtin-proxy', name: 'PROXY' }, { id: 'builtin-reject', name: 'REJECT' }] }
         }
         return { results: [] }

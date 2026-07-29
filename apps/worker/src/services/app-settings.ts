@@ -1,5 +1,6 @@
 import { ALL_ROUTING_POLICY_SCENARIO_IDS, AUTO_NODE_GROUP_TYPE_ORDER, DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, DEFAULT_ROUTING_POLICY_SCENARIOS, isAutoNodeGroupType, normalizeDnsRealIpDomainList } from '@uni-conf/shared';
 import type { AppSettings, AutoNodeGroupType, DnsResolutionMode, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types';
+import { DEFAULT_WORKSPACE_ID } from './workspaces';
 
 const LANGUAGES = new Set<Language>(['zh', 'en']);
 const THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
@@ -15,9 +16,12 @@ const RULE_SET_CONVERSION_POLICIES = new Set<RuleSetConversionPolicy>(['compatib
 const DNS_RESOLUTION_MODES = new Set<DnsResolutionMode>(['single', 'split']);
 const DEFAULT_AUTO_NODE_GROUP_TYPES: AutoNodeGroupType[] = ['url-test'];
 
-export async function getAppSettings(db: D1Database): Promise<AppSettings> {
+export async function getAppSettings(
+  db: D1Database,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<AppSettings> {
   const row = await db.prepare('SELECT * FROM app_settings WHERE id = ?')
-    .bind('singleton')
+    .bind(workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) {

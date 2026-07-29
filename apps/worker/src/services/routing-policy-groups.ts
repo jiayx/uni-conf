@@ -11,6 +11,11 @@ import {
 import type { RoutingPolicyScenarioId } from '@uni-conf/types';
 import { jsonParse, jsonStringify } from '../db/helpers';
 import { getAppSettings } from './app-settings';
+import {
+  DEFAULT_WORKSPACE_ID,
+  defaultNodePoolId,
+  workspaceEntityId,
+} from './workspaces';
 
 type GroupRow = Record<string, unknown>;
 type AutoCollectionKeysById = Record<string, string>;
@@ -70,17 +75,22 @@ const DEFAULT_GENERATED_GROUPS = [
   { id: 'builtin-fallback-select', name: '故障切换', type: 'fallback', sortOrder: 18, builtins: [], collectionIds: [DEFAULT_NODE_POOL_COLLECTION_ID] },
 ];
 
-export async function syncRoutingPolicyGroups(db: D1Database, ts: string): Promise<void> {
-  await ensureDefaultGeneratedGroups(db, ts);
-  await applyActiveScenarios(db, ts);
+export async function syncRoutingPolicyGroups(
+  db: D1Database,
+  ts: string,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<void> {
+  await ensureDefaultGeneratedGroups(db, ts, workspaceId);
+  await applyActiveScenarios(db, ts, workspaceId);
 
   const { results } = await db
-    .prepare('SELECT id, name, type, collection_ids, enabled, is_builtin FROM groups ORDER BY sort_order ASC, created_at ASC')
+    .prepare('SELECT id, name, type, collection_ids, enabled, is_builtin FROM groups WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC')
+    .bind(workspaceId)
     .all<GroupRow>();
 
   const routingGroupIds = resolveRoutingGroupIds(results);
-  const outletPreferences = await getRoutingOutletPreferences(db);
-  const autoCollectionKeysById = await listAutoCollectionKeysById(db);
+  const outletPreferences = await getRoutingOutletPreferences(db, workspaceId);
+  const autoCollectionKeysById = await listAutoCollectionKeysById(db, workspaceId);
 
   if (routingGroupIds.length === 0) return;
 
@@ -118,9 +128,10 @@ export function withOutletRefs<T extends GroupRow>(
 }
 
 export function resolveOutletGroupIds(groupRows: GroupRow[]): string[] {
-  const defaultIds = DEFAULT_MEMBER_GROUP_IDS.filter((id) =>
-    groupRows.some((row) => String(row.id) === id && Boolean(row.enabled))
-  );
+  const defaultIds = groupRows
+    .filter((row) => Boolean(row.enabled))
+    .map((row) => String(row.id))
+    .filter((id) => DEFAULT_MEMBER_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId)));
   const nodeBackedIds = groupRows
     .filter((row) => Boolean(row.enabled))
     .filter((row) => parseIds(row.collection_ids).length > 0)
@@ -131,10 +142,13 @@ export function resolveOutletGroupIds(groupRows: GroupRow[]): string[] {
 }
 
 export function resolveRoutingGroupIds(groupRows: GroupRow[]): string[] {
-  const defaultOutletIds = new Set(DEFAULT_MEMBER_GROUP_IDS);
   return groupRows
     .filter((row) => Boolean(row.enabled))
-    .filter((row) => !defaultOutletIds.has(String(row.id)) || String(row.id) === DEFAULT_PROXY_GROUP_ID)
+    .filter((row) => {
+      const id = String(row.id);
+      const isDefaultOutlet = DEFAULT_MEMBER_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId));
+      return !isDefaultOutlet || isWorkspaceEntityId(id, DEFAULT_PROXY_GROUP_ID);
+    })
     .filter((row) => !['direct', 'reject'].includes(String(row.type)))
     .filter((row) => parseIds(row.collection_ids).length === 0)
     .map((row) => String(row.id))
@@ -181,7 +195,7 @@ function sortRoutingMemberGroupIds(
   const routingGroupName = String(rowsById.get(routingGroupId)?.name ?? routingGroupId).toUpperCase();
   const countryPreferences = ROUTING_COUNTRY_PREFERENCES[routingGroupName] ?? [];
   const preferredOutletId = resolveOutletPreferenceId(outletPreferences[routingGroupId], outletIds, rowsById, autoCollectionKeysById);
-  const defaultOutletId = ROUTING_DEFAULT_OUTLET_IDS[routingGroupName];
+  const defaultOutletBaseId = ROUTING_DEFAULT_OUTLET_IDS[routingGroupName];
   const used = new Set<string>();
   const ordered: string[] = [];
 
@@ -192,7 +206,10 @@ function sortRoutingMemberGroupIds(
   };
 
   if (preferredOutletId) push(preferredOutletId);
-  else if (defaultOutletId) push(defaultOutletId);
+  else if (defaultOutletBaseId) {
+    const defaultOutletId = outletIds.find((id) => isWorkspaceEntityId(id, defaultOutletBaseId));
+    if (defaultOutletId) push(defaultOutletId);
+  }
 
   for (const tagKey of ROUTING_TAG_GROUP_PREFERENCES[routingGroupName] ?? []) {
     for (const id of outletIds) {
@@ -206,7 +223,10 @@ function sortRoutingMemberGroupIds(
     }
   }
 
-  for (const id of GENERAL_OUTLET_ORDER) push(id);
+  for (const baseId of GENERAL_OUTLET_ORDER) {
+    const id = outletIds.find((candidate) => isWorkspaceEntityId(candidate, baseId));
+    if (id) push(id);
+  }
 
   for (const id of outletIds) push(id);
 
@@ -226,17 +246,23 @@ function tagGroupKeyFromGroup(row: GroupRow | undefined): string | undefined {
   return undefined;
 }
 
-async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise<void> {
+async function ensureDefaultGeneratedGroups(
+  db: D1Database,
+  ts: string,
+  workspaceId: string,
+): Promise<void> {
   const insertStatements = DEFAULT_GENERATED_GROUPS.map((group) =>
     db.prepare(
       `INSERT OR IGNORE INTO groups
-        (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, 1, ?, 1, ?, ?)`
+        (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, 1, ?, 1, ?, ?, ?)`
     ).bind(
-      group.id,
+      workspaceEntityId(workspaceId, group.id),
       group.name,
       group.type,
-      jsonStringify(group.collectionIds),
+      jsonStringify(group.collectionIds.map((id) =>
+        id === DEFAULT_NODE_POOL_COLLECTION_ID ? defaultNodePoolId(workspaceId) : id
+      )),
       jsonStringify(group.builtins),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
@@ -244,7 +270,8 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
       DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
       group.sortOrder,
       ts,
-      ts
+      ts,
+      workspaceId
     )
   );
   const canonicalStatements = DEFAULT_GENERATED_GROUPS.map((group) =>
@@ -261,11 +288,13 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
         sort_order = ?,
         is_builtin = 1,
         updated_at = ?
-       WHERE id = ?`
+       WHERE id = ? AND workspace_id = ?`
     ).bind(
       group.name,
       group.type,
-      jsonStringify(group.collectionIds),
+      jsonStringify(group.collectionIds.map((id) =>
+        id === DEFAULT_NODE_POOL_COLLECTION_ID ? defaultNodePoolId(workspaceId) : id
+      )),
       jsonStringify(group.builtins),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
@@ -273,7 +302,8 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
       DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
       group.sortOrder,
       ts,
-      group.id
+      workspaceEntityId(workspaceId, group.id),
+      workspaceId,
     )
   );
 
@@ -281,28 +311,37 @@ async function ensureDefaultGeneratedGroups(db: D1Database, ts: string): Promise
   await db.batch(canonicalStatements);
 }
 
-async function applyActiveScenarios(db: D1Database, ts: string): Promise<void> {
-  const settings = await getAppSettings(db);
+async function applyActiveScenarios(db: D1Database, ts: string, workspaceId: string): Promise<void> {
+  const settings = await getAppSettings(db, workspaceId);
   const activeNames = resolveActiveScenarioGroupNames(settings.routingPolicyScenarios);
   const scenarioGroupNames = resolveManagedScenarioGroupNames();
   const statements = DEFAULT_GENERATED_GROUPS
     .filter((group) => scenarioGroupNames.has(group.name.toUpperCase()))
     .map((group) =>
       db
-        .prepare('UPDATE groups SET enabled = ?, updated_at = ? WHERE id = ?')
-        .bind(activeNames.has(group.name.toUpperCase()) ? 1 : 0, ts, group.id)
+        .prepare('UPDATE groups SET enabled = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+        .bind(
+          activeNames.has(group.name.toUpperCase()) ? 1 : 0,
+          ts,
+          workspaceEntityId(workspaceId, group.id),
+          workspaceId,
+        )
     );
 
   if (statements.length > 0) await db.batch(statements);
 }
 
-async function getRoutingOutletPreferences(db: D1Database): Promise<Record<string, string>> {
-  return (await getAppSettings(db)).routingOutletPreferences ?? {};
+async function getRoutingOutletPreferences(db: D1Database, workspaceId: string): Promise<Record<string, string>> {
+  return (await getAppSettings(db, workspaceId)).routingOutletPreferences ?? {};
 }
 
-export async function listAutoCollectionKeysById(db: D1Database): Promise<AutoCollectionKeysById> {
+export async function listAutoCollectionKeysById(
+  db: D1Database,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<AutoCollectionKeysById> {
   const { results } = await db
-    .prepare("SELECT id, notes FROM collections WHERE notes IS NOT NULL AND notes != ''")
+    .prepare("SELECT id, notes FROM collections WHERE workspace_id = ? AND notes IS NOT NULL AND notes != ''")
+    .bind(workspaceId)
     .all<{ id: string; notes: string | null }>();
   return Object.fromEntries(
     results
@@ -345,4 +384,8 @@ function autoCollectionKeyFromNotes(notes?: string | null): string | undefined {
 
 function parseIds(value: unknown): string[] {
   return typeof value === 'string' ? jsonParse<string[]>(value) ?? [] : [];
+}
+
+function isWorkspaceEntityId(id: string, baseId: string): boolean {
+  return id === baseId || id.endsWith(`:${baseId}`);
 }

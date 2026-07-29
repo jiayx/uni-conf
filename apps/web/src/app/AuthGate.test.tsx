@@ -21,6 +21,7 @@ vi.mock('@/lib/api', async () => {
 describe('AuthGate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(api.auth.check).mockReset()
     clearStoredApiKey()
     void i18n.changeLanguage('en')
   })
@@ -76,7 +77,7 @@ describe('AuthGate', () => {
 
     const input = await screen.findByPlaceholderText('Access key')
     await user.type(input, 'secret')
-    await user.click(screen.getByRole('button', { name: 'Unlock' }))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(await screen.findByText('protected content')).toBeInTheDocument()
   })
@@ -95,7 +96,7 @@ describe('AuthGate', () => {
 
     const input = await screen.findByPlaceholderText('Access key')
     await user.type(input, 'wrong')
-    await user.click(screen.getByRole('button', { name: 'Unlock' }))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(await screen.findByText('Invalid access key')).toBeInTheDocument()
     expect(screen.queryByText('protected content')).not.toBeInTheDocument()

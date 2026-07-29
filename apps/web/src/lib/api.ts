@@ -29,10 +29,12 @@ import type {
   AppSettingsPatch,
   PaginatedResponse,
   ApiErrorDetails,
+  Workspace,
 } from '@uni-conf/types'
 import { parseContentDispositionFilename, type ExportDownloadFile } from '@/core/export/download-file'
 import { getExportSubscriptionFilename, MAX_NODE_SEARCH_LENGTH } from '@uni-conf/shared'
 import { getStoredApiKey } from './auth'
+import { getActiveWorkspaceId } from './workspace'
 
 const BASE = import.meta.env['VITE_API_URL'] ?? '/api'
 
@@ -69,7 +71,10 @@ export class ApiError extends Error {
 
 function authHeaders(): Record<string, string> {
   const apiKey = getStoredApiKey()
-  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
+  return {
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    'X-Workspace-Id': getActiveWorkspaceId(),
+  }
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -156,6 +161,13 @@ const sources = {
 
 const system = {
   initialize: (): Promise<{ initialized: true }> => post('/initialize'),
+}
+
+const workspaces = {
+  list: (): Promise<Workspace[]> => get('/workspaces'),
+  create: (name: string): Promise<Workspace> => post('/workspaces', { name }),
+  update: (id: string, name: string): Promise<Workspace> => put(`/workspaces/${pathSegment(id)}`, { name }),
+  remove: (id: string): Promise<void> => del(`/workspaces/${pathSegment(id)}`),
 }
 
 const ruleSetCatalogs = {
@@ -441,6 +453,7 @@ const authApi = {
 
 export const api = {
   system,
+  workspaces,
   sources,
   ruleSetCatalogs,
   nodes,

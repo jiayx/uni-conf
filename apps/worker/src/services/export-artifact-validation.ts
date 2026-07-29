@@ -317,7 +317,7 @@ function validateSingboxWireGuardEndpoint(
 const EGERN_PROXY_TYPES = new Set([
   'shadowsocks', 'trojan', 'anytls', 'hysteria2', 'tuic',
   'socks5', 'socks5_tls', 'ssh', 'http', 'https',
-  'vmess', 'vless', 'wireguard',
+  'vmess', 'vless', 'wireguard', 'snell',
 ])
 
 const EGERN_POLICY_GROUP_TYPES = new Set([
@@ -473,6 +473,7 @@ function validateEgernProxyBody(
     vless: ['user_id'],
     ssh: ['username'],
     wireguard: ['private_key', 'peer_public_key'],
+    snell: ['psk'],
   }
   for (const field of requiredByType[type] ?? []) {
     if (typeof body[field] === 'string' && body[field]) continue
@@ -536,7 +537,8 @@ function validateTextClientReferences(
 }
 
 const SURGE_PROXY_PROTOCOLS = new Set([
-  'http', 'https', 'socks5', 'ss', 'vmess', 'trojan', 'hysteria2', 'anytls',
+  'http', 'https', 'socks5', 'ss', 'vmess', 'trojan', 'hysteria2', 'tuic-v5', 'anytls',
+  'ssh', 'wireguard', 'snell', 'trust-tunnel',
 ])
 
 function validateSurgeProxyEntries(lines: string[]): ExportArtifactValidationIssue[] {
@@ -551,24 +553,31 @@ function validateSurgeProxyEntries(lines: string[]): ExportArtifactValidationIss
       issues.push(issue('invalid_entry', path, `Surge 节点协议 ${protocol || '(empty)'} 无效`, `The Surge proxy protocol ${protocol || '(empty)'} is invalid.`))
       continue
     }
+    const parameters = new Set(values.slice(1).map(value => value.split('=', 1)[0]?.toLowerCase()))
+    if (protocol === 'wireguard') {
+      if (!parameters.has('section-name')) {
+        issues.push(issue('missing_field', path, 'Surge WireGuard 节点缺少 section-name', 'The Surge WireGuard proxy is missing section-name.'))
+      }
+      continue
+    }
     const host = values[1] ?? ''
     const port = Number(values[2])
     if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
       issues.push(issue('invalid_value', path, 'Surge 节点缺少有效的主机和端口', 'The Surge proxy entry is missing a valid host and port.'))
     }
-    const parameters = new Set(values.slice(3).map(value => value.split('=', 1)[0]?.toLowerCase()))
-    if (protocol === 'http' && parameters.has('tls')) {
+    const proxyParameters = new Set(values.slice(3).map(value => value.split('=', 1)[0]?.toLowerCase()))
+    if (protocol === 'http' && proxyParameters.has('tls')) {
       issues.push(issue('invalid_entry', path, 'Surge HTTPS 节点必须使用 https 类型，不能使用 http + tls=true', 'A Surge HTTPS proxy must use the https type, not http with tls=true.'))
     }
-    const required = protocol === 'ss'
-      ? ['encrypt-method', 'password']
-      : protocol === 'vmess'
-        ? ['username']
-        : ['trojan', 'hysteria2', 'anytls'].includes(protocol)
-          ? ['password']
-          : []
+    let required: string[] = []
+    if (protocol === 'ss') required = ['encrypt-method', 'password']
+    else if (protocol === 'vmess' || protocol === 'ssh') required = ['username']
+    else if (protocol === 'tuic-v5') required = ['uuid', 'password']
+    else if (protocol === 'snell') required = ['psk', 'version']
+    else if (protocol === 'trust-tunnel') required = ['username', 'password']
+    else if (['trojan', 'hysteria2', 'anytls'].includes(protocol)) required = ['password']
     for (const parameter of required) {
-      if (parameters.has(parameter)) continue
+      if (proxyParameters.has(parameter)) continue
       issues.push(issue('missing_field', path, `Surge ${protocol} 节点缺少 ${parameter}`, `The Surge ${protocol} proxy is missing ${parameter}.`))
     }
   }
@@ -577,7 +586,7 @@ function validateSurgeProxyEntries(lines: string[]): ExportArtifactValidationIss
 
 const LOON_PROXY_PROTOCOLS = new Set([
   'shadowsocks', 'shadowsocksr', 'vmess', 'vless', 'trojan',
-  'hysteria2', 'http', 'https',
+  'hysteria2', 'anytls', 'http', 'https', 'socks5', 'wireguard',
 ])
 
 function validateLoonProxyEntries(lines: string[]): ExportArtifactValidationIssue[] {
@@ -592,6 +601,17 @@ function validateLoonProxyEntries(lines: string[]): ExportArtifactValidationIssu
       issues.push(issue('invalid_entry', path, `Loon 节点协议 ${protocol || '(empty)'} 无效`, `The Loon proxy protocol ${protocol || '(empty)'} is invalid.`))
       continue
     }
+    if (protocol === 'wireguard') {
+      const parameters = new Set(values.slice(1).map(value => value.split('=', 1)[0]?.toLowerCase()))
+      for (const parameter of ['private-key', 'peers']) {
+        if (parameters.has(parameter)) continue
+        issues.push(issue('missing_field', path, `Loon WireGuard 节点缺少 ${parameter}`, `The Loon WireGuard proxy is missing ${parameter}.`))
+      }
+      if (!parameters.has('interface-ip') && !parameters.has('interface-ipv6')) {
+        issues.push(issue('missing_field', path, 'Loon WireGuard 节点缺少本地地址', 'The Loon WireGuard proxy is missing a local address.'))
+      }
+      continue
+    }
     const host = values[1] ?? ''
     const port = Number(values[2])
     if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
@@ -599,7 +619,7 @@ function validateLoonProxyEntries(lines: string[]): ExportArtifactValidationIssu
     }
     const minimumFields = ['shadowsocks', 'shadowsocksr', 'vmess'].includes(protocol)
       ? 5
-      : ['vless', 'trojan', 'hysteria2'].includes(protocol)
+      : ['vless', 'trojan', 'hysteria2', 'anytls'].includes(protocol)
         ? 4
         : 3
     if (values.length < minimumFields) {
@@ -611,6 +631,9 @@ function validateLoonProxyEntries(lines: string[]): ExportArtifactValidationIssu
     }
     if (protocol === 'vmess' && values[3]?.includes('=')) {
       issues.push(issue('invalid_entry', path, 'Loon VMess 必须使用位置式加密方式和 UUID 字段', 'Loon VMess requires positional cipher and UUID fields.'))
+    }
+    if (protocol === 'anytls' && values[3]?.includes('=')) {
+      issues.push(issue('invalid_entry', path, 'Loon AnyTLS 必须使用位置式密码字段', 'Loon AnyTLS requires a positional password field.'))
     }
     const parameters = new Set(values.slice(minimumFields).map(value => value.split('=', 1)[0]?.toLowerCase()))
     if (protocol === 'http' && (parameters.has('over-tls') || parameters.has('tls'))) {

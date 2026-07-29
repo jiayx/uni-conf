@@ -474,7 +474,7 @@ function exportRow(id: string, token: string): Record<string, unknown> {
 
 function appSettingsRow(): Record<string, unknown> {
   return {
-    id: 'singleton',
+    id: 'workspace',
     language: 'zh',
     theme: 'system',
     unmatched_traffic_policy: 'proxy',

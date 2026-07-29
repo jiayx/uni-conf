@@ -55,6 +55,7 @@ export function generateSurge(
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
     general: surgeGeneralLines(dnsPolicy, options.managedRealIpDomains),
     host: nativeHostDnsLines(dnsPolicy),
+    proxySections: surgeAuxiliarySections(nodes),
   })
   return lines.join('\n')
 }
@@ -207,6 +208,7 @@ function buildIniConfig({
   general,
   host,
   remoteSection,
+  proxySections = [],
   forceRemoteDns = false,
 }: {
   client: 'surge' | 'shadowrocket'
@@ -219,6 +221,7 @@ function buildIniConfig({
   general: string[]
   host?: string[]
   remoteSection?: string
+  proxySections?: string[]
   forceRemoteDns?: boolean
 }): string[] {
   const validNodes: string[] = []
@@ -232,6 +235,7 @@ function buildIniConfig({
     }
   }
 
+  if (proxySections.length > 0) lines.push('', ...proxySections)
   lines.push('', '[Proxy Group]')
   for (const group of exportPolicyGroups(groups)) {
     lines.push(groupToIni(group, groups, validNodes, collectionNodeNames))
@@ -401,6 +405,65 @@ function nodeToSurgeProxy(node: Row): string | null {
     }
     return `${prefix}, ${fields.join(', ')}`
   }
+  if (protocol === 'tuic') {
+    const uuid = String(parsed['uuid'] ?? '')
+    if (!uuid || !password) return null
+    const fields = [
+      `uuid=${uuid}`,
+      `password=${password}`,
+      ...surgeTlsFields(parsed, extra),
+    ]
+    const alpn = Array.isArray(extra['alpn']) ? extra['alpn'].map(String).filter(Boolean) : []
+    fields.push(`alpn=${alpn[0] ?? 'h3'}`)
+    if (extra['ports'] ?? extra['portHopping']) {
+      fields.push(`port-hopping=${String(extra['ports'] ?? extra['portHopping'])}`)
+    }
+    if (extra['portHoppingInterval'] !== undefined) {
+      fields.push(`port-hopping-interval=${Number(extra['portHoppingInterval'])}`)
+    }
+    return `${name} = tuic-v5, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'ssh') {
+    const username = String(extra['username'] ?? extra['user'] ?? '')
+    const privateKey = extra['privateKey'] ?? extra['private-key']
+    if (!username || (!password && !privateKey)) return null
+    const fields = [`username=${username}`]
+    if (password) {
+      fields.push(`password=${password}`)
+    } else if (privateKey) {
+      fields.push(`private-key=${surgeSshKeyName(node)}`)
+    }
+    const hostKeys = configStringArray(extra['hostKeys'] ?? extra['host-key'])
+    if (hostKeys.length > 0) fields.push(`server-fingerprint=${quoteIniValue(hostKeys.join(','))}`)
+    if (extra['idleTimeout'] !== undefined) fields.push(`idle-timeout=${Number(extra['idleTimeout'])}`)
+    return `${prefix}, ${fields.join(', ')}`
+  }
+  if (protocol === 'wireguard') {
+    if (surgeWireGuardSectionLines(node, extra).length === 0) return null
+    return `${name} = wireguard, section-name=${surgeWireGuardSectionName(node)}`
+  }
+  if (protocol === 'snell') {
+    const psk = String(extra['psk'] ?? password)
+    if (!psk) return null
+    const fields = [`psk=${psk}`, `version=${Number(extra['version'] ?? 4)}`]
+    if (extra['reuse'] !== undefined) fields.push(`reuse=${Boolean(extra['reuse'])}`)
+    if (extra['udp'] !== undefined) fields.push(`udp-relay=${Boolean(extra['udp'])}`)
+    const obfs = String(extra['obfs'] ?? '')
+    if (obfs === 'http') {
+      fields.push('obfs=http')
+      if (extra['obfsHost']) fields.push(`obfs-host=${String(extra['obfsHost'])}`)
+    }
+    return `${name} = snell, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'trusttunnel') {
+    const username = String(extra['username'] ?? '')
+    if (!username || !password) return null
+    return `${name} = trust-tunnel, ${server}, ${port}, ${[
+      `username=${username}`,
+      `password=${password}`,
+      ...surgeTlsFields(parsed, extra),
+    ].join(', ')}`
+  }
   if (protocol === 'http' || protocol === 'https' || protocol === 'socks5') {
     const username = String(extra['username'] ?? '')
     const fields = username || password ? [username, password] : []
@@ -438,6 +501,103 @@ function surgeTlsFields(parsed: Row, extra: Row): string[] {
   return fields
 }
 
+function surgeAuxiliarySections(nodes: Row[]): string[] {
+  const lines: string[] = []
+  const sshKeys: string[] = []
+  for (const node of nodes) {
+    const protocol = String(node['protocol'] ?? '')
+    const parsed = safeJson(node['parsed_config'])
+    const extra = asRecord(parsed['extra'])
+    if (protocol === 'wireguard') {
+      const section = surgeWireGuardSectionLines(node, extra)
+      if (section.length > 0) {
+        if (lines.length > 0) lines.push('')
+        lines.push(...section)
+      }
+    }
+    if (protocol === 'ssh' && !parsed['password']) {
+      const privateKey = String(extra['privateKey'] ?? extra['private-key'] ?? '')
+      if (privateKey) {
+        sshKeys.push(
+          `${surgeSshKeyName(node)} = type=openssh-private-key, base64=${encodeBase64Utf8(privateKey)}`,
+        )
+      }
+    }
+  }
+  if (sshKeys.length > 0) {
+    if (lines.length > 0) lines.push('')
+    lines.push('[Keystore]', ...sshKeys)
+  }
+  return lines
+}
+
+function surgeWireGuardSectionLines(node: Row, extra: Row): string[] {
+  const privateKey = String(extra['privateKey'] ?? extra['private-key'] ?? '')
+  const publicKey = String(extra['publicKey'] ?? extra['public-key'] ?? '')
+  const addresses = configStringArray(extra['ip'] ?? extra['localAddress'])
+  const ipv4 = addresses.find((address) => !address.includes(':'))?.split('/', 1)[0]
+  const ipv6 = addresses.find((address) => address.includes(':'))?.split('/', 1)[0]
+  if (!privateKey || !publicKey || (!ipv4 && !ipv6)) return []
+  const allowedIps = configStringArray(extra['allowedIPs'] ?? extra['allowedIps'] ?? extra['allowed_ips'])
+  const peerFields = [
+    `public-key = ${publicKey}`,
+    `allowed-ips = ${quoteIniValue(allowedIps.join(', ') || '0.0.0.0/0')}`,
+    `endpoint = ${String(node['server'] ?? '')}:${Number(node['port'] ?? 0)}`,
+  ]
+  const presharedKey = extra['presharedKey'] ?? extra['pre-shared-key']
+  if (presharedKey) peerFields.push(`preshared-key = ${String(presharedKey)}`)
+  if (extra['keepalive'] !== undefined) peerFields.push(`keepalive = ${Number(extra['keepalive'])}`)
+  const reserved = normalizeReservedBytes(extra['reserved'])
+  if (reserved) peerFields.push(`client-id = ${reserved.join('/')}`)
+  const lines = [
+    `[WireGuard ${surgeWireGuardSectionName(node)}]`,
+    `private-key = ${privateKey}`,
+  ]
+  if (ipv4) lines.push(`self-ip = ${ipv4}`)
+  if (ipv6) lines.push(`self-ip-v6 = ${ipv6}`)
+  const dns = configStringArray(extra['dns'])
+  if (dns.length > 0) lines.push(`dns-server = ${dns.join(', ')}`)
+  if (extra['mtu'] !== undefined) lines.push(`mtu = ${Number(extra['mtu'])}`)
+  lines.push(`peer = (${peerFields.join(', ')})`)
+  return lines
+}
+
+function surgeWireGuardSectionName(node: Row): string {
+  return `wg_${safeTag(String(node['id'] ?? node['name'] ?? 'node'))}`
+}
+
+function surgeSshKeyName(node: Row): string {
+  return `ssh_${safeTag(String(node['id'] ?? node['name'] ?? 'node'))}`
+}
+
+function encodeBase64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
+function quoteIniValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+function configStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean)
+  if (typeof value !== 'string') return []
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function normalizeReservedBytes(value: unknown): number[] | undefined {
+  const bytes = Array.isArray(value)
+    ? value.map(Number)
+    : typeof value === 'string'
+      ? value.split(',').map((item) => Number(item.trim()))
+      : []
+  return bytes.length === 3 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+    ? bytes
+    : undefined
+}
+
 function nodeToShadowrocketProxy(node: Row): string | null {
   const name = String(node['name'] ?? '')
   const server = String(node['server'] ?? '')
@@ -451,10 +611,42 @@ function nodeToShadowrocketProxy(node: Row): string | null {
     const method = String(extra['cipher'] ?? extra['method'] ?? 'aes-256-gcm')
     return `${name} = ss, ${server}, ${port}, encrypt-method=${method}, password=${parsed['password'] ?? ''}`
   }
+  if (protocol === 'ssr') {
+    const method = String(extra['cipher'] ?? extra['method'] ?? 'aes-256-cfb')
+    const fields = [
+      `method=${method}`,
+      `password=${String(parsed['password'] ?? '')}`,
+      `protocol=${String(extra['protocol'] ?? 'origin')}`,
+      `obfs=${String(extra['obfs'] ?? 'plain')}`,
+    ]
+    if (extra['protocolParam']) fields.push(`protocol-param=${String(extra['protocolParam'])}`)
+    if (extra['obfsParam']) fields.push(`obfs-param=${String(extra['obfsParam'])}`)
+    return `${name} = ssr, ${server}, ${port}, ${fields.join(', ')}`
+  }
   if (protocol === 'vmess') {
     const tls = parsed['tls'] ? ', tls=true' : ''
     const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
     return `${name} = vmess, ${server}, ${port}, username=${parsed['uuid'] ?? ''}${tls}${sni}`
+  }
+  if (protocol === 'vless') {
+    if (!parsed['uuid']) return null
+    const fields = [`password=${String(parsed['uuid'] ?? '')}`]
+    if (parsed['tls']) fields.push('tls=true')
+    if (String(parsed['network'] ?? 'tcp') === 'ws') {
+      fields.push('obfs=websocket')
+      const host = quantumultXHost(parsed)
+      if (host) fields.push(`obfs-host=${host}`)
+      const path = String(parsed['wsPath'] ?? extra['wsPath'] ?? '')
+      if (path) fields.push(`obfs-uri=${path}`)
+    }
+    if (parsed['sni']) fields.push(`peer=${String(parsed['sni'])}`)
+    if (parsed['skipCertVerify']) fields.push('allowInsecure=1')
+    if (extra['flow']) fields.push(`flow=${String(extra['flow'])}`)
+    const publicKey = extra['realityPublicKey'] ?? extra['publicKey'] ?? extra['pbk']
+    const shortId = extra['realityShortId'] ?? extra['shortId'] ?? extra['sid']
+    if (publicKey) fields.push(`public-key=${String(publicKey)}`)
+    if (shortId) fields.push(`short-id=${String(shortId)}`)
+    return `${name} = vless, ${server}, ${port}, ${fields.join(', ')}`
   }
   if (protocol === 'trojan') {
     const sni = parsed['sni'] ? `, sni=${parsed['sni']}` : ''
@@ -467,6 +659,101 @@ function nodeToShadowrocketProxy(node: Row): string | null {
     const udp = extra['udp'] !== undefined ? `, udp-relay=${Boolean(extra['udp'])}` : ''
     const alpn = Array.isArray(extra['alpn']) ? `, alpn=${extra['alpn'].map(String).join('|')}` : ''
     return `${name} = anytls, ${server}, ${port}, password=${parsed['password'] ?? ''}${sni}${fp}${udp}${alpn}`
+  }
+  if (protocol === 'hysteria' || protocol === 'hysteria2') {
+    const auth = String(parsed['password'] ?? extra['auth'] ?? extra['authStr'] ?? '')
+    if (!auth) return null
+    const fields = [`auth=${auth}`]
+    if (extra['obfsPassword']) fields.push(`obfsParam=${String(extra['obfsPassword'])}`)
+    if (protocol === 'hysteria' && extra['protocol']) fields.push(`protocol=${String(extra['protocol'])}`)
+    if (extra['udp'] !== undefined) fields.push(`udp=${extra['udp'] ? 1 : 0}`)
+    if (parsed['sni']) fields.push(`peer=${String(parsed['sni'])}`)
+    if (parsed['skipCertVerify']) fields.push('insecure=1')
+    const alpn = configStringArray(extra['alpn'])
+    if (alpn.length > 0) fields.push(`alpn=${alpn.join('|')}`)
+    if (extra['upMbps'] !== undefined) fields.push(`upmbps=${Number(extra['upMbps'])}`)
+    if (extra['downMbps'] !== undefined) fields.push(`downmbps=${Number(extra['downMbps'])}`)
+    return `${name} = ${protocol}, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'tuic') {
+    if (!parsed['uuid'] || !parsed['password']) return null
+    const fields = [
+      `user=${String(parsed['uuid'] ?? '')}`,
+      `password=${String(parsed['password'] ?? '')}`,
+      `udp=${extra['udp'] === false ? 0 : 1}`,
+    ]
+    if (parsed['sni']) fields.push(`peer=${String(parsed['sni'])}`)
+    if (parsed['skipCertVerify']) fields.push('insecure=1')
+    const alpn = configStringArray(extra['alpn'])
+    fields.push(`alpn=${alpn[0] ?? 'h3'}`)
+    return `${name} = tuic, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'wireguard') {
+    const privateKey = String(extra['privateKey'] ?? extra['private-key'] ?? '')
+    const publicKey = String(extra['publicKey'] ?? extra['public-key'] ?? '')
+    const addresses = configStringArray(extra['ip'] ?? extra['localAddress'])
+    if (!privateKey || !publicKey || addresses.length === 0) return null
+    const fields = [
+      `privateKey=${privateKey}`,
+      `publicKey=${publicKey}`,
+      `ip=${addresses.join('|')}`,
+      `udp=${extra['udp'] === false ? 0 : 1}`,
+    ]
+    const presharedKey = extra['presharedKey'] ?? extra['pre-shared-key']
+    if (presharedKey) fields.push(`presharedKey=${String(presharedKey)}`)
+    const dns = configStringArray(extra['dns'])
+    if (dns.length > 0) fields.push(`dns=${dns.join('|')}`)
+    if (extra['mtu'] !== undefined) fields.push(`mtu=${Number(extra['mtu'])}`)
+    if (extra['keepalive'] !== undefined) fields.push(`keepalive=${Number(extra['keepalive'])}`)
+    const reserved = normalizeReservedBytes(extra['reserved'])
+    if (reserved) fields.push(`reserved=${reserved.join('/')}`)
+    return `${name} = wireguard, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'ssh') {
+    const username = String(extra['username'] ?? extra['user'] ?? '')
+    const privateKey = extra['privateKey'] ?? extra['private-key']
+    if (!username || (!parsed['password'] && !privateKey)) return null
+    const fields = [`user=${username}`]
+    if (parsed['password']) fields.push(`password=${String(parsed['password'])}`)
+    if (privateKey) {
+      fields.push(`private-key=${quoteIniValue(String(privateKey))}`)
+    }
+    return `${name} = ssh, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'snell') {
+    const psk = String(extra['psk'] ?? parsed['password'] ?? '')
+    if (!psk) return null
+    const fields = [
+      `password=${psk}`,
+      `version=${Number(extra['version'] ?? 4)}`,
+      `udp=${extra['udp'] === false ? 0 : 1}`,
+    ]
+    const obfs = String(extra['obfs'] ?? '')
+    if (obfs) fields.push(`obfs=${obfs}`)
+    if (extra['obfsHost']) fields.push(`obfs-host=${String(extra['obfsHost'])}`)
+    return `${name} = snell, ${server}, ${port}, ${fields.join(', ')}`
+  }
+  if (protocol === 'mieru') {
+    const username = String(extra['username'] ?? '')
+    const password = String(parsed['password'] ?? extra['password'] ?? '')
+    if (!username || !password) return null
+    return `${name} = mieru, ${server}, ${port}, ${[
+      `username=${username}`,
+      `password=${password}`,
+      `transport=${String(extra['transport'] ?? 'TCP').toUpperCase()}`,
+      `multiplexing=${String(extra['multiplexing'] ?? 'MULTIPLEXING_LOW')}`,
+    ].join(', ')}`
+  }
+  if (protocol === 'juicity') {
+    const uuid = String(parsed['uuid'] ?? '')
+    const password = String(parsed['password'] ?? '')
+    if (!uuid || !password) return null
+    const fields = [`user=${uuid}`, `password=${password}`, 'udp=1']
+    if (parsed['sni']) fields.push(`peer=${String(parsed['sni'])}`)
+    if (parsed['skipCertVerify']) fields.push('insecure=1')
+    const alpn = configStringArray(extra['alpn'])
+    fields.push(`alpn=${alpn[0] ?? 'h3'}`)
+    return `${name} = juicity, ${server}, ${port}, ${fields.join(', ')}`
   }
   if (protocol === 'http' || protocol === 'https') {
     const tls = protocol === 'https' || parsed['tls'] ? ', tls=true' : ''
@@ -888,6 +1175,22 @@ function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
         reserved: normalizeEgernReserved(extra['reserved']),
         mtu: extra['mtu'],
         keepalive: extra['keepalive'],
+      }),
+    }
+  }
+  if (protocol === 'snell') {
+    const psk = String(extra['psk'] ?? password)
+    if (!psk) return null
+    return {
+      snell: compactObject({
+        ...common,
+        psk,
+        version: Number(extra['version'] ?? 4),
+        udp_relay: optionalBoolean(extra['udp']),
+        reuse: optionalBoolean(extra['reuse']),
+        obfs: extra['obfs'],
+        obfs_host: extra['obfsHost'],
+        tfo: optionalBoolean(extra['fastOpen']),
       }),
     }
   }

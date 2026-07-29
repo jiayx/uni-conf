@@ -104,12 +104,70 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
       appendBooleanField(fields, 'fast-open', extra['fastOpen'])
       return `${name} = ${fields.join(',')}`
     }
+    case 'anytls': {
+      const fields = ['AnyTLS', server, String(port), quoteLoonValue(password)]
+      if (parsed['sni']) {
+        fields.push(`sni=${String(parsed['sni'])}`)
+      }
+      if (parsed['skipCertVerify'] !== undefined) {
+        fields.push(`skip-cert-verify=${Boolean(parsed['skipCertVerify'])}`)
+      }
+      appendBooleanField(fields, 'udp', extra['udp'])
+      const tlsProfile =
+        extra['clientFingerprint']
+        ?? extra['client-fingerprint']
+        ?? extra['fingerprint']
+        ?? extra['fp']
+      if (tlsProfile) fields.push(`tls-profile=${String(tlsProfile)}`)
+      return `${name} = ${fields.join(',')}`
+    }
     case 'http':
     case 'https': {
       const username = String(extra['username'] ?? '')
       const fields = [protocol, server, String(port)]
       if (username || password) fields.push(username, quoteLoonValue(password))
       if (protocol === 'https') appendLoonTls(fields, parsed, { includeOverTls: false })
+      return `${name} = ${fields.join(',')}`
+    }
+    case 'socks5': {
+      const username = String(extra['username'] ?? '')
+      const fields = ['socks5', server, String(port)]
+      if (username || password) fields.push(quoteLoonValue(username), quoteLoonValue(password))
+      if (parsed['sni']) fields.push(`sni=${String(parsed['sni'])}`)
+      if (parsed['skipCertVerify'] !== undefined) {
+        fields.push(`skip-cert-verify=${Boolean(parsed['skipCertVerify'])}`)
+      }
+      appendBooleanField(fields, 'udp', extra['udp'])
+      return `${name} = ${fields.join(',')}`
+    }
+    case 'wireguard': {
+      const addresses = configStringArray(extra['ip'] ?? extra['localAddress'])
+      const ipv4 = addresses.find((address) => !address.includes(':'))?.split('/', 1)[0]
+      const ipv6 = addresses.find((address) => address.includes(':'))?.split('/', 1)[0]
+      const privateKey = String(extra['privateKey'] ?? extra['private-key'] ?? '')
+      const publicKey = String(extra['publicKey'] ?? extra['public-key'] ?? '')
+      if (!privateKey || !publicKey || (!ipv4 && !ipv6)) return null
+      const fields = ['wireguard']
+      if (ipv4) fields.push(`interface-ip=${ipv4}`)
+      if (ipv6) fields.push(`interface-ipV6=${ipv6}`)
+      fields.push(`private-key=${quoteLoonValue(privateKey)}`)
+      if (extra['mtu'] !== undefined) fields.push(`mtu=${Number(extra['mtu'])}`)
+      const dns = configStringArray(extra['dns'])
+      if (dns.length > 0) fields.push(`dns=${dns.join('|')}`)
+      const peerFields = [
+        `public-key=${quoteLoonValue(publicKey)}`,
+        `allowed-ips=${quoteLoonValue(
+          configStringArray(extra['allowedIPs'] ?? extra['allowedIps'] ?? extra['allowed_ips']).join(',')
+          || '0.0.0.0/0',
+        )}`,
+        `endpoint=${server}:${port}`,
+      ]
+      const presharedKey = extra['presharedKey'] ?? extra['pre-shared-key']
+      if (presharedKey) peerFields.splice(1, 0, `preshared-key=${quoteLoonValue(String(presharedKey))}`)
+      const reserved = normalizeLoonWireGuardReserved(extra['reserved'])
+      if (reserved) peerFields.splice(1, 0, `reserved=[${reserved.join(',')}]`)
+      fields.push(`peers=[{${peerFields.join(',')}}]`)
+      appendBooleanField(fields, 'udp', extra['udp'] ?? true)
       return `${name} = ${fields.join(',')}`
     }
     default:
@@ -165,6 +223,23 @@ function normalizeLoonVmessCipher(value: unknown): string {
 
 function quoteLoonValue(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+function configStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean)
+  if (typeof value !== 'string') return []
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function normalizeLoonWireGuardReserved(value: unknown): number[] | undefined {
+  const values = Array.isArray(value)
+    ? value.map(Number)
+    : typeof value === 'string'
+      ? value.split(',').map((item) => Number(item.trim()))
+      : []
+  return values.length === 3 && values.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+    ? values
+    : undefined
 }
 
 function groupToLoon(

@@ -70,6 +70,122 @@ const wireguardNode: ProxyNode = {
   },
 }
 
+const sshNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-ssh',
+  name: 'SSH Proxy',
+  protocol: 'ssh',
+  server: 'ssh.example.com',
+  port: 22,
+  parsedConfig: {
+    protocol: 'ssh',
+    server: 'ssh.example.com',
+    port: 22,
+    password: 'ssh-pass',
+    extra: {
+      username: 'root',
+    },
+  },
+}
+
+const newProtocolNodes: ProxyNode[] = [
+  {
+    ...ssNode,
+    id: 'node-snell',
+    name: 'Snell Proxy',
+    protocol: 'snell',
+    server: 'snell.example.com',
+    port: 44046,
+    parsedConfig: {
+      protocol: 'snell',
+      server: 'snell.example.com',
+      port: 44046,
+      extra: { psk: 'snell-psk', version: 4 },
+    },
+  },
+  {
+    ...ssNode,
+    id: 'node-mieru',
+    name: 'Mieru Proxy',
+    protocol: 'mieru',
+    server: 'mieru.example.com',
+    port: 2999,
+    parsedConfig: {
+      protocol: 'mieru',
+      server: 'mieru.example.com',
+      port: 2999,
+      password: 'mieru-pass',
+      extra: { username: 'mieru-user' },
+    },
+  },
+  {
+    ...ssNode,
+    id: 'node-sudoku',
+    name: 'Sudoku Proxy',
+    protocol: 'sudoku',
+    server: 'sudoku.example.com',
+    port: 443,
+    parsedConfig: {
+      protocol: 'sudoku',
+      server: 'sudoku.example.com',
+      port: 443,
+      extra: { key: 'sudoku-key' },
+    },
+  },
+  {
+    ...ssNode,
+    id: 'node-trusttunnel',
+    name: 'TrustTunnel Proxy',
+    protocol: 'trusttunnel',
+    server: 'trust.example.com',
+    port: 443,
+    parsedConfig: {
+      protocol: 'trusttunnel',
+      server: 'trust.example.com',
+      port: 443,
+      password: 'trust-pass',
+      extra: { username: 'trust-user' },
+    },
+  },
+  {
+    ...ssNode,
+    id: 'node-masque',
+    name: 'MASQUE Proxy',
+    protocol: 'masque',
+    server: 'masque.example.com',
+    port: 443,
+    parsedConfig: {
+      protocol: 'masque',
+      server: 'masque.example.com',
+      port: 443,
+      sni: 'masque.example.com',
+      extra: {
+        privateKey: 'masque-private-key',
+        publicKey: 'masque-public-key',
+        ip: '172.16.0.2/32',
+        network: 'h2',
+      },
+    },
+  },
+]
+
+const juicityNode: ProxyNode = {
+  ...ssNode,
+  id: 'node-juicity',
+  name: 'Juicity Proxy',
+  protocol: 'juicity',
+  server: 'juicity.example.com',
+  port: 443,
+  parsedConfig: {
+    protocol: 'juicity',
+    server: 'juicity.example.com',
+    port: 443,
+    uuid: '00000000-0000-4000-8000-000000000004',
+    password: 'juicity-pass',
+    extra: {},
+  },
+}
+
 const nativeWireGuardEndpointNode: ProxyNode = {
   ...wireguardNode,
   id: 'node-native-wireguard-endpoint',
@@ -890,6 +1006,57 @@ describe('proxy group references', () => {
     expect(content).toContain('name: "Supported SS"')
     expect(content).toContain('- "Supported SS"')
     expect(content).not.toContain('Unsupported WireGuard')
+  })
+
+  it('exports WireGuard and SSH nodes for Mihomo and Stash', () => {
+    const mihomo = yaml.load(generateMihomoYaml([wireguardNode, sshNode], [], [], [])) as {
+      proxies: Array<Record<string, unknown>>
+    }
+    const stash = yaml.load(generateStashYaml([wireguardNode, sshNode], [], [], [])) as {
+      proxies: Array<Record<string, unknown>>
+    }
+
+    expect(mihomo.proxies).toContainEqual(expect.objectContaining({
+      name: 'US WireGuard',
+      type: 'wireguard',
+      ip: '172.16.0.2',
+      'private-key': 'private-key',
+      'public-key': 'peer-key',
+    }))
+    expect(mihomo.proxies).toContainEqual(expect.objectContaining({
+      name: 'SSH Proxy',
+      type: 'ssh',
+      username: 'root',
+      password: 'ssh-pass',
+    }))
+    expect(stash.proxies).toContainEqual(expect.objectContaining({
+      name: 'SSH Proxy',
+      type: 'ssh',
+      user: 'root',
+      password: 'ssh-pass',
+    }))
+  })
+
+  it('exports current native protocols only to matching Mihomo-family targets', () => {
+    const mihomo = yaml.load(generateMihomoYaml(newProtocolNodes, [], [], [])) as {
+      proxies: Array<Record<string, unknown>>
+    }
+    const stash = yaml.load(generateStashYaml([...newProtocolNodes, juicityNode], [], [], [])) as {
+      proxies: Array<Record<string, unknown>>
+    }
+
+    expect(mihomo.proxies.map((proxy) => proxy.type)).toEqual([
+      'snell',
+      'mieru',
+      'sudoku',
+      'trusttunnel',
+      'masque',
+    ])
+    expect(stash.proxies.map((proxy) => proxy.type)).toEqual([
+      'snell',
+      'trusttunnel',
+      'juicity',
+    ])
   })
 
   it('does not reference nodes missing from sing-box outbounds', () => {

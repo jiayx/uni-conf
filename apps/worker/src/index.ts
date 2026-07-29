@@ -14,6 +14,7 @@ import dashboardRouter from './routes/dashboard'
 import settingsRouter from './routes/settings'
 import dataRouter from './routes/data'
 import initializationRouter from './routes/initialization'
+import workspacesRouter from './routes/workspaces'
 import { exportRouter } from './routes/export'
 import { subscriptionRouter } from './routes/subscription'
 import type { Env } from './types'
@@ -64,6 +65,7 @@ app.use('/api/*', (c, next) =>
   cors({
     origin: c.env.ALLOWED_ORIGIN || (c.env.ENVIRONMENT === 'production' ? '' : '*'),
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Workspace-Id'],
     exposeHeaders: ['Content-Disposition', 'X-Request-Id', 'X-UniConf-Error-Code', 'X-UniConf-Capability-Profile'],
   })(c, next),
 )
@@ -110,6 +112,7 @@ app.use('/api/*', async (c, next) => {
 // Everything else under /api/* requires the shared bearer token when API_KEY is configured
 app.use('/api/*', apiAuth)
 app.get('/api/auth/check', (c) => c.json({ success: true, data: { ok: true } }))
+app.route('/api/workspaces', workspacesRouter)
 
 // API routes
 app.route('/api/sources', sourcesRouter)
@@ -205,8 +208,17 @@ async function refreshCatalogsForSchedule(env: Env): Promise<{
     const snapshot = await refreshRuleSetCatalogSnapshotIfDue(env)
     if (!snapshot) return null
     const timestamp = new Date().toISOString()
-    const settings = await getAppSettings(env.DB)
-    await ensureDefaultRemoteRuleSets(env.DB, timestamp, settings.unmatchedTrafficPolicy, snapshot)
+    const { results: workspaces } = await env.DB.prepare('SELECT id FROM workspaces').all<{ id: string }>()
+    for (const workspace of workspaces) {
+      const settings = await getAppSettings(env.DB, workspace.id)
+      await ensureDefaultRemoteRuleSets(
+        env.DB,
+        timestamp,
+        settings.unmatchedTrafficPolicy,
+        snapshot,
+        workspace.id,
+      )
+    }
     return {
       catalogCount: snapshot.catalogs.length,
       ruleSetCount: snapshot.catalogs.reduce((sum, catalog) => sum + catalog.items.length, 0),

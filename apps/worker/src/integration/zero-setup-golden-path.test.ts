@@ -162,7 +162,10 @@ rule-providers:
     }
     expect(importPayload.success).toBe(true)
     expect(importPayload.data.refreshError).toBeUndefined()
-    expect(importPayload.data.importRun).toMatchObject({ status: 'success', canUndo: true })
+    expect(importPayload.data.importRun, JSON.stringify(importPayload.data)).toMatchObject({
+      status: 'success',
+      canUndo: true,
+    })
     expect(importPayload.data.refresh?.nodeCount).toBe(2)
     expect(importPayload.data.structuredImport).toEqual({
       rules: 1,
@@ -646,19 +649,19 @@ rule-providers:
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO source_import_runs
-          (id, source_id, source_name, format, node_import_mode, status, created_at)
-         VALUES (?, ?, 'Interrupted Import', 'mihomo', 'all', 'running', ?)`
-      ).bind('stale-initial-import', importPayload.data.source.id, staleAt),
+          (id, source_id, source_name, format, node_import_mode, status, created_at, workspace_id)
+         VALUES (?, ?, 'Interrupted Import', 'mihomo', 'all', 'running', ?, ?)`
+      ).bind('stale-initial-import', importPayload.data.source.id, staleAt, 'default'),
       env.DB.prepare(
         `INSERT INTO source_import_runs
-          (id, source_id, source_name, format, node_import_mode, status, structured_error, created_at, completed_at)
-         VALUES (?, ?, 'Interrupted Retry', 'mihomo', 'all', 'running', ?, ?, ?)`
-      ).bind('stale-structured-retry', importPayload.data.source.id, 'Structured rule import failed', staleAt, staleAt),
+          (id, source_id, source_name, format, node_import_mode, status, structured_error, created_at, completed_at, workspace_id)
+         VALUES (?, ?, 'Interrupted Retry', 'mihomo', 'all', 'running', ?, ?, ?, ?)`
+      ).bind('stale-structured-retry', importPayload.data.source.id, 'Structured rule import failed', staleAt, staleAt, 'default'),
       env.DB.prepare(
         `INSERT INTO source_import_runs
-          (id, source_id, source_name, format, node_import_mode, status, created_at)
-         VALUES (?, ?, 'Active Import', 'mihomo', 'all', 'running', ?)`
-      ).bind('fresh-running-import', importPayload.data.source.id, freshAt),
+          (id, source_id, source_name, format, node_import_mode, status, created_at, workspace_id)
+         VALUES (?, ?, 'Active Import', 'mihomo', 'all', 'running', ?, ?)`
+      ).bind('fresh-running-import', importPayload.data.source.id, freshAt, 'default'),
     ])
     const recoveredRunsRes = await request('/api/sources/imports')
     expect(recoveredRunsRes.status).toBe(200)
@@ -729,7 +732,7 @@ rule-providers:
         success: boolean
         data: { version: number; containsSensitiveData: boolean; tables: Record<string, Record<string, unknown>[]> }
       }
-      expect(backup).toMatchObject({ success: true, data: { version: 7, containsSensitiveData: true } })
+      expect(backup).toMatchObject({ success: true, data: { version: 8, containsSensitiveData: true } })
       expect((backup.data.tables.nodes ?? []).length).toBeGreaterThanOrEqual(2)
       expect((backup.data.tables.export_configs ?? []).some(row => row.token === defaultConfig!.token)).toBe(true)
       expect((backup.data.tables.remote_rule_sets ?? []).some(row => (
@@ -742,8 +745,9 @@ rule-providers:
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(backup),
       })
-      expect(validateBackupRes.status).toBe(200)
-      await expect(validateBackupRes.json()).resolves.toMatchObject({
+      const validateBackupPayload = await validateBackupRes.json()
+      expect(validateBackupRes.status, JSON.stringify(validateBackupPayload)).toBe(200)
+      expect(validateBackupPayload).toMatchObject({
         success: true,
         data: {
           version: backup.data.version,
@@ -932,6 +936,59 @@ rule-providers:
 
     expect((await request(`/api/groups/${child.data.id}`, { method: 'DELETE' })).status).toBe(200)
     expect((await request(`/api/groups/${parent.data.id}`, { method: 'DELETE' })).status).toBe(200)
+  }, 30000)
+
+  it('keeps configuration data isolated between workspaces', async () => {
+    const createResponse = await request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Friend Configuration' }),
+    })
+    expect(createResponse.status).toBe(201)
+    const created = await createResponse.json() as { data: { id: string } }
+    const workspaceHeaders = {
+      'content-type': 'application/json',
+      'X-Workspace-Id': created.data.id,
+    }
+
+    const groupsResponse = await request('/api/groups', { headers: workspaceHeaders })
+    expect(groupsResponse.status).toBe(200)
+    const groups = await groupsResponse.json() as { data: Array<{ id: string }> }
+    expect(groups.data.length).toBeGreaterThan(0)
+
+    const exportsResponse = await request('/api/export/configs', { headers: workspaceHeaders })
+    expect(exportsResponse.status).toBe(200)
+    const exports = await exportsResponse.json() as { data: Array<{ id: string }> }
+    expect(exports.data).toHaveLength(1)
+
+    const sourceResponse = await request('/api/sources', {
+      method: 'POST',
+      headers: workspaceHeaders,
+      body: JSON.stringify({
+        name: 'Friend Only Source',
+        type: 'url',
+        url: 'https://subscription.example.com/friend',
+        refreshAfterCreate: false,
+      }),
+    })
+    expect(sourceResponse.status).toBe(201)
+    const source = await sourceResponse.json() as { data: { source: { id: string } } }
+
+    const workspaceSources = await (await request('/api/sources', {
+      headers: workspaceHeaders,
+    })).json() as { data: Array<{ id: string }> }
+    expect(workspaceSources.data.some(item => item.id === source.data.source.id)).toBe(true)
+
+    const defaultSources = await (await request('/api/sources')).json() as {
+      data: Array<{ id: string }>
+    }
+    expect(defaultSources.data.some(item => item.id === source.data.source.id)).toBe(false)
+
+    expect((await request(`/api/workspaces/${created.data.id}`, { method: 'DELETE' })).status).toBe(200)
+    const workspaces = await (await request('/api/workspaces')).json() as {
+      data: Array<{ id: string }>
+    }
+    expect(workspaces.data.some(item => item.id === created.data.id)).toBe(false)
   }, 30000)
 })
 

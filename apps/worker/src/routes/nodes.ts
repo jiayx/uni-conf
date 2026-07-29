@@ -13,6 +13,7 @@ import {
   MAX_NODE_BATCH_SELECTION,
   MAX_NODE_SEARCH_LENGTH,
 } from '@uni-conf/shared';
+import { requestWorkspaceId, workspaceEntityId } from '../services/workspaces';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -40,7 +41,7 @@ const NODE_BATCH_SQL_CHUNK_SIZE = 90;
 // ─── List nodes with filtering/pagination ─────────────────────────────────────
 
 app.get('/', async (c) => {
-
+  const workspaceId = requestWorkspaceId(c);
   const query = c.req.query();
   const sourceId = query.sourceId;
   const protocol = query.protocol;
@@ -51,8 +52,8 @@ app.get('/', async (c) => {
   const pageSize = Math.min(200, Math.max(1, parseInt(query.pageSize ?? '50', 10)));
   const offset = (page - 1) * pageSize;
 
-  const conditions: string[] = [];
-  const bindings: unknown[] = [];
+  const conditions: string[] = ['workspace_id = ?'];
+  const bindings: unknown[] = [workspaceId];
 
   if (sourceId) {
     conditions.push('source_id = ?');
@@ -126,6 +127,7 @@ export function normalizeNodeSearchQuery(value: string | undefined): string {
 // ─── Create manual node ───────────────────────────────────────────────────────
 
 app.post('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const body = await c.req.json<ManualNodeCreateBody>();
   const booleanError = validateOptionalBooleanFields(body, ['enabled']);
   if (booleanError) {
@@ -150,21 +152,27 @@ app.post('/', async (c) => {
   const id = newId();
   const ts = now();
   // Use 'manual' pseudo-source if no sourceId given
-  const sourceId = input.sourceId ?? 'manual';
+  const manualSourceId = workspaceEntityId(workspaceId, 'manual');
+  const sourceId = input.sourceId ?? manualSourceId;
 
   // Ensure manual source exists
-  if (sourceId === 'manual') {
-    const manualSrc = await c.env.DB.prepare('SELECT id FROM sources WHERE id = ?')
-      .bind('manual')
+  if (sourceId === manualSourceId) {
+    const manualSrc = await c.env.DB.prepare('SELECT id FROM sources WHERE id = ? AND workspace_id = ?')
+      .bind(manualSourceId, workspaceId)
       .first();
     if (!manualSrc) {
       await c.env.DB.prepare(
-        `INSERT OR IGNORE INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
-         VALUES ('manual', 'Manual Nodes', 'manual', NULL, 'raw', 1, 0, NULL, 0, NULL, NULL, '[]', ?, ?)`
+        `INSERT OR IGNORE INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at, workspace_id)
+         VALUES (?, 'Manual Nodes', 'manual', NULL, 'raw', 1, 0, NULL, 0, NULL, NULL, '[]', ?, ?, ?)`
       )
-        .bind(ts, ts)
+        .bind(manualSourceId, ts, ts, workspaceId)
         .run();
     }
+  } else {
+    const source = await c.env.DB.prepare('SELECT id FROM sources WHERE id = ? AND workspace_id = ?')
+      .bind(sourceId, workspaceId)
+      .first();
+    if (!source) return c.json({ success: false, error: 'Source not found' }, 404);
   }
 
   const rawConfig = input.rawConfig ?? {};
@@ -176,8 +184,8 @@ app.post('/', async (c) => {
   };
 
   await c.env.DB.prepare(
-    `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
+    `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`
   )
     .bind(
       id,
@@ -194,27 +202,29 @@ app.post('/', async (c) => {
       jsonStringify(rawConfig),
       jsonStringify(parsedConfig),
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run();
 
-  await updateSourceNodeCount(c.env.DB, sourceId, ts);
-  await ensureManualNodeZeroSetupState(c.env.DB, ts);
+  await updateSourceNodeCount(c.env.DB, sourceId, ts, workspaceId);
+  await ensureManualNodeZeroSetupState(c.env.DB, ts, workspaceId);
 
-  const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapNode(row!) }, 201);
 });
 
-async function ensureManualNodeZeroSetupState(db: D1Database, ts: string): Promise<void> {
-  await ensureZeroSetupDefaults(db, ts);
+async function ensureManualNodeZeroSetupState(db: D1Database, ts: string, workspaceId: string): Promise<void> {
+  await ensureZeroSetupDefaults(db, ts, workspaceId);
 }
 
 // ─── Batch enable / disable nodes ─────────────────────────────────────────────
 
 app.put('/batch-enabled', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const validation = validateNodeBatchEnabledInput(await c.req.json<unknown>());
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
@@ -224,9 +234,9 @@ app.put('/batch-enabled', async (c) => {
   for (const ids of chunkValues(validation.ids, NODE_BATCH_SQL_CHUNK_SIZE)) {
     const placeholders = ids.map(() => '?').join(', ');
     const { results } = await c.env.DB.prepare(
-      `SELECT id FROM nodes WHERE id IN (${placeholders})`
+      `SELECT id FROM nodes WHERE workspace_id = ? AND id IN (${placeholders})`
     )
-      .bind(...ids)
+      .bind(workspaceId, ...ids)
       .all<{ id: string }>();
     for (const row of results) existingIds.add(row.id);
   }
@@ -242,11 +252,11 @@ app.put('/batch-enabled', async (c) => {
   const statements = chunkValues(validation.ids, NODE_BATCH_SQL_CHUNK_SIZE).map(ids => {
     const placeholders = ids.map(() => '?').join(', ');
     return c.env.DB.prepare(
-      `UPDATE nodes SET enabled = ?, updated_at = ? WHERE id IN (${placeholders})`
-    ).bind(validation.enabled ? 1 : 0, ts, ...ids);
+      `UPDATE nodes SET enabled = ?, updated_at = ? WHERE workspace_id = ? AND id IN (${placeholders})`
+    ).bind(validation.enabled ? 1 : 0, ts, workspaceId, ...ids);
   });
   await c.env.DB.batch(statements);
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
   return c.json({
     success: true,
@@ -294,9 +304,9 @@ function chunkValues<T>(values: T[], size: number): T[][] {
 // ─── Get node ─────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-
-  const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c);
+  const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) return c.json({ success: false, error: 'Node not found' }, 404);
@@ -306,9 +316,10 @@ app.get('/:id', async (c) => {
 // ─── Update node ──────────────────────────────────────────────────────────────
 
 app.put('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
-    .bind(id)
+  const existing = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Node not found' }, 404);
@@ -322,12 +333,12 @@ app.put('/:id', async (c) => {
       );
     }
     const ts = now();
-    await c.env.DB.prepare('UPDATE nodes SET enabled = ?, updated_at = ? WHERE id = ?')
-      .bind(body.enabled ? 1 : 0, ts, id)
+    await c.env.DB.prepare('UPDATE nodes SET enabled = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+      .bind(body.enabled ? 1 : 0, ts, id, workspaceId)
       .run();
-    await ensureZeroSetupDefaults(c.env.DB, ts);
-    const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
-      .bind(id)
+    await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
+    const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ? AND workspace_id = ?')
+      .bind(id, workspaceId)
       .first<Record<string, unknown>>();
     return c.json({ success: true, data: mapNode(updated!) });
   }
@@ -362,7 +373,7 @@ app.put('/:id', async (c) => {
     `UPDATE nodes SET
       name = ?, protocol = ?, server = ?, port = ?, country = ?, country_code = ?,
       enabled = ?, tags = ?, notes = ?, raw_config = ?, parsed_config = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   )
     .bind(
       nextName,
@@ -377,14 +388,15 @@ app.put('/:id', async (c) => {
       validation.rawConfig !== undefined ? jsonStringify(validation.rawConfig) : existing.raw_config,
       jsonStringify(nextParsedConfig),
       ts,
-      id
+      id,
+      workspaceId
     )
     .run();
 
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
-  const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ?')
-    .bind(id)
+  const updated = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapNode(updated!) });
@@ -393,9 +405,10 @@ app.put('/:id', async (c) => {
 // ─── Delete node (only manual) ────────────────────────────────────────────────
 
 app.delete('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT id, source_id, is_manual FROM nodes WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT id, source_id, is_manual FROM nodes WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<{ id: string; source_id: string; is_manual: number }>();
 
   if (!row) return c.json({ success: false, error: 'Node not found' }, 404);
@@ -406,19 +419,19 @@ app.delete('/:id', async (c) => {
     );
   }
 
-  await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM nodes WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).run();
   const ts = now();
-  await updateSourceNodeCount(c.env.DB, row.source_id, ts);
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await updateSourceNodeCount(c.env.DB, row.source_id, ts, workspaceId);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
   return c.json({ success: true, data: { id } });
 });
 
-async function updateSourceNodeCount(db: D1Database, sourceId: string, ts: string): Promise<void> {
-  const row = await db.prepare('SELECT COUNT(*) as count FROM nodes WHERE source_id = ?')
-    .bind(sourceId)
+async function updateSourceNodeCount(db: D1Database, sourceId: string, ts: string, workspaceId: string): Promise<void> {
+  const row = await db.prepare('SELECT COUNT(*) as count FROM nodes WHERE source_id = ? AND workspace_id = ?')
+    .bind(sourceId, workspaceId)
     .first<{ count: number }>();
-  await db.prepare('UPDATE sources SET node_count = ?, updated_at = ? WHERE id = ?')
-    .bind(row?.count ?? 0, ts, sourceId)
+  await db.prepare('UPDATE sources SET node_count = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+    .bind(row?.count ?? 0, ts, sourceId, workspaceId)
     .run();
 }
 

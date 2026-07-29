@@ -14,7 +14,7 @@ describe('application initialization', () => {
     const response = await initializationApp.request('/', { method: 'POST' }, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
     await expect(response.json()).resolves.toEqual({
       success: true,
       data: { initialized: true },

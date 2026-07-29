@@ -18,7 +18,7 @@ describe('export token reset route', () => {
     expect(payload.data.token).not.toBe('old-token')
     expect(state.exportToken).toBe(payload.data.token)
     expect(state.defaultExportToken).toBe(payload.data.token)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String))
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
   })
 
   it('does not move the default export token when another config is reset', async () => {
@@ -97,7 +97,7 @@ function run(sql: string, args: unknown[], state: TestState): void {
     state.exportToken = String(args[0])
   }
   if (sql.includes('UPDATE app_settings SET default_export_token')) {
-    const previousToken = String(args[2])
+    const previousToken = String(args[3])
     if (state.defaultExportToken === previousToken) {
       state.defaultExportToken = String(args[0])
     }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as yaml from 'js-yaml'
 import type { ExportData } from '../export-data'
 import type { AppSettings, ExportFormat } from '@uni-conf/types'
+import { EXPORT_CAPABILITY_PROFILE_REVISION } from '@uni-conf/shared'
 import { exportRouter } from './export'
 import { subscriptionRouter } from './subscription'
 import { buildExportData, getEnabledExportConfigByToken, getExportConfigById } from '../export-data'
@@ -123,16 +124,16 @@ describe('export download readiness', () => {
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
       nodes: [
         {
-          id: 'node-wireguard',
+          id: 'node-naive',
           sourceId: 'source-1',
-          name: 'WG 01',
-          protocol: 'wireguard',
-          server: 'wg.example.com',
-          port: 51820,
+          name: 'Naive 01',
+          protocol: 'naive',
+          server: 'naive.example.com',
+          port: 443,
           enabled: true,
           tags: [],
           rawConfig: {},
-          parsedConfig: { protocol: 'wireguard', server: 'wg.example.com', port: 51820, extra: {} },
+          parsedConfig: { protocol: 'naive', server: 'naive.example.com', port: 443, extra: {} },
           isManual: false,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
@@ -331,9 +332,11 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe(
+      `uni-conf-exporter/singbox@${EXPORT_CAPABILITY_PROFILE_REVISION}`,
+    )
     expect(ensureDefaultExportConfig).toHaveBeenCalledOnce()
-    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox')
+    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'singbox', 'default')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'singbox',
@@ -362,7 +365,11 @@ describe('export download readiness', () => {
       success: true,
       data: {
         format: 'mihomo',
-        capabilityProfile: { id: 'uni-conf-exporter', revision: 21, format: 'mihomo' },
+        capabilityProfile: {
+          id: 'uni-conf-exporter',
+          revision: EXPORT_CAPABILITY_PROFILE_REVISION,
+          format: 'mihomo',
+        },
         artifactValidation: { format: 'mihomo', kind: 'yaml', valid: true, issues: [] },
         readiness: { ready: true, blockingWarnings: [] },
       },
@@ -419,7 +426,7 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="nodes-raw.txt"')
-    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'nodes_raw')
+    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'nodes_raw', 'default')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'nodes_raw',
@@ -514,7 +521,9 @@ describe('export download readiness', () => {
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rule-Types')).toBe('SCRIPT=1')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe(
+      `uni-conf-exporter/singbox@${EXPORT_CAPABILITY_PROFILE_REVISION}`,
+    )
     await expect(response.json()).resolves.toEqual({
       version: 3,
       rules: [{ domain_suffix: ['example.com'] }],
@@ -575,7 +584,9 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe(
+      `uni-conf-exporter/singbox@${EXPORT_CAPABILITY_PROFILE_REVISION}`,
+    )
     expect(response.headers.get('X-UniConf-Converted-Rules')).toBe('1')
     expect(response.headers.get('X-UniConf-Skipped-Rules')).toBe('1')
   })
@@ -658,13 +669,15 @@ describe('export download readiness', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/clash@21')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe(
+      `uni-conf-exporter/clash@${EXPORT_CAPABILITY_PROFILE_REVISION}`,
+    )
     expect(fetchMock).toHaveBeenCalledWith(
       sourceUrl,
       expect.objectContaining({ redirect: 'manual' }),
     )
     expect(await response.text()).toContain('DOMAIN-SUFFIX,example.com')
-    expect(buildExportData).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'clash')
+    expect(buildExportData).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'clash', 'default')
   })
 
   it('rejects an invalid target-client context at the conversion endpoint', async () => {
@@ -707,16 +720,16 @@ describe('export download readiness', () => {
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
       nodes: [
         {
-          id: 'node-wireguard',
+          id: 'node-naive',
           sourceId: 'source-1',
-          name: 'WG 01',
-          protocol: 'wireguard',
-          server: 'wg.example.com',
-          port: 51820,
+          name: 'Naive 01',
+          protocol: 'naive',
+          server: 'naive.example.com',
+          port: 443,
           enabled: true,
           tags: [],
           rawConfig: {},
-          parsedConfig: { protocol: 'wireguard', server: 'wg.example.com', port: 51820, extra: {} },
+          parsedConfig: { protocol: 'naive', server: 'naive.example.com', port: 443, extra: {} },
           isManual: false,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
@@ -800,7 +813,9 @@ describe('export download readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="singbox.json"')
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe('uni-conf-exporter/singbox@21')
+    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe(
+      `uni-conf-exporter/singbox@${EXPORT_CAPABILITY_PROFILE_REVISION}`,
+    )
     expect(getEnabledExportConfigByToken).toHaveBeenCalledWith(db, 'token')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
@@ -863,7 +878,7 @@ describe('export download readiness', () => {
     const response = await subscriptionRouter.request('/sub/token/nodes.txt', {}, { DB: db })
 
     expect(response.status).toBe(200)
-    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'nodes_base64')
+    expect(buildExportData).toHaveBeenCalledWith(db, expect.objectContaining({ format: 'mihomo' }), 'nodes_base64', 'default')
     expect(renderExportData).toHaveBeenCalledWith(
       expect.anything(),
       'nodes_base64',

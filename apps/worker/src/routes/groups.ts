@@ -11,6 +11,7 @@ import { DEFAULT_HEALTH_CHECK, FOUNDATION_POLICY_GROUP_NAMES, ROUTING_POLICY_SCE
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { validateGroupReferenceGraph } from '../services/group-reference-graph';
 import { validateOptionalBooleanFields } from '../services/request-validation';
+import { requestWorkspaceId } from '../services/workspaces';
 
 const app = new Hono<{ Bindings: Env }>();
 const GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject']);
@@ -24,11 +25,11 @@ const BUILTIN_GROUP_NAMES = new Set<string>([
 // ─── List groups ordered by sort_order ────────────────────────────────────────
 
 app.get('/', async (c) => {
-
+  const workspaceId = requestWorkspaceId(c);
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM groups ORDER BY sort_order ASC, created_at ASC'
-  ).all<Record<string, unknown>>();
-  const autoCollectionKeysById = await listAutoCollectionKeysById(c.env.DB);
+    'SELECT * FROM groups WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC'
+  ).bind(workspaceId).all<Record<string, unknown>>();
+  const autoCollectionKeysById = await listAutoCollectionKeysById(c.env.DB, workspaceId);
 
   return c.json({ success: true, data: withOutletRefs(results, autoCollectionKeysById).map(mapGroup) });
 });
@@ -36,14 +37,15 @@ app.get('/', async (c) => {
 // ─── Reorder groups ───────────────────────────────────────────────────────────
 
 app.post('/reorder', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const validation = validateGroupReorderInput(await c.req.json<unknown>());
   if (!validation.valid) {
     return c.json({ success: false, error: validation.error }, 400);
   }
 
   const { results: currentRows } = await c.env.DB.prepare(
-    'SELECT id FROM groups'
-  ).all<{ id: string }>();
+    'SELECT id FROM groups WHERE workspace_id = ?'
+  ).bind(workspaceId).all<{ id: string }>();
   const currentIds = new Set(currentRows.map(row => row.id));
   if (
     validation.ids.length !== currentRows.length
@@ -61,19 +63,20 @@ app.post('/reorder', async (c) => {
 
   const ts = now();
   const stmts = validation.ids.map((id, index) =>
-    c.env.DB.prepare('UPDATE groups SET sort_order = ?, updated_at = ? WHERE id = ? AND is_builtin = 0').bind(
+    c.env.DB.prepare('UPDATE groups SET sort_order = ?, updated_at = ? WHERE id = ? AND workspace_id = ? AND is_builtin = 0').bind(
       index,
       ts,
-      id
+      id,
+      workspaceId
     )
   );
 
   await c.env.DB.batch(stmts);
 
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM groups ORDER BY sort_order ASC'
-  ).all<Record<string, unknown>>();
-  const autoCollectionKeysById = await listAutoCollectionKeysById(c.env.DB);
+    'SELECT * FROM groups WHERE workspace_id = ? ORDER BY sort_order ASC'
+  ).bind(workspaceId).all<Record<string, unknown>>();
+  const autoCollectionKeysById = await listAutoCollectionKeysById(c.env.DB, workspaceId);
 
   return c.json({ success: true, data: withOutletRefs(results, autoCollectionKeysById).map(mapGroup) });
 });
@@ -106,6 +109,7 @@ export function validateGroupReorderInput(value: unknown): GroupReorderValidatio
 // ─── Create group (non-builtin only) ─────────────────────────────────────────
 
 app.post('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const body = await c.req.json<Partial<ProxyGroup>>();
   const validation = validateGroupWrite(body, { create: true, isBuiltin: false });
   if (!validation.valid) {
@@ -114,20 +118,20 @@ app.post('/', async (c) => {
 
   const id = newId();
   const ts = now();
-  const collectionError = await validateGroupCollectionReferences(c.env.DB, validation.collectionIds ?? []);
+  const collectionError = await validateGroupCollectionReferences(c.env.DB, validation.collectionIds ?? [], workspaceId);
   if (collectionError) return c.json({ success: false, error: collectionError }, 409);
-  const graphError = await validateGroupReferenceChange(c.env.DB, id, validation.groupIds ?? []);
+  const graphError = await validateGroupReferenceChange(c.env.DB, id, validation.groupIds ?? [], workspaceId);
   if (graphError) return c.json({ success: false, error: graphError }, 409);
 
   // Determine sort_order: max + 1
   const maxRow = await c.env.DB.prepare(
-    'SELECT MAX(sort_order) as max_order FROM groups'
-  ).first<{ max_order: number | null }>();
+    'SELECT MAX(sort_order) as max_order FROM groups WHERE workspace_id = ?'
+  ).bind(workspaceId).first<{ max_order: number | null }>();
   const sortOrder = (maxRow?.max_order ?? -1) + 1;
 
   await c.env.DB.prepare(
-    `INSERT INTO groups (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO groups (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
   )
     .bind(
       id,
@@ -143,14 +147,15 @@ app.post('/', async (c) => {
       validation.enabled ? 1 : 0,
       sortOrder,
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run();
 
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
-  const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapGroup(row!) }, 201);
@@ -159,9 +164,9 @@ app.post('/', async (c) => {
 // ─── Get group ────────────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-
-  const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c);
+  const row = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) return c.json({ success: false, error: 'Group not found' }, 404);
@@ -171,9 +176,10 @@ app.get('/:id', async (c) => {
 // ─── Update group ─────────────────────────────────────────────────────────────
 
 app.put('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
-    .bind(id)
+  const existing = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Group not found' }, 404);
@@ -192,11 +198,11 @@ app.put('/:id', async (c) => {
     return c.json({ success: false, error: validation.error }, 400);
   }
   if (validation.groupIds !== undefined) {
-    const graphError = await validateGroupReferenceChange(c.env.DB, id, validation.groupIds);
+    const graphError = await validateGroupReferenceChange(c.env.DB, id, validation.groupIds, workspaceId);
     if (graphError) return c.json({ success: false, error: graphError }, 409);
   }
   if (validation.collectionIds !== undefined) {
-    const collectionError = await validateGroupCollectionReferences(c.env.DB, validation.collectionIds);
+    const collectionError = await validateGroupCollectionReferences(c.env.DB, validation.collectionIds, workspaceId);
     if (collectionError) return c.json({ success: false, error: collectionError }, 409);
   }
 
@@ -205,7 +211,7 @@ app.put('/:id', async (c) => {
       name = ?, type = ?, collection_ids = ?, group_ids = ?, builtins = ?,
       test_url = ?, interval = ?, tolerance = ?, lazy = ?,
       enabled = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   )
     .bind(
       validation.name ?? existing.name,
@@ -221,14 +227,15 @@ app.put('/:id', async (c) => {
       validation.lazy !== undefined ? (validation.lazy ? 1 : 0) : existing.lazy,
       validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
       ts,
-      id
+      id,
+      workspaceId
     )
     .run();
 
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
-  const updated = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?')
-    .bind(id)
+  const updated = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapGroup(updated!) });
@@ -237,9 +244,10 @@ app.put('/:id', async (c) => {
 // ─── Delete group (block builtin) ─────────────────────────────────────────────
 
 app.delete('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT id, is_builtin FROM groups WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT id, is_builtin FROM groups WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<{ id: string; is_builtin: number }>();
 
   if (!row) return c.json({ success: false, error: 'Group not found' }, 404);
@@ -247,7 +255,7 @@ app.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'Cannot delete built-in group' }, 403);
   }
 
-  const deleteBlockers = await findGroupDeleteBlockers(c.env.DB, id);
+  const deleteBlockers = await findGroupDeleteBlockers(c.env.DB, id, workspaceId);
   if (deleteBlockers.length > 0) {
     return c.json({
       success: false,
@@ -262,8 +270,8 @@ app.delete('/:id', async (c) => {
     }, 409);
   }
 
-  await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(id).run();
-  await ensureZeroSetupDefaults(c.env.DB, now());
+  await c.env.DB.prepare('DELETE FROM groups WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).run();
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId);
   return c.json({ success: true, data: { id } });
 });
 
@@ -272,9 +280,10 @@ export default app;
 async function validateGroupReferenceChange(
   db: D1Database,
   id: string,
-  groupIds: readonly string[]
+  groupIds: readonly string[],
+  workspaceId: string
 ): Promise<string | undefined> {
-  const { results } = await db.prepare('SELECT id, group_ids FROM groups').all<{
+  const { results } = await db.prepare('SELECT id, group_ids FROM groups WHERE workspace_id = ?').bind(workspaceId).all<{
     id: string;
     group_ids: string | null;
   }>();
@@ -300,10 +309,11 @@ function parseStoredGroupIds(value: string | null): string[] {
 
 async function validateGroupCollectionReferences(
   db: D1Database,
-  collectionIds: readonly string[]
+  collectionIds: readonly string[],
+  workspaceId: string
 ): Promise<string | undefined> {
   if (collectionIds.length === 0) return undefined;
-  const { results } = await db.prepare('SELECT id FROM collections').all<{ id: string }>();
+  const { results } = await db.prepare('SELECT id FROM collections WHERE workspace_id = ?').bind(workspaceId).all<{ id: string }>();
   const existingIds = new Set(results.map(row => row.id));
   const missingId = collectionIds.find(id => !existingIds.has(id));
   return missingId ? `group references a missing node group: ${missingId}` : undefined;
@@ -317,10 +327,11 @@ export interface GroupDeleteBlocker {
 
 export async function findGroupDeleteBlockers(
   db: D1Database,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<GroupDeleteBlocker[]> {
   const [groups, rules, ruleSets, exportConfigs, settings] = await Promise.all([
-    db.prepare('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups').all<{
+    db.prepare('SELECT id, name, type, collection_ids, group_ids, enabled, is_builtin FROM groups WHERE workspace_id = ?').bind(workspaceId).all<{
       id: string;
       name: string;
       type: string;
@@ -329,21 +340,21 @@ export async function findGroupDeleteBlockers(
       enabled: number;
       is_builtin: number;
     }>(),
-    db.prepare('SELECT id, name FROM rules WHERE target_group_id = ? ORDER BY sort_order, id').bind(id).all<{
+    db.prepare('SELECT id, name FROM rules WHERE target_group_id = ? AND workspace_id = ? ORDER BY sort_order, id').bind(id, workspaceId).all<{
       id: string;
       name: string | null;
     }>(),
-    db.prepare('SELECT id, name FROM remote_rule_sets WHERE target_group_id = ? OR target_override_group_id = ? ORDER BY sort_order, id').bind(id, id).all<{
+    db.prepare('SELECT id, name FROM remote_rule_sets WHERE workspace_id = ? AND (target_group_id = ? OR target_override_group_id = ?) ORDER BY sort_order, id').bind(workspaceId, id, id).all<{
       id: string;
       name: string;
     }>(),
-    db.prepare('SELECT id, name, include_group_ids FROM export_configs').all<{
+    db.prepare('SELECT id, name, include_group_ids FROM export_configs WHERE workspace_id = ?').bind(workspaceId).all<{
       id: string;
       name: string;
       include_group_ids: string | null;
     }>(),
     db.prepare('SELECT routing_outlet_preferences FROM app_settings WHERE id = ?')
-      .bind('singleton')
+      .bind(workspaceId)
       .first<{ routing_outlet_preferences: string | null }>(),
   ]);
 

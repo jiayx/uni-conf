@@ -38,7 +38,9 @@ export function Layout() {
 
     restoreMenuFocus.current = true
     const sidebar = document.getElementById('primary-navigation')
-    const focusable = Array.from(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [])
+    const focusable = Array.from(sidebar?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? [])
     const focusTimer = window.setTimeout(() => focusable[0]?.focus(), 0)
 
     const handleKeyDown = (event: KeyboardEvent) => {

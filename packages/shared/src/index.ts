@@ -276,6 +276,8 @@ export const IMPLICIT_TLS_PROXY_PROTOCOLS = [
   'anytls',
   'shadowtls',
   'naive',
+  'trusttunnel',
+  'juicity',
 ] as const satisfies readonly ProxyProtocol[];
 
 const IMPLICIT_TLS_PROXY_PROTOCOL_SET = new Set<ProxyProtocol>(IMPLICIT_TLS_PROXY_PROTOCOLS);
@@ -322,6 +324,7 @@ function normalizeProxyExtra(rawConfig: Record<string, unknown>): Record<string,
   assignAlias(extra, 'alterId', rawConfig.aid);
   assignAlias(extra, 'cipher', rawConfig.scy);
   assignAlias(extra, 'clientFingerprint', rawConfig['client-fingerprint'], rawConfig.fingerprint, rawConfig.fp);
+  assignAlias(extra, 'privateKey', rawConfig['private-key'], rawConfig.privateKey);
   assignAlias(
     extra,
     'publicKey',
@@ -1166,7 +1169,7 @@ export interface ExportClientCapabilities {
 }
 
 export const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
-export const EXPORT_CAPABILITY_PROFILE_REVISION = 21;
+export const EXPORT_CAPABILITY_PROFILE_REVISION = 25;
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = [
   'ss',
@@ -1181,6 +1184,13 @@ const MIHOMO_EXPORT_NODE_PROTOCOLS = [
   'socks5',
   'http',
   'https',
+  'wireguard',
+  'ssh',
+  'snell',
+  'mieru',
+  'sudoku',
+  'trusttunnel',
+  'masque',
 ] as const satisfies readonly ProxyProtocol[];
 
 const SINGBOX_EXPORT_NODE_PROTOCOLS = [
@@ -1202,12 +1212,22 @@ const SINGBOX_EXPORT_NODE_PROTOCOLS = [
 
 const TEXT_CLIENT_EXPORT_NODE_PROTOCOLS = [
   'ss',
+  'ssr',
   'vmess',
+  'vless',
   'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
   'anytls',
   'socks5',
   'http',
   'https',
+  'wireguard',
+  'ssh',
+  'snell',
+  'mieru',
+  'juicity',
 ] as const satisfies readonly ProxyProtocol[];
 
 const SURGE_EXPORT_NODE_PROTOCOLS = [
@@ -1215,10 +1235,15 @@ const SURGE_EXPORT_NODE_PROTOCOLS = [
   'vmess',
   'trojan',
   'hysteria2',
+  'tuic',
   'anytls',
   'socks5',
   'http',
   'https',
+  'wireguard',
+  'ssh',
+  'snell',
+  'trusttunnel',
 ] as const satisfies readonly ProxyProtocol[];
 
 const LOON_EXPORT_NODE_PROTOCOLS = [
@@ -1228,8 +1253,11 @@ const LOON_EXPORT_NODE_PROTOCOLS = [
   'vless',
   'trojan',
   'hysteria2',
+  'anytls',
+  'socks5',
   'http',
   'https',
+  'wireguard',
 ] as const satisfies readonly ProxyProtocol[];
 
 const QUANTUMULT_X_EXPORT_NODE_PROTOCOLS = [
@@ -1242,6 +1270,26 @@ const QUANTUMULT_X_EXPORT_NODE_PROTOCOLS = [
   'socks5',
   'http',
   'https',
+] as const satisfies readonly ProxyProtocol[];
+
+const STASH_EXPORT_NODE_PROTOCOLS = [
+  'ss',
+  'ssr',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria',
+  'hysteria2',
+  'tuic',
+  'anytls',
+  'socks5',
+  'http',
+  'https',
+  'wireguard',
+  'ssh',
+  'snell',
+  'trusttunnel',
+  'juicity',
 ] as const satisfies readonly ProxyProtocol[];
 
 const EGERN_EXPORT_NODE_PROTOCOLS = [
@@ -1257,6 +1305,7 @@ const EGERN_EXPORT_NODE_PROTOCOLS = [
   'https',
   'ssh',
   'wireguard',
+  'snell',
 ] as const satisfies readonly ProxyProtocol[];
 
 const NODE_SUBSCRIPTION_PROTOCOLS = [
@@ -1342,7 +1391,7 @@ export const EXPORT_CLIENT_CAPABILITIES = {
   },
   stash: {
     outputKind: 'full-config',
-    nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
+    nodeProtocols: STASH_EXPORT_NODE_PROTOCOLS,
     ruleSetFormats: ['stash', 'mihomo', 'clash', 'text'],
     dns: {
       engine: 'native-fake-ip',

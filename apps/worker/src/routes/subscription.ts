@@ -18,9 +18,9 @@ import {
   RuleSetConversionError,
 } from '../services/rule-set-conversion'
 import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
-import { DEFAULT_EXPORT_CONFIG_ID } from '../services/default-export-config'
 import { getEffectiveExportDnsPolicy } from '../services/export-dns'
 import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
+import { DEFAULT_WORKSPACE_ID, defaultExportConfigId } from '../services/workspaces'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -41,7 +41,8 @@ subscriptionRouter.get('/sub/:token/rules/:ruleSetId/:filename', async (c) => {
 
   const config = await getEnabledExportConfigByToken(c.env.DB, token)
   if (!config) return convertedRuleSetError('Subscription not found or disabled', 404, 'subscription_unavailable')
-  const settings = await getAppSettings(c.env.DB)
+  const workspaceId = config.workspaceId ?? DEFAULT_WORKSPACE_ID
+  const settings = await getAppSettings(c.env.DB, workspaceId)
   const conversionPolicy = resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy)
   const requestedExportFormat = c.req.query('for')
   const exportFormat =
@@ -53,10 +54,10 @@ subscriptionRouter.get('/sub/:token/rules/:ruleSetId/:filename', async (c) => {
   if (!exportFormat) {
     return convertedRuleSetError('Unknown export format context', 400, 'conversion_export_format_invalid')
   }
-  if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== exportFormat) {
+  if (config.id !== defaultExportConfigId(workspaceId) && config.format !== exportFormat) {
     return convertedRuleSetError('Export profile does not support this format', 404, 'subscription_format_mismatch')
   }
-  const exportData = await buildExportData(c.env.DB, config, exportFormat)
+  const exportData = await buildExportData(c.env.DB, config, exportFormat, workspaceId)
   const ruleSet = exportData.remoteSets.find((item) => item.id === c.req.param('ruleSetId') && item.enabled)
   if (!ruleSet)
     return convertedRuleSetError('Rule set is not included in this subscription', 404, 'rule_set_out_of_scope')
@@ -148,7 +149,8 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
       },
     })
   }
-  if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== format) {
+  const workspaceId = config.workspaceId ?? DEFAULT_WORKSPACE_ID
+  if (config.id !== defaultExportConfigId(workspaceId) && config.format !== format) {
     return new Response('# Subscription format does not match this export profile\n', {
       status: 404,
       headers: {
@@ -159,8 +161,8 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
 
-  const exportData = await buildExportData(c.env.DB, config, format)
-  const settings = await getAppSettings(c.env.DB)
+  const exportData = await buildExportData(c.env.DB, config, format, workspaceId)
+  const settings = await getAppSettings(c.env.DB, workspaceId)
   const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
     return new Response(`# ${blockingWarning.message}\n`, {
@@ -189,7 +191,7 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
   const rendered = renderExportData(exportData, format, {
-    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format),
+    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format, workspaceId),
     managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
       ? await getManagedRealIpDomains(c.env.KV)
       : undefined,

@@ -122,6 +122,154 @@ const wireguardRow: Record<string, unknown> = {
       publicKey: 'public-key',
       presharedKey: 'psk',
       ip: ['10.0.0.2/32', 'fd00::2/128'],
+      allowedIPs: ['0.0.0.0/0', '::/0'],
+      dns: ['1.1.1.1'],
+      mtu: 1280,
+      keepalive: 25,
+      reserved: [1, 2, 3],
+    },
+  }),
+}
+
+const sshRow: Record<string, unknown> = {
+  id: 'node-ssh',
+  name: 'SSH Proxy',
+  protocol: 'ssh',
+  server: 'ssh.example.com',
+  port: 22,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'ssh',
+    server: 'ssh.example.com',
+    port: 22,
+    password: 'ssh-pass',
+    extra: {
+      username: 'root',
+    },
+  }),
+}
+
+const tuicRow: Record<string, unknown> = {
+  id: 'node-tuic',
+  name: 'TUIC Proxy',
+  protocol: 'tuic',
+  server: 'tuic.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'tuic',
+    server: 'tuic.example.com',
+    port: 443,
+    uuid: '00000000-0000-4000-8000-000000000002',
+    password: 'tuic-pass',
+    sni: 'tuic.example.com',
+    skipCertVerify: true,
+    extra: {
+      alpn: ['h3'],
+      udp: true,
+    },
+  }),
+}
+
+const vlessRow: Record<string, unknown> = {
+  id: 'node-vless',
+  name: 'VLESS Proxy',
+  protocol: 'vless',
+  server: 'vless.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'vless',
+    server: 'vless.example.com',
+    port: 443,
+    uuid: '00000000-0000-4000-8000-000000000003',
+    tls: true,
+    sni: 'vless.example.com',
+    network: 'ws',
+    wsPath: '/ws',
+    wsHeaders: { Host: 'cdn.example.com' },
+    extra: {},
+  }),
+}
+
+const snellRow: Record<string, unknown> = {
+  id: 'node-snell',
+  name: 'Snell Proxy',
+  protocol: 'snell',
+  server: 'snell.example.com',
+  port: 44046,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'snell',
+    server: 'snell.example.com',
+    port: 44046,
+    extra: {
+      psk: 'snell-psk',
+      version: 4,
+      udp: true,
+      reuse: true,
+      obfs: 'http',
+      obfsHost: 'bing.com',
+    },
+  }),
+}
+
+const mieruRow: Record<string, unknown> = {
+  id: 'node-mieru',
+  name: 'Mieru Proxy',
+  protocol: 'mieru',
+  server: 'mieru.example.com',
+  port: 2999,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'mieru',
+    server: 'mieru.example.com',
+    port: 2999,
+    password: 'mieru-pass',
+    extra: {
+      username: 'mieru-user',
+      transport: 'TCP',
+      multiplexing: 'MULTIPLEXING_LOW',
+    },
+  }),
+}
+
+const trustTunnelRow: Record<string, unknown> = {
+  id: 'node-trusttunnel',
+  name: 'TrustTunnel Proxy',
+  protocol: 'trusttunnel',
+  server: 'trust.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'trusttunnel',
+    server: 'trust.example.com',
+    port: 443,
+    password: 'trust-pass',
+    sni: 'trust.example.com',
+    extra: {
+      username: 'trust-user',
+      alpn: ['h2'],
+    },
+  }),
+}
+
+const juicityRow: Record<string, unknown> = {
+  id: 'node-juicity',
+  name: 'Juicity Proxy',
+  protocol: 'juicity',
+  server: 'juicity.example.com',
+  port: 443,
+  enabled: 1,
+  parsed_config: JSON.stringify({
+    protocol: 'juicity',
+    server: 'juicity.example.com',
+    port: 443,
+    uuid: '00000000-0000-4000-8000-000000000004',
+    password: 'juicity-pass',
+    sni: 'juicity.example.com',
+    extra: {
+      alpn: ['h3'],
     },
   }),
 }
@@ -296,11 +444,13 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('sni=gateway.example.com')
   })
 
-  it('does not emit undocumented AnyTLS syntax in Loon profiles', () => {
+  it('exports AnyTLS with native Loon positional fields', () => {
     const content = generateLoon([anytlsRow], [autoGroupRow], [], [], collectionNodeNames)
 
-    expect(content).not.toContain('HK AnyTLS =')
-    expect(content).not.toContain('HK Auto = url-latency-benchmark, HK AnyTLS')
+    expect(content).toContain(
+      'HK AnyTLS = AnyTLS,hk.example.com,443,"secret",sni=hk.example.com,skip-cert-verify=false,udp=true,tls-profile=chrome'
+    )
+    expect(content).toContain('HK Auto = url-latency-benchmark, HK AnyTLS')
   })
 
   it('exports Hysteria 2 with native Loon positional fields', () => {
@@ -316,6 +466,19 @@ describe('AnyTLS preview generators', () => {
       'Hysteria 2 = Hysteria2,hy2.example.com,443,"hy2-secret",tls-name=hy2.example.com,skip-cert-verify=true'
     )
     expect(content).toContain('HK Auto = url-latency-benchmark, Hysteria 2')
+  })
+
+  it('exports SOCKS5 and WireGuard with native Loon fields', () => {
+    const content = generateLoon([socksRow, wireguardRow], [], [], [])
+
+    expect(content).toContain(
+      'SOCKS Proxy = socks5,socks.example.com,1080,"socks-user","socks-pass",udp=true',
+    )
+    expect(content).toContain('US WireGuard = wireguard,interface-ip=10.0.0.2,interface-ipV6=fd00::2')
+    expect(content).toContain('private-key="private-key"')
+    expect(content).toContain('reserved=[1,2,3]')
+    expect(content).toContain('allowed-ips="0.0.0.0/0,::/0"')
+    expect(content).toContain('endpoint=wg.example.com:51820')
   })
 
   it('exports AnyTLS nodes in Surge preview', () => {
@@ -345,11 +508,82 @@ describe('AnyTLS preview generators', () => {
     )
   })
 
+  it('exports TUIC v5, SSH, and WireGuard with native Surge sections', () => {
+    const content = generateSurge([tuicRow, sshRow, wireguardRow], [], [], [])
+
+    expect(content).toContain(
+      'TUIC Proxy = tuic-v5, tuic.example.com, 443, uuid=00000000-0000-4000-8000-000000000002, password=tuic-pass, sni=tuic.example.com, skip-cert-verify=true, alpn=h3',
+    )
+    expect(content).toContain('SSH Proxy = ssh, ssh.example.com, 22, username=root, password=ssh-pass')
+    expect(content).toContain('US WireGuard = wireguard, section-name=wg_node-wireguard')
+    expect(content).toContain('[WireGuard wg_node-wireguard]')
+    expect(content).toContain('self-ip = 10.0.0.2')
+    expect(content).toContain('self-ip-v6 = fd00::2')
+    expect(content).toContain('client-id = 1/2/3')
+  })
+
+  it('exports Snell and TrustTunnel with native Surge fields', () => {
+    const content = generateSurge([snellRow, trustTunnelRow], [], [], [])
+
+    expect(content).toContain(
+      'Snell Proxy = snell, snell.example.com, 44046, psk=snell-psk, version=4, reuse=true, udp-relay=true, obfs=http, obfs-host=bing.com',
+    )
+    expect(content).toContain(
+      'TrustTunnel Proxy = trust-tunnel, trust.example.com, 443, username=trust-user, password=trust-pass, sni=trust.example.com, alpn=h2',
+    )
+  })
+
   it('exports AnyTLS nodes in Shadowrocket preview', () => {
     const content = generateShadowrocket([anytlsRow], [autoGroupRow], [], [], collectionNodeNames)
 
     expect(content).toContain('HK AnyTLS = anytls, hk.example.com, 443')
     expect(content).toContain('HK Auto = url-test, HK AnyTLS')
+  })
+
+  it('exports current Shadowrocket protocol fields', () => {
+    const content = generateShadowrocket(
+      [
+        ssrRow,
+        vlessRow,
+        hysteriaRow,
+        hysteria2Row,
+        tuicRow,
+        wireguardRow,
+        sshRow,
+        snellRow,
+        mieruRow,
+        juicityRow,
+      ],
+      [],
+      [],
+      [],
+    )
+
+    expect(content).toContain('🇭🇰 HK SSR 01 = ssr, hk.example.com, 443')
+    expect(content).toContain('VLESS Proxy = vless, vless.example.com, 443')
+    expect(content).toContain('obfs=websocket')
+    expect(content).toContain('SG Hysteria = hysteria, sg.example.com, 443, auth=auth-secret')
+    expect(content).toContain('Hysteria 2 = hysteria2, hy2.example.com, 443, auth=hy2-secret')
+    expect(content).toContain('TUIC Proxy = tuic, tuic.example.com, 443')
+    expect(content).toContain('US WireGuard = wireguard, wg.example.com, 51820')
+    expect(content).toContain('SSH Proxy = ssh, ssh.example.com, 22, user=root, password=ssh-pass')
+    expect(content).toContain('Snell Proxy = snell, snell.example.com, 44046')
+    expect(content).toContain('Mieru Proxy = mieru, mieru.example.com, 2999')
+    expect(content).toContain('Juicity Proxy = juicity, juicity.example.com, 443')
+  })
+
+  it('exports Snell with native Egern fields', () => {
+    const config = yaml.load(generateEgern([snellRow], [], [], [])) as {
+      proxies: Array<Record<string, unknown>>
+    }
+
+    expect(config.proxies).toContainEqual({
+      snell: expect.objectContaining({
+        name: 'Snell Proxy',
+        psk: 'snell-psk',
+        version: 4,
+      }),
+    })
   })
 
   it('exports AnyTLS nodes in Quantumult X preview', () => {
@@ -398,7 +632,7 @@ describe('AnyTLS preview generators', () => {
 
     expect(loon).toContain('HK Auto = url-latency-benchmark, HTTPS Proxy')
     expect(loon).not.toContain('HK Auto = url-latency-benchmark, HTTPS Proxy, SOCKS Proxy')
-    expect(loon).not.toContain('SOCKS Proxy =')
+    expect(loon).toContain('SOCKS Proxy = socks5,')
     expect(surge).toContain('HK Auto = url-test, HK AnyTLS')
     expect(surge).not.toContain('HK Auto = url-test, HK AnyTLS, US AnyTLS')
     expect(shadowrocket).toContain('HK Auto = url-test, HK AnyTLS')

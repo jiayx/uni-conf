@@ -12,11 +12,27 @@
     "rules": "手动规则",
     "remote_rule_sets": "规则集管理",
     "export": "配置导出",
-    "preview": "配置预览",
     "settings": "设置",
     "primary_navigation": "主导航",
     "open_menu": "打开主导航",
     "close_menu": "关闭主导航"
+  },
+  "workspaces": {
+    "current": "当前配置空间",
+    "manage": "管理配置空间",
+    "description": "每个配置空间独立保存订阅源、节点、分流规则、DNS 设置和导出档案。",
+    "name_placeholder": "例如：朋友 A",
+    "load_failed": "无法加载配置空间。",
+    "create_failed": "无法创建配置空间。",
+    "rename_failed": "无法重命名配置空间。",
+    "delete_failed": "无法删除配置空间。",
+    "delete_title": "删除配置空间",
+    "delete_confirm": "确认删除“{{name}}”？其中的订阅源、节点、规则和导出链接都会一并删除。"
+  },
+  "notFound": {
+    "title": "页面不存在",
+    "description": "这个地址可能有误，或者页面已经移动。",
+    "back_home": "返回概览"
   },
   "common": {
     "add": "添加",
@@ -782,7 +798,6 @@
     "validation_warning_summary": "配置可用，包含 {{unsupported}} 个非阻断提示、{{partial}} 个自动调整项、{{convert}} 个格式转换提示",
     "validation_blocked_summary": "需要处理 {{unsupported}} 个阻塞问题，另有 {{partial}} 个自动调整项、{{convert}} 个格式转换提示",
     "validation_summary_with_lines": "{{summary}} · 预览 {{lineCount}} 行",
-    "validation_more": "还有 {{count}} 条提示，请到配置预览查看。",
     "reset_token_title": "重置订阅 Token",
     "reset_token_confirm_named": "确认重置导出档案“{{name}}”的订阅 Token？该档案现有的所有公开链接将立即失效。",
     "token_reset_success": "Token 已重置",
@@ -793,12 +808,6 @@
     "link_paused_hint": "此导出档案的公开订阅已暂停；恢复前不可预览、复制或下载。"
   },
   "preview": {
-    "title": "配置预览",
-    "select_format": "选择格式",
-    "default_config": "默认导出配置",
-    "config_selector": "导出档案",
-    "config_load_error_title": "无法加载导出档案",
-    "warnings": "兼容性警告",
     "transformation_title": "导出转换报告",
     "transformation_desc": "系统只展示有明确语义结果的转换；无法安全表达的规则不会猜测改写。",
     "transformation_filter_label": "筛选导出转换结果",
@@ -815,22 +824,11 @@
     "transformation_not_exported": "不会写入目标配置",
     "transformation_rule_counts": "已保留 {{converted}} 条 · 未导出 {{skipped}} 条",
     "line_count": "共 {{count}} 行",
-    "capability_profile": "{{format}} 能力档案 r{{revision}}",
-    "capability_profile_help": "这是生成此配置时使用的 UniConf 导出器能力修订号，不是目标客户端的应用版本。",
     "stale_title": "已保留上次预览",
     "stale_after_refresh_error": "最新检查失败。当前内容仅供对照，重新检查成功后才能复制。",
     "structure_valid": "{{kind}} 结构校验通过",
     "structure_invalid": "结构校验失败（{{count}} 个问题）",
-    "copy_success": "配置已复制",
-    "no_warnings": "无兼容性问题",
-    "ready_title": "配置可用",
-    "ready_desc": "当前预览没有发现需要处理的问题，可以直接复制或下载。",
-    "blocked_title": "配置需要处理",
     "generating": "正在生成配置...",
-    "content_truncated": "当前展示 {{shownLines}}/{{totalLines}} 行、{{shownCharacters}}/{{totalCharacters}} 个字符；复制仍使用完整配置。",
-    "full_content_shown": "已展示完整配置：{{lineCount}} 行、{{characterCount}} 个字符。",
-    "show_full": "展示完整配置",
-    "show_compact": "恢复精简预览",
     "fix_sources": "查看订阅源",
     "fix_nodes": "检查节点",
     "fix_groups": "编辑策略组",
@@ -838,9 +836,7 @@
     "fix_remote_rule_sets": "编辑规则集",
     "fix_collections": "查看节点组",
     "fix_export": "查看导出档案",
-    "fix_settings": "检查设置",
-    "empty": "暂无预览内容",
-    "error": "预览生成失败"
+    "fix_settings": "检查设置"
   },
   "settings": {
     "title": "设置",
@@ -918,7 +914,7 @@
     "title": "UniConf 已启用访问保护",
     "description": "请输入访问密钥以继续。",
     "placeholder": "访问密钥",
-    "unlock": "解锁",
+    "unlock": "继续",
     "invalid_key": "访问密钥无效"
   },
   "dashboard": {

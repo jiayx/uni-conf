@@ -102,6 +102,29 @@ describe('Export', () => {
 
     expect(api.export.previewFormat).toHaveBeenCalledWith('singbox', 'advanced-1')
     expect(await screen.findByRole('dialog', { name: /Mobile/ })).toBeInTheDocument()
+    expect(screen.getByText('YAML structure valid')).toBeInTheDocument()
+    expect(screen.queryByText('Config ready')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Config Preview' })).not.toBeInTheDocument()
+  })
+
+  it('shows every compatibility notice in the export preview', async () => {
+    vi.mocked(api.export.previewFormat).mockResolvedValueOnce({
+      ...preview,
+      warnings: Array.from({ length: 4 }, (_, index) => ({
+        client: 'mihomo',
+        level: 'unsupported',
+        message: `提示 ${index + 1}`,
+        messageEn: `Notice ${index + 1}`,
+      })),
+    })
+    const user = userEvent.setup()
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    await user.click((await screen.findAllByRole('button', { name: 'Preview' }))[0]!)
+
+    for (let index = 1; index <= 4; index += 1) {
+      expect(await screen.findByText(`Notice ${index}`)).toBeInTheDocument()
+    }
   })
 
   it('reveals and hides a subscription URL without a confirmation step', async () => {

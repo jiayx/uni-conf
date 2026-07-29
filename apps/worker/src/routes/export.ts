@@ -4,7 +4,6 @@ import { buildExportData, getExportConfigById } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
 import {
-  DEFAULT_EXPORT_CONFIG_ID,
   ensureDefaultExportConfig,
   generateExportToken,
 } from '../services/default-export-config'
@@ -25,13 +24,20 @@ import {
 } from '@uni-conf/shared'
 import { getEffectiveExportDnsPolicy } from '../services/export-dns'
 import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
+import {
+  defaultExportConfigId,
+  requestWorkspaceId,
+} from '../services/workspaces'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
 // GET /api/export/configs - list export configs
 exportRouter.get('/configs', async (c) => {
-  await ensureDefaultExportConfig(c.env.DB, now())
-  const rows = await c.env.DB.prepare('SELECT * FROM export_configs ORDER BY created_at DESC').all()
+  const workspaceId = requestWorkspaceId(c)
+  await ensureDefaultExportConfig(c.env.DB, now(), workspaceId)
+  const rows = await c.env.DB.prepare('SELECT * FROM export_configs WHERE workspace_id = ? ORDER BY created_at DESC')
+    .bind(workspaceId)
+    .all()
   return c.json({ success: true, data: (rows.results ?? []).map(mapExportConfig) })
 })
 
@@ -49,9 +55,10 @@ exportRouter.post('/configs', async (c) => {
   const token = generateExportToken()
   const ts = now()
   const format = body.format ?? 'mihomo'
+  const workspaceId = requestWorkspaceId(c)
   await c.env.DB.prepare(
-    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -67,12 +74,15 @@ exportRouter.post('/configs', async (c) => {
       selection.extraConfig ? JSON.stringify(selection.extraConfig) : null,
       ts,
       ts,
+      workspaceId,
     )
     .run()
 
-  await ensureZeroSetupDefaults(c.env.DB, ts)
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
 
-  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
+  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
+    .first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) }, 201)
 })
 
@@ -105,7 +115,9 @@ export function resolveExportConfigUpdateName(
 
 // GET /api/export/configs/:id
 exportRouter.get('/configs/:id', async (c) => {
-  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(c.req.param('id')).first()
+  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), requestWorkspaceId(c))
+    .first()
   if (!row) return c.json({ success: false, error: 'Not found' }, 404)
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
 })
@@ -115,11 +127,14 @@ exportRouter.put('/configs/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json<Partial<ExportConfig>>()
   const ts = now()
+  const workspaceId = requestWorkspaceId(c)
 
-  const existing = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
+  const existing = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
+    .first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
   const defaultAllowedFields = new Set(['enabled'])
-  if (id === DEFAULT_EXPORT_CONFIG_ID && Object.keys(body).some((field) => !defaultAllowedFields.has(field))) {
+  if (id === defaultExportConfigId(workspaceId) && Object.keys(body).some((field) => !defaultAllowedFields.has(field))) {
     return c.json(
       {
         success: false,
@@ -178,34 +193,40 @@ exportRouter.put('/configs/:id', async (c) => {
   if (fields.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400)
   fields.push('updated_at = ?')
   values.push(ts)
-  values.push(id)
+  values.push(id, workspaceId)
 
-  await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ?`)
+  await c.env.DB.prepare(`UPDATE export_configs SET ${fields.join(', ')} WHERE id = ? AND workspace_id = ?`)
     .bind(...values)
     .run()
-  await ensureZeroSetupDefaults(c.env.DB, ts)
-  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
+  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
+    .first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
 })
 
 // DELETE /api/export/configs/:id
 exportRouter.delete('/configs/:id', async (c) => {
   const id = c.req.param('id')
-  if (id === DEFAULT_EXPORT_CONFIG_ID) {
+  const workspaceId = requestWorkspaceId(c)
+  if (id === defaultExportConfigId(workspaceId)) {
     return c.json({ success: false, error: 'Default export config is managed internally' }, 403)
   }
-  const existing = await c.env.DB.prepare('SELECT id FROM export_configs WHERE id = ?').bind(id).first()
+  const existing = await c.env.DB.prepare('SELECT id FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
+    .first()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
-  await c.env.DB.prepare('DELETE FROM export_configs WHERE id = ?').bind(id).run()
-  await ensureZeroSetupDefaults(c.env.DB, now())
+  await c.env.DB.prepare('DELETE FROM export_configs WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).run()
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
   return c.json({ success: true, data: null })
 })
 
 // POST /api/export/configs/:id/reset-token
 exportRouter.post('/configs/:id/reset-token', async (c) => {
   const id = c.req.param('id')
-  const existing = await c.env.DB.prepare('SELECT id, token FROM export_configs WHERE id = ?')
-    .bind(id)
+  const workspaceId = requestWorkspaceId(c)
+  const existing = await c.env.DB.prepare('SELECT id, token FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>()
   if (!existing) return c.json({ success: false, error: 'Not found' }, 404)
 
@@ -214,9 +235,11 @@ exportRouter.post('/configs/:id/reset-token', async (c) => {
   await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ?')
     .bind(nextToken, ts, id)
     .run()
-  await syncDefaultExportTokenAfterReset(c.env.DB, String(existing.token ?? ''), nextToken, ts)
-  await ensureZeroSetupDefaults(c.env.DB, ts)
-  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ?').bind(id).first()
+  await syncDefaultExportTokenAfterReset(c.env.DB, String(existing.token ?? ''), nextToken, ts, workspaceId)
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
+  const row = await c.env.DB.prepare('SELECT * FROM export_configs WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
+    .first()
   return c.json({ success: true, data: mapExportConfig(row as Record<string, unknown>) })
 })
 
@@ -225,13 +248,14 @@ async function syncDefaultExportTokenAfterReset(
   previousToken: string,
   nextToken: string,
   ts: string,
+  workspaceId: string,
 ): Promise<void> {
   if (!previousToken) return
   await db
     .prepare(
-      "UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = 'singleton' AND default_export_token = ?",
+      'UPDATE app_settings SET default_export_token = ?, updated_at = ? WHERE id = ? AND default_export_token = ?',
     )
-    .bind(nextToken, ts, previousToken)
+    .bind(nextToken, ts, workspaceId, previousToken)
     .run()
 }
 
@@ -240,14 +264,15 @@ async function inspectExport(
   format: ExportFormat,
   config: ExportConfig,
 ): Promise<ExportResult | null> {
-  const settings = await getAppSettings(c.env.DB)
-  const exportData = await buildExportData(c.env.DB, config, format)
+  const workspaceId = requestWorkspaceId(c)
+  const settings = await getAppSettings(c.env.DB, workspaceId)
+  const exportData = await buildExportData(c.env.DB, config, format, workspaceId)
   const conversionPreflight = await preflightRuleSetConversions(exportData, format, {
     kv: c.env.KV,
     policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
   })
   const rendered = renderExportData(exportData, format, {
-    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format),
+    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format, workspaceId),
     managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
       ? await getManagedRealIpDomains(c.env.KV)
       : undefined,
@@ -296,8 +321,9 @@ exportRouter.get('/download/:format', async (c) => {
   }
   const config = await resolveConfig(c, format)
   if (config instanceof Response) return config
-  const settings = await getAppSettings(c.env.DB)
-  const exportData = await buildExportData(c.env.DB, config, format)
+  const workspaceId = requestWorkspaceId(c)
+  const settings = await getAppSettings(c.env.DB, workspaceId)
+  const exportData = await buildExportData(c.env.DB, config, format, workspaceId)
   const blockingWarning = findBlockingExportWarning(exportData, format)
   if (blockingWarning) {
     c.header('X-UniConf-Error-Code', 'export_not_ready')
@@ -328,7 +354,7 @@ exportRouter.get('/download/:format', async (c) => {
     )
   }
   const rendered = renderExportData(exportData, format, {
-    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format),
+    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format, workspaceId),
     managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
       ? await getManagedRealIpDomains(c.env.KV)
       : undefined,
@@ -363,17 +389,18 @@ exportRouter.get('/download/:format', async (c) => {
 })
 
 async function resolveConfig(c: Context<{ Bindings: Env }>, format: ExportFormat) {
+  const workspaceId = requestWorkspaceId(c)
   const configId = c.req.query('configId')
   if (!configId) {
-    const config = await ensureDefaultExportConfig(c.env.DB, now())
+    const config = await ensureDefaultExportConfig(c.env.DB, now(), workspaceId)
     if (!config.enabled) return c.json({ success: false, error: 'Export config is disabled' }, 403)
     return config
   }
 
-  const config = await getExportConfigById(c.env.DB, configId)
+  const config = await getExportConfigById(c.env.DB, configId, workspaceId)
   if (!config) return c.json({ success: false, error: 'Export config not found' }, 404)
   if (!config.enabled) return c.json({ success: false, error: 'Export config is disabled' }, 403)
-  if (config.id !== DEFAULT_EXPORT_CONFIG_ID && config.format !== format) {
+  if (config.id !== defaultExportConfigId(workspaceId) && config.format !== format) {
     return c.json({ success: false, error: 'Export profile does not support this format' }, 400)
   }
   return config

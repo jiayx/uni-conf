@@ -215,6 +215,18 @@ proxies:
         tls: true,
       }),
     })
+    expect(parseProxyLink('snell://secret@snell.example.com:44046?version=4#Snell', 'source-1')).toMatchObject({
+      protocol: 'snell',
+      rawConfig: expect.objectContaining({ psk: 'secret', password: 'secret' }),
+    })
+    expect(parseProxyLink('mieru://user:pass@mieru.example.com:2999?transport=TCP#Mieru', 'source-1')).toMatchObject({
+      protocol: 'mieru',
+      rawConfig: expect.objectContaining({ username: 'user', password: 'pass' }),
+    })
+    expect(parseProxyLink('juicity://id:pass@juicity.example.com:443?sni=juicity.example.com#Juicity', 'source-1')).toMatchObject({
+      protocol: 'juicity',
+      parsedConfig: expect.objectContaining({ uuid: 'id', password: 'pass', tls: true }),
+    })
     expect(parseProxyLink('socks://user@socks.example.com#Socks', 'source-1')).toMatchObject({
       protocol: 'socks5',
       port: 1080,

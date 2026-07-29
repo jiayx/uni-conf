@@ -1,20 +1,32 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import i18n from '@/i18n'
+import { api } from '@/lib/api'
 import { Layout } from './Layout'
 
 describe('application layout navigation', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(api.workspaces, 'list').mockResolvedValue([{
+      id: 'default',
+      name: 'Default',
+      isDefault: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }])
     void i18n.changeLanguage('en')
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
   })
 
-  it('renders the outlet and every primary navigation destination', () => {
+  it('renders the outlet and every primary navigation destination', async () => {
     setViewportWidth(1280)
     renderLayout()
 
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Configuration space' }).children.length).toBeGreaterThan(0)
+    })
     expect(screen.getByText('Dashboard page')).toBeInTheDocument()
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Dashboard', 'Sources', 'Nodes', 'Node Groups', 'Routing Plan',
@@ -66,9 +78,9 @@ describe('application layout navigation', () => {
     await user.click(toggle)
     const sidebar = screen.getByRole('dialog', { name: 'Primary navigation' })
     const close = within(sidebar).getByRole('button', { name: 'Close primary navigation' })
-    const links = screen.getAllByRole('link')
+    const manageWorkspaces = within(sidebar).getByRole('button', { name: 'Manage configuration spaces' })
     await waitFor(() => expect(close).toHaveFocus())
-    links[links.length - 1]!.focus()
+    manageWorkspaces.focus()
     await user.tab()
     expect(close).toHaveFocus()
 

@@ -11,6 +11,7 @@ import {
   isFullConfigExportFormat,
   normalizeDnsRealIpDomainList,
 } from '@uni-conf/shared'
+import { requestWorkspaceId } from '../services/workspaces'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -57,7 +58,8 @@ const NON_NULL_COLUMNS = {
 } as const satisfies Record<TableName, readonly string[]>
 
 app.get('/export', async (c) => {
-  await ensureZeroSetupDefaults(c.env.DB, now())
+  const workspaceId = requestWorkspaceId(c)
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
   const data: ExportPayload = {
     sources: [],
     nodes: [],
@@ -70,8 +72,14 @@ app.get('/export', async (c) => {
     source_import_runs: [],
   }
   for (const table of TABLES) {
-    const { results } = await c.env.DB.prepare(`SELECT * FROM ${table}`).all<Record<string, unknown>>()
-    data[table] = results
+    const columns = TABLE_COLUMNS[table].join(', ')
+    const statement = table === 'app_settings'
+      ? c.env.DB.prepare(`SELECT ${columns} FROM app_settings WHERE id = ?`).bind(workspaceId)
+      : c.env.DB.prepare(`SELECT ${columns} FROM ${table} WHERE workspace_id = ?`).bind(workspaceId)
+    const { results } = await statement.all<Record<string, unknown>>()
+    data[table] = table === 'app_settings'
+      ? results.map(row => ({ ...row, id: 'workspace' }))
+      : results
   }
 
   c.header('Cache-Control', 'no-store')
@@ -89,6 +97,7 @@ app.get('/export', async (c) => {
 })
 
 app.post('/import', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const body = await c.req.json<unknown>()
   const validation = validateBackupPayload(body)
   if (!validation.valid) return c.json({ success: false, error: validation.error }, 400)
@@ -96,17 +105,19 @@ app.post('/import', async (c) => {
 
   const stmts: D1PreparedStatement[] = []
   for (const table of [...TABLES].reverse()) {
-    stmts.push(c.env.DB.prepare(`DELETE FROM ${table}`))
+    stmts.push(table === 'app_settings'
+      ? c.env.DB.prepare('DELETE FROM app_settings WHERE id = ?').bind(workspaceId)
+      : c.env.DB.prepare(`DELETE FROM ${table} WHERE workspace_id = ?`).bind(workspaceId))
   }
   for (const table of TABLES) {
     const rows = tables[table]
     for (const row of rows) {
-      stmts.push(insertRow(c.env.DB, table, row))
+      stmts.push(insertRow(c.env.DB, table, row, workspaceId))
     }
   }
 
   await c.env.DB.batch(stmts)
-  await ensureZeroSetupDefaults(c.env.DB, now())
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
   return c.json({ success: true, data: null })
 })
 
@@ -126,16 +137,17 @@ app.post('/import/validate', async (c) => {
 })
 
 app.delete('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
   const ts = now()
   await c.env.DB.batch([
-    c.env.DB.prepare('DELETE FROM export_configs'),
-    c.env.DB.prepare('DELETE FROM remote_rule_sets'),
-    c.env.DB.prepare('DELETE FROM rules'),
-    c.env.DB.prepare('DELETE FROM collections'),
-    c.env.DB.prepare('DELETE FROM nodes'),
-    c.env.DB.prepare('DELETE FROM sources'),
-    c.env.DB.prepare('DELETE FROM source_import_runs'),
-    c.env.DB.prepare('DELETE FROM groups WHERE is_builtin = 0'),
+    c.env.DB.prepare('DELETE FROM export_configs WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM remote_rule_sets WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM rules WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM collections WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM nodes WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM sources WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM source_import_runs WHERE workspace_id = ?').bind(workspaceId),
+    c.env.DB.prepare('DELETE FROM groups WHERE workspace_id = ? AND is_builtin = 0').bind(workspaceId),
     c.env.DB.prepare(
       `UPDATE app_settings SET
         language = 'zh',
@@ -154,17 +166,24 @@ app.delete('/', async (c) => {
         auto_node_group_keys = NULL,
         auto_node_group_include_flag = 1,
         updated_at = ?
-       WHERE id = 'singleton'`
-    ).bind(DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, ts),
+       WHERE id = ?`
+    ).bind(DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, ts, workspaceId),
   ])
 
-  await ensureZeroSetupDefaults(c.env.DB, ts)
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)
 
   return c.json({ success: true, data: null })
 })
 
-function insertRow(db: D1Database, table: TableName, row: Record<string, unknown>): D1PreparedStatement {
-  const entries = Object.entries(row)
+function insertRow(
+  db: D1Database,
+  table: TableName,
+  row: Record<string, unknown>,
+  workspaceId: string
+): D1PreparedStatement {
+  const entries = table === 'app_settings'
+    ? Object.entries({ ...row, id: workspaceId })
+    : [['workspace_id', workspaceId] as const, ...Object.entries(row)]
   if (entries.length === 0) throw new Error(`Cannot import empty row into ${table}`)
 
   const columns = entries.map(([column]) => column)
@@ -368,7 +387,7 @@ function validateBackupRelations(tables: ExportPayload): string | undefined {
     }
   }
   for (const [index, row] of tables.app_settings.entries()) {
-    if (row.id !== 'singleton') return `app_settings[${index}].id must be singleton`
+    if (row.id !== 'workspace') return `app_settings[${index}].id must identify the exported workspace`
     if (row.default_export_token != null && (typeof row.default_export_token !== 'string' || !exportTokens.has(row.default_export_token))) {
       return `app_settings[${index}] references a missing default export token`
     }

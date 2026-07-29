@@ -19,6 +19,7 @@ import {
   validateGroupWrite,
 } from './groups';
 import { validateOptionalBooleanFields } from '../services/request-validation';
+import { requestWorkspaceId } from '../services/workspaces';
 
 const app = new Hono<{ Bindings: Env }>();
 const FILTER_FIELDS = new Set<NodeFilter['field']>(['name', 'server', 'protocol', 'country', 'countryCode', 'tag', 'sourceId']);
@@ -31,13 +32,13 @@ const LINKED_GROUP_TYPES = new Set<ProxyGroup['type']>(['select', 'url-test', 'f
 // ─── List collections ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-
+  const workspaceId = requestWorkspaceId(c);
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM collections ORDER BY created_at DESC'
-  ).all<Record<string, unknown>>();
+    'SELECT * FROM collections WHERE workspace_id = ? ORDER BY created_at DESC'
+  ).bind(workspaceId).all<Record<string, unknown>>();
   const collections = results.map(mapCollection);
   const { results: nodeRows } = await c.env.DB.prepare(
-    enabledNodeRowsQuery()
+    enabledNodeRowsQuery(undefined, workspaceId)
   ).all<Record<string, unknown>>();
   const nodes = nodeRows.map(mapNode);
   const summaries: NodeCollectionSummary[] = collections.map(collection => ({
@@ -59,10 +60,11 @@ app.post('/', async (c) => {
 
   const id = newId();
   const ts = now();
+  const workspaceId = requestWorkspaceId(c);
 
   await c.env.DB.prepare(
-    `INSERT INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -77,11 +79,12 @@ app.post('/', async (c) => {
       validation.enabled ? 1 : 0,
       validation.notes ?? null,
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run();
 
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
   const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(id)
@@ -116,17 +119,18 @@ app.post('/with-group', async (c) => {
   }
 
   const ts = now();
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  const workspaceId = requestWorkspaceId(c);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
   const maxRow = await c.env.DB.prepare(
-    'SELECT MAX(sort_order) as max_order FROM groups'
-  ).first<{ max_order: number | null }>();
+    'SELECT MAX(sort_order) as max_order FROM groups WHERE workspace_id = ?'
+  ).bind(workspaceId).first<{ max_order: number | null }>();
   const sortOrder = (maxRow?.max_order ?? -1) + 1;
 
   await c.env.DB.batch([
-    prepareCollectionInsert(c.env.DB, collectionId, collectionValidation, ts),
+    prepareCollectionInsert(c.env.DB, collectionId, collectionValidation, ts, workspaceId),
     c.env.DB.prepare(
-      `INSERT INTO groups (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+      `INSERT INTO groups (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
     ).bind(
       groupId,
       groupValidation.name,
@@ -142,6 +146,7 @@ app.post('/with-group', async (c) => {
       sortOrder,
       ts,
       ts,
+      workspaceId,
     ),
   ]);
 
@@ -190,6 +195,7 @@ app.put('/:id', async (c) => {
     return c.json({ success: false, error: validation.error }, 400);
   }
   const ts = now();
+  const workspaceId = requestWorkspaceId(c);
 
   await c.env.DB.prepare(
     `UPDATE collections SET
@@ -215,7 +221,7 @@ app.put('/:id', async (c) => {
     )
     .run();
 
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
   const updated = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(id)
@@ -262,7 +268,8 @@ app.put('/:id/with-group', async (c) => {
   }
 
   const ts = now();
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  const workspaceId = requestWorkspaceId(c);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
   const statements = [
     prepareCollectionUpdate(c.env.DB, id, existing, collectionValidation, ts),
   ];
@@ -281,12 +288,12 @@ app.put('/:id/with-group', async (c) => {
     ));
   } else {
     const maxRow = await c.env.DB.prepare(
-      'SELECT MAX(sort_order) as max_order FROM groups'
-    ).first<{ max_order: number | null }>();
+      'SELECT MAX(sort_order) as max_order FROM groups WHERE workspace_id = ?'
+    ).bind(workspaceId).first<{ max_order: number | null }>();
     const sortOrder = (maxRow?.max_order ?? -1) + 1;
     statements.push(c.env.DB.prepare(
-      `INSERT INTO groups (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+      `INSERT INTO groups (id, name, type, collection_ids, group_ids, builtins, test_url, interval, tolerance, lazy, enabled, sort_order, is_builtin, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
     ).bind(
       groupId,
       groupValidation.name,
@@ -302,6 +309,7 @@ app.put('/:id/with-group', async (c) => {
       sortOrder,
       ts,
       ts,
+      workspaceId,
     ));
   }
 
@@ -324,6 +332,7 @@ app.put('/:id/with-group', async (c) => {
 
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
+  const workspaceId = requestWorkspaceId(c);
   const row = await c.env.DB.prepare('SELECT id, notes FROM collections WHERE id = ?')
     .bind(id)
     .first<{ id: string; notes: string | null }>();
@@ -333,13 +342,15 @@ app.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'System node groups are managed automatically' }, 409);
   }
   const [groupRows, exportRows] = await Promise.all([
-    c.env.DB.prepare('SELECT id, name, is_builtin, collection_ids FROM groups').all<{
+    c.env.DB.prepare('SELECT id, name, is_builtin, collection_ids FROM groups WHERE workspace_id = ?')
+      .bind(workspaceId).all<{
       id: string;
       name: string;
       is_builtin: number;
       collection_ids: string | null;
     }>(),
-    c.env.DB.prepare('SELECT id, name, include_collection_ids FROM export_configs').all<{
+    c.env.DB.prepare('SELECT id, name, include_collection_ids FROM export_configs WHERE workspace_id = ?')
+      .bind(workspaceId).all<{
       id: string;
       name: string;
       include_collection_ids: string | null;
@@ -374,7 +385,7 @@ app.delete('/:id', async (c) => {
   }
   const dedicatedGroups = referencingGroups.filter(group => !nonDedicatedGroups.includes(group));
   for (const group of dedicatedGroups) {
-    const groupBlockers = await findGroupDeleteBlockers(c.env.DB, group.id);
+    const groupBlockers = await findGroupDeleteBlockers(c.env.DB, group.id, workspaceId);
     blockers.push(...groupBlockers.map(blocker => ({
       ...blocker,
       error: `linked policy group cannot be deleted: ${blocker.error}`,
@@ -395,18 +406,18 @@ app.delete('/:id', async (c) => {
   }
   await c.env.DB.batch([
     c.env.DB.prepare(
-      'DELETE FROM groups WHERE is_builtin = 0 AND collection_ids = ?'
-    ).bind(jsonStringify([id])),
-    c.env.DB.prepare('DELETE FROM collections WHERE id = ?').bind(id),
+      'DELETE FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ?'
+    ).bind(workspaceId, jsonStringify([id])),
+    c.env.DB.prepare('DELETE FROM collections WHERE id = ? AND workspace_id = ?').bind(id, workspaceId),
   ]);
-  await ensureZeroSetupDefaults(c.env.DB, now());
+  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId);
   return c.json({ success: true, data: { id } });
 });
 
 // ─── Preview filtered nodes for collection ────────────────────────────────────
 
 app.get('/:id/preview', async (c) => {
-
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
   const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
     .bind(id)
@@ -422,7 +433,7 @@ app.get('/:id/preview', async (c) => {
     // Explicit node selection
     const placeholders = collection.nodeIds.map(() => '?').join(',');
     const { results } = await c.env.DB.prepare(
-      enabledNodeRowsQuery(`n.id IN (${placeholders})`)
+      enabledNodeRowsQuery(`n.id IN (${placeholders})`, workspaceId)
     )
       .bind(...collection.nodeIds)
       .all<Record<string, unknown>>();
@@ -431,7 +442,7 @@ app.get('/:id/preview', async (c) => {
     // Filter by source
     const placeholders = collection.sourceIds.map(() => '?').join(',');
     const { results } = await c.env.DB.prepare(
-      enabledNodeRowsQuery(`n.source_id IN (${placeholders})`)
+      enabledNodeRowsQuery(`n.source_id IN (${placeholders})`, workspaceId)
     )
       .bind(...collection.sourceIds)
       .all<Record<string, unknown>>();
@@ -439,7 +450,7 @@ app.get('/:id/preview', async (c) => {
   } else {
     // All enabled nodes
     const { results } = await c.env.DB.prepare(
-      enabledNodeRowsQuery()
+      enabledNodeRowsQuery(undefined, workspaceId)
     ).all<Record<string, unknown>>();
     nodeRows = results;
   }
@@ -577,10 +588,11 @@ function prepareCollectionInsert(
   id: string,
   validation: Extract<CollectionWriteValidation, { valid: true }>,
   timestamp: string,
+  workspaceId: string,
 ) {
   return db.prepare(
-    `INSERT INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     validation.name,
@@ -595,6 +607,7 @@ function prepareCollectionInsert(
     validation.notes ?? null,
     timestamp,
     timestamp,
+    workspaceId,
   );
 }
 

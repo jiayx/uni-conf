@@ -31,13 +31,13 @@ vi.mock('./routing-policy-groups', () => ({
 describe('zero setup defaults', () => {
   it('ensures export config, auto groups, routing policy groups, and remote rule sets together', async () => {
     const db = {} as D1Database;
-    const config = await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z');
+    const config = await ensureZeroSetupDefaults(db, '2026-01-01T00:00:00.000Z', 'default');
 
     expect(config).toMatchObject({ id: 'default-mihomo', token: 'default-token', format: 'mihomo' });
-    expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
-    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
-    expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z');
-    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'proxy');
+    expect(ensureDefaultExportConfig).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'default');
+    expect(syncAutoNodeGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'default');
+    expect(syncRoutingPolicyGroups).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'default');
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledWith(db, '2026-01-01T00:00:00.000Z', 'proxy', undefined, 'default');
     expect(vi.mocked(syncRoutingPolicyGroups).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(ensureDefaultRemoteRuleSets).mock.invocationCallOrder[0] ?? 0
     );

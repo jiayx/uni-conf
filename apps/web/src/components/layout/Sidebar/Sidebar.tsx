@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { WorkspaceSwitcher } from '@/components/workspaces/WorkspaceSwitcher'
 import styles from './Sidebar.module.css'
 
 const NAV_ITEMS = [
@@ -40,7 +41,10 @@ export function Sidebar({ isMobile = false, isOpen, onClose }: SidebarProps) {
       aria-label={t('nav.primary_navigation')}
     >
       <div className={styles.logo}>
-        <div className={styles.logoText}>UniConf</div>
+        <div className={styles.logoTitle}>
+          <div className={styles.logoText}>UniConf</div>
+          <div className={styles.version}>v0.1.0</div>
+        </div>
         <div className={styles.slogan}>{t('app.slogan')}</div>
         {isMobile && (
           <button
@@ -70,7 +74,7 @@ export function Sidebar({ isMobile = false, isOpen, onClose }: SidebarProps) {
         ))}
       </nav>
       <div className={styles.footer}>
-        <div className={styles.version}>v0.1.0</div>
+        <WorkspaceSwitcher />
       </div>
     </aside>
   )

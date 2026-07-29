@@ -34,13 +34,14 @@ import {
   listSourceRemoteRuleSets,
   syncSourceLinkedRemoteRuleSets,
 } from '../services/source-rule-sets';
+import { DEFAULT_WORKSPACE_ID, requestWorkspaceId } from '../services/workspaces';
 
 const app = new Hono<{ Bindings: Env }>();
 
 // ─── List all sources ─────────────────────────────────────────────────────────
 
 app.get('/', async (c) => {
-
+  const workspaceId = requestWorkspaceId(c);
   const { results } = await c.env.DB.prepare(
     `SELECT id, name, type, url, format, enabled, node_count, last_updated,
       last_refresh_error,
@@ -48,9 +49,9 @@ app.get('/', async (c) => {
       upload_bytes, download_bytes, total_bytes, expire_time,
       created_at, updated_at
      FROM sources
-     WHERE type <> 'manual'
+     WHERE workspace_id = ? AND type <> 'manual'
      ORDER BY created_at DESC`
-  ).all();
+  ).bind(workspaceId).all();
   const sources = (results as Record<string, unknown>[]).map(mapSource);
   return c.json({ success: true, data: sources });
 });
@@ -58,6 +59,7 @@ app.get('/', async (c) => {
 // ─── Create source ─────────────────────────────────────────────────────────────
 
 app.post('/', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const body = await c.req.json<{
     name: string;
     type: string;
@@ -104,8 +106,8 @@ app.post('/', async (c) => {
   const sourceName = resolveSourceNameInput(body.name, normalizedUrl ?? body.url);
 
   await c.env.DB.prepare(
-    `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -119,7 +121,8 @@ app.post('/', async (c) => {
       sourceFields.notes ?? null,
       jsonStringify(sourceFields.tags ?? []),
       ts,
-      ts
+      ts,
+      workspaceId
     )
     .run();
 
@@ -128,23 +131,23 @@ app.post('/', async (c) => {
   const shouldRefreshAfterCreate = body.refreshAfterCreate !== false && sourceType === 'url' && Boolean(body.url);
   if (shouldRefreshAfterCreate) {
     try {
-      refresh = await refreshSourceById(c.env.DB, id);
+      refresh = await refreshSourceById(c.env.DB, id, workspaceId);
     } catch (err) {
       refreshError = err instanceof Error ? err.message : String(err);
       await recordSourceRefreshError(c.env.DB, id, refreshError);
     }
   }
-  await ensureSourceZeroSetupState(c.env.DB, ts);
+  await ensureSourceZeroSetupState(c.env.DB, ts, workspaceId);
 
-  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: { source: mapSource(row!), refresh, refreshError } }, 201);
 });
 
-async function ensureSourceZeroSetupState(db: D1Database, ts: string): Promise<void> {
-  await ensureZeroSetupDefaults(db, ts);
+async function ensureSourceZeroSetupState(db: D1Database, ts: string, workspaceId: string): Promise<void> {
+  await ensureZeroSetupDefaults(db, ts, workspaceId);
 }
 
 // ─── Import source from pasted/uploaded config content ─────────────────────────
@@ -153,6 +156,7 @@ async function ensureSourceZeroSetupState(db: D1Database, ts: string): Promise<v
 // into a source + nodes + node groups without requiring a reachable URL.
 
 app.post('/import', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const body = await c.req.json<{
     name?: string;
     content?: string;
@@ -190,7 +194,7 @@ app.post('/import', async (c) => {
     return c.json({ success: false, error: sourceFields.error }, 400);
   }
   if (body.nodeImportMode === 'new-only') {
-    const nodeDiff = await buildNodeImportDiff(c.env.DB, content, format);
+    const nodeDiff = await buildNodeImportDiff(c.env.DB, content, format, workspaceId);
     if (nodeDiff.counts.new === 0) {
       return c.json({ success: false, error: 'No new nodes remain after applying the import mode' }, 409);
     }
@@ -198,8 +202,8 @@ app.post('/import', async (c) => {
   let structuredOnlyPreview: SourceImportPreview | undefined;
   const parsedPreview = previewParsedSourceContent(content, format);
   if (parsedPreview.nodeCount === 0 && body.importStructured) {
-    await ensureSourceZeroSetupState(c.env.DB, now());
-    const reconciled = await reconcileStructuredImportPreview(c.env.DB, content, parsedPreview);
+    await ensureSourceZeroSetupState(c.env.DB, now(), workspaceId);
+    const reconciled = await reconcileStructuredImportPreview(c.env.DB, content, parsedPreview, workspaceId);
     if (hasImportableStructuredCandidates(reconciled)) structuredOnlyPreview = reconciled;
   }
 
@@ -210,8 +214,8 @@ app.post('/import', async (c) => {
   const nodeImportMode = body.nodeImportMode ?? 'all';
 
   await c.env.DB.batch([c.env.DB.prepare(
-    `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sources (id, name, type, url, format, enabled, node_count, last_updated, update_interval, user_agent, notes, tags, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -225,13 +229,14 @@ app.post('/import', async (c) => {
       sourceFields.notes ?? null,
       jsonStringify(sourceFields.tags ?? []),
       ts,
-      ts
+      ts,
+      workspaceId
     )
   , c.env.DB.prepare(
     `INSERT INTO source_import_runs
-      (id, source_id, source_name, format, node_import_mode, status, created_at)
-     VALUES (?, ?, ?, ?, ?, 'running', ?)`
-  ).bind(importRunId, id, sourceName, format, nodeImportMode, ts)]);
+      (id, source_id, source_name, format, node_import_mode, status, created_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, 'running', ?, ?)`
+  ).bind(importRunId, id, sourceName, format, nodeImportMode, ts, workspaceId)]);
 
   let refresh: SourceRefreshResult | undefined;
   let refreshError: string | undefined;
@@ -241,20 +246,20 @@ app.post('/import', async (c) => {
     try {
       refresh = await importSourceFromContent(c.env.DB, id, content, format, {
         nodeImportMode,
-      });
+      }, workspaceId);
     } catch (err) {
       refreshError = err instanceof Error ? err.message : String(err);
       await recordSourceRefreshError(c.env.DB, id, refreshError);
     }
   }
-  await ensureSourceZeroSetupState(c.env.DB, ts);
+  await ensureSourceZeroSetupState(c.env.DB, ts, workspaceId);
   let structuredImport: StructuredImportSummary | undefined;
   let structuredUndoChanges: StructuredImportUndoChange[] = [];
   let structuredImportError: string | undefined;
   if (body.importStructured) {
     try {
       const execution = await importStructuredSourceContent(
-        c.env.DB, id, content, format, ts, conflictResolutions.value
+        c.env.DB, id, content, format, ts, conflictResolutions.value, workspaceId
       );
       structuredImport = execution.summary;
       structuredUndoChanges = execution.undoChanges;
@@ -278,8 +283,8 @@ app.post('/import', async (c) => {
     completedAt,
   });
 
-  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({
@@ -289,6 +294,7 @@ app.post('/import', async (c) => {
 });
 
 app.post('/import/preview', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const body = await c.req.json<{ content?: string; format?: string }>();
   const rawContent = typeof body.content === 'string' ? body.content : '';
   if (utf8ByteLength(rawContent) > MAX_SOURCE_CONTENT_BYTES) {
@@ -300,8 +306,8 @@ app.post('/import/preview', async (c) => {
   if (!isValidSourceFormat(format)) return c.json({ success: false, error: 'invalid source format' }, 400);
 
   let preview = previewParsedSourceContent(content, format);
-  await ensureSourceZeroSetupState(c.env.DB, now());
-  preview = await reconcileStructuredImportPreview(c.env.DB, content, preview);
+  await ensureSourceZeroSetupState(c.env.DB, now(), workspaceId);
+  preview = await reconcileStructuredImportPreview(c.env.DB, content, preview, workspaceId);
   if (preview.nodeCount === 0 && !hasImportableStructuredCandidates(preview)) {
     return c.json({
       success: false,
@@ -312,27 +318,30 @@ app.post('/import/preview', async (c) => {
 });
 
 app.get('/imports', async (c) => {
-  await recoverStaleSourceImportRuns(c.env.DB);
+  const workspaceId = requestWorkspaceId(c);
+  await recoverStaleSourceImportRuns(c.env.DB, now(), workspaceId);
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM source_import_runs
+     WHERE workspace_id = ?
      ORDER BY created_at DESC
      LIMIT 50`
-  ).all<Record<string, unknown>>();
+  ).bind(workspaceId).all<Record<string, unknown>>();
   return c.json({ success: true, data: results.map(mapSourceImportRun) });
 });
 
 app.post('/imports/:runId/nodes/preview', async (c) => {
-  await recoverStaleSourceImportRuns(c.env.DB);
+  const workspaceId = requestWorkspaceId(c);
+  await recoverStaleSourceImportRuns(c.env.DB, now(), workspaceId);
   const runId = c.req.param('runId');
-  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
-    .bind(runId)
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ? AND workspace_id = ?')
+    .bind(runId, workspaceId)
     .first<Record<string, unknown>>();
   if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
   if (run.status !== 'partial' || typeof run.refresh_error !== 'string' || !run.source_id) {
     return c.json({ success: false, error: 'Node import is not retryable' }, 409);
   }
-  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
-    .bind(String(run.source_id))
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(String(run.source_id), workspaceId)
     .first<{ raw_content: string | null; format: string }>();
   const content = source?.raw_content?.trim() ?? '';
   if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
@@ -344,23 +353,24 @@ app.post('/imports/:runId/nodes/preview', async (c) => {
   if (preview.nodeCount === 0) {
     return c.json({ success: false, error: 'No usable proxy nodes are available to retry' }, 422);
   }
-  await ensureSourceZeroSetupState(c.env.DB, now());
-  preview = await reconcileStructuredImportPreview(c.env.DB, content, preview, String(run.source_id));
+  await ensureSourceZeroSetupState(c.env.DB, now(), workspaceId);
+  preview = await reconcileStructuredImportPreview(c.env.DB, content, preview, workspaceId, String(run.source_id));
   return c.json({ success: true, data: preview });
 });
 
 app.post('/imports/:runId/nodes/retry', async (c) => {
-  await recoverStaleSourceImportRuns(c.env.DB);
+  const workspaceId = requestWorkspaceId(c);
+  await recoverStaleSourceImportRuns(c.env.DB, now(), workspaceId);
   const runId = c.req.param('runId');
-  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
-    .bind(runId)
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ? AND workspace_id = ?')
+    .bind(runId, workspaceId)
     .first<Record<string, unknown>>();
   if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
   if (run.status !== 'partial' || typeof run.refresh_error !== 'string' || !run.source_id) {
     return c.json({ success: false, error: 'Node import is not retryable' }, 409);
   }
-  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
-    .bind(String(run.source_id))
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(String(run.source_id), workspaceId)
     .first<{ raw_content: string | null; format: string }>();
   const content = source?.raw_content?.trim() ?? '';
   if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
@@ -384,7 +394,7 @@ app.post('/imports/:runId/nodes/retry', async (c) => {
     const refresh = await importSourceFromContent(c.env.DB, String(run.source_id), content, format, {
       nodeImportMode: run.node_import_mode === 'new-only' ? 'new-only' : 'all',
       allowEmptyNewOnly: true,
-    });
+    }, workspaceId);
     const status = typeof run.structured_error === 'string' ? 'partial' : 'success';
     await c.env.DB.prepare(
       `UPDATE source_import_runs SET
@@ -414,17 +424,18 @@ app.post('/imports/:runId/nodes/retry', async (c) => {
 });
 
 app.post('/imports/:runId/structured/preview', async (c) => {
-  await recoverStaleSourceImportRuns(c.env.DB);
+  const workspaceId = requestWorkspaceId(c);
+  await recoverStaleSourceImportRuns(c.env.DB, now(), workspaceId);
   const runId = c.req.param('runId');
-  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
-    .bind(runId)
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ? AND workspace_id = ?')
+    .bind(runId, workspaceId)
     .first<Record<string, unknown>>();
   if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
   if (run.status !== 'partial' || typeof run.structured_error !== 'string' || !run.source_id) {
     return c.json({ success: false, error: 'Structured import is not retryable' }, 409);
   }
-  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
-    .bind(String(run.source_id))
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(String(run.source_id), workspaceId)
     .first<{ raw_content: string | null; format: string }>();
   const content = source?.raw_content?.trim() ?? '';
   if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
@@ -432,32 +443,34 @@ app.post('/imports/:runId/structured/preview', async (c) => {
     return c.json({ success: false, error: 'Stored source content exceeds the 4 MiB size limit' }, 422);
   }
   const format = isValidSourceFormat(source.format) ? source.format : 'auto';
-  await ensureSourceZeroSetupState(c.env.DB, now());
+  await ensureSourceZeroSetupState(c.env.DB, now(), workspaceId);
   const preview = await reconcileStructuredImportPreview(
     c.env.DB,
     content,
-    previewParsedSourceContent(content, format)
+    previewParsedSourceContent(content, format),
+    workspaceId
   );
   return c.json({ success: true, data: preview });
 });
 
 app.post('/imports/:runId/structured/retry', async (c) => {
-  await recoverStaleSourceImportRuns(c.env.DB);
+  const workspaceId = requestWorkspaceId(c);
+  await recoverStaleSourceImportRuns(c.env.DB, now(), workspaceId);
   const runId = c.req.param('runId');
   const body = await c.req.json<{ structuredConflictResolutions?: unknown }>();
   const conflictResolutions = normalizeStructuredConflictResolutions(body.structuredConflictResolutions);
   if (!conflictResolutions.valid) {
     return c.json({ success: false, error: conflictResolutions.error }, 400);
   }
-  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
-    .bind(runId)
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ? AND workspace_id = ?')
+    .bind(runId, workspaceId)
     .first<Record<string, unknown>>();
   if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
   if (run.status !== 'partial' || typeof run.structured_error !== 'string' || !run.source_id) {
     return c.json({ success: false, error: 'Structured import is not retryable' }, 409);
   }
-  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ?')
-    .bind(String(run.source_id))
+  const source = await c.env.DB.prepare('SELECT raw_content, format FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(String(run.source_id), workspaceId)
     .first<{ raw_content: string | null; format: string }>();
   const content = source?.raw_content?.trim() ?? '';
   if (!source || !content) return c.json({ success: false, error: 'Imported source content is unavailable' }, 409);
@@ -475,14 +488,15 @@ app.post('/imports/:runId/structured/retry', async (c) => {
   }
 
   try {
-    await ensureSourceZeroSetupState(c.env.DB, ts);
+    await ensureSourceZeroSetupState(c.env.DB, ts, workspaceId);
     const execution = await importStructuredSourceContent(
       c.env.DB,
       String(run.source_id),
       content,
       format,
       ts,
-      conflictResolutions.value
+      conflictResolutions.value,
+      workspaceId
     );
     const priorChanges = parseStructuredUndoChanges(
       typeof run.structured_changes === 'string' ? run.structured_changes : null
@@ -524,16 +538,17 @@ app.post('/imports/:runId/structured/retry', async (c) => {
 });
 
 app.post('/imports/:runId/undo', async (c) => {
-  await recoverStaleSourceImportRuns(c.env.DB);
+  const workspaceId = requestWorkspaceId(c);
+  await recoverStaleSourceImportRuns(c.env.DB, now(), workspaceId);
   const runId = c.req.param('runId');
-  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
-    .bind(runId)
+  const run = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ? AND workspace_id = ?')
+    .bind(runId, workspaceId)
     .first<Record<string, unknown>>();
   if (!run) return c.json({ success: false, error: 'Import run not found' }, 404);
   if (run.status === 'undone' || !run.source_id) {
     return c.json({ success: false, error: 'Import run has already been undone' }, 409);
   }
-  const deleted = await deleteSourceById(c.env.DB, String(run.source_id));
+  const deleted = await deleteSourceById(c.env.DB, String(run.source_id), now(), workspaceId);
   if (!deleted) return c.json({ success: false, error: 'Imported source no longer exists' }, 409);
   const updated = await c.env.DB.prepare('SELECT * FROM source_import_runs WHERE id = ?')
     .bind(runId)
@@ -544,15 +559,16 @@ app.post('/imports/:runId/undo', async (c) => {
 // ─── Get source ───────────────────────────────────────────────────────────────
 
 app.get('/:id/rule-sets', async (c) => {
-  const candidates = await listSourceRemoteRuleSets(c.env.DB, c.req.param('id'));
+  const workspaceId = requestWorkspaceId(c);
+  const candidates = await listSourceRemoteRuleSets(c.env.DB, c.req.param('id'), workspaceId);
   if (candidates === null) return c.json({ success: false, error: 'Source not found' }, 404);
   return c.json({ success: true, data: candidates });
 });
 
 app.get('/:id', async (c) => {
-
-  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c);
+  const row = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) return c.json({ success: false, error: 'Source not found' }, 404);
@@ -562,9 +578,10 @@ app.get('/:id', async (c) => {
 // ─── Update source ────────────────────────────────────────────────────────────
 
 app.put('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
-    .bind(id)
+  const existing = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Source not found' }, 404);
@@ -604,7 +621,7 @@ app.put('/:id', async (c) => {
     `UPDATE sources SET
       name = ?, type = ?, url = ?, format = ?, enabled = ?,
       update_interval = ?, user_agent = ?, notes = ?, tags = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   )
     .bind(
       'name' in body
@@ -620,14 +637,15 @@ app.put('/:id', async (c) => {
       body.notes !== undefined ? sourceFields.notes : existing.notes,
       body.tags !== undefined ? jsonStringify(sourceFields.tags) : existing.tags,
       ts,
-      id
+      id,
+      workspaceId
     )
     .run();
 
-  await ensureZeroSetupDefaults(c.env.DB, ts);
+  await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
-  const updated = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ?')
-    .bind(id)
+  const updated = await c.env.DB.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapSource(updated!) });
@@ -636,22 +654,28 @@ app.put('/:id', async (c) => {
 // ─── Delete source (nodes cascade via FK) ─────────────────────────────────────
 
 app.delete('/:id', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT type FROM sources WHERE id = ?')
-    .bind(id)
+  const existing = await c.env.DB.prepare('SELECT type FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<{ type: SourceType }>();
   if (!existing) return c.json({ success: false, error: 'Source not found' }, 404);
   if (existing.type === 'manual') {
     return c.json({ success: false, error: 'The manual node source is managed internally' }, 403);
   }
-  const deleted = await deleteSourceById(c.env.DB, id);
+  const deleted = await deleteSourceById(c.env.DB, id, now(), workspaceId);
   if (!deleted) return c.json({ success: false, error: 'Source could not be deleted' }, 409);
   return c.json({ success: true, data: { id } });
 });
 
-export async function deleteSourceById(db: D1Database, id: string, ts = now()): Promise<boolean> {
-  const existing = await db.prepare('SELECT id, type FROM sources WHERE id = ?')
-    .bind(id)
+export async function deleteSourceById(
+  db: D1Database,
+  id: string,
+  ts = now(),
+  workspaceId = DEFAULT_WORKSPACE_ID
+): Promise<boolean> {
+  const existing = await db.prepare('SELECT id, type FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<{ id: string; type: SourceType }>();
 
   if (!existing || existing.type === 'manual') return false;
@@ -696,7 +720,7 @@ export async function deleteSourceById(db: D1Database, id: string, ts = now()): 
     ).bind(ts, ts, id),
     db.prepare('DELETE FROM sources WHERE id = ?').bind(id),
   ]);
-  await ensureZeroSetupDefaults(db, ts);
+  await ensureZeroSetupDefaults(db, ts, workspaceId);
   return true;
 }
 
@@ -796,7 +820,11 @@ function mapSourceImportRun(row: Record<string, unknown>): SourceImportRun {
 
 const STALE_SOURCE_IMPORT_RUN_MS = 10 * 60 * 1000;
 
-export async function recoverStaleSourceImportRuns(db: D1Database, recoveredAt = now()): Promise<void> {
+export async function recoverStaleSourceImportRuns(
+  db: D1Database,
+  recoveredAt = now(),
+  workspaceId = DEFAULT_WORKSPACE_ID
+): Promise<void> {
   const recoveredAtMs = Date.parse(recoveredAt);
   if (!Number.isFinite(recoveredAtMs)) return;
   const staleBefore = new Date(recoveredAtMs - STALE_SOURCE_IMPORT_RUN_MS).toISOString();
@@ -808,24 +836,25 @@ export async function recoverStaleSourceImportRuns(db: D1Database, recoveredAt =
         ELSE refresh_error
       END,
       completed_at = ?
-     WHERE status = 'running' AND COALESCE(completed_at, created_at) < ?`
-  ).bind(recoveredAt, staleBefore).run();
+     WHERE workspace_id = ? AND status = 'running' AND COALESCE(completed_at, created_at) < ?`
+  ).bind(recoveredAt, workspaceId, staleBefore).run();
 }
 
 // ─── Refresh source ───────────────────────────────────────────────────────────
 
 app.post('/:id/refresh', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
   const ts = now();
   try {
-    const result = await refreshSourceById(c.env.DB, id);
+    const result = await refreshSourceById(c.env.DB, id, workspaceId);
     return c.json({ success: true, data: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : `Failed to fetch URL: ${String(err)}`;
     if (!(err instanceof SourceRefreshError) || err.status >= 422) {
       await recordSourceRefreshError(c.env.DB, id, message);
     }
-    await ensureZeroSetupDefaults(c.env.DB, ts);
+    await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
     if (err instanceof SourceRefreshError) {
       return c.json({ success: false, error: err.message }, err.status);
     }
@@ -845,9 +874,13 @@ export class SourceRefreshError extends Error {
   }
 }
 
-export async function refreshSourceById(db: D1Database, id: string): Promise<SourceRefreshResult> {
-  const row = await db.prepare('SELECT * FROM sources WHERE id = ?')
-    .bind(id)
+export async function refreshSourceById(
+  db: D1Database,
+  id: string,
+  workspaceId = DEFAULT_WORKSPACE_ID
+): Promise<SourceRefreshResult> {
+  const row = await db.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) throw new SourceRefreshError('Source not found', 404);
@@ -896,9 +929,9 @@ export async function refreshSourceById(db: D1Database, id: string): Promise<Sou
   }
   const ts = now();
   await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, ts);
-  await syncSourceLinkedRemoteRuleSets(db, id, ts);
+  await syncSourceLinkedRemoteRuleSets(db, id, ts, workspaceId);
 
-  return applyParsedSourceContent(db, id, rawContent, subscriptionInfo, row.format);
+  return applyParsedSourceContent(db, id, rawContent, subscriptionInfo, row.format, {}, workspaceId);
 }
 
 /**
@@ -911,12 +944,13 @@ export async function importSourceFromContent(
   id: string,
   rawContent: string,
   sourceFormatInput: unknown,
-  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {}
+  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {},
+  workspaceId = DEFAULT_WORKSPACE_ID
 ): Promise<SourceRefreshResult> {
   const ts = now();
   // Preserve the raw content even if parsing below fails to find usable nodes.
   await cacheFetchedSourceContent(db, id, rawContent, {}, ts);
-  await syncSourceLinkedRemoteRuleSets(db, id, ts);
+  await syncSourceLinkedRemoteRuleSets(db, id, ts, workspaceId);
   return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput, options);
 }
 
@@ -958,7 +992,8 @@ async function applyParsedSourceContent(
     expireTime?: number;
   },
   sourceFormatInput: unknown,
-  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {}
+  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {},
+  workspaceId = DEFAULT_WORKSPACE_ID
 ): Promise<SourceRefreshResult> {
   // Detect format and parse nodes
   const sourceFormat = isValidSourceFormat(sourceFormatInput) ? sourceFormatInput : 'auto';
@@ -972,7 +1007,7 @@ async function applyParsedSourceContent(
   const excludedCount = filteredContent.excludedCount;
   let skippedExistingCount = 0;
   if (options.nodeImportMode === 'new-only') {
-    const filtered = await filterNewImportNodes(db, id, parsedNodes);
+    const filtered = await filterNewImportNodes(db, id, parsedNodes, workspaceId);
     parsedNodes = filtered.nodes;
     skippedExistingCount = filtered.skippedCount;
     const importedNames = new Set(parsedNodes.map((node) => node.name));
@@ -1048,8 +1083,8 @@ async function applyParsedSourceContent(
   for (const node of addedNodes) {
     const nodeId = newId();
     statements.push(db.prepare(
-      `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?, ?, 0, ?, ?)`
+      `INSERT INTO nodes (id, source_id, name, protocol, server, port, country, country_code, enabled, tags, notes, raw_config, parsed_config, is_manual, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NULL, ?, ?, 0, ?, ?, ?)`
     )
       .bind(
         nodeId,
@@ -1064,7 +1099,8 @@ async function applyParsedSourceContent(
         jsonStringify(node.rawConfig),
         jsonStringify(node.parsedConfig),
         ts,
-        ts
+        ts,
+        workspaceId
       ));
   }
 
@@ -1126,8 +1162,8 @@ async function applyParsedSourceContent(
 
   await db.batch(statements);
 
-  await syncImportedSourceNodeGroups(db, id, parsedGroups, ts);
-  await ensureZeroSetupDefaults(db, ts);
+  await syncImportedSourceNodeGroups(db, id, parsedGroups, ts, workspaceId);
+  await ensureZeroSetupDefaults(db, ts, workspaceId);
 
   return {
     sourceId: id,
@@ -1147,11 +1183,13 @@ async function syncImportedSourceNodeGroups(
   db: D1Database,
   sourceId: string,
   groups: SourceNodeGroup[],
-  ts: string
+  ts: string,
+  workspaceId: string
 ): Promise<void> {
   const { results: collections } = await db.prepare(
-    "SELECT id, node_ids, notes FROM collections WHERE notes IS NOT NULL AND notes != ''"
+    "SELECT id, node_ids, notes FROM collections WHERE workspace_id = ? AND notes IS NOT NULL AND notes != ''"
   )
+    .bind(workspaceId)
     .all<{ id: string; node_ids: string | null; notes: string | null }>();
   const sourceCollections = collections.filter((collection) => {
     const key = extractSourceNodeGroupMarkerKey(collection.notes);
@@ -1690,14 +1728,15 @@ export async function importStructuredSourceContent(
   rawContent: string,
   format: SourceFormat,
   ts: string,
-  conflictResolutions: Record<string, SourceImportConflictResolution> = {}
+  conflictResolutions: Record<string, SourceImportConflictResolution> = {},
+  workspaceId = DEFAULT_WORKSPACE_ID
 ): Promise<StructuredImportExecution> {
   const parsedFormat = detectAndParse(rawContent, format).format;
   const detectedFormat = resolveStructuredSourceFormat(rawContent, format, parsedFormat);
   const parsed = parseStructuredSourceContent(rawContent, detectedFormat);
-  const plan = await buildStructuredImportPlan(db, parsed, conflictResolutions);
-  const maxRule = await db.prepare('SELECT MAX(sort_order) AS max_order FROM rules').first<{ max_order: number | null }>();
-  const maxSet = await db.prepare('SELECT MAX(sort_order) AS max_order FROM remote_rule_sets').first<{ max_order: number | null }>();
+  const plan = await buildStructuredImportPlan(db, parsed, conflictResolutions, workspaceId);
+  const maxRule = await db.prepare('SELECT MAX(sort_order) AS max_order FROM rules WHERE workspace_id = ?').bind(workspaceId).first<{ max_order: number | null }>();
+  const maxSet = await db.prepare('SELECT MAX(sort_order) AS max_order FROM remote_rule_sets WHERE workspace_id = ?').bind(workspaceId).first<{ max_order: number | null }>();
   let ruleOrder = (maxRule?.max_order ?? -1) + 1;
   let setOrder = (maxSet?.max_order ?? -1) + 1;
   const marker = structuredImportMarker(sourceId);
@@ -1706,22 +1745,22 @@ export async function importStructuredSourceContent(
 
   for (const rule of plan.rules) {
     statements.push(db.prepare(
-      `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+      `INSERT INTO rules (id, name, type, payload, no_resolve, target_group_id, enabled, sort_order, notes, compatibility, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
     ).bind(
       newId(), `Imported ${rule.type}`, rule.type, rule.payload, rule.noResolve ? 1 : 0, rule.targetId,
-      ruleOrder++, marker, jsonStringify(getRuleCompatibilityForPayload(rule.type, rule.payload)), ts, ts
+      ruleOrder++, marker, jsonStringify(getRuleCompatibilityForPayload(rule.type, rule.payload)), ts, ts, workspaceId
     ));
   }
 
   for (const set of plan.remoteRuleSets) {
     statements.push(db.prepare(
       `INSERT INTO remote_rule_sets
-        (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at)
-       VALUES (?, ?, ?, 'mihomo', ?, NULL, NULL, ?, ?, 1, ?, NULL, ?, ?, ?)`
+        (id, name, url, format, behavior, preset_source, preset_id, target_group_id, update_interval, enabled, sort_order, last_updated, notes, created_at, updated_at, workspace_id)
+       VALUES (?, ?, ?, 'mihomo', ?, NULL, NULL, ?, ?, 1, ?, NULL, ?, ?, ?, ?)`
     ).bind(
       newId(), set.name, set.url, set.behavior, set.targetId, set.updateInterval, setOrder++,
-      marker, ts, ts
+      marker, ts, ts, workspaceId
     ));
   }
 
@@ -1824,7 +1863,8 @@ interface StructuredImportPlan {
 async function buildStructuredImportPlan(
   db: D1Database,
   parsed: ParsedStructuredSource,
-  conflictResolutions: Record<string, SourceImportConflictResolution> = {}
+  conflictResolutions: Record<string, SourceImportConflictResolution> = {},
+  workspaceId = DEFAULT_WORKSPACE_ID
 ): Promise<StructuredImportPlan> {
   if (parsed.rules.length === 0 && parsed.remoteRuleSets.length === 0) {
     return {
@@ -1844,15 +1884,15 @@ async function buildStructuredImportPlan(
   }
 
   const [groupResult, ruleResult, ruleSetResult] = await Promise.all([
-    db.prepare('SELECT id, name FROM groups WHERE enabled = 1').all<{ id: string; name: string }>(),
-    db.prepare('SELECT id, type, payload, no_resolve, target_group_id FROM rules').all<{
+    db.prepare('SELECT id, name FROM groups WHERE workspace_id = ? AND enabled = 1').bind(workspaceId).all<{ id: string; name: string }>(),
+    db.prepare('SELECT id, type, payload, no_resolve, target_group_id FROM rules WHERE workspace_id = ?').bind(workspaceId).all<{
       id: string;
       type: string;
       payload: string;
       no_resolve: number;
       target_group_id: string;
     }>(),
-    db.prepare('SELECT id, name, url, behavior, update_interval, target_group_id, preset_source FROM remote_rule_sets').all<{
+    db.prepare('SELECT id, name, url, behavior, update_interval, target_group_id, preset_source FROM remote_rule_sets WHERE workspace_id = ?').bind(workspaceId).all<{
       id: string;
       name: string;
       url: string;
@@ -2027,12 +2067,13 @@ async function reconcileStructuredImportPreview(
   db: D1Database,
   rawContent: string,
   preview: SourceImportPreview,
+  workspaceId = DEFAULT_WORKSPACE_ID,
   excludeNodeSourceId?: string
 ): Promise<SourceImportPreview> {
   const parsed = parseStructuredSourceContent(rawContent, preview.detectedFormat);
   const [plan, nodeDiff] = await Promise.all([
-    buildStructuredImportPlan(db, parsed),
-    buildNodeImportDiff(db, rawContent, preview.detectedFormat, excludeNodeSourceId),
+    buildStructuredImportPlan(db, parsed, {}, workspaceId),
+    buildNodeImportDiff(db, rawContent, preview.detectedFormat, workspaceId, excludeNodeSourceId),
   ]);
   const importedObjects: SourceImportPreview['importedObjects'] = preview.importedObjects
     .filter((item) => item !== 'rules' && item !== 'remote-rule-sets');
@@ -2110,6 +2151,7 @@ async function buildNodeImportDiff(
   db: D1Database,
   rawContent: string,
   format: SourceFormat,
+  workspaceId = DEFAULT_WORKSPACE_ID,
   excludeSourceId?: string
 ): Promise<SourceImportDiffSection> {
   const parsed = detectAndParse(rawContent, format);
@@ -2117,12 +2159,12 @@ async function buildNodeImportDiff(
   if (nodes.length === 0) return makeImportDiffSection([]);
 
   const query = excludeSourceId
-    ? 'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE source_id IS NULL OR source_id != ?'
-    : 'SELECT name, server, port, protocol, parsed_config FROM nodes';
+    ? 'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE workspace_id = ? AND (source_id IS NULL OR source_id != ?)'
+    : 'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE workspace_id = ?';
   const statement = db.prepare(query);
   const { results: existingRows } = excludeSourceId
-    ? await statement.bind(excludeSourceId).all<NodeDiffRow>()
-    : await statement.all<NodeDiffRow>();
+    ? await statement.bind(workspaceId, excludeSourceId).all<NodeDiffRow>()
+    : await statement.bind(workspaceId).all<NodeDiffRow>();
   const indexes = createNodeDiffIndexes(existingRows);
 
   const seenIncoming = new Map<string, Set<string>>();
@@ -2206,11 +2248,12 @@ function classifyNodeImport(
 async function filterNewImportNodes(
   db: D1Database,
   sourceId: string,
-  nodes: ParsedNodeRaw[]
+  nodes: ParsedNodeRaw[],
+  workspaceId: string
 ): Promise<{ nodes: ParsedNodeRaw[]; skippedCount: number }> {
   const { results: existingRows } = await db.prepare(
-    'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE source_id IS NULL OR source_id != ?'
-  ).bind(sourceId).all<NodeDiffRow>();
+    'SELECT name, server, port, protocol, parsed_config FROM nodes WHERE workspace_id = ? AND (source_id IS NULL OR source_id != ?)'
+  ).bind(workspaceId, sourceId).all<NodeDiffRow>();
   const indexes = createNodeDiffIndexes(existingRows);
   const seenIncoming = new Map<string, Set<string>>();
   const nextNodes = nodes.filter((node) => classifyNodeImport(node, indexes, seenIncoming).status === 'new');
@@ -3064,11 +3107,19 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
 
   if (protocol === 'vless') {
     uuid = decodeURIComponent(userinfo);
-  } else if (protocol === 'tuic') {
+  } else if (protocol === 'tuic' || protocol === 'juicity') {
     const colonIdx = userinfo.indexOf(':');
     uuid = decodeURIComponent(userinfo.slice(0, colonIdx));
     password = decodeURIComponent(userinfo.slice(colonIdx + 1));
-  } else if (protocol === 'socks5' || protocol === 'http' || protocol === 'https' || protocol === 'ssh' || protocol === 'naive') {
+  } else if (
+    protocol === 'socks5'
+    || protocol === 'http'
+    || protocol === 'https'
+    || protocol === 'ssh'
+    || protocol === 'naive'
+    || protocol === 'mieru'
+    || protocol === 'trusttunnel'
+  ) {
     if (userinfo.includes(':')) {
       const colonIdx = userinfo.indexOf(':');
       username = decodeURIComponent(userinfo.slice(0, colonIdx));
@@ -3087,6 +3138,8 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
     protocol === 'anytls' ||
     protocol === 'shadowtls' ||
     protocol === 'naive' ||
+    protocol === 'trusttunnel' ||
+    protocol === 'juicity' ||
     params.get('security') === 'tls' ||
     params.get('security') === 'reality' ||
     params.get('tls') === '1';
@@ -3117,6 +3170,8 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
     ip: params.get('address') ?? params.get('ip') ?? undefined,
     alpn: params.get('alpn') ?? undefined,
     fingerprint: params.get('fp') ?? params.get('fingerprint') ?? undefined,
+    psk: protocol === 'snell' ? password : params.get('psk') ?? undefined,
+    key: protocol === 'sudoku' ? password : params.get('key') ?? undefined,
   });
 
   return {

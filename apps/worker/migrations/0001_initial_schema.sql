@@ -1,9 +1,26 @@
 -- Migration: 0001_initial_schema
 -- UniConf initial database schema
 
+-- Configuration spaces managed by the single deployment administrator.
+CREATE TABLE IF NOT EXISTS workspaces (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_default
+  ON workspaces(is_default)
+  WHERE is_default = 1;
+
+INSERT OR IGNORE INTO workspaces (id, name, is_default, created_at, updated_at)
+VALUES ('default', '我的配置', 1, datetime('now'), datetime('now'));
+
 -- Sources table: subscription sources
 CREATE TABLE IF NOT EXISTS sources (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('url', 'manual', 'file', 'clipboard')),
   url TEXT,
@@ -23,12 +40,16 @@ CREATE TABLE IF NOT EXISTS sources (
   total_bytes INTEGER,
   expire_time INTEGER,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_sources_workspace_id ON sources(workspace_id);
 
 -- Import run audit records intentionally contain summaries only, never raw config or node credentials.
 CREATE TABLE IF NOT EXISTS source_import_runs (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   source_id TEXT,
   source_name TEXT NOT NULL,
   format TEXT NOT NULL,
@@ -48,7 +69,8 @@ CREATE TABLE IF NOT EXISTS source_import_runs (
   created_at TEXT NOT NULL,
   completed_at TEXT,
   undone_at TEXT,
-  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL
+  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_source_import_runs_created_at ON source_import_runs(created_at DESC);
@@ -58,6 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_source_import_runs_recovery ON source_import_runs
 -- Nodes table: parsed proxy nodes
 CREATE TABLE IF NOT EXISTS nodes (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   source_id TEXT NOT NULL,
   name TEXT NOT NULL,
   protocol TEXT NOT NULL,
@@ -73,9 +96,11 @@ CREATE TABLE IF NOT EXISTS nodes (
   is_manual INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_nodes_workspace_id ON nodes(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_source_id ON nodes(source_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_protocol ON nodes(protocol);
 CREATE INDEX IF NOT EXISTS idx_nodes_country_code ON nodes(country_code);
@@ -84,6 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_nodes_enabled ON nodes(enabled);
 -- Collections table: node grouping/filtering configurations
 CREATE TABLE IF NOT EXISTS collections (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   name TEXT NOT NULL,
   source_ids TEXT NOT NULL DEFAULT '[]',
   node_ids TEXT NOT NULL DEFAULT '[]',
@@ -95,12 +121,16 @@ CREATE TABLE IF NOT EXISTS collections (
   enabled INTEGER NOT NULL DEFAULT 1,
   notes TEXT,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_collections_workspace_id ON collections(workspace_id);
 
 -- Groups table: proxy policy groups
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('select', 'url-test', 'fallback', 'load-balance', 'direct', 'reject')),
   collection_ids TEXT NOT NULL DEFAULT '[]',
@@ -114,14 +144,17 @@ CREATE TABLE IF NOT EXISTS groups (
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_builtin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_groups_workspace_id ON groups(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_groups_sort_order ON groups(sort_order);
 
 -- Rules table: traffic routing rules
 CREATE TABLE IF NOT EXISTS rules (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   name TEXT,
   type TEXT NOT NULL,
   payload TEXT NOT NULL,
@@ -133,9 +166,11 @@ CREATE TABLE IF NOT EXISTS rules (
   compatibility TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY (target_group_id) REFERENCES groups(id)
+  FOREIGN KEY (target_group_id) REFERENCES groups(id),
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_rules_workspace_id ON rules(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_rules_sort_order ON rules(sort_order);
 CREATE INDEX IF NOT EXISTS idx_rules_type ON rules(type);
 CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules(enabled);
@@ -143,6 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules(enabled);
 -- Remote rule sets
 CREATE TABLE IF NOT EXISTS remote_rule_sets (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   format TEXT NOT NULL,
@@ -164,9 +200,11 @@ CREATE TABLE IF NOT EXISTS remote_rule_sets (
   updated_at TEXT NOT NULL,
   FOREIGN KEY (target_group_id) REFERENCES groups(id),
   FOREIGN KEY (target_override_group_id) REFERENCES groups(id),
-  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL
+  FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_remote_rule_sets_workspace_id ON remote_rule_sets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_remote_rule_sets_sort_order ON remote_rule_sets(sort_order);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_rule_sets_source_key
   ON remote_rule_sets(source_id, source_rule_set_key)
@@ -184,6 +222,7 @@ CREATE TABLE IF NOT EXISTS remote_rule_set_source_health (
 -- Export configurations
 CREATE TABLE IF NOT EXISTS export_configs (
   id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
   name TEXT NOT NULL,
   format TEXT NOT NULL,
   token TEXT NOT NULL UNIQUE,
@@ -198,15 +237,17 @@ CREATE TABLE IF NOT EXISTS export_configs (
   ),
   extra_config TEXT,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_export_configs_workspace_id ON export_configs(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_export_configs_token ON export_configs(token);
 CREATE INDEX IF NOT EXISTS idx_export_configs_format ON export_configs(format);
 
--- App settings (single row)
+-- Settings are independent for each configuration space.
 CREATE TABLE IF NOT EXISTS app_settings (
-  id TEXT PRIMARY KEY DEFAULT 'singleton',
+  id TEXT PRIMARY KEY,
   language TEXT NOT NULL DEFAULT 'zh',
   theme TEXT NOT NULL DEFAULT 'system',
   unmatched_traffic_policy TEXT NOT NULL DEFAULT 'proxy' CHECK (
@@ -233,14 +274,15 @@ CREATE TABLE IF NOT EXISTS app_settings (
   auto_node_group_types TEXT NOT NULL DEFAULT '["url-test"]',
   auto_node_group_keys TEXT,
   auto_node_group_include_flag INTEGER NOT NULL DEFAULT 1,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
 -- Insert default settings
-INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES ('singleton', datetime('now'));
+INSERT OR IGNORE INTO app_settings (id, updated_at) VALUES ('default', datetime('now'));
 
 -- Insert managed default node pool
-INSERT OR IGNORE INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at) VALUES
+INSERT OR IGNORE INTO collections (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at, workspace_id) VALUES
   (
     'builtin-default-node-pool',
     '默认节点池',
@@ -254,27 +296,28 @@ INSERT OR IGNORE INTO collections (id, name, source_ids, node_ids, filters, rena
     1,
     '[uni-conf:default-node-pool]',
     datetime('now'),
-    datetime('now')
+    datetime('now'),
+    'default'
   );
 
 -- Insert default builtin groups
-INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtins, enabled, sort_order, is_builtin, created_at, updated_at) VALUES
-  ('builtin-proxy',     'PROXY',     'select',   '[]', '[]', '[]',         1, 0,  1, datetime('now'), datetime('now')),
-  ('builtin-ai',        'AI',        'select',   '[]', '[]', '[]', 1, 1,  1, datetime('now'), datetime('now')),
-  ('builtin-streaming', 'Streaming', 'select',   '[]', '[]', '[]', 1, 2,  1, datetime('now'), datetime('now')),
-  ('builtin-social',    'Social',    'select',   '[]', '[]', '[]', 0, 3,  1, datetime('now'), datetime('now')),
-  ('builtin-github',    'GitHub',    'select',   '[]', '[]', '[]', 1, 4,  1, datetime('now'), datetime('now')),
-  ('builtin-google',    'Google',    'select',   '[]', '[]', '[]', 1, 5,  1, datetime('now'), datetime('now')),
-  ('builtin-apple',     'Apple',     'select',   '[]', '[]', '[]', 0, 6,  1, datetime('now'), datetime('now')),
-  ('builtin-microsoft', 'Microsoft', 'select',   '[]', '[]', '[]', 1, 7,  1, datetime('now'), datetime('now')),
-  ('builtin-speedtest', 'Speedtest', 'select',   '[]', '[]', '[]', 1, 8,  1, datetime('now'), datetime('now')),
-  ('builtin-crypto',    'Crypto',    'select',   '[]', '[]', '[]', 0, 9,  1, datetime('now'), datetime('now')),
-  ('builtin-gaming',    'Gaming',    'select',   '[]', '[]', '[]', 0, 10, 1, datetime('now'), datetime('now')),
-  ('builtin-broker',    'Broker',    'select',   '[]', '[]', '[]', 0, 11, 1, datetime('now'), datetime('now')),
-  ('builtin-developer', 'Developer', 'select',   '[]', '[]', '[]', 0, 12, 1, datetime('now'), datetime('now')),
-  ('builtin-direct',    'DIRECT',    'direct',   '[]', '[]', '["DIRECT"]',  1, 13, 1, datetime('now'), datetime('now')),
-  ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 14, 1, datetime('now'), datetime('now')),
-  ('builtin-all-nodes', '全部节点',   'select',   '["builtin-default-node-pool"]', '[]', '[]', 1, 15, 1, datetime('now'), datetime('now')),
-  ('builtin-node-select', '节点选择', 'select',   '["builtin-default-node-pool"]', '[]', '[]', 1, 16, 1, datetime('now'), datetime('now')),
-  ('builtin-auto-select', '自动选择', 'url-test', '["builtin-default-node-pool"]', '[]', '[]', 1, 17, 1, datetime('now'), datetime('now')),
-  ('builtin-fallback-select', '故障切换', 'fallback', '["builtin-default-node-pool"]', '[]', '[]', 1, 18, 1, datetime('now'), datetime('now'));
+INSERT OR IGNORE INTO groups (id, name, type, collection_ids, group_ids, builtins, enabled, sort_order, is_builtin, created_at, updated_at, workspace_id) VALUES
+  ('builtin-proxy',     'PROXY',     'select',   '[]', '[]', '[]',         1, 0,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-ai',        'AI',        'select',   '[]', '[]', '[]', 1, 1,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-streaming', 'Streaming', 'select',   '[]', '[]', '[]', 1, 2,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-social',    'Social',    'select',   '[]', '[]', '[]', 0, 3,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-github',    'GitHub',    'select',   '[]', '[]', '[]', 1, 4,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-google',    'Google',    'select',   '[]', '[]', '[]', 1, 5,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-apple',     'Apple',     'select',   '[]', '[]', '[]', 0, 6,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-microsoft', 'Microsoft', 'select',   '[]', '[]', '[]', 1, 7,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-speedtest', 'Speedtest', 'select',   '[]', '[]', '[]', 1, 8,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-crypto',    'Crypto',    'select',   '[]', '[]', '[]', 0, 9,  1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-gaming',    'Gaming',    'select',   '[]', '[]', '[]', 0, 10, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-broker',    'Broker',    'select',   '[]', '[]', '[]', 0, 11, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-developer', 'Developer', 'select',   '[]', '[]', '[]', 0, 12, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-direct',    'DIRECT',    'direct',   '[]', '[]', '["DIRECT"]',  1, 13, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-reject',    'REJECT',    'reject',   '[]', '[]', '["REJECT"]',  1, 14, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-all-nodes', '全部节点',   'select',   '["builtin-default-node-pool"]', '[]', '[]', 1, 15, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-node-select', '节点选择', 'select',   '["builtin-default-node-pool"]', '[]', '[]', 1, 16, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-auto-select', '自动选择', 'url-test', '["builtin-default-node-pool"]', '[]', '[]', 1, 17, 1, datetime('now'), datetime('now'), 'default'),
+  ('builtin-fallback-select', '故障切换', 'fallback', '["builtin-default-node-pool"]', '[]', '[]', 1, 18, 1, datetime('now'), datetime('now'), 'default');

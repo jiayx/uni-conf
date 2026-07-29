@@ -59,10 +59,20 @@ export async function validateAndPersistRuleSetSources(
   return { ...result, expiresAt, stale: false }
 }
 
-export async function listSourceHealthSnapshots(db: D1Database): Promise<Map<string, RemoteRuleSetSourceHealthSnapshot>> {
-  const { results } = await db.prepare(
-    'SELECT remote_rule_set_id, expires_at, result FROM remote_rule_set_source_health'
-  ).all<RemoteRuleSetSourceHealthRow>()
+export async function listSourceHealthSnapshots(
+  db: D1Database,
+  workspaceId?: string,
+): Promise<Map<string, RemoteRuleSetSourceHealthSnapshot>> {
+  const { results } = workspaceId
+    ? await db.prepare(
+      `SELECT h.remote_rule_set_id, h.expires_at, h.result
+       FROM remote_rule_set_source_health h
+       INNER JOIN remote_rule_sets r ON r.id = h.remote_rule_set_id
+       WHERE r.workspace_id = ?`
+    ).bind(workspaceId).all<RemoteRuleSetSourceHealthRow>()
+    : await db.prepare(
+      'SELECT remote_rule_set_id, expires_at, result FROM remote_rule_set_source_health'
+    ).all<RemoteRuleSetSourceHealthRow>()
   const snapshots = new Map<string, RemoteRuleSetSourceHealthSnapshot>()
   for (const row of results) {
     const snapshot = parseSourceHealthSnapshot(row)
