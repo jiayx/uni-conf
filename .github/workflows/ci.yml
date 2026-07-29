@@ -41,4 +41,4 @@ jobs:
         run: pnpm test:coverage
 
       - name: Build
-        run: pnpm build && pnpm build:worker
+        run: pnpm build

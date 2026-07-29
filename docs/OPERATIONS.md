@@ -17,18 +17,17 @@
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm --filter @uni-conf/worker db:migrate:production
-pnpm --filter @uni-conf/worker deploy:production
+pnpm deploy:production
 ```
 
-更新数据库后再部署应用，可以避免新版本访问旧数据结构时出现 `no such table` 或 `no such column`。
+`pnpm deploy:production` 会先应用 D1 migration，再部署 Worker 和管理页面。
 
 ## 修改管理端访问密钥
 
 在仓库根目录执行：
 
 ```bash
-pnpm --dir apps/worker exec wrangler secret put API_KEY --env production
+pnpm exec wrangler secret put API_KEY --env production
 ```
 
 输入新的访问密钥后，重新打开管理页面并使用新密钥登录。

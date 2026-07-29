@@ -1,5 +1,5 @@
 {
-  "$schema": "./apps/worker/node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "uni-conf",
   "main": "apps/worker/src/index.ts",
   "compatibility_date": "2026-06-23",

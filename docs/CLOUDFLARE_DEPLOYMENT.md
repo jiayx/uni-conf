@@ -77,14 +77,13 @@ pnpm install --frozen-lockfile
 登录 Cloudflare：
 
 ```bash
-cd apps/worker
 pnpm exec wrangler login
 pnpm exec wrangler whoami
 ```
 
 ### 2. 创建 D1 和 KV
 
-在 `apps/worker` 目录执行：
+在仓库根目录执行：
 
 ```bash
 pnpm exec wrangler d1 create uni-conf-db
@@ -109,7 +108,7 @@ pnpm exec wrangler kv namespace create uni-conf-kv
 
 ### 4. 设置访问密钥
 
-在 `apps/worker` 目录执行：
+在仓库根目录执行：
 
 ```bash
 pnpm exec wrangler secret put API_KEY --env production
@@ -121,14 +120,14 @@ pnpm exec wrangler secret put API_KEY --env production
 
 ### 5. 构建并部署
 
-回到仓库根目录：
+执行：
 
 ```bash
-cd ../..
 pnpm build
-pnpm --filter @uni-conf/worker db:migrate:production
-pnpm --filter @uni-conf/worker deploy:production
+pnpm deploy:production
 ```
+
+`pnpm deploy:production` 会先应用 D1 migration，再部署 Worker 和管理页面。
 
 部署完成后，Wrangler 会显示访问地址。
 
@@ -160,7 +159,7 @@ unset UNICONF_API_KEY
 然后将根目录 `wrangler.jsonc` 中 production 的 `ALLOWED_ORIGIN` 改为新的完整地址并重新部署：
 
 ```bash
-pnpm --filter @uni-conf/worker deploy:production
+pnpm deploy:production
 ```
 
 ### 8. 更新现有部署
@@ -170,11 +169,10 @@ pnpm --filter @uni-conf/worker deploy:production
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm --filter @uni-conf/worker db:migrate:production
-pnpm --filter @uni-conf/worker deploy:production
+pnpm deploy:production
 ```
 
-数据库结构更新必须先执行 migration，再部署新版本。
+部署命令会先更新数据库结构，再部署新版本。
 
 ## 常见问题
 
@@ -182,9 +180,9 @@ pnpm --filter @uni-conf/worker deploy:production
 | --------------------------------------------- | --------------------------------------------------------------------------- |
 | 无法使用访问密钥登录                          | 确认输入的值与 production 环境中的 `API_KEY` secret 一致                    |
 | `/api/ready` 提示 D1 或 KV 不可用             | 检查 `wrangler.jsonc` 中 production 的 D1、KV ID                            |
-| `D1_ERROR: no such table` 或 `no such column` | 重新执行 `pnpm --filter @uni-conf/worker db:migrate:production`             |
+| `D1_ERROR: no such table` 或 `no such column` | 重新执行 `pnpm db:migrate:production`                                      |
 | 返回 `ALLOWED_ORIGIN` 相关错误                | 检查地址是否包含正确协议和域名，并去掉路径及结尾 `/`                        |
-| 页面仍是旧版本                                | 重新执行 `pnpm build` 和 `pnpm --filter @uni-conf/worker deploy:production` |
+| 页面仍是旧版本                                | 重新执行 `pnpm build` 和 `pnpm deploy:production`                           |
 | 定时刷新没有立即执行                          | 定时任务每五分钟调度一次，只有已经到期的订阅或资源才会刷新                  |
 
 ## 相关文档

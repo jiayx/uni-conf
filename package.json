@@ -6,10 +6,19 @@
   "description": "Manage once, export everywhere. A unified proxy configuration management tool.",
   "scripts": {
     "dev": "pnpm --filter web dev",
-    "dev:worker": "pnpm --filter worker dev",
-    "build": "pnpm --filter types build && pnpm --filter web build && pnpm --filter worker build",
-    "build:worker": "pnpm --filter worker build",
-    "deploy": "pnpm --filter @uni-conf/worker deploy:cloudflare",
+    "dev:worker": "wrangler dev",
+    "build": "pnpm --filter types build && pnpm --filter web build && pnpm build:worker",
+    "build:worker": "wrangler deploy --dry-run --env=\"\" --outdir apps/worker/dist",
+    "predeploy": "pnpm catalogs:refresh",
+    "deploy": "pnpm db:migrate:production && wrangler deploy --env production",
+    "predeploy:staging": "pnpm catalogs:refresh",
+    "deploy:staging": "pnpm db:migrate:staging && wrangler deploy --env staging",
+    "predeploy:production": "pnpm catalogs:refresh",
+    "deploy:production": "pnpm db:migrate:production && wrangler deploy --env production",
+    "db:migrate": "pnpm db:migrate:local",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:staging": "wrangler d1 migrations apply DB --env staging --remote",
+    "db:migrate:production": "wrangler d1 migrations apply DB --env production --remote",
     "catalogs:refresh": "node scripts/generate-rule-set-catalogs.mjs",
     "smoke": "node scripts/smoke-deployment.mjs",
     "test": "pnpm -r test",
@@ -37,6 +46,7 @@
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "wrangler": "^4.114.0"
   }
 }
