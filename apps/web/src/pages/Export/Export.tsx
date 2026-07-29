@@ -22,6 +22,7 @@ import {
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
 import { countContentLines } from '@/core/export/content-preview'
+import { highlightExportContent } from '@/core/export/config-syntax'
 import {
   buildPublicSubscriptionUrl,
   buildSubscriptionDisplayName,
@@ -734,10 +735,29 @@ function PreviewModalContent({
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState<unknown | null>(null)
+  const [highlighted, setHighlighted] = useState<{ key: string; html: string | null } | null>(null)
+  const highlightKey = preview.status === 'ready'
+    ? `${preview.format}\u0000${preview.content}`
+    : ''
   const lineCount = useMemo(
     () => preview.status === 'ready' ? countContentLines(preview.content) : 0,
     [preview],
   )
+
+  useEffect(() => {
+    if (preview.status !== 'ready') return
+    let active = true
+    void highlightExportContent(preview.content, preview.format)
+      .then(html => {
+        if (active) setHighlighted({ key: highlightKey, html })
+      })
+      .catch(() => {
+        if (active) setHighlighted({ key: highlightKey, html: null })
+      })
+    return () => {
+      active = false
+    }
+  }, [highlightKey, preview])
 
   const handleCopy = async () => {
     if (
@@ -815,7 +835,16 @@ function PreviewModalContent({
           ))}
         </div>
       )}
-      <pre className={styles.previewModalCode}>{preview.content}</pre>
+      <div className={styles.previewModalCode}>
+        {highlighted?.key === highlightKey && highlighted.html
+          ? (
+              <div
+                className={styles.previewModalSyntax}
+                dangerouslySetInnerHTML={{ __html: highlighted.html }}
+              />
+            )
+          : <pre>{preview.content}</pre>}
+      </div>
     </>
   )
 }
