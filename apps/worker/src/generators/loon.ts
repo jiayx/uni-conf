@@ -16,6 +16,12 @@ import {
 } from '@uni-conf/shared'
 import type { ExportDnsPolicy } from '@uni-conf/types'
 import { DEFAULT_FAKE_IP_POLICY, inlineRealIpDomains } from './dns-policy'
+import {
+  ASN_MMDB_URL,
+  GEOIP_MMDB_URL,
+  LOCAL_PROXY_BYPASS_ENTRIES,
+  TUN_EXCLUDED_ROUTE_ENTRIES,
+} from './network-defaults'
 
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
@@ -306,28 +312,30 @@ export function generateLoon(
 
   // [General]
   lines.push('[General]')
-  lines.push('ip-mode = ipv4-only')
-  lines.push('dns-server = system, 119.29.29.29, 223.5.5.5')
+  lines.push('ip-mode = v4-only')
+  lines.push('ipv6-vif = off')
+  lines.push('sni-sniffing = true')
+  lines.push('udp-fallback-mode = REJECT')
+  lines.push(`geoip-url = ${GEOIP_MMDB_URL}`)
+  lines.push(`ipasn-url = ${ASN_MMDB_URL}`)
+  lines.push(`skip-proxy = ${LOCAL_PROXY_BYPASS_ENTRIES.join(', ')}`)
+  lines.push(`bypass-tun = ${TUN_EXCLUDED_ROUTE_ENTRIES.join(', ')}`)
+  lines.push('dns-server = 119.29.29.29, 223.5.5.5')
   if (dnsPolicy.resolutionMode === 'split') {
     lines.push('doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
   }
   lines.push(`real-ip = ${inlineRealIpDomains(dnsPolicy, 'loon', options.managedRealIpDomains).join(', ')}`)
+  lines.push('allow-udp-proxy = true')
   lines.push('allow-wifi-access = false')
   lines.push('wifi-access-http-port = 7222')
   lines.push('wifi-access-socks5-port = 7221')
   lines.push('interface-mode = auto')
   lines.push('test-timeout = 5')
   lines.push('disconnect-on-policy-change = false')
+  lines.push('switch-node-after-failure-times = 2')
   lines.push(`proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`)
   lines.push('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
   lines.push('')
-
-  if (dnsPolicy.resolutionMode === 'split') {
-    lines.push('[Host]')
-    lines.push('*.cn = server:223.5.5.5')
-    lines.push('* = server:https://1.1.1.1/dns-query')
-    lines.push('')
-  }
 
   // [Proxy]
   lines.push('[Proxy]')
@@ -343,6 +351,10 @@ export function generateLoon(
 
   // [Remote Proxy] (subscription URLs — Loon can reference remote proxy lists)
   lines.push('[Remote Proxy]')
+  lines.push('')
+
+  // [Remote Filter] (kept empty because UniConf materializes source nodes locally)
+  lines.push('[Remote Filter]')
   lines.push('')
 
   // [Proxy Group]
@@ -379,6 +391,31 @@ export function generateLoon(
     const target = targetGroup ? nativePolicyName(targetGroup) : 'PROXY'
     lines.push(`${resolved.url}, policy=${target}, tag=${name}, enabled=true`)
   }
+  lines.push('')
+
+  // Optional Loon feature sections are kept present even when UniConf has no entries.
+  lines.push('[Host]')
+  if (dnsPolicy.resolutionMode === 'split') {
+    lines.push('*.cn = server:223.5.5.5')
+    lines.push('* = server:https://1.1.1.1/dns-query')
+  }
+  lines.push('')
+
+  lines.push('[Rewrite]')
+  lines.push('')
+
+  lines.push('[Script]')
+  lines.push('')
+
+  lines.push('[Plugin]')
+  lines.push('')
+
+  // [Mitm] — certificate material remains client-local and is intentionally blank.
+  lines.push('[Mitm]')
+  lines.push('hostname=')
+  lines.push('ca-p12=')
+  lines.push('ca-passphrase=')
+  lines.push('skip-server-cert-verify=false')
   lines.push('')
 
   return lines.join('\n')

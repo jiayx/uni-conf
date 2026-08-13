@@ -471,8 +471,26 @@ describe('proxy group references', () => {
     expect(content).toContain('allow-lan: false')
     expect(content).toContain('mode: rule')
     expect(content).toContain('log-level: warning')
+    expect(content).toContain('find-process-mode: strict')
+    expect(content).toContain('unified-delay: true')
+    expect(content).toContain('tcp-concurrent: true')
+    expect(content).toContain('store-selected: true')
+    expect(content).toContain('store-fake-ip: true')
+    expect(content).toContain('sniffer:')
+    expect(content).toContain('tun:')
+    expect(content).toContain('stack: mixed')
+    expect(content).toContain('auto-detect-interface: true')
+    expect(content).toContain('route-exclude-address:')
     expect(content).not.toContain('socks-port:')
     expect(content).not.toContain('redir-port:')
+
+    const clash = generateMihomoYaml([], [], [], [], {}, { ruleSetExportFormat: 'clash' })
+    const stash = generateStashYaml([], [], [], [])
+    for (const compatibleConfig of [clash, stash]) {
+      expect(compatibleConfig).not.toContain('find-process-mode:')
+      expect(compatibleConfig).not.toContain('sniffer:')
+      expect(compatibleConfig).not.toContain('tun:')
+    }
   })
 
   it('configures automatic Geo data updates for Mihomo configs', () => {
@@ -572,9 +590,17 @@ describe('proxy group references', () => {
   it('renders sing-box FakeIP as a modern DNS server', () => {
     const fakeIp = JSON.parse(generateSingboxJson([], [], [], [])) as {
       log: Record<string, unknown>
-      dns: { servers: Array<Record<string, unknown>>; rules: Array<Record<string, unknown>> }
+      dns: {
+        servers: Array<Record<string, unknown>>
+        rules: Array<Record<string, unknown>>
+        cache_capacity: number
+      }
       inbounds: Array<Record<string, unknown>>
-      route: { default_domain_resolver: string; rule_set: Array<Record<string, unknown>> }
+      route: {
+        default_domain_resolver: string
+        rule_set: Array<Record<string, unknown>>
+        rules: Array<Record<string, unknown>>
+      }
       experimental: { cache_file: { store_fakeip: boolean } }
     }
     const single = JSON.parse(
@@ -600,6 +626,7 @@ describe('proxy group references', () => {
       expect.objectContaining({
         type: 'tun',
         tag: 'tun-in',
+        stack: 'system',
         auto_route: true,
         strict_route: true,
       }),
@@ -608,12 +635,13 @@ describe('proxy group references', () => {
       expect.objectContaining({
         type: 'mixed',
         tag: 'mixed-in',
-        listen: '::',
+        listen: '127.0.0.1',
         listen_port: 2080,
         set_system_proxy: false,
       }),
     )
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
+    expect(fakeIp.dns.cache_capacity).toBe(4096)
     expect(fakeIp.dns.servers).toContainEqual(
       expect.objectContaining({
         type: 'fakeip',
@@ -638,6 +666,7 @@ describe('proxy group references', () => {
       fakeIp.dns.rules.findIndex((rule) => rule.server === 'fakeip'),
     )
     expect(fakeIp.route.default_domain_resolver).toBe('localDns')
+    expect(fakeIp.route.rules).toContainEqual({ ip_is_private: true, outbound: 'direct' })
     expect(fakeIp.route.rule_set).toContainEqual(
       expect.objectContaining({
         tag: 'uni-conf-fake-ip-filter',
@@ -658,10 +687,14 @@ describe('proxy group references', () => {
 
     const loon = generateLoon(nodeRows, rows, [], [], collectionNodeNames)
     expect(loon).toContain('[General]')
-    expect(loon).toContain('ip-mode = ipv4-only')
-    expect(loon).toContain('dns-server = system, 119.29.29.29, 223.5.5.5')
+    expect(loon).toContain('ip-mode = v4-only')
+    expect(loon).not.toContain('ip-mode = ipv4-only')
+    expect(loon).toContain('dns-server = 119.29.29.29, 223.5.5.5')
+    expect(loon).not.toContain('dns-server = system')
     expect(loon).toContain('*.lan')
     expect(loon).toContain('wifi-access-http-port = 7222')
+    expect(loon).toContain('allow-udp-proxy = true')
+    expect(loon).toContain('switch-node-after-failure-times = 2')
     expect(loon).toContain('proxy-test-url = http://www.gstatic.com/generate_204')
     expect(loon).toContain(
       'Auto = url-test, Supported SS, url=http://www.gstatic.com/generate_204, interval=300',
@@ -672,6 +705,10 @@ describe('proxy group references', () => {
     const surge = generateSurge(nodeRows, rows, [], [], collectionNodeNames)
     expect(surge).toContain('[General]')
     expect(surge).toContain('loglevel = notify')
+    expect(surge).toContain('geoip-maxmind-url = https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb')
+    expect(surge).toContain('exclude-simple-hostnames = true')
+    expect(surge).toContain('tun-excluded-routes = 10.0.0.0/8')
+    expect(surge).toContain('udp-policy-not-supported-behaviour = REJECT')
     expect(surge).toContain('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
     expect(surge).toContain('[Proxy Group]')
     expect(surge).toContain('FINAL,PROXY')
@@ -679,6 +716,9 @@ describe('proxy group references', () => {
     const shadowrocket = generateShadowrocket(nodeRows, rows, [], [], collectionNodeNames)
     expect(shadowrocket).toContain('[General]')
     expect(shadowrocket).toContain('bypass-system = true')
+    expect(shadowrocket).toContain('private-ip-answer = true')
+    expect(shadowrocket).toContain('dns-direct-system = false')
+    expect(shadowrocket).toContain('tun-excluded-routes = 10.0.0.0/8')
     expect(shadowrocket).toContain('dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
     expect(shadowrocket).toContain('*.lan')
     expect(shadowrocket).toContain('[Host]\n*.cn = server:223.5.5.5')
@@ -688,6 +728,9 @@ describe('proxy group references', () => {
     const quantumultx = generateQuantumultX(nodeRows, rows, [], [], collectionNodeNames)
     expect(quantumultx).toContain('[general]')
     expect(quantumultx).toContain('server_check_url=http://www.gstatic.com/generate_204')
+    expect(quantumultx).toContain('server_check_timeout=5000')
+    expect(quantumultx).toContain('excluded_routes=10.0.0.0/8')
+    expect(quantumultx).toContain('[dns]\nno-system\nno-ipv6')
     expect(quantumultx).toContain(
       'url-latency-benchmark=Auto, Supported SS, check-interval=300',
     )
@@ -695,17 +738,25 @@ describe('proxy group references', () => {
     expect(quantumultx).toContain('FINAL,PROXY')
 
     const egern = yaml.load(generateEgern(nodeRows, rows, [], [], collectionNodeNames)) as {
-      auto_update: { interval: number }
+      auto_update?: { interval: number }
       ipv6: boolean
       http_port: number
       socks_port: number
+      allow_external_connections: boolean
+      bypass_tunnel_proxy: string[]
+      geoip_db_url: string
+      asn_db_url: string
       policy_groups: Array<Record<string, { name: string }>>
       rules: Array<Record<string, unknown>>
     }
-    expect(egern.auto_update.interval).toBe(86400)
+    expect(egern.auto_update).toBeUndefined()
     expect(egern.ipv6).toBe(false)
     expect(egern.http_port).toBe(3080)
-    expect(egern.socks_port).toBe(3081)
+    expect(egern.socks_port).toBe(3090)
+    expect(egern.allow_external_connections).toBe(false)
+    expect(egern.bypass_tunnel_proxy).toContain('192.168.0.0/16')
+    expect(egern.geoip_db_url).toContain('Loyalsoldier/geoip@release/Country-without-asn.mmdb')
+    expect(egern.asn_db_url).toContain('Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb')
     expect(egern.policy_groups.map(egernEntryBody).map((group) => group?.name)).toContain(autoGroup.name)
     expect(egern.rules).toContainEqual({ default: { policy: 'PROXY' } })
   })
@@ -749,8 +800,9 @@ describe('proxy group references', () => {
     expect(split).toContain('DOMAIN-SUFFIX,google.com,PROXY,force-remote-dns')
     expect(split).toContain('DOMAIN-SUFFIX,example.cn,DIRECT')
     expect(split).not.toContain('DOMAIN-SUFFIX,example.cn,DIRECT,force-remote-dns')
-    expect(single).toContain('dns-server = system, 223.5.5.5, 119.29.29.29')
-    expect(single).not.toContain('[Host]')
+    expect(single).toContain('dns-server = 223.5.5.5, 119.29.29.29')
+    expect(single).not.toContain('dns-server = system')
+    expect(single).toContain('[Host]\n\n[URL Rewrite]')
     expect(single).not.toContain('force-remote-dns')
   })
 
@@ -1296,6 +1348,10 @@ describe('proxy group references', () => {
       MATCH: '',
     }
 
+    const baselineRuleCount = (JSON.parse(generateSingboxJson([], [directGroup], [], [])) as {
+      route: { rules: Array<Record<string, unknown>> }
+    }).route.rules.length
+
     for (const type of Object.keys(RULE_COMPATIBILITY) as ProxyRule['type'][]) {
       const rule: ProxyRule = {
         id: `rule-${type}`,
@@ -1311,7 +1367,8 @@ describe('proxy group references', () => {
       const config = JSON.parse(generateSingboxJson([], [directGroup], [rule], [])) as {
         route: { rules: Array<Record<string, unknown>>; final?: string }
       }
-      const serialized = type === 'MATCH' ? config.route.final === 'direct' : config.route.rules.length > 2
+      const serialized =
+        type === 'MATCH' ? config.route.final === 'direct' : config.route.rules.length > baselineRuleCount
       const advertised = getRuleCompatibilityLevel(type, 'singbox') !== 'unsupported'
 
       expect(serialized, `${type} serialization must match its sing-box capability level`).toBe(advertised)

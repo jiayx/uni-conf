@@ -13,6 +13,12 @@ import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { ExportDnsPolicy, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
 import { DEFAULT_FAKE_IP_POLICY, inlineRealIpDomains } from './dns-policy'
+import {
+  ASN_MMDB_URL,
+  GEOIP_MMDB_URL,
+  LOCAL_PROXY_BYPASS_ENTRIES,
+  TUN_EXCLUDED_ROUTE_ENTRIES,
+} from './network-defaults'
 
 type Row = Record<string, unknown>
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
@@ -21,6 +27,10 @@ type ClientGeneratorOptions = {
   managedRealIpDomains?: string[]
   ruleSetConversionBaseUrl?: string
 }
+
+const LOCAL_PROXY_BYPASS = LOCAL_PROXY_BYPASS_ENTRIES.join(', ')
+const TUN_EXCLUDED_ROUTES = TUN_EXCLUDED_ROUTE_ENTRIES.join(', ')
+const EGERN_BYPASS_TUNNEL_PROXY = [...new Set([...LOCAL_PROXY_BYPASS_ENTRIES, ...TUN_EXCLUDED_ROUTE_ENTRIES])]
 
 export function generateStashYaml(
   nodes: ProxyNode[],
@@ -56,6 +66,14 @@ export function generateSurge(
     general: surgeGeneralLines(dnsPolicy, options.managedRealIpDomains),
     host: nativeHostDnsLines(dnsPolicy),
     proxySections: surgeAuxiliarySections(nodes),
+    trailingSections: [
+      '[URL Rewrite]',
+      '[Header Rewrite]',
+      '[Body Rewrite]',
+      '[Map Local]',
+      '[Script]',
+      '[MITM]',
+    ],
   })
   return lines.join('\n')
 }
@@ -79,8 +97,8 @@ export function generateShadowrocket(
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
     general: shadowrocketGeneralLines(dnsPolicy, options.managedRealIpDomains),
     host: shadowrocketHostDnsLines(dnsPolicy),
-    remoteSection: '[Remote Rule]',
     forceRemoteDns: dnsPolicy.resolutionMode === 'split',
+    trailingSections: ['[URL Rewrite]', '[Script]', '[MITM]'],
   })
   return lines.join('\n')
 }
@@ -102,10 +120,17 @@ export function generateQuantumultX(
   const lines: string[] = [
     '[general]',
     `server_check_url=${DEFAULT_HEALTH_CHECK.testUrl}`,
+    'server_check_timeout=5000',
     'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
+    'fallback_udp_policy=reject',
+    'dns_reject_domain_behavior=no-error-no-answer',
+    `excluded_routes=${TUN_EXCLUDED_ROUTES}`,
+    'icmp_auto_reply=true',
     `dns_exclusion_list=${inlineRealIpDomains(dnsPolicy, 'quantumultx', options.managedRealIpDomains).join(', ')}`,
     '',
     '[dns]',
+    'no-system',
+    'no-ipv6',
     ...(dnsPolicy.resolutionMode === 'split'
       ? ['doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query', 'server = /*.cn/223.5.5.5']
       : ['server = 223.5.5.5', 'server = 119.29.29.29']),
@@ -175,14 +200,31 @@ export function generateEgern(
     .map((rule) => ruleToEgern(rule, groups))
     .filter((rule): rule is Record<string, unknown> => Boolean(rule))
   const hasDefaultRule = rules.some((rule) => rule['enabled'] && String(rule['type']) === 'MATCH')
+  const autoUpdateUrl = options.ruleSetConversionBaseUrl?.replace(/\/rules\/?$/, '/egern.yaml')
 
   const config = {
-    auto_update: { interval: 86400 },
+    ...(autoUpdateUrl ? { auto_update: { url: autoUpdateUrl, interval: 86400 } } : {}),
     ipv6: false,
     http_port: 3080,
-    socks_port: 3081,
+    socks_port: 3090,
+    allow_external_connections: false,
+    vif_only: false,
+    block_quic: false,
+    close_connections_on_policy_change: false,
+    bypass_tunnel_proxy: EGERN_BYPASS_TUNNEL_PROXY,
     real_ip_domains: inlineRealIpDomains(dnsPolicy, 'egern', options.managedRealIpDomains),
+    hide_vpn_icon: false,
     hijack_dns: ['*'],
+    geoip_db_url: GEOIP_MMDB_URL,
+    asn_db_url: ASN_MMDB_URL,
+    proxy_latency_test_url: DEFAULT_HEALTH_CHECK.testUrl,
+    direct_latency_test_url: 'http://connectivitycheck.gstatic.com/generate_204',
+    compat_route: false,
+    include_all_networks: false,
+    include_apns: false,
+    include_cellular_services: false,
+    include_local_networks: false,
+    vif_excluded_routes: TUN_EXCLUDED_ROUTE_ENTRIES,
     dns: egernDns(dnsPolicy),
     proxies,
     policy_groups: exportPolicyGroups(groups).map((group) =>
@@ -204,8 +246,8 @@ function buildIniConfig({
   ruleSetConversionBaseUrl,
   general,
   host,
-  remoteSection,
   proxySections = [],
+  trailingSections = [],
   forceRemoteDns = false,
 }: {
   client: 'surge' | 'shadowrocket'
@@ -217,13 +259,13 @@ function buildIniConfig({
   ruleSetConversionBaseUrl?: string
   general: string[]
   host?: string[]
-  remoteSection?: string
   proxySections?: string[]
+  trailingSections?: string[]
   forceRemoteDns?: boolean
 }): string[] {
   const validNodes: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
-  const lines: string[] = [...general, ...(host && host.length > 0 ? ['[Host]', ...host, ''] : []), '[Proxy]']
+  const lines: string[] = [...general, '[Proxy]']
   for (const node of nodes) {
     const line = nodeToIniProxy(node, client)
     if (line) {
@@ -238,27 +280,13 @@ function buildIniConfig({
     lines.push(groupToIni(group, groups, validNodes, collectionNodeNames))
   }
 
-  if (remoteSection) {
-    lines.push('', remoteSection)
-    for (const rs of sortedRemoteSets) {
-      if (!rs['enabled']) continue
-      const resolved = resolveRemoteRuleSetRowForExport(rs, client, ruleSetConversionBaseUrl)
-      if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
-      const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
-      lines.push(
-        `${safeTag(String(rs['name'] ?? 'remote'))} = ${resolved.url}, policy=${target}, update-interval=${Number(rs['update_interval'] ?? 24) * 3600}`,
-      )
-    }
-  }
-
   lines.push('', '[Rule]')
   for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, client, ruleSetConversionBaseUrl)
     if (!resolved || !isRuleSetFormatCompatible(client, resolved.format)) continue
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
-    const source = client === 'surge' ? resolved.url : safeTag(String(rs['name'] ?? 'remote'))
-    lines.push(`RULE-SET,${source},${target}`)
+    lines.push(`RULE-SET,${resolved.url},${target}`)
   }
   for (const rule of rules) {
     if (!rule['enabled']) continue
@@ -268,6 +296,8 @@ function buildIniConfig({
   if (!hasEnabledMatchRule(rules)) {
     lines.push(`FINAL,${defaultPolicy(groups)}`)
   }
+  lines.push('', '[Host]', ...(host ?? []))
+  for (const section of trailingSections) lines.push('', section)
   lines.push('')
 
   return lines
@@ -277,12 +307,22 @@ function surgeGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): 
   return [
     '[General]',
     'loglevel = notify',
+    'ipv6 = false',
+    `geoip-maxmind-url = ${GEOIP_MMDB_URL}`,
+    'disable-geoip-db-auto-update = false',
+    `skip-proxy = ${LOCAL_PROXY_BYPASS}`,
+    'exclude-simple-hostnames = true',
+    `tun-excluded-routes = ${TUN_EXCLUDED_ROUTES}`,
     'dns-server = 223.5.5.5, 119.29.29.29',
     ...(policy.resolutionMode === 'split'
       ? ['encrypted-dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query']
       : []),
     `always-real-ip = ${inlineRealIpDomains(policy, 'surge', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
+    'udp-policy-not-supported-behaviour = REJECT',
+    'allow-wifi-access = false',
+    'wifi-access-http-port = 6152',
+    'wifi-access-socks5-port = 6153',
     'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
     `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
     'test-timeout = 5',
@@ -294,12 +334,21 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
   return [
     '[General]',
     'bypass-system = true',
+    'ipv6 = false',
+    'prefer-ipv6 = false',
+    `skip-proxy = ${LOCAL_PROXY_BYPASS}`,
+    `tun-excluded-routes = ${TUN_EXCLUDED_ROUTES}`,
     policy.resolutionMode === 'split'
       ? 'dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query'
-      : 'dns-server = system, 223.5.5.5, 119.29.29.29',
+      : 'dns-server = 223.5.5.5, 119.29.29.29',
     `always-real-ip = ${inlineRealIpDomains(policy, 'shadowrocket', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
-    'skip-proxy = 127.0.0.1, localhost, *.local',
+    'dns-direct-system = false',
+    'icmp-auto-reply = true',
+    'always-reject-url-rewrite = false',
+    'private-ip-answer = true',
+    'dns-direct-fallback-proxy = true',
+    'udp-policy-not-supported-behaviour = REJECT',
     '',
   ]
 }

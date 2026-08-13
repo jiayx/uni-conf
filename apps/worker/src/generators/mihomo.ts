@@ -14,6 +14,7 @@ import {
   customRealIpDomains,
   inlineRealIpDomains,
 } from './dns-policy';
+import { TUN_EXCLUDED_ROUTE_ENTRIES } from './network-defaults';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
 
@@ -54,6 +55,17 @@ export function generateMihomoYaml(
   lines.push('log-level: warning');
   lines.push('ipv6: false');
   lines.push('external-controller: 127.0.0.1:9090');
+  if (ruleSetExportFormat === 'mihomo') {
+    lines.push('find-process-mode: strict');
+    lines.push('unified-delay: true');
+    lines.push('tcp-concurrent: true');
+    lines.push('keep-alive-idle: 15');
+    lines.push('keep-alive-interval: 15');
+    lines.push('disable-keep-alive: false');
+    lines.push('profile:');
+    lines.push('  store-selected: true');
+    lines.push('  store-fake-ip: true');
+  }
   lines.push('');
 
   if (ruleSetExportFormat === 'mihomo') {
@@ -66,6 +78,33 @@ export function generateMihomoYaml(
     lines.push('  geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"');
     lines.push('  mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"');
     lines.push('  asn: "https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb"');
+    lines.push('');
+
+    lines.push('sniffer:');
+    lines.push('  enable: true');
+    lines.push('  force-dns-mapping: true');
+    lines.push('  parse-pure-ip: true');
+    lines.push('  override-destination: true');
+    lines.push('  sniff:');
+    lines.push('    HTTP:');
+    lines.push('      ports: [80, 8080-8880]');
+    lines.push('    TLS:');
+    lines.push('      ports: [443, 8443]');
+    lines.push('    QUIC:');
+    lines.push('      ports: [443, 8443]');
+    lines.push('');
+
+    lines.push('tun:');
+    lines.push('  enable: true');
+    lines.push('  stack: mixed');
+    lines.push('  auto-route: true');
+    lines.push('  auto-detect-interface: true');
+    lines.push('  strict-route: true');
+    lines.push('  dns-hijack:');
+    lines.push('    - any:53');
+    lines.push('    - tcp://any:53');
+    lines.push('  route-exclude-address:');
+    for (const route of TUN_EXCLUDED_ROUTE_ENTRIES) lines.push(`    - ${route}`);
     lines.push('');
   }
 
@@ -131,12 +170,13 @@ export function generateMihomoYaml(
     }
     for (const { source: rs, resolved } of enabledRemoteSets) {
       const safeName = rs.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const providerContainer = resolveMihomoRuleProviderContainer(resolved.url, resolved.format);
       lines.push(`  ${safeName}:`);
       lines.push(`    type: http`);
       lines.push(`    behavior: ${rs.behavior}`);
-      if (resolved.format === 'mrs') lines.push(`    format: mrs`);
+      lines.push(`    format: ${providerContainer.format}`);
       lines.push(`    url: "${resolved.url}"`);
-      lines.push(`    path: ./ruleset/${safeName}.${resolved.format === 'mrs' ? 'mrs' : 'yaml'}`);
+      lines.push(`    path: ./ruleset/${safeName}.${providerContainer.extension}`);
       lines.push(`    interval: ${rs.updateInterval * 3600}`);
     }
   }
@@ -237,6 +277,21 @@ function buildStashDnsLines(policy: ExportDnsPolicy, managedDomains?: string[]):
 
 function sortRemoteRuleSets(remoteSets: RemoteRuleSet[]): RemoteRuleSet[] {
   return [...remoteSets].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+}
+
+function resolveMihomoRuleProviderContainer(
+  url: string,
+  format: RemoteRuleSet['format']
+): { format: 'yaml' | 'text' | 'mrs'; extension: 'yaml' | 'list' | 'mrs' } {
+  const pathname = url.split(/[?#]/, 1)[0]?.toLowerCase() ?? '';
+
+  if (format === 'mrs' || pathname.endsWith('.mrs')) {
+    return { format: 'mrs', extension: 'mrs' };
+  }
+  if (format === 'text' || pathname.endsWith('.list') || pathname.endsWith('.txt')) {
+    return { format: 'text', extension: 'list' };
+  }
+  return { format: 'yaml', extension: 'yaml' };
 }
 
 // ─── Node serialization ───────────────────────────────────────────────────────

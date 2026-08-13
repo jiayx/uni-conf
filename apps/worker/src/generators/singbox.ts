@@ -117,6 +117,9 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
     ...(rules.length > 0 ? { rules } : {}),
     final: split ? 'proxyDns' : 'localDns',
     strategy: 'prefer_ipv4',
+    disable_cache: false,
+    disable_expire: false,
+    cache_capacity: 4096,
   };
 }
 
@@ -129,13 +132,14 @@ function buildInbounds(): object[] {
       tag: 'tun-in',
       address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
       mtu: 9000,
+      stack: 'system',
       auto_route: true,
       strict_route: true,
     },
     {
       type: 'mixed',
       tag: 'mixed-in',
-      listen: '::',
+      listen: '127.0.0.1',
       listen_port: 2080,
       set_system_proxy: false,
     },
@@ -577,6 +581,11 @@ function buildRoute(
   routeRules.push({
     protocol: 'dns',
     action: 'hijack-dns',
+  });
+
+  routeRules.push({
+    ip_is_private: true,
+    outbound: 'direct',
   });
 
   // Convert rules

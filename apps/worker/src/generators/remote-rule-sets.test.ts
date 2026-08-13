@@ -147,7 +147,9 @@ describe('remote rule set generators', () => {
 
     expect(content).toContain('Ads_List:');
     expect(content).toContain('behavior: classical');
+    expect(content).toContain('format: yaml');
     expect(content).toContain('url: "https://example.com/ads.yaml"');
+    expect(content).toContain('path: ./ruleset/Ads_List.yaml');
     expect(content).toContain('  - RULE-SET,Ads_List,DIRECT');
     expect(content.indexOf('  - RULE-SET,Ads_List,DIRECT')).toBeLessThan(
       content.indexOf('  - MATCH,PROXY')
@@ -252,7 +254,9 @@ describe('remote rule set generators', () => {
 
     expect(content).toContain('Telegram_Domains:');
     expect(content).toContain('behavior: domain');
+    expect(content).toContain('format: text');
     expect(content).toContain('url: "https://example.com/telegram.list"');
+    expect(content).toContain('path: ./ruleset/Telegram_Domains.list');
   });
 
   it('uses PROXY when a final rule is not configured', () => {
@@ -416,6 +420,81 @@ describe('remote rule set generators', () => {
       { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id },
     ]);
     expect(surge).toContain('RULE-SET,https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/surge/ai.list,DIRECT');
+
+    const mihomo = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet]);
+    expect(mihomo).toContain('format: text');
+    expect(mihomo).toContain('path: ./ruleset/AI.list');
+
+    const stash = generateStashYaml([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet]);
+    expect(stash).toContain('format: text');
+    expect(stash).toContain('path: ./ruleset/AI.list');
+  });
+
+  it('uses each client native entity container and reference form', () => {
+    const mihomo = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
+    expect(mihomo).toContain('proxies: []');
+    expect(mihomo).toContain('proxy-groups:');
+    expect(mihomo).toContain('rule-providers:');
+    expect(mihomo).toContain('rules:');
+    expect(mihomo).toContain('RULE-SET,Ads_List,DIRECT');
+
+    const singbox = JSON.parse(generateSingboxJson(
+      [], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet]
+    )) as Record<string, unknown>;
+    expect(singbox).toHaveProperty('outbounds');
+    expect(singbox).toHaveProperty('route.rule_set');
+    expect(singbox).toHaveProperty('route.rules');
+    expect(singbox).toHaveProperty('dns.servers');
+
+    const loon = generateLoon([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'loon', target_group_id: directGroup.id },
+    ]);
+    for (const section of [
+      '[Proxy]',
+      '[Remote Proxy]',
+      '[Remote Filter]',
+      '[Proxy Group]',
+      '[Rule]',
+      '[Remote Rule]',
+      '[Host]',
+      '[Rewrite]',
+      '[Script]',
+      '[Plugin]',
+      '[Mitm]',
+    ]) {
+      expect(loon).toContain(section);
+    }
+
+    const surge = generateSurge([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'surge', target_group_id: directGroup.id },
+    ]);
+    expect(surge).toContain('[Proxy]');
+    expect(surge).toContain('[Proxy Group]');
+    expect(surge).toContain('[Rule]');
+    expect(surge).not.toContain('[Remote Rule]');
+
+    const shadowrocket = generateShadowrocket([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'shadowrocket', target_group_id: directGroup.id },
+    ]);
+    expect(shadowrocket).toContain('[Proxy]');
+    expect(shadowrocket).toContain('[Proxy Group]');
+    expect(shadowrocket).toContain('[Rule]');
+    expect(shadowrocket).not.toContain('[Remote Rule]');
+
+    const quantumultx = generateQuantumultX([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'quantumultx', target_group_id: directGroup.id },
+    ]);
+    for (const section of ['[policy]', '[server_remote]', '[filter_remote]', '[server_local]', '[filter_local]']) {
+      expect(quantumultx).toContain(section);
+    }
+
+    const egern = yaml.load(generateEgern([], groupRows, ruleRows, [
+      { ...remoteSet, format: 'egern', target_group_id: directGroup.id },
+    ])) as Record<string, unknown>;
+    expect(egern).toHaveProperty('proxies');
+    expect(egern).toHaveProperty('policy_groups');
+    expect(egern).toHaveProperty('rules');
+    expect(egern).toHaveProperty('dns');
   });
 
   it('skips unsupported local rules for INI-style clients', () => {
@@ -456,6 +535,22 @@ describe('remote rule set generators', () => {
 
     expect(content).toContain('RULE-SET,https://example.com/ads.yaml,DIRECT');
     expect(content).not.toContain('ai.srs');
+  });
+
+  it('routes Shadowrocket remote rule sets directly from the resolved URL', () => {
+    const content = generateShadowrocket([], groupRows, ruleRows, [
+      {
+        ...quixoticPresetSet,
+        preset_source: 'quixotic',
+        preset_id: 'ai',
+        target_group_id: directGroup.id,
+      },
+    ]);
+
+    expect(content).not.toContain('[Remote Rule]');
+    expect(content).toContain(
+      'RULE-SET,https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/shadowrocket/ai.list,DIRECT',
+    );
   });
 
   it('routes Quantumult X remote rule sets through filter_remote', () => {
@@ -505,7 +600,14 @@ describe('remote rule set generators', () => {
     const content = generateEgern([], groupRows, ruleRows, [
       { ...singboxRemoteSet, target_group_id: directGroup.id },
     ], {}, { ruleSetConversionBaseUrl: conversionBaseUrl })
-    const config = yaml.load(content) as { rules: Array<Record<string, unknown>> }
+    const config = yaml.load(content) as {
+      auto_update: { url: string; interval: number }
+      rules: Array<Record<string, unknown>>
+    }
+    expect(config.auto_update).toEqual({
+      url: 'https://conf.example/sub/token/egern.yaml',
+      interval: 86400,
+    })
     expect(config.rules).toContainEqual({
       rule_set: {
         match: `${conversionBaseUrl}/${singboxRemoteSet.id}/egern.yaml`,
