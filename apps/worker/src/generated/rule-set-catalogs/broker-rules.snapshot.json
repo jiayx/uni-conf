@@ -4,9 +4,9 @@
   "repository": {
     "url": "https://github.com/forecho/broker-rules",
     "branch": "main",
-    "commit": "11b63acf8cba1af7d827516caa4ca079d983cba9"
+    "commit": "b0cf3ae27bcdcc5a5193ab860d4b2e18bc55f275"
   },
-  "syncedAt": "2026-07-29T15:47:51.109Z",
+  "syncedAt": "2026-08-13T20:00:09.208Z",
   "sourceProfiles": {
     "mihomo": {
       "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Clash/Broker.yaml",
