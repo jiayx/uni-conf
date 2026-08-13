@@ -110,9 +110,6 @@ export function generateQuantumultX(
       ? ['doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query', 'server = /*.cn/223.5.5.5']
       : ['server = 223.5.5.5', 'server = 119.29.29.29']),
     '',
-    '[server_local]',
-    ...nodeLines,
-    '',
     '[policy]',
   ]
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
@@ -121,7 +118,7 @@ export function generateQuantumultX(
     lines.push(groupToQuantumultX(group, groups, nodeNames, collectionNodeNames))
   }
 
-  lines.push('', '[filter_remote]')
+  lines.push('', '[server_remote]', '', '[filter_remote]')
   for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, 'quantumultx', options.ruleSetConversionBaseUrl)
@@ -130,7 +127,7 @@ export function generateQuantumultX(
     lines.push(`${resolved.url}, tag=${rs['name']}, force-policy=${target}, enabled=true`)
   }
 
-  lines.push('', '[filter_local]')
+  lines.push('', '[rewrite_remote]', '', '[server_local]', ...nodeLines, '', '[filter_local]')
   for (const rule of rules) {
     if (!rule['enabled']) continue
     const line = ruleToQuantumultX(rule, groups)
@@ -139,7 +136,7 @@ export function generateQuantumultX(
   if (!hasEnabledMatchRule(rules)) {
     lines.push(`FINAL,${defaultPolicy(groups)}`)
   }
-  lines.push('')
+  lines.push('', '[rewrite_local]', '', '[task_local]', '', '[http_backend]', '', '[mitm]', '')
 
   return lines.join('\n')
 }

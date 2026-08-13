@@ -445,7 +445,7 @@ function renderedContainsNode(format: ExportFormat, content: string, server: str
     return content.trim().length > 0
   }
   if (format === 'quantumultx') {
-    const localSection = content.split('[server_local]\n')[1]?.split('\n[policy]')[0] ?? ''
+    const localSection = content.split('[server_local]\n')[1]?.split(/\n\[[^\]]+]/, 1)[0] ?? ''
     return localSection.trim().length > 0
   }
   return content.includes(server)

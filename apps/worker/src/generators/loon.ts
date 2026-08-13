@@ -381,15 +381,6 @@ export function generateLoon(
   }
   lines.push('')
 
-  // [URL Rewrite]
-  lines.push('[URL Rewrite]')
-  lines.push('')
-
-  // [MITM]
-  lines.push('[MITM]')
-  lines.push('enable = false')
-  lines.push('')
-
   return lines.join('\n')
 }
 
