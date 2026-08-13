@@ -523,6 +523,52 @@ describe('proxy group references', () => {
     expect(fakeIp).toContain('fake-ip-filter:')
   })
 
+  it('translates managed FakeIP exceptions with each inline client\'s host syntax', () => {
+    const options = {
+      managedRealIpDomains: ['*', '+.example.com', 'exact.example'],
+    }
+    const line = (content: string, prefix: string) =>
+      content.split('\n').find((entry) => entry.startsWith(prefix)) ?? ''
+
+    const loon = line(generateLoon([], [], [], [], {}, options), 'real-ip = ')
+    expect(loon).toBe('real-ip = example.com, *.example.com, exact.example')
+
+    const surge = line(generateSurge([], [], [], [], {}, options), 'always-real-ip = ')
+    expect(surge).toBe(
+      'always-real-ip = <simple-hostname>, example.com, *.example.com, exact.example',
+    )
+
+    const shadowrocket = line(
+      generateShadowrocket([], [], [], [], {}, options),
+      'always-real-ip = ',
+    )
+    expect(shadowrocket).toBe(
+      'always-real-ip = example.com, *.example.com, exact.example',
+    )
+
+    const quantumultx = line(
+      generateQuantumultX([], [], [], [], {}, options),
+      'dns_exclusion_list=',
+    )
+    expect(quantumultx).toBe(
+      'dns_exclusion_list=example.com, *.example.com, exact.example',
+    )
+
+    const egern = yaml.load(generateEgern([], [], [], [], {}, options)) as {
+      real_ip_domains: string[]
+    }
+    expect(egern.real_ip_domains).toEqual([
+      'example.com',
+      '*.example.com',
+      'exact.example',
+    ])
+
+    const stash = yaml.load(generateStashYaml([], [], [], [], {}, options)) as {
+      dns: { 'fake-ip-filter': string[] }
+    }
+    expect(stash.dns['fake-ip-filter']).toEqual(['+.example.com', 'exact.example'])
+  })
+
   it('renders sing-box FakeIP as a modern DNS server', () => {
     const fakeIp = JSON.parse(generateSingboxJson([], [], [], [])) as {
       log: Record<string, unknown>
@@ -612,7 +658,7 @@ describe('proxy group references', () => {
 
     const loon = generateLoon(nodeRows, rows, [], [], collectionNodeNames)
     expect(loon).toContain('[General]')
-    expect(loon).toContain('ip-mode = v4-only')
+    expect(loon).toContain('ip-mode = ipv4-only')
     expect(loon).toContain('dns-server = system, 119.29.29.29, 223.5.5.5')
     expect(loon).toContain('*.lan')
     expect(loon).toContain('wifi-access-http-port = 7222')

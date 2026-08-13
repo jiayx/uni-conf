@@ -13,7 +13,7 @@ describe('managed DNS resources', () => {
     const domains = await getManagedRealIpDomains(kv)
 
     expect(domains).toEqual(MANAGED_REAL_IP_DOMAINS)
-    expect(domains).toContain('*.lan')
+    expect(domains).toContain('+.lan')
     expect(domains).toContain('time.*.apple.com')
   })
 
@@ -38,7 +38,7 @@ invalid domain
     await expect(refreshManagedDnsResources(kv, fetcher as typeof fetch)).resolves.toBe(3)
     expect(fetcher).toHaveBeenCalledOnce()
     const cached = JSON.parse(storedValue) as { domains: string[] }
-    expect(cached.domains).toEqual(['*', '*.lan', 'time.*.com'])
+    expect(cached.domains).toEqual(['*', '+.lan', 'time.*.com'])
   })
 
   it('does not download the resource again before it expires', async () => {

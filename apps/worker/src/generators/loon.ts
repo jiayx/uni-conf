@@ -15,7 +15,7 @@ import {
   getRuleNoResolveHandling,
 } from '@uni-conf/shared'
 import type { ExportDnsPolicy } from '@uni-conf/types'
-import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
+import { DEFAULT_FAKE_IP_POLICY, inlineRealIpDomains } from './dns-policy'
 
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
@@ -306,12 +306,12 @@ export function generateLoon(
 
   // [General]
   lines.push('[General]')
-  lines.push('ip-mode = v4-only')
+  lines.push('ip-mode = ipv4-only')
   lines.push('dns-server = system, 119.29.29.29, 223.5.5.5')
   if (dnsPolicy.resolutionMode === 'split') {
     lines.push('doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
   }
-  lines.push(`real-ip = ${realIpDomains(dnsPolicy, options.managedRealIpDomains).join(', ')}`)
+  lines.push(`real-ip = ${inlineRealIpDomains(dnsPolicy, 'loon', options.managedRealIpDomains).join(', ')}`)
   lines.push('allow-wifi-access = false')
   lines.push('wifi-access-http-port = 7222')
   lines.push('wifi-access-socks5-port = 7221')

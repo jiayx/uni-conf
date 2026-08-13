@@ -79,6 +79,16 @@
       "format": "text",
       "behavior": "classical",
       "nativeFor": []
+    },
+    {
+      "id": "acl4ssr",
+      "repositoryUrl": "https://github.com/ACL4SSR/ACL4SSR",
+      "branch": "master",
+      "path": "Clash/Ruleset/PublicDirectCDN.list",
+      "include": ["PublicDirectCDN.list"],
+      "format": "mihomo",
+      "behavior": "classical",
+      "nativeFor": ["mihomo", "clash"]
     }
   ],
   "defaults": {
@@ -104,22 +114,40 @@
     },
     {
       "ids": [
-        "cn",
-        "cncidr",
-        "cncidr-resolve",
         "apple-cn",
         "microsoft-cn",
         "games-cn",
         "socialmedia-cn",
         "apns",
-        "cdn",
         "douyin",
         "bilibili"
       ],
       "category": "direct",
       "target": "DIRECT",
       "provisioning": "foundation",
-      "sortOrder": 30,
+      "sortOrder": 30
+    },
+    {
+      "ids": ["public-direct-cdn"],
+      "category": "direct",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 30
+    },
+    {
+      "ids": ["cn"],
+      "category": "direct",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 800,
+      "activeForUnmatchedPolicies": ["proxy"]
+    },
+    {
+      "ids": ["cncidr", "cncidr-resolve"],
+      "category": "direct",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 810,
       "activeForUnmatchedPolicies": ["proxy"]
     },
     {
@@ -214,7 +242,7 @@
       "category": "proxy",
       "target": "PROXY",
       "provisioning": "foundation",
-      "sortOrder": 140,
+      "sortOrder": 800,
       "activeForUnmatchedPolicies": ["direct"]
     },
     {
@@ -267,6 +295,9 @@
     },
     "iplocation-direct": {
       "name": "IP Location Direct"
+    },
+    "public-direct-cdn": {
+      "name": "Public Direct CDN"
     },
     "iplocation-proxy": {
       "name": "IP Location Proxy"

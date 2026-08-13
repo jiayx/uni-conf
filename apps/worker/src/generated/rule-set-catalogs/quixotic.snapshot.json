@@ -55,6 +55,12 @@
       "format": "egern",
       "behavior": "classical",
       "nativeTargets": ["egern"]
+    },
+    "acl4ssr": {
+      "urlTemplate": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/PublicDirectCDN.list",
+      "format": "mihomo",
+      "behavior": "classical",
+      "nativeTargets": ["mihomo", "clash"]
     }
   },
   "defaultSourceSet": "standard",
@@ -75,6 +81,10 @@
     "without-singbox-quantumultx": {
       "defaultSource": "mihomo",
       "sources": ["mihomo", "stash", "surge", "loon", "shadowrocket", "egern"]
+    },
+    "public-direct-cdn": {
+      "defaultSource": "acl4ssr",
+      "sources": ["acl4ssr"]
     }
   },
   "routingGroups": [
@@ -107,25 +117,28 @@
         "target": "DIRECT",
         "provisioning": "foundation",
         "order": 30,
-        "activeForUnmatchedPolicies": ["proxy"]
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
       },
       "rules": [
         { "id": "apns", "name": "APNs" },
         "apple-cn",
         "bilibili",
-        "cdn",
-        { "id": "cn", "name": "China Domain" },
-        { "id": "cncidr", "name": "China IP" },
-        {
-          "id": "cncidr-resolve",
-          "name": "China IP Resolve",
-          "sourceSet": "without-singbox-quantumultx"
-        },
         "douyin",
         "games-cn",
         "microsoft-cn",
         { "id": "socialmedia-cn", "name": "Social Media CN" }
       ]
+    },
+    {
+      "sourceSet": "public-direct-cdn",
+      "routing": {
+        "category": "direct",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 30,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [{ "id": "public-direct-cdn", "name": "Public Direct CDN" }]
     },
     {
       "routing": {
@@ -253,7 +266,7 @@
         "category": "proxy",
         "target": "PROXY",
         "provisioning": "foundation",
-        "order": 140,
+        "order": 800,
         "activeForUnmatchedPolicies": ["direct"]
       },
       "rules": ["gfw", "proxy", "tld-proxy"]
@@ -267,6 +280,33 @@
         "activeForUnmatchedPolicies": ["proxy", "direct"]
       },
       "rules": ["speedtest"]
+    },
+    {
+      "routing": {
+        "category": "direct",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 800,
+        "activeForUnmatchedPolicies": ["proxy"]
+      },
+      "rules": [{ "id": "cn", "name": "China Domain" }]
+    },
+    {
+      "routing": {
+        "category": "direct",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 810,
+        "activeForUnmatchedPolicies": ["proxy"]
+      },
+      "rules": [
+        { "id": "cncidr", "name": "China IP" },
+        {
+          "id": "cncidr-resolve",
+          "name": "China IP Resolve",
+          "sourceSet": "without-singbox-quantumultx"
+        }
+      ]
     }
   ]
 }

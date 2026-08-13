@@ -161,28 +161,54 @@ export const DEFAULT_FAKE_IP_POLICY: ExportDnsPolicy = {
   resolutionMode: 'split',
 };
 
+export type InlineRealIpClient =
+  | 'stash'
+  | 'loon'
+  | 'surge'
+  | 'shadowrocket'
+  | 'quantumultx'
+  | 'egern';
+
 export function parseManagedRealIpDomainList(content: string): string[] {
   const domains = content
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#') && !/\s/.test(line))
-    .map(normalizeDnsRealIpDomain)
+    .map(normalizeManagedRealIpDomain)
     .filter((domain): domain is string => domain !== undefined);
   return [...new Set(domains)];
+}
+
+function normalizeManagedRealIpDomain(value: string): string | undefined {
+  const suffix = value.startsWith('+.');
+  const normalized = normalizeDnsRealIpDomain(suffix ? value.slice(2) : value);
+  return normalized === undefined ? undefined : suffix ? `+.${normalized}` : normalized;
 }
 
 export function customRealIpDomains(policy: ExportDnsPolicy): string[] {
   return normalizeDnsRealIpDomainList(policy.additionalRealIpDomains) ?? [];
 }
 
-export function realIpDomains(
+/** Translate Mihomo domain-set patterns into each inline client's native host syntax. */
+export function inlineRealIpDomains(
   policy: ExportDnsPolicy,
+  client: InlineRealIpClient,
   managedDomains: readonly string[] = MANAGED_REAL_IP_DOMAINS
 ): string[] {
-  return [
-    ...new Set([
-      ...managedDomains,
-      ...customRealIpDomains(policy),
-    ]),
-  ];
+  const translatedManagedDomains = managedDomains.flatMap((domain) => {
+    if (domain === '*') {
+      // In Mihomo, a bare * only matches hostnames without a dot. Surge has an
+      // explicit equivalent; the other inline formats do not document one.
+      return client === 'surge' ? ['<simple-hostname>'] : [];
+    }
+    if (!domain.startsWith('+.')) return [domain];
+
+    const suffix = domain.slice(2);
+    if (!suffix) return [];
+    // Stash supports Mihomo's +. suffix syntax natively. Host-list clients need
+    // both the apex and wildcard forms to preserve the same match set.
+    return client === 'stash' ? [domain] : [suffix, `*.${suffix}`];
+  });
+
+  return [...new Set([...translatedManagedDomains, ...customRealIpDomains(policy)])];
 }

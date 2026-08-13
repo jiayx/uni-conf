@@ -12,7 +12,7 @@ import {
   MANAGED_FAKE_IP_FILTER_TAG,
   QUIXOTIC_FAKE_IP_FILTER_MRS_URL,
   customRealIpDomains,
-  realIpDomains,
+  inlineRealIpDomains,
 } from './dns-policy';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ function buildStashDnsLines(policy: ExportDnsPolicy, managedDomains?: string[]):
     '    - https://120.53.53.53/dns-query',
   ];
   lines.push('  fake-ip-filter:');
-  for (const domain of realIpDomains(policy, managedDomains)) lines.push(`    - "${domain}"`);
+  for (const domain of inlineRealIpDomains(policy, 'stash', managedDomains)) lines.push(`    - "${domain}"`);
   if (policy.resolutionMode === 'split') {
     lines.push('  nameserver-policy:');
     lines.push('    "geosite:cn":');

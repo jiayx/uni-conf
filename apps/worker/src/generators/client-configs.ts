@@ -12,7 +12,7 @@ import { generateMihomoYaml } from './mihomo'
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { ExportDnsPolicy, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
-import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
+import { DEFAULT_FAKE_IP_POLICY, inlineRealIpDomains } from './dns-policy'
 
 type Row = Record<string, unknown>
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
@@ -103,7 +103,7 @@ export function generateQuantumultX(
     '[general]',
     `server_check_url=${DEFAULT_HEALTH_CHECK.testUrl}`,
     'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
-    `dns_exclusion_list=${realIpDomains(dnsPolicy, options.managedRealIpDomains).join(', ')}`,
+    `dns_exclusion_list=${inlineRealIpDomains(dnsPolicy, 'quantumultx', options.managedRealIpDomains).join(', ')}`,
     '',
     '[dns]',
     ...(dnsPolicy.resolutionMode === 'split'
@@ -181,7 +181,7 @@ export function generateEgern(
     ipv6: false,
     http_port: 3080,
     socks_port: 3081,
-    real_ip_domains: realIpDomains(dnsPolicy, options.managedRealIpDomains),
+    real_ip_domains: inlineRealIpDomains(dnsPolicy, 'egern', options.managedRealIpDomains),
     hijack_dns: ['*'],
     dns: egernDns(dnsPolicy),
     proxies,
@@ -281,7 +281,7 @@ function surgeGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): 
     ...(policy.resolutionMode === 'split'
       ? ['encrypted-dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query']
       : []),
-    `always-real-ip = ${realIpDomains(policy, managedDomains).join(', ')}`,
+    `always-real-ip = ${inlineRealIpDomains(policy, 'surge', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
     `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
@@ -297,7 +297,7 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
     policy.resolutionMode === 'split'
       ? 'dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query'
       : 'dns-server = system, 223.5.5.5, 119.29.29.29',
-    `always-real-ip = ${realIpDomains(policy, managedDomains).join(', ')}`,
+    `always-real-ip = ${inlineRealIpDomains(policy, 'shadowrocket', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'skip-proxy = 127.0.0.1, localhost, *.local',
     '',

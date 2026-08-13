@@ -13,21 +13,39 @@ describe('rule-set catalog snapshots', () => {
 
     expect(snapshot.catalogs.map((catalog) => catalog.id)).toEqual(['quixotic', 'broker-rules'])
     expect(snapshot.catalogs.flatMap((catalog) => catalog.items)).toHaveLength(49)
-    expect(snapshot.catalogs.find((catalog) => catalog.id === 'broker-rules')?.items[0]).toMatchObject({
+    expect(
+      snapshot.catalogs.find((catalog) => catalog.id === 'broker-rules')?.items[0],
+    ).toMatchObject({
       id: 'broker',
       suggestedTarget: 'Broker',
       provisioning: 'scenario',
     })
     expect(
-      snapshot.catalogs.find((catalog) => catalog.id === 'quixotic')?.items.find((item) => item.id === 'private')
-        ?.sources[0],
+      snapshot.catalogs
+        .find((catalog) => catalog.id === 'quixotic')
+        ?.items.find((item) => item.id === 'private')?.sources[0],
     ).toMatchObject({
       sourceId: 'mihomo',
       url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/private.list',
       default: true,
     })
+    expect(snapshot.catalogs.find((catalog) => catalog.id === 'quixotic')?.items).toContainEqual(
+      expect.objectContaining({
+        id: 'public-direct-cdn',
+        suggestedTarget: 'DIRECT',
+        sortOrder: 30,
+        activeForUnmatchedPolicies: ['proxy', 'direct'],
+      }),
+    )
     expect(
-      snapshot.catalogs.flatMap((catalog) => catalog.items).every((item) => item.provisioning !== 'optional'),
+      snapshot.catalogs
+        .find((catalog) => catalog.id === 'quixotic')
+        ?.items.find((item) => item.id === 'cdn'),
+    ).toBeUndefined()
+    expect(
+      snapshot.catalogs
+        .flatMap((catalog) => catalog.items)
+        .every((item) => item.provisioning !== 'optional'),
     ).toBe(true)
   })
 
@@ -66,9 +84,11 @@ describe('rule-set catalog snapshots', () => {
 
     const snapshot = await refreshRuleSetCatalogSnapshot({ KV: kv }, fetcher)
 
-    expect(fetcher.mock.calls.map(([input]) => String(input)).every((url) => !url.includes('jiayx/uni-conf'))).toBe(
-      true,
-    )
+    expect(
+      fetcher.mock.calls
+        .map(([input]) => String(input))
+        .every((url) => !url.includes('jiayx/uni-conf')),
+    ).toBe(true)
     expect(snapshot.catalogs.find((catalog) => catalog.id === 'quixotic')?.items).toContainEqual(
       expect.objectContaining({
         id: 'telegram',
@@ -111,8 +131,19 @@ function createCatalogFetcher() {
       const path = decodeURIComponent(new URL(url).pathname.split('/contents/')[1] ?? '')
       return Response.json({ type: 'file', name: path.split('/').at(-1), path })
     }
-    const path = decodeURIComponent(new URL(url).pathname.split('/contents/')[1]?.split('?')[0] ?? '')
+    if (url.includes('/ACL4SSR/ACL4SSR/contents/')) {
+      return Response.json({
+        type: 'file',
+        name: 'PublicDirectCDN.list',
+        path: 'Clash/Ruleset/PublicDirectCDN.list',
+      })
+    }
+    const path = decodeURIComponent(
+      new URL(url).pathname.split('/contents/')[1]?.split('?')[0] ?? '',
+    )
     const extension = path.includes('singbox') ? 'srs' : path.includes('egern') ? 'yaml' : 'list'
-    return Response.json([{ type: 'file', name: `ai.${extension}`, path: `${path}/ai.${extension}` }])
+    return Response.json([
+      { type: 'file', name: `ai.${extension}`, path: `${path}/ai.${extension}` },
+    ])
   })
 }
