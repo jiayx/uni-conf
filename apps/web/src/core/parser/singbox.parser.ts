@@ -104,7 +104,7 @@ function singboxOutboundToNode(outbound: SingboxOutbound, sourceId: string): Pro
     extra,
   }
 
-  const countryInfo = detectCountry(name)
+  const countryInfo = detectCountry(name) ?? detectCountry(server, { source: 'hostname' })
   const now = new Date().toISOString()
 
   return {
@@ -134,7 +134,7 @@ function hasNativeTls(outbound?: SingboxOutbound): boolean {
 function singboxEndpointToNode(endpoint: unknown, sourceId: string): ProxyNode | null {
   const parsed = parseSingboxWireGuardEndpoint(endpoint)
   if (!parsed) return null
-  const countryInfo = detectCountry(parsed.name)
+  const countryInfo = detectCountry(parsed.name) ?? detectCountry(parsed.server, { source: 'hostname' })
   const now = new Date().toISOString()
   return {
     id: generateId(),

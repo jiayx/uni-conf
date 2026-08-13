@@ -30,6 +30,7 @@ import {
   DEFAULT_WORKSPACE_ID,
   workspaceEntityId,
 } from './services/workspaces'
+import { proxyConnectionFingerprint, sanitizeExportLabel } from '@uni-conf/shared'
 
 export interface ExportData {
   config?: ExportConfig
@@ -86,7 +87,26 @@ export async function buildExportData(
     settings.routingOutletPreferences,
     autoCollectionKeysById
   )
-  const groupRows = expandReferencedGroupRows(allGroupRows, config?.includeGroupIds)
+  const selectedRuleRows = await selectRows(
+    db,
+    `SELECT * FROM rules WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC`,
+    config?.includeRuleIds
+  )
+  const selectedRemoteSetRows = await selectRows(
+    db,
+    `SELECT * FROM remote_rule_sets WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC, created_at ASC`,
+    config?.includeRemoteSetIds
+  )
+  const finalTargetGroupId = settings.unmatchedTrafficPolicy === 'direct'
+    ? workspaceEntityId(workspaceId, 'builtin-direct')
+    : workspaceEntityId(workspaceId, 'builtin-proxy')
+  const groupRows = resolveExportGroupRows(
+    allGroupRows,
+    config,
+    selectedRuleRows,
+    selectedRemoteSetRows,
+    finalTargetGroupId,
+  )
   const collectionScopeIds = resolveCollectionScopeIds(config, groupRows, requestedFormat)
   const nodeRows = collectionScopeIds.length
     ? mergeCollectionRows(collectionRows, collectionScopeIds)
@@ -100,16 +120,9 @@ export async function buildExportData(
 
   const exportGroupIds = new Set(groupRows.map((row) => String(row.id)))
   const configuredRuleRows = filterRowsByTargetGroup(
-    await selectRows(
-      db,
-      `SELECT * FROM rules WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC`,
-      config?.includeRuleIds
-    ),
+    selectedRuleRows,
     exportGroupIds
   )
-  const finalTargetGroupId = settings.unmatchedTrafficPolicy === 'direct'
-    ? workspaceEntityId(workspaceId, 'builtin-direct')
-    : workspaceEntityId(workspaceId, 'builtin-proxy')
   const ruleRows = [
     ...configuredRuleRows.filter((row) => String(row.type) !== 'MATCH'),
     {
@@ -128,11 +141,7 @@ export async function buildExportData(
     },
   ]
   const remoteSetRows = filterRowsByTargetGroup(
-    await selectRows(
-      db,
-      `SELECT * FROM remote_rule_sets WHERE workspace_id = '${workspaceId}' AND enabled = 1 ORDER BY sort_order ASC, created_at ASC`,
-      config?.includeRemoteSetIds
-    ),
+    selectedRemoteSetRows,
     exportGroupIds
   )
   const sourceRows = await selectRows(
@@ -173,6 +182,34 @@ export function filterRowsByTargetGroup(
     ?? row.targetGroupId
     ?? ''
   )))
+}
+
+export function resolveExportGroupRows(
+  allGroupRows: Record<string, unknown>[],
+  config: ExportConfig | undefined,
+  selectedRuleRows: Record<string, unknown>[],
+  selectedRemoteSetRows: Record<string, unknown>[],
+  finalTargetGroupId: string,
+): Record<string, unknown>[] {
+  const hasExplicitGroupScope = Boolean(config?.includeGroupIds.length)
+  const hasExplicitRuleScope = Boolean(config?.includeRuleIds.length)
+  const hasExplicitRemoteSetScope = Boolean(config?.includeRemoteSetIds.length)
+  if (!hasExplicitGroupScope && !hasExplicitRuleScope && !hasExplicitRemoteSetScope) return allGroupRows
+
+  const roots = new Set<string>(config?.includeGroupIds ?? [])
+  roots.add(finalTargetGroupId)
+  if (hasExplicitRuleScope) {
+    for (const row of selectedRuleRows) roots.add(targetGroupId(row))
+  }
+  if (hasExplicitRemoteSetScope) {
+    for (const row of selectedRemoteSetRows) roots.add(targetGroupId(row))
+  }
+  roots.delete('')
+  return expandReferencedGroupRows(allGroupRows, [...roots])
+}
+
+function targetGroupId(row: Record<string, unknown>): string {
+  return String(row.target_override_group_id ?? row.target_group_id ?? row.targetGroupId ?? '')
 }
 
 async function selectRows(
@@ -331,7 +368,9 @@ export function applyExportNodeNames(
   sourceNameById: Map<string, string>,
   mode: ExportNodeNamingMode
 ): Record<string, unknown>[] {
-  if (mode === 'original') return rows
+  if (mode === 'original') {
+    return rows.map((row) => ({ ...row, name: sanitizeExportLabel(row.name) }))
+  }
 
   const counters = new Map<string, number>()
   return rows.map((row) => {
@@ -383,21 +422,13 @@ export function applyDefaultExportDedup(rows: Record<string, unknown>[]): Record
 }
 
 function getExportDedupKey(row: Record<string, unknown>): string {
-  const parsedConfig = typeof row.parsed_config === 'string' && row.parsed_config
-    ? row.parsed_config
-    : undefined
-  if (parsedConfig) return `parsed:${parsedConfig}`
-
-  const rawConfig = typeof row.raw_config === 'string' && row.raw_config
-    ? row.raw_config
-    : undefined
-  if (rawConfig) return `raw:${rawConfig}`
-
-  return [
-    row.protocol,
-    row.server,
-    row.port,
-  ].map((value) => String(value ?? '')).join('\u0000')
+  return proxyConnectionFingerprint({
+    protocol: String(row.protocol ?? ''),
+    server: String(row.server ?? ''),
+    port: Number(row.port ?? 0),
+    parsedConfig: typeof row.parsed_config === 'string' ? row.parsed_config : null,
+    rawConfig: typeof row.raw_config === 'string' ? row.raw_config : null,
+  })
 }
 
 function getExportNodeRegion(row: Record<string, unknown>): string {

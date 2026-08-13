@@ -1324,6 +1324,7 @@ function sortRemoteRuleSetRows(remoteSets: Row[]): Row[] {
 }
 
 function safeJson(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
   if (typeof value !== 'string') return {}
   try {
     return JSON.parse(value) as Record<string, unknown>

@@ -1,5 +1,5 @@
 import type { NodeCollection, NodeFilter, NodeRename, ProxyNode } from '@uni-conf/types';
-import { standardizeCountryName } from '@uni-conf/shared';
+import { proxyConnectionFingerprint, standardizeCountryName } from '@uni-conf/shared';
 
 export function applyCollectionTransforms(nodes: ProxyNode[], collection: NodeCollection): ProxyNode[] {
   return applySort(
@@ -170,7 +170,7 @@ function applyDedup(
         key = `${node.protocol}:${node.server}:${node.port}`;
         break;
       case 'full_config':
-        key = JSON.stringify(node.parsedConfig);
+        key = proxyConnectionFingerprint(node);
         break;
       default:
         key = node.id;

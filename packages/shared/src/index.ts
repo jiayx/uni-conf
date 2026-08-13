@@ -13,6 +13,13 @@ import type {
   SourceFormat,
 } from '@uni-conf/types';
 
+export {
+  proxyConnectionFingerprint,
+  sanitizeExportLabel,
+  stableJsonStringify,
+} from './proxy-identity';
+export type { ProxyConnectionIdentityInput } from './proxy-identity';
+
 export interface CountryInfo {
   country: string;
   countryCode: string;
@@ -1622,18 +1629,18 @@ export const COUNTRY_FLAG_MAP: Array<[string, string, string]> = [
 ];
 
 export const COUNTRY_KEYWORD_MAP: Array<[RegExp, string, string]> = [
-  [/\b(hong\s*kong|hongkong|hk)\b|香港|港(?!口)/i, 'Hong Kong', 'HK'],
-  [/\b(japan|jp|tokyo|osaka)\b|日本|东京|大阪/i, 'Japan', 'JP'],
-  [/\b(usa|united\s+states|america|us|la|los\s+angeles|san\s+jose)\b|美国|洛杉矶|圣何塞/i, 'United States', 'US'],
-  [/\b(singapore|sg)\b|新加坡|狮城/i, 'Singapore', 'SG'],
-  [/\b(taiwan|tw|taipei)\b|台湾|台北/i, 'Taiwan', 'TW'],
-  [/\b(korea|kr|seoul)\b|韩国|首尔/i, 'Korea', 'KR'],
+  [/\b(hong\s*kong|hongkong)\b|香港|港(?!口)/i, 'Hong Kong', 'HK'],
+  [/\b(japan|tokyo|osaka)\b|日本|东京|大阪/i, 'Japan', 'JP'],
+  [/\b(usa|united\s+states|america|los\s+angeles|san\s+jose)\b|美国|洛杉矶|圣何塞/i, 'United States', 'US'],
+  [/\b(singapore)\b|新加坡|狮城/i, 'Singapore', 'SG'],
+  [/\b(taiwan|taipei)\b|台湾|台北/i, 'Taiwan', 'TW'],
+  [/\b(korea|seoul)\b|韩国|首尔/i, 'Korea', 'KR'],
   [/\b(uk|gb|britain|england|london)\b|英国|伦敦/i, 'United Kingdom', 'GB'],
-  [/\b(germany|german|de|frankfurt)\b|德国|法兰克福/i, 'Germany', 'DE'],
-  [/\b(france|fr|paris)\b|法国|巴黎/i, 'France', 'FR'],
-  [/\b(netherlands|nl|dutch|amsterdam)\b|荷兰|阿姆斯特丹/i, 'Netherlands', 'NL'],
-  [/\b(australia|au|sydney|melbourne)\b|澳大利亚|澳洲|悉尼|墨尔本/i, 'Australia', 'AU'],
-  [/\b(canada|ca|toronto|vancouver)\b|加拿大|多伦多|温哥华/i, 'Canada', 'CA'],
+  [/\b(germany|german|frankfurt)\b|德国|法兰克福/i, 'Germany', 'DE'],
+  [/\b(france|paris)\b|法国|巴黎/i, 'France', 'FR'],
+  [/\b(netherlands|dutch|amsterdam)\b|荷兰|阿姆斯特丹/i, 'Netherlands', 'NL'],
+  [/\b(australia|sydney|melbourne)\b|澳大利亚|澳洲|悉尼|墨尔本/i, 'Australia', 'AU'],
+  [/\b(canada|toronto|vancouver)\b|加拿大|多伦多|温哥华/i, 'Canada', 'CA'],
 ];
 
 export const STANDARD_COUNTRY_NAME_MAP: Record<string, string> = {
@@ -1651,7 +1658,16 @@ export const STANDARD_COUNTRY_NAME_MAP: Record<string, string> = {
   CA: '加拿大',
 };
 
-export function detectCountry(name: string): CountryInfo | null {
+const COUNTRY_NAME_PATTERNS = COUNTRY_FLAG_MAP.map(([, country, code]) => ({
+  code,
+  country,
+  pattern: new RegExp(`\\b${escapeRegExp(country)}\\b`, 'i'),
+}));
+
+export function detectCountry(
+  name: string,
+  options: { source?: 'name' | 'hostname' } = {},
+): CountryInfo | null {
   for (const [flag, country, code] of COUNTRY_FLAG_MAP) {
     if (name.includes(flag)) {
       return { country, countryCode: code };
@@ -1664,12 +1680,15 @@ export function detectCountry(name: string): CountryInfo | null {
     }
   }
 
-  for (const [, country, code] of COUNTRY_FLAG_MAP) {
-    if (new RegExp(`\\b${escapeRegExp(country)}\\b`, 'i').test(name)) {
-      return { country, countryCode: code };
+  for (const item of COUNTRY_NAME_PATTERNS) {
+    if (item.pattern.test(name)) {
+      return { country: item.country, countryCode: item.code };
     }
-    if (new RegExp(`(?:^|[\\s|｜_\\-[（(])${code}(?=$|[\\s|｜_\\-)）])`).test(name)) {
-      return { country, countryCode: code };
+    const codePattern = options.source === 'hostname'
+      ? new RegExp(`(?:^|[.-])${item.code}(?=$|[.-])`, 'i')
+      : new RegExp(`(?:^|[^A-Za-z0-9])${item.code}(?=$|[^A-Za-z0-9])`)
+    if (codePattern.test(name)) {
+      return { country: item.country, countryCode: item.code };
     }
   }
 
@@ -1689,6 +1708,10 @@ export function standardizeCountryName(name: string): string {
     if (flag) {
       result = result.split(flag).join(' ');
     }
+    result = result.replace(
+      new RegExp(`(?:^|[^A-Za-z0-9])${code}(?=$|[^A-Za-z0-9])`, 'g'),
+      ' ',
+    );
     result = result.replace(toGlobalRegExp(pattern), ' ');
     result = `${STANDARD_COUNTRY_NAME_MAP[code] ?? country} ${result}`;
   }

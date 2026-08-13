@@ -80,7 +80,7 @@ function parseSS(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' |
     const parsedConfig = makeParsedConfig('ss', server, port, { method, password })
 
     const nodeName = name || `${server}:${port}`
-    const countryInfo = detectCountry(nodeName)
+    const countryInfo = detectCountry(nodeName) ?? detectCountry(server, { source: 'hostname' })
     return {
       name: nodeName,
       protocol: 'ss',
@@ -123,7 +123,7 @@ function parseSSR(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' 
     protocolParam,
     group,
   }
-  const countryInfo = detectCountry(nodeName)
+  const countryInfo = detectCountry(nodeName) ?? detectCountry(server, { source: 'hostname' })
 
   return {
     name: nodeName,
@@ -165,7 +165,7 @@ function parseVMess(uri: string): Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt
 
     const parsedConfig = makeParsedConfig('vmess', server, port, extra)
 
-    const countryInfo = detectCountry(name)
+    const countryInfo = detectCountry(name) ?? detectCountry(server, { source: 'hostname' })
     return {
       name,
       protocol: 'vmess',
@@ -300,7 +300,7 @@ function parseURLStyle(
     }
 
     const nodeName = name || `${server}:${port}`
-    const countryInfo = detectCountry(nodeName)
+    const countryInfo = detectCountry(nodeName) ?? detectCountry(server, { source: 'hostname' })
 
     return {
       name: nodeName,

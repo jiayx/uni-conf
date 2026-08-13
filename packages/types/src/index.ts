@@ -636,6 +636,7 @@ export interface SourceImportPreview {
   detectedFormat: SourceFormat;
   nodeCount: number;
   excludedCount: number;
+  issues?: SourceParseIssue[];
   sourceGroupCount: number;
   groups: SourceNodeGroup[];
   nodes: Array<Pick<ProxyNode, 'name' | 'protocol' | 'server' | 'port' | 'country' | 'countryCode' | 'tags'>>;
@@ -643,6 +644,13 @@ export interface SourceImportPreview {
   preservedOnly: Array<'rules' | 'remote-rule-sets' | 'dns' | 'client-settings'>;
   structured: SourceStructuredImportSummary;
   diff: SourceImportDiff;
+}
+
+export interface SourceParseIssue {
+  code: 'subscription-info' | 'unsupported-protocol' | 'missing-required-field';
+  name: string;
+  protocol: ProxyProtocol;
+  fields?: string[];
 }
 
 export interface SourceCreateResult {

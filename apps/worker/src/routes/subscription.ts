@@ -21,6 +21,7 @@ import { resolveExportRuleSetConversionPolicy } from '../services/export-convers
 import { getEffectiveExportDnsPolicy } from '../services/export-dns'
 import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
 import { DEFAULT_WORKSPACE_ID, defaultExportConfigId } from '../services/workspaces'
+import { buildContentEtag, requestMatchesEtag } from '../services/content-etag'
 
 export const subscriptionRouter = new Hono<{ Bindings: Env }>()
 
@@ -220,15 +221,19 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
 
-  return new Response(rendered.content, {
-    headers: {
-      'Content-Type': rendered.contentType,
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      ...subscriptionUserInfoHeaders(exportData.sources),
-      'X-UniConf-Capability-Profile': serializeExportCapabilityProfile(format),
-    },
-  })
+  const etag = await buildContentEtag(rendered.content)
+  const responseHeaders = {
+    'Content-Type': rendered.contentType,
+    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    ETag: etag,
+    ...subscriptionUserInfoHeaders(exportData.sources),
+    'X-UniConf-Capability-Profile': serializeExportCapabilityProfile(format),
+  }
+  if (requestMatchesEtag(c.req.raw, etag)) {
+    return new Response(null, { status: 304, headers: responseHeaders })
+  }
+  return new Response(rendered.content, { headers: responseHeaders })
 })
 
 export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string | undefined {

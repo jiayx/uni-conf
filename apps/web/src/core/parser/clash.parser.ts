@@ -55,7 +55,7 @@ function clashProxyToNode(proxy: ClashProxy, sourceId: string): ProxyNode | null
     extra,
   }
 
-  const countryInfo = detectCountry(name)
+  const countryInfo = detectCountry(name) ?? detectCountry(server, { source: 'hostname' })
   const now = new Date().toISOString()
 
   return {

@@ -6,6 +6,7 @@ import {
   buildCollectionNodeNames,
   expandReferencedGroupRows,
   filterRowsByTargetGroup,
+  resolveExportGroupRows,
   resolveCollectionScopeIds,
 } from './export-data'
 import { applyCollectionTransforms } from './services/collection-transforms'
@@ -56,6 +57,27 @@ describe('export data scoping', () => {
     const rows = expandReferencedGroupRows(groupRows, ['streaming'])
 
     expect(rows.map(row => row.id)).toEqual(['streaming', 'proxy', 'us-auto', 'hk-auto'])
+  })
+
+  it('closes over explicitly selected rule targets, remote targets, and the final policy', () => {
+    const allRows = [
+      ...groupRows,
+      { id: 'rules-only', name: 'Rules only', collection_ids: '[]', group_ids: '["us-auto"]' },
+      { id: 'remote-only', name: 'Remote only', collection_ids: '[]', group_ids: '[]' },
+      { id: 'direct', name: 'DIRECT', collection_ids: '[]', group_ids: '[]' },
+      { id: 'unrelated', name: 'Unrelated', collection_ids: '[]', group_ids: '[]' },
+    ]
+    const rows = resolveExportGroupRows(
+      allRows,
+      { ...baseConfig, includeGroupIds: ['streaming'], includeRuleIds: ['rule-1'], includeRemoteSetIds: ['set-1'] },
+      [{ id: 'rule-1', target_group_id: 'rules-only' }],
+      [{ id: 'set-1', target_override_group_id: 'remote-only' }],
+      'direct',
+    )
+
+    expect(rows.map((row) => row.id)).toEqual([
+      'streaming', 'proxy', 'us-auto', 'hk-auto', 'rules-only', 'remote-only', 'direct',
+    ])
   })
 
   it('uses policy group collections for full client configs', () => {
@@ -257,6 +279,27 @@ describe('export data scoping', () => {
       'collection-a': ['US - Airport A - 01'],
       'collection-b': ['US - Airport A - 01'],
     })
+  })
+
+  it('deduplicates semantically identical configs regardless of JSON key order or display name', () => {
+    const rows = applyDefaultExportDedup([
+      {
+        id: 'node-a', name: 'A', protocol: 'trojan', server: 'EXAMPLE.COM', port: 443,
+        parsed_config: '{"protocol":"trojan","server":"EXAMPLE.COM","port":443,"password":"secret","extra":{"sni":"example.com"}}',
+      },
+      {
+        id: 'node-b', name: 'B', protocol: 'trojan', server: 'example.com', port: 443,
+        parsed_config: '{"extra":{"sni":"example.com"},"password":"secret","port":443,"server":"example.com","protocol":"trojan"}',
+      },
+    ])
+
+    expect(rows.map((row) => row.id)).toEqual(['node-a'])
+  })
+
+  it('sanitizes original exported node names before line-oriented serialization', () => {
+    expect(applyExportNodeNames([
+      { id: 'node-a', name: 'Good\nInjected = bad,#comment', protocol: 'ss', server: 'a', port: 1 },
+    ], new Map(), 'original')[0]?.name).toBe('Good Injected ＝ bad，＃comment')
   })
 })
 

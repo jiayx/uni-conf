@@ -20,6 +20,7 @@ import { DEFAULT_FAKE_IP_POLICY, realIpDomains } from './dns-policy'
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
 function safeJson(text: unknown): Record<string, unknown> {
+  if (text && typeof text === 'object' && !Array.isArray(text)) return text as Record<string, unknown>
   if (typeof text !== 'string') return {}
   try {
     return JSON.parse(text) as Record<string, unknown>

@@ -22,9 +22,11 @@ import {
   getRuleCompatibilityForPayload,
   MAX_SOURCE_CONTENT_BYTES,
   parseSingboxWireGuardEndpoint,
+  proxyConnectionFingerprint,
+  stableJsonStringify,
 } from '@uni-conf/shared';
 import { MIHOMO_TYPE_TO_PROTOCOL, SINGBOX_TYPE_TO_PROTOCOL, URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
-import type { ProxyProtocol, NormalizedProxyConfig, RuleType, SourceFormat, SourceImportConflictResolution, SourceImportRun, SourceNodeGroup, SourceRefreshResult, SourceStructuredImportSummary, SourceType } from '@uni-conf/types';
+import type { ProxyProtocol, NormalizedProxyConfig, RuleType, SourceFormat, SourceImportConflictResolution, SourceImportRun, SourceNodeGroup, SourceParseIssue, SourceRefreshResult, SourceStructuredImportSummary, SourceType } from '@uni-conf/types';
 import type { SourceImportDiffItem, SourceImportDiffSection, SourceImportPreview } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
@@ -1424,18 +1426,14 @@ export interface ParsedNodeRaw {
   tags: string[];
 }
 
-function shouldKeepParsedNode(node: ParsedNodeRaw): boolean {
-  return isUsableProxyProtocol(node.protocol)
-    && !isSubscriptionInfoNodeName(node.name)
-    && missingRequiredProtocolFields(node.protocol, node.parsedConfig, node.rawConfig).length === 0;
-}
-
 export function filterUsableParsedContent(
   nodes: ParsedNodeRaw[],
   groups: SourceNodeGroup[]
-): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; excludedCount: number } {
-  const usableNodes = nodes.filter(shouldKeepParsedNode);
-  const excludedNames = new Set(nodes.filter((node) => !shouldKeepParsedNode(node)).map((node) => node.name));
+): { nodes: ParsedNodeRaw[]; groups: SourceNodeGroup[]; excludedCount: number; issues: SourceParseIssue[] } {
+  const inspected = nodes.map((node) => ({ node, issue: parsedNodeIssue(node) }));
+  const usableNodes = inspected.filter((item) => !item.issue).map((item) => item.node);
+  const issues = inspected.flatMap((item) => item.issue ? [item.issue] : []);
+  const excludedNames = new Set(inspected.filter((item) => item.issue).map((item) => item.node.name));
   const usableGroups = groups
     .map((group) => ({
       ...group,
@@ -1447,11 +1445,26 @@ export function filterUsableParsedContent(
     nodes: usableNodes,
     groups: usableGroups,
     excludedCount: nodes.length - usableNodes.length,
+    issues,
   };
 }
 
-function countryFields(name: string): Pick<ParsedNodeRaw, 'country' | 'countryCode'> {
-  const countryInfo = detectCountry(name);
+function parsedNodeIssue(node: ParsedNodeRaw): SourceParseIssue | null {
+  if (isSubscriptionInfoNodeName(node.name)) {
+    return { code: 'subscription-info', name: node.name, protocol: node.protocol };
+  }
+  if (!isUsableProxyProtocol(node.protocol)) {
+    return { code: 'unsupported-protocol', name: node.name, protocol: node.protocol };
+  }
+  const fields = missingRequiredProtocolFields(node.protocol, node.parsedConfig, node.rawConfig);
+  return fields.length > 0
+    ? { code: 'missing-required-field', name: node.name, protocol: node.protocol, fields }
+    : null;
+}
+
+function countryFields(name: string, server?: string): Pick<ParsedNodeRaw, 'country' | 'countryCode'> {
+  const countryInfo = detectCountry(name)
+    ?? (server ? detectCountry(server, { source: 'hostname' }) : null);
   return {
     country: countryInfo?.country,
     countryCode: countryInfo?.countryCode,
@@ -1527,6 +1540,7 @@ export function previewParsedSourceContent(rawContent: string, sourceFormat: Sou
     detectedFormat,
     nodeCount: filtered.nodes.length,
     excludedCount: filtered.excludedCount,
+    ...(filtered.issues.length > 0 ? { issues: filtered.issues.slice(0, 100) } : {}),
     sourceGroupCount: filtered.groups.length,
     groups: filtered.groups,
     nodes: filtered.nodes.slice(0, 100).map((node) => ({
@@ -1554,7 +1568,7 @@ export function previewParsedSourceContent(rawContent: string, sourceFormat: Sou
     },
     diff: {
       nodes: makeImportDiffSection(filtered.nodes.map((node, index) => ({
-        key: `node:${index}:${nodeIdentityKey(node)}`,
+        key: `node:${index}:${node.protocol}:${node.server}:${node.port}:${node.name}`,
         label: node.name,
         status: 'new',
         changes: [],
@@ -2282,16 +2296,7 @@ function nodeDiffConfigFingerprint(node: NodeDiffRow): string {
 }
 
 function stableJsonString(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJsonString).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .filter((key) => record[key] !== undefined)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJsonString(record[key])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
+  return stableJsonStringify(value);
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -2441,8 +2446,22 @@ function shouldUpdateNode(
     existing.parsed_config !== jsonStringify(next.parsedConfig);
 }
 
-function nodeIdentityKey(node: { server: string; port: number; name: string }): string {
-  return `${node.server}:${node.port}:${node.name}`;
+export function nodeIdentityKey(node: {
+  protocol: ProxyProtocol | string;
+  server: string;
+  port: number;
+  parsedConfig?: NormalizedProxyConfig | Record<string, unknown> | string | null;
+  parsed_config?: string | null;
+  rawConfig?: Record<string, unknown> | string | null;
+  raw_config?: string | null;
+}): string {
+  return proxyConnectionFingerprint({
+    protocol: node.protocol,
+    server: node.server,
+    port: node.port,
+    parsedConfig: node.parsedConfig ?? node.parsed_config,
+    rawConfig: node.rawConfig ?? node.raw_config,
+  });
 }
 
 function uniqueRowsByName<T extends { name: string }>(rows: T[]): Map<string, T> {
@@ -2495,7 +2514,7 @@ export function parseClashYaml(content: string): ParsedNodeRaw[] {
         protocol,
         server: serverStr,
         port: portNum,
-        ...countryFields(nameStr),
+        ...countryFields(nameStr, serverStr),
         ...recognitionTags(nameStr),
         rawConfig,
         parsedConfig: buildParsedConfig(protocol, serverStr, portNum, rawConfig),
@@ -2571,7 +2590,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
         protocol,
         server,
         port,
-        ...countryFields(name),
+        ...countryFields(name, server),
         ...recognitionTags(name),
         rawConfig: ob,
         parsedConfig: buildParsedConfig(protocol, server, port, ob),
@@ -2587,7 +2606,7 @@ function parseSingboxJson(data: Record<string, unknown>): ParsedNodeRaw[] {
       nodes.push({
         ...parsed,
         protocol: 'wireguard',
-        ...countryFields(parsed.name),
+        ...countryFields(parsed.name, parsed.server),
         ...recognitionTags(parsed.name),
       });
     }
@@ -2695,7 +2714,7 @@ function parseIniProxyLine(line: string): ParsedNodeRaw | null {
     protocol,
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),
@@ -2846,7 +2865,7 @@ function parseVmessUri(uri: string): ParsedNodeRaw | null {
     protocol: 'vmess',
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig: data,
     parsedConfig: {
@@ -2922,7 +2941,7 @@ function parseSsUri(uri: string): ParsedNodeRaw | null {
     protocol: 'ss',
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
@@ -2967,7 +2986,7 @@ function parseSsrUri(uri: string): ParsedNodeRaw | null {
     protocol: 'ssr',
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
@@ -3000,7 +3019,7 @@ function parseTrojanUri(uri: string): ParsedNodeRaw | null {
     protocol: 'trojan',
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
@@ -3051,7 +3070,7 @@ function parseVlessUri(uri: string): ParsedNodeRaw | null {
     protocol: 'vless',
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: buildParsedConfig('vless', server, port, rawConfig),
@@ -3079,7 +3098,7 @@ function parseHysteria2Uri(uri: string): ParsedNodeRaw | null {
     protocol: 'hysteria2',
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: {
@@ -3182,7 +3201,7 @@ function parseGenericUrlUri(uri: string): ParsedNodeRaw | null {
     protocol,
     server,
     port,
-    ...countryFields(name),
+    ...countryFields(name, server),
     ...recognitionTags(name),
     rawConfig,
     parsedConfig: buildParsedConfig(protocol, server, port, rawConfig),

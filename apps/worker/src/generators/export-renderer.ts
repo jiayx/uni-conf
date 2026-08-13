@@ -11,10 +11,47 @@ import {
   generateStashYaml,
   generateSurge,
 } from './client-configs'
+import { sanitizeExportLabel } from '@uni-conf/shared'
 
 export interface RenderedExport {
   content: string
   contentType: string
+}
+
+/** A normalized, immutable boundary between D1-backed export data and serializers. */
+export type ExportIntermediateRepresentation = ExportData
+
+export function materializeExportIntermediateRepresentation(data: ExportData): ExportIntermediateRepresentation {
+  return {
+    ...data,
+    nodeRows: data.nodeRows.map((row) => ({
+      ...row,
+      name: sanitizeExportLabel(row.name),
+      parsed_config: parseExportRecord(row.parsed_config),
+      raw_config: parseExportRecord(row.raw_config),
+    })),
+    groupRows: data.groupRows.map((row) => ({ ...row, name: sanitizeExportLabel(row.name) })),
+    remoteSetRows: data.remoteSetRows.map((row) => ({ ...row, name: sanitizeExportLabel(row.name) })),
+    nodes: data.nodes.map((node) => ({ ...node, name: sanitizeExportLabel(node.name) })),
+    groups: data.groups.map((group) => ({ ...group, name: sanitizeExportLabel(group.name) })),
+    remoteSets: data.remoteSets.map((ruleSet) => ({ ...ruleSet, name: sanitizeExportLabel(ruleSet.name) })),
+    collectionNodeNames: Object.fromEntries(
+      Object.entries(data.collectionNodeNames).map(([id, names]) => [id, names.map(sanitizeExportLabel)]),
+    ),
+  }
+}
+
+function parseExportRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
+  if (typeof value !== 'string' || !value) return {}
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {}
+  } catch {
+    return {}
+  }
 }
 
 export function renderExportData(
@@ -26,7 +63,8 @@ export function renderExportData(
     ruleSetConversionBaseUrl?: string
   } = {},
 ): RenderedExport | null {
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = data
+  const ir = materializeExportIntermediateRepresentation(data)
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = ir
 
   if (format === 'mihomo' || format === 'clash') {
     return {

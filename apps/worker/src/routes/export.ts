@@ -28,6 +28,7 @@ import {
   defaultExportConfigId,
   requestWorkspaceId,
 } from '../services/workspaces'
+import { buildContentEtag, requestMatchesEtag } from '../services/content-etag'
 
 export const exportRouter = new Hono<{ Bindings: Env }>()
 
@@ -378,13 +379,20 @@ exportRouter.get('/download/:format', async (c) => {
     )
   }
   const filename = getExportSubscriptionFilename(format)
+  const etag = await buildContentEtag(rendered.content)
+  const responseHeaders = {
+    'Content-Type': rendered.contentType,
+    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Cache-Control': 'private, no-cache, must-revalidate',
+    ETag: etag,
+    'X-UniConf-Capability-Profile': serializeExportCapabilityProfile(format),
+  }
+  if (requestMatchesEtag(c.req.raw, etag)) {
+    return new Response(null, { status: 304, headers: responseHeaders })
+  }
 
   return new Response(rendered.content, {
-    headers: {
-      'Content-Type': rendered.contentType,
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'X-UniConf-Capability-Profile': serializeExportCapabilityProfile(format),
-    },
+    headers: responseHeaders,
   })
 })
 

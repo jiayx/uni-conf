@@ -642,6 +642,13 @@ proxy-groups:
     const result = filterUsableParsedContent(parseClashYaml(yaml), parseClashGroups(yaml))
 
     expect(result.excludedCount).toBe(5)
+    expect(result.issues.map(issue => issue.code)).toEqual([
+      'subscription-info',
+      'subscription-info',
+      'unsupported-protocol',
+      'missing-required-field',
+      'missing-required-field',
+    ])
     expect(result.nodes.map(node => node.name)).toEqual(['🇭🇰 HK 01'])
     expect(result.groups).toEqual([
       { name: 'Upstream Auto', type: 'select', memberNames: ['🇭🇰 HK 01'] },
@@ -679,6 +686,11 @@ proxies:
     expect(detectCountry('美国 San Jose 01')).toEqual({ country: 'United States', countryCode: 'US' })
     expect(detectCountry('台湾 台北 01')).toEqual({ country: 'Taiwan', countryCode: 'TW' })
     expect(detectCountry('德国 法兰克福 01')).toEqual({ country: 'Germany', countryCode: 'DE' })
+    expect(detectCountry('About us premium')).toBeNull()
+    expect(detectCountry('Rio de Janeiro')).toBeNull()
+    expect(detectCountry('My fast node')).toBeNull()
+    expect(detectCountry('us-01.example.com', { source: 'hostname' }))
+      .toEqual({ country: 'United States', countryCode: 'US' })
   })
 
   it('should detect traffic multipliers without matching normal node numbers', () => {

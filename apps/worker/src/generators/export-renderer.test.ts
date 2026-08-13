@@ -11,7 +11,7 @@ import {
 import { PROXY_PROTOCOL_REGISTRY } from '@uni-conf/types'
 import type { ExportFormat, ProxyGroup, ProxyNode, ProxyProtocol, ProxyRule } from '@uni-conf/types'
 import type { ExportData } from '../export-data'
-import { renderExportData } from './export-renderer'
+import { materializeExportIntermediateRepresentation, renderExportData } from './export-renderer'
 import { validateRenderedExport } from '../services/export-artifact-validation'
 
 const require = createRequire(import.meta.url)
@@ -26,6 +26,18 @@ removeLegacySchemaIds(singboxSchema)
 const validateSingboxSchema = new Ajv2020({ strict: false }).compile(singboxSchema)
 
 describe('renderExportData', () => {
+  it('materializes a sanitized immutable export boundary', () => {
+    const data = makeExportData()
+    data.nodes[0]!.name = 'Node\nInjected = bad,#comment'
+    data.nodeRows[0]!.name = data.nodes[0]!.name
+    const ir = materializeExportIntermediateRepresentation(data)
+
+    expect(ir.nodes[0]?.name).toBe('Node Injected ＝ bad，＃comment')
+    expect(ir.nodeRows[0]?.name).toBe('Node Injected ＝ bad，＃comment')
+    expect(ir.nodeRows[0]?.parsed_config).toEqual(expect.objectContaining({ protocol: 'ss' }))
+    expect(data.nodes[0]?.name).toBe('Node\nInjected = bad,#comment')
+  })
+
   it('renders every public subscription format from the shared format list', () => {
     for (const format of EXPORT_SUBSCRIPTION_FORMATS) {
       const rendered = renderExportData(makeExportData(), format as ExportFormat)

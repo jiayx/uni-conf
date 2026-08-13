@@ -146,8 +146,9 @@ export function nodeToSubscriptionUri(node: Record<string, unknown>): string | n
   return null
 }
 
-function safeJson(text: string | null | undefined): Record<string, unknown> | null {
-  if (!text) return null
+function safeJson(text: unknown): Record<string, unknown> | null {
+  if (text && typeof text === 'object' && !Array.isArray(text)) return text as Record<string, unknown>
+  if (typeof text !== 'string' || !text) return null
   try { return JSON.parse(text) as Record<string, unknown> } catch { return null }
 }
 
