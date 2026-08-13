@@ -93,6 +93,25 @@ describe('Export', () => {
     writeText.mockRestore()
   })
 
+  it('offers client-specific deep links for full remote profiles', async () => {
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    const loonLink = await screen.findByRole('link', { name: 'Import into Loon' })
+    expect(loonLink).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^loon:\/\/import\?sub=http%3A%2F%2Flocalhost%3A3000%2Fsub%2Fdefault-token%2Floon\.conf/),
+    )
+
+    const singBoxLinks = screen.getAllByRole('link', { name: 'Import into sing-box' })
+    expect(singBoxLinks).toHaveLength(2)
+    expect(singBoxLinks.at(-1)).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^sing-box:\/\/import-remote-profile\?url=.*mobile-token.*#Mobile$/),
+    )
+
+    expect(screen.queryByRole('link', { name: 'Import into Quantumult X' })).not.toBeInTheDocument()
+  })
+
   it('uses preview as the single diagnostic action for advanced profiles', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)

@@ -742,6 +742,8 @@
     "qr_security_hint": "二维码包含订阅 Token，请勿分享。",
     "qr_image_label": "订阅链接二维码",
     "copy_url": "复制链接",
+    "one_click_import": "一键导入",
+    "import_to_app": "一键导入到 {{app}}",
     "reveal_urls": "查看链接",
     "hide_urls": "隐藏链接",
     "reveal_url": "显示链接",

@@ -742,6 +742,8 @@
     "qr_security_hint": "The QR code contains the subscription token. Keep it private.",
     "qr_image_label": "Subscription URL QR code",
     "copy_url": "Copy URL",
+    "one_click_import": "Import",
+    "import_to_app": "Import into {{app}}",
     "reveal_urls": "Reveal links",
     "hide_urls": "Hide links",
     "reveal_url": "Show Link",

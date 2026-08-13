@@ -29,6 +29,7 @@ import {
   buildPublicSubscriptionUrl,
   buildSubscriptionDisplayName,
 } from '@/core/export/quick-subscriptions'
+import { buildClientImportLink } from '@/core/export/client-import-schemes'
 import { writeClipboardText } from '@/core/clipboard/write-text'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
@@ -454,6 +455,11 @@ export function Export() {
                       ),
                     )
                     const actionKey = `${defaultConfig.id}:${item.value}`
+                    const importLink = buildClientImportLink(
+                      item.value,
+                      subUrl,
+                      buildSubscriptionDisplayName(defaultConfig.name, EXPORT_FORMAT_NAMES[item.value]),
+                    )
                     return (
                       <div key={item.value} className={styles.quickFormatRow}>
                         <button
@@ -473,6 +479,17 @@ export function Export() {
                           <code className={styles.urlCode}>{revealedUrlScopes.has(defaultConfig.id) ? subUrl : maskSubscriptionTokenUrl(subUrl)}</code>
                         </button>
                         <div className={styles.quickFormatActions}>
+                          {importLink && (defaultConfig.enabled ? (
+                            <a
+                              className={styles.importLink}
+                              href={importLink.url}
+                              aria-label={t('export.import_to_app', { app: importLink.appName })}
+                            >{t('export.one_click_import')}</a>
+                          ) : (
+                            <span className={`${styles.importLink} ${styles.importLinkDisabled}`} aria-disabled="true">
+                              {t('export.one_click_import')}
+                            </span>
+                          ))}
                           <Button
                             variant="secondary"
                             size="sm"
@@ -514,6 +531,7 @@ export function Export() {
               filename,
               buildSubscriptionDisplayName(cfg.name, EXPORT_FORMAT_NAMES[cfg.format]),
             )
+            const importLink = buildClientImportLink(cfg.format, subUrl, cfg.name)
             const scopeText = exportConfigScopeSummary(cfg, collections, groups, rules, remoteSets, t)
             return (
               <Card key={cfg.id} className={styles.configCard}>
@@ -576,6 +594,17 @@ export function Export() {
                   <span className={styles.urlLabel}>{t('export.subscription_url')}</span>
                   <div className={styles.urlBox}>
                     <code className={styles.urlCode}>{revealedUrlScopes.has(cfg.id) ? subUrl : maskSubscriptionTokenUrl(subUrl)}</code>
+                    {importLink && (cfg.enabled ? (
+                      <a
+                        className={styles.importLink}
+                        href={importLink.url}
+                        aria-label={t('export.import_to_app', { app: importLink.appName })}
+                      >{t('export.one_click_import')}</a>
+                    ) : (
+                      <span className={`${styles.importLink} ${styles.importLinkDisabled}`} aria-disabled="true">
+                        {t('export.one_click_import')}
+                      </span>
+                    ))}
                     <Button
                       variant="secondary" size="sm"
                       disabled={!cfg.enabled}
