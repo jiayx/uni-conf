@@ -14,18 +14,18 @@
     "@uni-conf/rule-set": "workspace:*",
     "@uni-conf/shared": "workspace:*",
     "@uni-conf/types": "workspace:*",
-    "hono": "^4.12.32",
+    "hono": "^4.13.1",
     "js-yaml": "catalog:"
   },
   "devDependencies": {
     "@black-duty/sing-box-schema": "1.13.13",
-    "@cloudflare/vitest-pool-workers": "^0.18.8",
-    "@cloudflare/workers-types": "^5.20260724.1",
+    "@cloudflare/vitest-pool-workers": "^0.21.1",
+    "@cloudflare/workers-types": "^5.20260812.1",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "ajv": "^8.17.1",
+    "ajv": "^8.20.0",
     "meta-json-schema": "1.19.29",
-    "miniflare": "^4.20260722.0",
+    "miniflare": "^4.20260730.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

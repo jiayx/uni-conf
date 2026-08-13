@@ -9,10 +9,10 @@ allowBuilds:
   workerd: true
 
 catalog:
-  '@types/node': ^26.1.1
+  '@types/node': ^26.2.0
   '@vitest/coverage-v8': ^4.1.10
-  js-yaml: ^5.2.2
-  oxlint: ^1.75.0
+  js-yaml: ^5.2.3
+  oxlint: ^1.78.0
   oxlint-tsgolint: ^7.0.2001
   prettier: ^3.9.6
   typescript: ^7.0.2
@@ -21,8 +21,8 @@ catalog:
 minimumReleaseAgeExclude:
   - hono@4.12.26
   - react-router@8.0.0
-  - miniflare@4.20260722.0
-  - wrangler@4.114.0
+  - miniflare@5.20260811.0-alpha
+  - wrangler@4.122.0
 
 onlyBuiltDependencies:
   - esbuild

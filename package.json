@@ -47,6 +47,6 @@
     "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
-    "wrangler": "^4.114.0"
+    "wrangler": "^4.122.0"
   }
 }
