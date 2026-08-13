@@ -79,16 +79,6 @@
       "format": "text",
       "behavior": "classical",
       "nativeFor": []
-    },
-    {
-      "id": "acl4ssr",
-      "repositoryUrl": "https://github.com/ACL4SSR/ACL4SSR",
-      "branch": "master",
-      "path": "Clash/Ruleset/PublicDirectCDN.list",
-      "include": ["PublicDirectCDN.list"],
-      "format": "mihomo",
-      "behavior": "classical",
-      "nativeFor": ["mihomo", "clash"]
     }
   ],
   "defaults": {
@@ -122,13 +112,6 @@
         "douyin",
         "bilibili"
       ],
-      "category": "direct",
-      "target": "DIRECT",
-      "provisioning": "foundation",
-      "sortOrder": 30
-    },
-    {
-      "ids": ["public-direct-cdn"],
       "category": "direct",
       "target": "DIRECT",
       "provisioning": "foundation",
@@ -295,9 +278,6 @@
     },
     "iplocation-direct": {
       "name": "IP Location Direct"
-    },
-    "public-direct-cdn": {
-      "name": "Public Direct CDN"
     },
     "iplocation-proxy": {
       "name": "IP Location Proxy"

@@ -6,7 +6,7 @@
     "branch": "ruleset",
     "commit": "79546fdc361d292cb4f122c7ef07dd1af2b3d6ed"
   },
-  "syncedAt": "2026-08-13T20:00:06.415Z",
+  "syncedAt": "2026-08-13T20:16:02.939Z",
   "sourceProfiles": {
     "mihomo": {
       "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/{id}.list",
@@ -55,12 +55,6 @@
       "format": "egern",
       "behavior": "classical",
       "nativeTargets": ["egern"]
-    },
-    "acl4ssr": {
-      "urlTemplate": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/PublicDirectCDN.list",
-      "format": "mihomo",
-      "behavior": "classical",
-      "nativeTargets": ["mihomo", "clash"]
     }
   },
   "defaultSourceSet": "standard",
@@ -78,7 +72,6 @@
         "egern"
       ]
     },
-    "public-direct-cdn": { "defaultSource": "acl4ssr", "sources": ["acl4ssr"] },
     "without-singbox-quantumultx": {
       "defaultSource": "mihomo",
       "sources": ["mihomo", "stash", "surge", "loon", "shadowrocket", "egern"]
@@ -123,11 +116,6 @@
         "douyin",
         "games-cn",
         "microsoft-cn",
-        {
-          "id": "public-direct-cdn",
-          "name": "Public Direct CDN",
-          "sourceSet": "public-direct-cdn"
-        },
         { "id": "socialmedia-cn", "name": "Social Media CN" }
       ]
     },

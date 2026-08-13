@@ -12,7 +12,7 @@ describe('rule-set catalog snapshots', () => {
     const snapshot = await getRuleSetCatalogSnapshot(kv)
 
     expect(snapshot.catalogs.map((catalog) => catalog.id)).toEqual(['quixotic', 'broker-rules'])
-    expect(snapshot.catalogs.flatMap((catalog) => catalog.items)).toHaveLength(49)
+    expect(snapshot.catalogs.flatMap((catalog) => catalog.items)).toHaveLength(48)
     expect(
       snapshot.catalogs.find((catalog) => catalog.id === 'broker-rules')?.items[0],
     ).toMatchObject({
@@ -29,14 +29,11 @@ describe('rule-set catalog snapshots', () => {
       url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/private.list',
       default: true,
     })
-    expect(snapshot.catalogs.find((catalog) => catalog.id === 'quixotic')?.items).toContainEqual(
-      expect.objectContaining({
-        id: 'public-direct-cdn',
-        suggestedTarget: 'DIRECT',
-        sortOrder: 30,
-        activeForUnmatchedPolicies: ['proxy', 'direct'],
-      }),
-    )
+    expect(
+      snapshot.catalogs
+        .find((catalog) => catalog.id === 'quixotic')
+        ?.items.find((item) => item.id === 'public-direct-cdn'),
+    ).toBeUndefined()
     expect(
       snapshot.catalogs
         .find((catalog) => catalog.id === 'quixotic')
@@ -130,13 +127,6 @@ function createCatalogFetcher() {
     if (url.includes('/forecho/broker-rules/contents/')) {
       const path = decodeURIComponent(new URL(url).pathname.split('/contents/')[1] ?? '')
       return Response.json({ type: 'file', name: path.split('/').at(-1), path })
-    }
-    if (url.includes('/ACL4SSR/ACL4SSR/contents/')) {
-      return Response.json({
-        type: 'file',
-        name: 'PublicDirectCDN.list',
-        path: 'Clash/Ruleset/PublicDirectCDN.list',
-      })
     }
     const path = decodeURIComponent(
       new URL(url).pathname.split('/contents/')[1]?.split('?')[0] ?? '',
