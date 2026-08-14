@@ -57,8 +57,7 @@ describe('api client', () => {
     await api.collections.updateWithGroup(id, { name: 'Updated' }, 'select')
     await api.groups.remove(id)
     await api.rules.update(id, { enabled: false })
-    await api.remoteRuleSets.previewConversion(id, 'singbox')
-    await api.remoteRuleSets.previewConversions(id)
+    await api.remoteRuleSets.get(id)
     await api.export.resetToken(id)
 
     expect(fetchMock.mock.calls.map(call => [call[0], call[1]?.method])).toEqual([
@@ -69,8 +68,7 @@ describe('api client', () => {
       [`/api/collections/${encoded}/with-group`, 'PUT'],
       [`/api/groups/${encoded}`, 'DELETE'],
       [`/api/rules/${encoded}`, 'PUT'],
-      [`/api/remote-rule-sets/${encoded}/conversion-preview`, 'POST'],
-      [`/api/remote-rule-sets/${encoded}/conversion-previews`, 'POST'],
+      [`/api/remote-rule-sets/${encoded}`, 'GET'],
       [`/api/export/configs/${encoded}/reset-token`, 'POST'],
     ])
   })
@@ -137,7 +135,7 @@ describe('api client', () => {
       code: 'too_large',
     }, { status: 413, headers: { 'X-Request-Id': 'request-123' } })))
 
-    const request = api.remoteRuleSets.previewConversion('remote-1', 'singbox')
+    const request = api.remoteRuleSets.update('remote-1', { enabled: true })
     await expect(request).rejects.toMatchObject({
       name: 'ApiError', status: 413, code: 'too_large', requestId: 'request-123', message: 'Rule set is too large to convert',
     } satisfies Partial<ApiError>)
@@ -276,14 +274,6 @@ describe('api client', () => {
     await api.remoteRuleSets.create({ name: 'Remote', url: 'https://example.com/list', format: 'text', behavior: 'domain', sourceOverrides: {}, targetGroupId: 'group-1', updateInterval: 24, enabled: true, sortOrder: 1 })
     await api.remoteRuleSets.batchCreate([{ name: 'Remote', url: 'https://example.com/list', format: 'text', behavior: 'domain', sourceOverrides: {}, targetGroupId: 'group-1', updateInterval: 24, enabled: true, sortOrder: 1 }])
     await api.remoteRuleSets.update('remote-1', { enabled: false })
-    await api.remoteRuleSets.validate('remote-1')
-    await api.remoteRuleSets.validateAllSources('remote-1')
-    await api.remoteRuleSets.validateSource({ url: 'https://example.com/egern.yaml', targetFormat: 'egern', behavior: 'domain' })
-    await api.remoteRuleSets.validateSources([
-      { url: 'https://example.com/egern.yaml', targetFormat: 'egern', behavior: 'domain' },
-    ])
-    await api.remoteRuleSets.previewConversion('remote-1', 'singbox')
-    await api.remoteRuleSets.previewConversions('remote-1')
     await api.remoteRuleSets.remove('remote-1')
     await api.export.listConfigs()
     await api.export.getConfig('export-1')
@@ -316,11 +306,6 @@ describe('api client', () => {
     expect(calls).toContainEqual(['/api/rules/batch', 'POST'])
     expect(calls).toContainEqual(['/api/rules/batch-enabled', 'PUT'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/batch', 'POST'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/validate', 'POST'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/validate-all', 'POST'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/validate-source', 'POST'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/validate-sources', 'POST'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/conversion-previews', 'POST'])
     expect(calls).toContainEqual(['/api/export/preview/singbox?configId=export-1', 'GET'])
     expect(calls).toContainEqual(['/api/data/import', 'POST'])
     expect(calls).toContainEqual(['/api/data', 'DELETE'])

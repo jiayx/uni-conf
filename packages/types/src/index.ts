@@ -336,7 +336,6 @@ export interface RemoteRuleSet {
   sourceId?: string;
   sourceRuleSetKey?: string;
   sourceMissing?: boolean;
-  sourceHealth?: RemoteRuleSetSourceHealthSnapshot;
   defaultTargetGroupId?: string;
   targetOverrideGroupId?: string | null;
   targetGroupId: string;
@@ -348,69 +347,6 @@ export interface RemoteRuleSet {
   createdAt: string;
   updatedAt: string;
 }
-
-export type RemoteRuleSetValidationStatus = 'valid' | 'warning' | 'invalid';
-export type RemoteRuleSetInspectionMode = 'text' | 'structured';
-
-export interface RemoteRuleSetValidationIssue {
-  code: string;
-  severity: 'warning' | 'error';
-  message: string;
-  messageEn: string;
-  line?: number;
-}
-
-export interface RemoteRuleSetValidationResult {
-  status: RemoteRuleSetValidationStatus;
-  checkedAt: string;
-  url: string;
-  format: RuleSetFormat;
-  behavior: RuleSetBehavior;
-  inspectionMode: RemoteRuleSetInspectionMode;
-  httpStatus?: number;
-  contentType?: string;
-  byteLength: number;
-  ruleCount?: number;
-  invalidRuleCount: number;
-  issues: RemoteRuleSetValidationIssue[];
-}
-
-export interface RemoteRuleSetSourceValidationInput {
-  url: string;
-  targetFormat: RemoteRuleSetSourceOverrideTarget;
-  behavior: RuleSetBehavior;
-}
-
-export interface RemoteRuleSetSourceValidationItem {
-  targetFormat: RemoteRuleSetSourceOverrideTarget;
-  result: RemoteRuleSetValidationResult;
-}
-
-export interface RemoteRuleSetSourceValidationBatchResult {
-  results: RemoteRuleSetSourceValidationItem[];
-}
-
-export interface RemoteRuleSetSourceHealthSummary {
-  total: number;
-  valid: number;
-  warning: number;
-  invalid: number;
-}
-
-export interface RemoteRuleSetSourceHealthResult {
-  status: RemoteRuleSetValidationStatus;
-  checkedAt: string;
-  defaultSource: RemoteRuleSetValidationResult;
-  sourceOverrides: RemoteRuleSetSourceValidationItem[];
-  summary: RemoteRuleSetSourceHealthSummary;
-}
-
-export interface RemoteRuleSetSourceHealthSnapshot extends RemoteRuleSetSourceHealthResult {
-  expiresAt: string;
-  stale: boolean;
-}
-
-export type RemoteRuleSetConversionMode = 'direct' | 'converted' | 'unsupported';
 
 export type RuleSetConversionIssueReason =
   | 'invalid-rule'
@@ -434,40 +370,6 @@ export interface RuleSetConversionIssue {
 export interface RuleSetConversionMapping {
   source: string;
   target: string;
-}
-
-export interface RemoteRuleSetConversionPreview {
-  checkedAt?: string;
-  targetFormat: ExportFormat;
-  sourceFormat: RuleSetFormat;
-  outputFormat?: RuleSetFormat;
-  mode: RemoteRuleSetConversionMode;
-  convertedRuleCount: number;
-  skippedRuleCount: number;
-  skippedRuleTypes: Record<string, number>;
-  issues: RuleSetConversionIssue[];
-  convertedExamples: RuleSetConversionMapping[];
-  convertedExamplesTruncated: boolean;
-  contentType?: string;
-  preview?: string;
-  truncated: boolean;
-}
-
-export type RemoteRuleSetConversionPreviewBatchItem =
-  | {
-      targetFormat: RemoteRuleSetSourceOverrideTarget;
-      status: 'ready';
-      result: RemoteRuleSetConversionPreview;
-    }
-  | {
-      targetFormat: RemoteRuleSetSourceOverrideTarget;
-      status: 'error';
-      code: 'download_failed' | 'too_large' | 'invalid_content' | 'unknown';
-      error: string;
-    };
-
-export interface RemoteRuleSetConversionPreviewBatchResult {
-  results: RemoteRuleSetConversionPreviewBatchItem[];
 }
 
 // ============================================================
@@ -819,13 +721,4 @@ export interface DashboardStats {
   defaultExportFormat?: ExportFormat;
   defaultExportEnabled?: boolean;
   lastRefreshedAt?: string;
-  ruleSetHealth?: {
-    total: number;
-    valid: number;
-    warning: number;
-    invalid: number;
-    stale: number;
-    pending: number;
-    lastCheckedAt?: string;
-  };
 }

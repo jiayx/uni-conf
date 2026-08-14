@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
@@ -16,7 +16,7 @@ import {
   inferQuixoticRuleSetSourceFromUrl,
   RULE_SET_FORMAT_OPTIONS,
 } from '@/core/remote-rules/quixotic-presets'
-import { api, ApiError } from '@/lib/api'
+import { api } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
 import { useGroupsStore } from '@/store/groups.store'
@@ -33,11 +33,7 @@ import type {
   ExportFormat,
   ProxySource,
   RemoteRuleSet,
-  RemoteRuleSetConversionPreview,
-  RemoteRuleSetSourceHealthResult,
   RemoteRuleSetSourceOverrideTarget,
-  RemoteRuleSetSourceValidationInput,
-  RemoteRuleSetValidationResult,
   RuleSetBehavior,
   RuleSetCatalog,
   RuleSetCatalogItem,
@@ -54,29 +50,9 @@ const RULE_SET_BEHAVIOR_OPTIONS: Array<{ value: RuleSetBehavior; labelKey: strin
   { value: 'classical', labelKey: 'remoteRuleSets.behavior_classical' },
 ]
 
-const CONVERSION_PREVIEW_TARGETS = FULL_CONFIG_EXPORT_FORMATS
 const SOURCE_OVERRIDE_TARGETS = FULL_CONFIG_EXPORT_FORMATS
 
 const REQUESTED_EDIT_PARAMS = ['nativeSource'] as const
-
-interface ConversionPreviewState {
-  ruleSet: RemoteRuleSet
-  status: 'loading' | 'ready' | 'error'
-  targets: Partial<Record<ExportFormat, ConversionPreviewTargetState>>
-}
-
-interface ConversionPreviewTargetState {
-  status: 'loading' | 'ready' | 'error'
-  result?: RemoteRuleSetConversionPreview
-  error?: string
-}
-
-interface SourceOverrideValidationState {
-  status: 'loading' | 'ready' | 'error'
-  result?: RemoteRuleSetValidationResult
-  error?: string
-  code?: string
-}
 
 type CompatibilityMode = 'all' | 'direct' | 'converted' | 'unsupported'
 type AttentionMode = 'all' | 'attention'
@@ -97,7 +73,7 @@ function createEmptyForm(targetGroupId = ''): RemoteSetForm {
 }
 
 export function RemoteRuleSets() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
@@ -121,14 +97,7 @@ export function RemoteRuleSets() {
   const [sourceCandidateError, setSourceCandidateError] = useState('')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [validatingId, setValidatingId] = useState<string | null>(null)
-  const [validationById, setValidationById] = useState<Record<string, RemoteRuleSetValidationResult>>({})
-  const [sourceHealthById, setSourceHealthById] = useState<Record<string, RemoteRuleSetSourceHealthResult>>({})
-  const [conversionPreview, setConversionPreview] = useState<ConversionPreviewState | null>(null)
-  const [sourceOverrideValidations, setSourceOverrideValidations] = useState<Partial<Record<RemoteRuleSetSourceOverrideTarget, SourceOverrideValidationState>>>({})
-  const [validatingAllSourceOverrides, setValidatingAllSourceOverrides] = useState(false)
   const [autoDiscoveredSourceOverrides, setAutoDiscoveredSourceOverrides] = useState<RemoteRuleSet['sourceOverrides']>({})
-  const [validateAfterDiscovery, setValidateAfterDiscovery] = useState(false)
   const [sourceOverridesExpanded, setSourceOverridesExpanded] = useState(false)
   const [sourceOverrideFocusTarget, setSourceOverrideFocusTarget] = useState<RemoteRuleSetSourceOverrideTarget | null>(null)
   const [targetOverrideSet, setTargetOverrideSet] = useState<RemoteRuleSet | null>(null)
@@ -142,8 +111,6 @@ export function RemoteRuleSets() {
     () => searchParams.get('attention') === '1' ? 'attention' : 'all',
   )
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string> | null>(null)
-  const conversionRequestId = useRef(0)
-  const sourceOverrideRequestIds = useRef<Partial<Record<RemoteRuleSetSourceOverrideTarget, number>>>({})
   const formDirty = showModal && !formValuesEqual(form, initialForm)
   useUnsavedChangesGuard(formDirty)
 
@@ -193,8 +160,6 @@ export function RemoteRuleSets() {
   const needsAttention = (set: RemoteRuleSet, targetEnabled: boolean) => ruleSetNeedsAttention(
     set,
     targetEnabled,
-    sourceHealthById[set.id] ?? set.sourceHealth,
-    validationById[set.id],
     compatibilityTarget,
   )
   const attentionCount = countRuleSets(compatibilitySections, needsAttention)
@@ -230,39 +195,11 @@ export function RemoteRuleSets() {
         return resolved.format === inferredQuixoticSource.format ? [] : [{ target, url: resolved.url }]
       })
     : []
-  const configuredSourceOverrides = SOURCE_OVERRIDE_TARGETS.flatMap(target => {
-    const url = form.sourceOverrides[target]?.trim()
-    return url ? [{ url, targetFormat: target, behavior: form.behavior }] : []
-  })
-  const sourceOverrideSummary = configuredSourceOverrides.reduce(
-    (summary, source) => {
-      const validation = sourceOverrideValidations[source.targetFormat]
-      if (validation?.result) summary[validation.result.status] += 1
-      else if (validation?.status === 'error') summary.error += 1
-      return summary
-    },
-    { valid: 0, warning: 0, invalid: 0, error: 0 },
-  )
-  const checkedSourceOverrideCount = Object.values(sourceOverrideSummary).reduce((sum, count) => sum + count, 0)
-  const configuredSourceOverrideTargets = new Set(configuredSourceOverrides.map(source => source.targetFormat))
-  const sourceOverrideInputErrorCount = SOURCE_OVERRIDE_TARGETS.filter(target => {
-    if (!configuredSourceOverrideTargets.has(target)) return false
-    const validation = sourceOverrideValidations[target]
-    return validation?.status === 'error' && ['unsafe_url', 'invalid_format', 'invalid_behavior'].includes(validation.code ?? '')
-  }).length
-  const sourceOverrideSaveRiskCount = SOURCE_OVERRIDE_TARGETS.filter(target => {
-    if (!configuredSourceOverrideTargets.has(target)) return false
-    const validation = sourceOverrideValidations[target]
-    if (validation?.result?.status === 'invalid') return true
-    return validation?.status === 'error' && !['unsafe_url', 'invalid_format', 'invalid_behavior'].includes(validation.code ?? '')
-  }).length
-
   const loadSets = async () => {
     setLoading(true)
     setError(null)
     try {
       setSets(await api.remoteRuleSets.list())
-      setSourceHealthById({})
     } catch (e) {
       setError(e)
     } finally {
@@ -283,12 +220,7 @@ export function RemoteRuleSets() {
     }
   }
 
-  const resetSourceOverrideValidations = () => {
-    for (const target of SOURCE_OVERRIDE_TARGETS) {
-      sourceOverrideRequestIds.current[target] = (sourceOverrideRequestIds.current[target] ?? 0) + 1
-    }
-    setSourceOverrideValidations({})
-    setValidatingAllSourceOverrides(false)
+  const resetSourceOverrideDiscovery = () => {
     setAutoDiscoveredSourceOverrides({})
   }
 
@@ -302,10 +234,9 @@ export function RemoteRuleSets() {
     setSourceCandidates([])
     setSourceCandidateError('')
     setFormError('')
-    setValidateAfterDiscovery(false)
     setSourceOverridesExpanded(false)
     setSourceOverrideFocusTarget(null)
-    resetSourceOverrideValidations()
+    resetSourceOverrideDiscovery()
     setShowModal(true)
     void loadQuixoticCatalog()
   }
@@ -334,10 +265,9 @@ export function RemoteRuleSets() {
     setSourceCandidates([])
     setSourceCandidateError('')
     setFormError('')
-    setValidateAfterDiscovery(false)
     setSourceOverridesExpanded(Boolean(focusTarget))
     setSourceOverrideFocusTarget(focusTarget ?? null)
-    resetSourceOverrideValidations()
+    resetSourceOverrideDiscovery()
     setShowModal(true)
   }
 
@@ -358,7 +288,7 @@ export function RemoteRuleSets() {
     setShowModal(false)
     setEditingSet(null)
     setFormError('')
-    resetSourceOverrideValidations()
+    resetSourceOverrideDiscovery()
   }
 
   const applyCatalogItem = (item: RuleSetCatalogItem, selection: string) => {
@@ -378,7 +308,7 @@ export function RemoteRuleSets() {
     setSelectedCatalogItemKey(selection)
     setSourceCandidates([])
     setSourceCandidateError('')
-    resetSourceOverrideValidations()
+    resetSourceOverrideDiscovery()
     setForm(current => ({
       ...current,
       name: item.name,
@@ -509,11 +439,6 @@ export function RemoteRuleSets() {
       return
     }
 
-    if (sourceOverrideInputErrorCount > 0) {
-      setFormError(t('remoteRuleSets.source_override_input_errors_blocked', { count: sourceOverrideInputErrorCount }))
-      return
-    }
-
     setFormError('')
     setSaving(true)
     try {
@@ -523,8 +448,6 @@ export function RemoteRuleSets() {
           editingManagedSet ? { sourceOverrides: payload.sourceOverrides } : payload,
         )
         setSets(current => current.map(item => (item.id === editingSet.id ? updated : item)))
-        setValidationById(current => omitRecordKey(current, editingSet.id))
-        setSourceHealthById(current => omitRecordKey(current, editingSet.id))
       } else {
         const created = await api.remoteRuleSets.create(payload)
         setSets(current => [created, ...current])
@@ -563,35 +486,9 @@ export function RemoteRuleSets() {
     }))) return
     await api.remoteRuleSets.remove(set.id)
     setSets(current => current.filter(item => item.id !== set.id))
-    setValidationById(current => omitRecordKey(current, set.id))
-    setSourceHealthById(current => omitRecordKey(current, set.id))
-  }
-
-  const handleValidate = async (set: RemoteRuleSet) => {
-    setError(null)
-    setValidatingId(set.id)
-    try {
-      if (Object.keys(set.sourceOverrides).length > 0) {
-        const result = await api.remoteRuleSets.validateAllSources(set.id)
-        setSourceHealthById(current => ({ ...current, [set.id]: result }))
-      } else {
-        const result = await api.remoteRuleSets.validate(set.id)
-        setValidationById(current => ({ ...current, [set.id]: result }))
-      }
-    } catch (e) {
-      setError(e)
-    } finally {
-      setValidatingId(null)
-    }
   }
 
   const handleSourceOverrideChange = (target: RemoteRuleSetSourceOverrideTarget, url: string) => {
-    sourceOverrideRequestIds.current[target] = (sourceOverrideRequestIds.current[target] ?? 0) + 1
-    setSourceOverrideValidations(current => {
-      const next = { ...current }
-      delete next[target]
-      return next
-    })
     setAutoDiscoveredSourceOverrides(current => {
       const next = { ...current }
       delete next[target]
@@ -612,7 +509,7 @@ export function RemoteRuleSets() {
       }
       return { ...current, url, sourceOverrides }
     })
-    resetSourceOverrideValidations()
+    resetSourceOverrideDiscovery()
   }
 
   const handleDiscoverSourceOverrides = () => {
@@ -629,135 +526,6 @@ export function RemoteRuleSets() {
       return { ...current, sourceOverrides }
     })
     setAutoDiscoveredSourceOverrides(current => ({ ...current, ...discovered }))
-    if (validateAfterDiscovery) {
-      const mergedOverrides = { ...form.sourceOverrides, ...discovered }
-      const sources = SOURCE_OVERRIDE_TARGETS.flatMap(target => {
-        const url = mergedOverrides[target]?.trim()
-        return url ? [{ url, targetFormat: target, behavior: form.behavior }] : []
-      })
-      void validateSourceOverrideInputs(sources)
-    }
-  }
-
-  const handleValidateSourceOverride = async (target: RemoteRuleSetSourceOverrideTarget) => {
-    const url = form.sourceOverrides[target]?.trim()
-    if (!url) return
-    const requestId = (sourceOverrideRequestIds.current[target] ?? 0) + 1
-    sourceOverrideRequestIds.current[target] = requestId
-    setSourceOverrideValidations(current => ({ ...current, [target]: { status: 'loading' } }))
-    try {
-      const result = await api.remoteRuleSets.validateSource({ url, targetFormat: target, behavior: form.behavior })
-      if (sourceOverrideRequestIds.current[target] !== requestId) return
-      setSourceOverrideValidations(current => ({ ...current, [target]: { status: 'ready', result } }))
-    } catch (validationError) {
-      if (sourceOverrideRequestIds.current[target] !== requestId) return
-      setSourceOverrideValidations(current => ({
-        ...current,
-        [target]: {
-          status: 'error',
-          error: sourceOverrideValidationError(validationError, t),
-          code: validationError instanceof ApiError ? validationError.code : undefined,
-        },
-      }))
-    }
-  }
-
-  const validateSourceOverrideInputs = async (sources: RemoteRuleSetSourceValidationInput[]) => {
-    if (sources.length === 0) return
-    const requestIds = new Map<RemoteRuleSetSourceOverrideTarget, number>()
-    for (const source of sources) {
-      const requestId = (sourceOverrideRequestIds.current[source.targetFormat] ?? 0) + 1
-      sourceOverrideRequestIds.current[source.targetFormat] = requestId
-      requestIds.set(source.targetFormat, requestId)
-    }
-    setSourceOverrideValidations(current => {
-      const next = { ...current }
-      for (const source of sources) next[source.targetFormat] = { status: 'loading' }
-      return next
-    })
-    setValidatingAllSourceOverrides(true)
-    try {
-      const response = await api.remoteRuleSets.validateSources(sources)
-      setSourceOverrideValidations(current => {
-        const next = { ...current }
-        for (const item of response.results) {
-          if (sourceOverrideRequestIds.current[item.targetFormat] === requestIds.get(item.targetFormat)) {
-            next[item.targetFormat] = { status: 'ready', result: item.result }
-          }
-        }
-        return next
-      })
-    } catch (validationError) {
-      const message = sourceOverrideValidationError(validationError, t)
-      setSourceOverrideValidations(current => {
-        const next = { ...current }
-        for (const source of sources) {
-          if (sourceOverrideRequestIds.current[source.targetFormat] === requestIds.get(source.targetFormat)) {
-            next[source.targetFormat] = {
-              status: 'error',
-              error: message,
-              code: validationError instanceof ApiError ? validationError.code : undefined,
-            }
-          }
-        }
-        return next
-      })
-    } finally {
-      setValidatingAllSourceOverrides(false)
-    }
-  }
-
-  const handleValidateAllSourceOverrides = async () => validateSourceOverrideInputs(configuredSourceOverrides)
-
-  const runConversionPreview = async (ruleSet: RemoteRuleSet) => {
-    const requestId = ++conversionRequestId.current
-    const previousTargets = conversionPreview?.ruleSet.id === ruleSet.id
-      ? conversionPreview.targets
-      : {}
-    setConversionPreview({
-      ruleSet,
-      status: 'loading',
-      targets: Object.fromEntries(CONVERSION_PREVIEW_TARGETS.map(targetFormat => [
-        targetFormat,
-        { status: 'loading', result: previousTargets[targetFormat]?.result },
-      ])),
-    })
-    let outcomes: Array<readonly [ExportFormat, ConversionPreviewTargetState]>
-    try {
-      const batch = await api.remoteRuleSets.previewConversions(ruleSet.id)
-      outcomes = CONVERSION_PREVIEW_TARGETS.map(targetFormat => {
-        const item = batch.results.find(result => result.targetFormat === targetFormat)
-        if (item?.status === 'ready') {
-          return [targetFormat, { status: 'ready', result: item.result }] as const
-        }
-        const error = item
-          ? new ApiError(item.error, 422, item.code)
-          : new Error('Missing conversion preview result')
-        return [targetFormat, {
-          status: 'error',
-          result: previousTargets[targetFormat]?.result,
-          error: conversionPreviewError(error, t),
-        }] as const
-      })
-    } catch (error) {
-      outcomes = CONVERSION_PREVIEW_TARGETS.map(targetFormat => [targetFormat, {
-        status: 'error',
-        result: previousTargets[targetFormat]?.result,
-        error: conversionPreviewError(error, t),
-      }] as const)
-    }
-    if (conversionRequestId.current !== requestId) return
-    const targets = Object.fromEntries(outcomes) as ConversionPreviewState['targets']
-    setConversionPreview({
-      ruleSet,
-      status: outcomes.every(([, outcome]) => outcome.status === 'error') ? 'error' : 'ready',
-      targets,
-    })
-  }
-
-  const closeConversionPreview = () => {
-    conversionRequestId.current += 1
-    setConversionPreview(null)
   }
 
   const openTargetOverride = (ruleSet: RemoteRuleSet) => {
@@ -786,21 +554,6 @@ export function RemoteRuleSets() {
       setTargetOverrideError(error instanceof Error ? error.message : String(error))
     } finally {
       setSavingTargetOverride(false)
-    }
-  }
-
-  const openConversionPreview = (ruleSet: RemoteRuleSet) => {
-    void runConversionPreview(ruleSet)
-  }
-
-  const openNativeSourceRemediation = (targetFormat: ExportFormat) => {
-    if (!conversionPreview) return
-    const { ruleSet } = conversionPreview
-    closeConversionPreview()
-    if (canEditRemoteRuleSet(ruleSet)) {
-      openEdit(ruleSet, targetFormat as RemoteRuleSetSourceOverrideTarget)
-    } else {
-      openManagedSourceEditor(ruleSet, targetFormat as RemoteRuleSetSourceOverrideTarget)
     }
   }
 
@@ -886,7 +639,7 @@ export function RemoteRuleSets() {
                 }}
               >
                 <option value="">{t('remoteRuleSets.compatibility_target_all')}</option>
-                {CONVERSION_PREVIEW_TARGETS.map(format => (
+                {SOURCE_OVERRIDE_TARGETS.map(format => (
                   <option key={format} value={format}>{t(`export.formats.${format}`)}</option>
                 ))}
               </select>
@@ -999,8 +752,6 @@ export function RemoteRuleSets() {
               {sectionExpanded && <div id={contentId} className={styles.grid}>
                 {section.sets.map(set => {
                   const hasSourceOverrides = Object.keys(set.sourceOverrides).length > 0
-                  const sourceHealth = sourceHealthById[set.id] ?? set.sourceHealth
-                  const sourceHealthStale = Boolean(sourceHealth && 'stale' in sourceHealth && sourceHealth.stale)
                   const managed = !canEditRemoteRuleSet(set)
                   const usableByCurrentRouting = isRuleSetUsableByCurrentRouting(
                     section.targetEnabled,
@@ -1039,15 +790,6 @@ export function RemoteRuleSets() {
                       {hasSourceOverrides && (
                         <Badge variant="success">{t('remoteRuleSets.source_override_badge', { count: Object.keys(set.sourceOverrides).length })}</Badge>
                       )}
-                      {hasSourceOverrides && !sourceHealth && (
-                        <Badge variant="warning">{t('remoteRuleSets.source_health_pending')}</Badge>
-                      )}
-                      {sourceHealthStale && (
-                        <Badge variant="warning">{t('remoteRuleSets.source_health_stale')}</Badge>
-                      )}
-                      {sourceHealth && !sourceHealthStale && (
-                        <Badge variant={validationBadgeVariant(sourceHealth.status)}>{t(`remoteRuleSets.validation_${sourceHealth.status}`)}</Badge>
-                      )}
                       {compatibilityTarget && (
                         <CompatibilityBadge mode={getRemoteRuleSetCompatibilityMode(compatibilityTarget, set)} />
                       )}
@@ -1075,24 +817,7 @@ export function RemoteRuleSets() {
                       </div>
                     )}
                     {visibleRemoteRuleSetNotes(set.notes) && <div className={styles.notes}>{visibleRemoteRuleSetNotes(set.notes)}</div>}
-                    {validationById[set.id] && (
-                      <RuleSetValidationResult result={validationById[set.id]} language={i18n.resolvedLanguage?.startsWith('zh') ? 'zh' : 'en'} />
-                    )}
-                    {sourceHealth && (
-                      <RuleSetSourceHealthResult result={sourceHealth} language={i18n.resolvedLanguage?.startsWith('zh') ? 'zh' : 'en'} />
-                    )}
                     <div className={styles.cardActions}>
-                      <Button variant="secondary" size="sm" onClick={() => openConversionPreview(set)}>
-                        {t('remoteRuleSets.preview_compatibility')}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        loading={validatingId === set.id}
-                        onClick={() => void handleValidate(set)}
-                      >{t(hasSourceOverrides
-                          ? sourceHealth ? 'remoteRuleSets.revalidate_all_sources' : 'remoteRuleSets.validate_all_sources'
-                          : 'remoteRuleSets.validate_content')}</Button>
                       {canEditRemoteRuleSet(set) ? (
                         <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
                           {t('common.edit')}
@@ -1168,67 +893,6 @@ export function RemoteRuleSets() {
           </select>
           <div className={styles.helperText}>{t('remoteRuleSets.target_override_help')}</div>
         </div>
-      </Modal>
-
-      <Modal
-        open={conversionPreview !== null}
-        onOpenChange={open => { if (!open) closeConversionPreview() }}
-        title={t('remoteRuleSets.conversion_preview_title', { name: conversionPreview?.ruleSet.name ?? '' })}
-        footer={
-          <>
-            <Button variant="secondary" onClick={closeConversionPreview}>{t('common.close')}</Button>
-            <Button
-              loading={conversionPreview?.status === 'loading'}
-              onClick={() => {
-                if (conversionPreview) void runConversionPreview(conversionPreview.ruleSet)
-              }}
-            >{t('remoteRuleSets.run_conversion_preview')}</Button>
-          </>
-        }
-      >
-        {conversionPreview && (
-          <div className={styles.conversionPreviewBody}>
-            <div className={styles.previewList} role="list" aria-label={t('remoteRuleSets.preview_results')}>
-              {CONVERSION_PREVIEW_TARGETS.map(format => {
-                const target = conversionPreview.targets[format]
-                const result = target?.result
-                const needsNativeSource = result
-                  && result.mode !== 'direct'
-                  && (result.mode === 'unsupported' || result.skippedRuleCount > 0)
-                return (
-                  <section
-                    className={styles.previewListItem}
-                    role="listitem"
-                    aria-label={t(`export.formats.${format}`)}
-                    key={format}
-                  >
-                    <div className={styles.previewListHeader}>
-                      <h3>{t(`export.formats.${format}`)}</h3>
-                      {needsNativeSource && (
-                        <Button variant="secondary" size="sm" onClick={() => openNativeSourceRemediation(format)}>
-                          {t('remoteRuleSets.preview_configure_native_source', {
-                            client: t(`export.formats.${format}`),
-                          })}
-                        </Button>
-                      )}
-                    </div>
-                    {target?.status === 'loading' && !result && (
-                      <div className={styles.previewLoading} role="status">{t('remoteRuleSets.preview_loading')}</div>
-                    )}
-                    {target?.status === 'loading' && result && (
-                      <div className={styles.previewRefreshing} role="status">{t('remoteRuleSets.preview_refreshing')}</div>
-                    )}
-                    {target?.status === 'error' && <div className={styles.formError} role="alert">{target.error}</div>}
-                    {target?.status === 'error' && result && (
-                      <div className={styles.previewRefreshing} role="status">{t('remoteRuleSets.preview_stale_after_error')}</div>
-                    )}
-                    {result && <RuleSetConversionPreviewResult result={result} />}
-                  </section>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </Modal>
 
       <Modal
@@ -1376,62 +1040,21 @@ export function RemoteRuleSets() {
               <div className={styles.helperText}>{t('remoteRuleSets.source_overrides_help')}</div>
               <div className={styles.sourceOverrideBulkActions}>
                 {discoverableSourceOverrides.length > 0 && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={validatingAllSourceOverrides}
-                      onClick={handleDiscoverSourceOverrides}
-                    >{t('remoteRuleSets.source_override_discover', { count: discoverableSourceOverrides.length })}</Button>
-                    <label className={styles.sourceOverrideDiscoveryOption}>
-                      <input
-                        type="checkbox"
-                        checked={validateAfterDiscovery}
-                        onChange={event => setValidateAfterDiscovery(event.target.checked)}
-                      />
-                      <span>{t('remoteRuleSets.source_override_validate_after_discovery')}</span>
-                    </label>
-                  </>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleDiscoverSourceOverrides}
+                  >{t('remoteRuleSets.source_override_discover', { count: discoverableSourceOverrides.length })}</Button>
                 )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={configuredSourceOverrides.length === 0}
-                  loading={validatingAllSourceOverrides}
-                  onClick={() => void handleValidateAllSourceOverrides()}
-                >{t('remoteRuleSets.source_override_validate_all', { count: configuredSourceOverrides.length })}</Button>
                 {Object.keys(autoDiscoveredSourceOverrides).length > 0 && (
                   <span className={styles.sourceOverrideDiscoveryNotice}>
                     {t('remoteRuleSets.source_override_discovered', { count: Object.keys(autoDiscoveredSourceOverrides).length })}
                   </span>
                 )}
-                {checkedSourceOverrideCount > 0 && (
-                  <span className={styles.sourceOverrideSummary} role="status">
-                    {t('remoteRuleSets.source_override_validation_summary', {
-                      checked: checkedSourceOverrideCount,
-                      total: configuredSourceOverrides.length,
-                      valid: sourceOverrideSummary.valid,
-                      warning: sourceOverrideSummary.warning,
-                      invalid: sourceOverrideSummary.invalid,
-                      error: sourceOverrideSummary.error,
-                    })}
-                  </span>
-                )}
               </div>
-              {sourceOverrideInputErrorCount > 0 && !formError && (
-                <div className={styles.formError} role="alert">
-                  {t('remoteRuleSets.source_override_input_errors_blocked', { count: sourceOverrideInputErrorCount })}
-                </div>
-              )}
-              {sourceOverrideInputErrorCount === 0 && sourceOverrideSaveRiskCount > 0 && (
-                <div className={styles.sourceOverrideCompatibleRisk}>
-                  <p>{t('remoteRuleSets.source_override_risk_compatible', { count: sourceOverrideSaveRiskCount })}</p>
-                </div>
-              )}
               <div className={styles.sourceOverrideGrid}>
                 {SOURCE_OVERRIDE_TARGETS.map(target => {
                   const clientName = t(`export.formats.${target}`)
-                  const validation = sourceOverrideValidations[target]
                   const url = form.sourceOverrides[target] ?? ''
                   return (
                     <div className={styles.sourceOverrideField} key={target}>
@@ -1443,24 +1066,6 @@ export function RemoteRuleSets() {
                         autoFocus={sourceOverrideFocusTarget === target}
                         onChange={event => handleSourceOverrideChange(target, event.target.value)}
                       />
-                      {url.trim() && (
-                        <div className={styles.sourceOverrideActions}>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            loading={validation?.status === 'loading'}
-                            aria-label={t('remoteRuleSets.source_override_validate_label', { client: clientName })}
-                            onClick={() => void handleValidateSourceOverride(target)}
-                          >{t('remoteRuleSets.source_override_validate')}</Button>
-                        </div>
-                      )}
-                      {validation?.status === 'error' && <div className={styles.formError} role="alert">{validation.error}</div>}
-                      {validation?.result && (
-                        <RuleSetValidationResult
-                          result={validation.result}
-                          language={i18n.resolvedLanguage?.startsWith('zh') ? 'zh' : 'en'}
-                        />
-                      )}
                     </div>
                   )
                 })}
@@ -1492,218 +1097,14 @@ export function RemoteRuleSets() {
   )
 }
 
-function RuleSetConversionPreviewResult({ result }: { result: RemoteRuleSetConversionPreview }) {
-  const { t, i18n } = useTranslation()
-  const variant = result.mode === 'direct' ? 'success' : result.mode === 'converted' ? 'info' : 'error'
-  return (
-    <div className={`${styles.conversionResult} ${styles[`conversionResult_${result.mode}`]}`} role="status">
-      <div className={styles.conversionResultHeader}>
-        <Badge variant={variant}>{t(`remoteRuleSets.preview_mode_${result.mode}`)}</Badge>
-        <span>{t('remoteRuleSets.preview_format_path', {
-          source: result.sourceFormat,
-          output: result.outputFormat ?? t('remoteRuleSets.preview_no_output'),
-        })}</span>
-        {result.checkedAt && (
-          <span>{t('remoteRuleSets.preview_checked_at', {
-            time: new Date(result.checkedAt).toLocaleString(i18n.language),
-          })}</span>
-        )}
-      </div>
-      {result.mode === 'direct' && <p>{t('remoteRuleSets.preview_direct_help')}</p>}
-      {result.mode === 'unsupported' && <p>{t('remoteRuleSets.preview_unsupported_help')}</p>}
-      {result.mode === 'converted' && (
-        <>
-          <div className={styles.conversionCounts}>
-            <span>{t('remoteRuleSets.preview_converted_count', { count: result.convertedRuleCount })}</span>
-            <span>{t('remoteRuleSets.preview_skipped_count', { count: result.skippedRuleCount })}</span>
-          </div>
-          {result.skippedRuleCount > 0 && <p className={styles.conversionWarning}>{t('remoteRuleSets.preview_skipped_help')}</p>}
-          {Object.keys(result.skippedRuleTypes).length > 0 && (
-            <div className={styles.skippedTypes} aria-label={t('remoteRuleSets.preview_skipped_types')}>
-              {Object.entries(result.skippedRuleTypes)
-                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-                .map(([type, count]) => <Badge key={type} variant="warning">{type} × {count}</Badge>)}
-            </div>
-          )}
-          {result.convertedExamples.length > 0 && (
-            <section className={styles.conversionMappings} aria-label={t('remoteRuleSets.preview_mapping_details')}>
-              <h4>{t('remoteRuleSets.preview_mapping_details')}</h4>
-              <div className={styles.conversionMappingTableWrap}>
-                <table className={styles.conversionMappingTable}>
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('remoteRuleSets.preview_mapping_source')}</th>
-                      <th scope="col">{t('remoteRuleSets.preview_mapping_target')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.convertedExamples.map((mapping, index) => (
-                      <tr key={`${mapping.source}:${mapping.target}:${index}`}>
-                        <td><code>{mapping.source}</code></td>
-                        <td><code>{mapping.target}</code></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {result.convertedExamplesTruncated && (
-                <div className={styles.previewTruncated}>{t('remoteRuleSets.preview_mapping_truncated')}</div>
-              )}
-            </section>
-          )}
-          {result.issues.length > 0 && (
-            <section className={styles.conversionIssues} aria-label={t('remoteRuleSets.preview_issue_details')}>
-              <h4>{t('remoteRuleSets.preview_issue_details')}</h4>
-              {result.issues.map(issue => (
-                <div className={styles.conversionIssue} key={issue.type}>
-                  <div className={styles.conversionIssueHeader}>
-                    <code>{issue.type}</code>
-                    <span>{t(`remoteRuleSets.preview_issue_reason_${issue.reason}`)}</span>
-                    <span>{t('remoteRuleSets.preview_issue_count', { count: issue.count })}</span>
-                  </div>
-                  <div className={styles.conversionIssueResolution}>
-                    <strong>{t('remoteRuleSets.preview_issue_resolution_label')}</strong>{' '}
-                    {t(`remoteRuleSets.preview_issue_resolution_${issue.resolution}`)}
-                  </div>
-                  {issue.examples.length > 0 && (
-                    <ul className={styles.conversionIssueExamples}>
-                      {issue.examples.map((example, index) => <li key={`${issue.type}-${index}`}><code>{example}</code></li>)}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </section>
-          )}
-          {result.preview && <pre className={styles.conversionCode}>{result.preview}</pre>}
-          {result.truncated && <div className={styles.previewTruncated}>{t('remoteRuleSets.preview_truncated')}</div>}
-        </>
-      )}
-    </div>
-  )
-}
-
 function CompatibilityBadge({ mode }: { mode: Exclude<CompatibilityMode, 'all'> }) {
   const { t } = useTranslation()
   const variant = mode === 'direct' ? 'success' : mode === 'converted' ? 'info' : 'error'
   return <Badge variant={variant}>{t(`remoteRuleSets.preview_mode_${mode}`)}</Badge>
 }
 
-function RuleSetValidationResult({
-  result,
-  language,
-}: {
-  result: RemoteRuleSetValidationResult
-  language: 'zh' | 'en'
-}) {
-  const { t } = useTranslation()
-  const badgeVariant = result.status === 'valid' ? 'success' : result.status === 'warning' ? 'warning' : 'error'
-  return (
-    <div className={`${styles.validation} ${styles[`validation_${result.status}`]}`} role="status">
-      <div className={styles.validationHeader}>
-        <Badge variant={badgeVariant}>{t(`remoteRuleSets.validation_${result.status}`)}</Badge>
-        <span>{t('remoteRuleSets.validation_checked_at', { time: new Date(result.checkedAt).toLocaleString() })}</span>
-      </div>
-      <div className={styles.validationMeta}>
-        <span>{t('remoteRuleSets.validation_size', { size: formatValidationBytes(result.byteLength) })}</span>
-        {result.ruleCount !== undefined && <span>{t('remoteRuleSets.validation_rules', { count: result.ruleCount })}</span>}
-        {result.invalidRuleCount > 0 && <span>{t('remoteRuleSets.validation_invalid_rules', { count: result.invalidRuleCount })}</span>}
-      </div>
-      {result.issues.length > 0 && (
-        <ul className={styles.validationIssues}>
-          {result.issues.map((item, index) => <li key={`${item.code}-${item.line ?? index}`}>{language === 'zh' ? item.message : item.messageEn}</li>)}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-function RuleSetSourceHealthResult({
-  result,
-  language,
-}: {
-  result: RemoteRuleSetSourceHealthResult
-  language: 'zh' | 'en'
-}) {
-  const { t } = useTranslation()
-  const stale = 'stale' in result && result.stale === true
-  const sources = [
-    {
-      key: 'default',
-      label: t('remoteRuleSets.source_health_default'),
-      result: result.defaultSource,
-    },
-    ...result.sourceOverrides.map(item => ({
-      key: item.targetFormat,
-      label: t(`export.formats.${item.targetFormat}`),
-      result: item.result,
-    })),
-  ]
-
-  return (
-    <div className={`${styles.sourceHealth} ${styles[`validation_${stale ? 'warning' : result.status}`]}`} role="status">
-      <div className={styles.sourceHealthHeader}>
-        <Badge variant={validationBadgeVariant(result.status)}>{t(`remoteRuleSets.validation_${result.status}`)}</Badge>
-        <span>{t('remoteRuleSets.validation_checked_at', { time: new Date(result.checkedAt).toLocaleString() })}</span>
-      </div>
-      <div className={styles.sourceHealthSummary}>
-        {t('remoteRuleSets.source_health_summary', { ...result.summary })}
-      </div>
-      {stale && <div className={styles.sourceHealthStaleNotice}>{t('remoteRuleSets.source_health_stale_notice')}</div>}
-      <div className={styles.sourceHealthList}>
-        {sources.map(source => {
-          const issue = source.result.issues[0]
-          return (
-            <div key={source.key} className={styles.sourceHealthRow}>
-              <div className={styles.sourceHealthTarget}>
-                <span>{source.label}</span>
-                <Badge variant={validationBadgeVariant(source.result.status)}>{t(`remoteRuleSets.validation_${source.result.status}`)}</Badge>
-              </div>
-              <div className={styles.sourceHealthMeta}>
-                <span>{source.result.format}</span>
-                {source.result.ruleCount !== undefined && <span>{t('remoteRuleSets.validation_rules', { count: source.result.ruleCount })}</span>}
-              </div>
-              {issue && (
-                <div className={styles.sourceHealthIssue}>
-                  {language === 'zh' ? issue.message : issue.messageEn}
-                  {source.result.issues.length > 1 && ` · ${t('remoteRuleSets.source_health_more_issues', { count: source.result.issues.length - 1 })}`}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function validationBadgeVariant(status: RemoteRuleSetValidationResult['status']): 'success' | 'warning' | 'error' {
-  return status === 'valid' ? 'success' : status === 'warning' ? 'warning' : 'error'
-}
-
-function formatValidationBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`
-  return `${bytes} B`
-}
-
-function conversionPreviewError(error: unknown, t: (key: string) => string): string {
-  if (error instanceof ApiError && ['download_failed', 'too_large', 'invalid_content'].includes(error.code ?? '')) {
-    return t(`remoteRuleSets.preview_error_${error.code}`)
-  }
-  return error instanceof Error ? error.message : t('remoteRuleSets.preview_error_unknown')
-}
-
 function isSourceOverrideTarget(value: string | null): value is RemoteRuleSetSourceOverrideTarget {
   return value !== null && SOURCE_OVERRIDE_TARGETS.some(target => target === value)
-}
-
-function sourceOverrideValidationError(error: unknown, t: (key: string) => string): string {
-  if (error instanceof ApiError && ['unsafe_url', 'invalid_format', 'invalid_behavior'].includes(error.code ?? '')) {
-    return t(`remoteRuleSets.source_override_error_${error.code}`)
-  }
-  return error instanceof Error && error.message
-    ? error.message
-    : t('remoteRuleSets.source_override_validation_error')
 }
 
 function setFormValue<K extends keyof RemoteSetForm>(
@@ -1712,12 +1113,6 @@ function setFormValue<K extends keyof RemoteSetForm>(
   setForm: React.Dispatch<React.SetStateAction<RemoteSetForm>>
 ) {
   setForm(current => ({ ...current, [key]: value }))
-}
-
-function omitRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
-  const next = { ...record }
-  delete next[key]
-  return next
 }
 
 function ruleSetBadgeLabel(set: Pick<RemoteRuleSet, 'format' | 'presetSource'>, t: (key: string) => string): string {
@@ -1820,19 +1215,10 @@ function filterSectionsByCompatibility<T extends { sets: RemoteRuleSet[] }>(
 function ruleSetNeedsAttention(
   set: RemoteRuleSet,
   targetEnabled: boolean,
-  sourceHealth: RemoteRuleSetSourceHealthResult | undefined,
-  validation: RemoteRuleSetValidationResult | undefined,
   compatibilityTarget: ExportFormat | '',
 ): boolean {
   if (!targetEnabled || !set.enabled) return false
   if (set.sourceMissing) return true
-  if (validation && validation.status !== 'valid') return true
-  if (sourceHealth) {
-    if ('stale' in sourceHealth && sourceHealth.stale) return true
-    if (sourceHealth.status !== 'valid') return true
-  } else if (Object.keys(set.sourceOverrides).length > 0) {
-    return true
-  }
   return compatibilityTarget !== ''
     && getRemoteRuleSetCompatibilityMode(compatibilityTarget, set) === 'unsupported'
 }

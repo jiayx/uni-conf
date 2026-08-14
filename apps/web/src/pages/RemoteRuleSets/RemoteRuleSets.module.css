@@ -71,22 +71,6 @@
   color: var(--color-warning); font-size: 0.8125rem; line-height: 1.5;
 }
 .systemNoticeActions { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; }
-.validation { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.75rem; }
-.validation_valid { border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.08); }
-.validation_warning { border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.08); }
-.validation_invalid { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); }
-.validationHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; color: var(--color-text-tertiary); }
-.validationMeta { display: flex; gap: 0.75rem; flex-wrap: wrap; color: var(--color-text-secondary); }
-.validationIssues { margin: 0; padding-left: 1.25rem; color: var(--color-text-secondary); line-height: 1.45; }
-.sourceHealth { display: flex; flex-direction: column; gap: 0.625rem; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.75rem; }
-.sourceHealthHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; color: var(--color-text-tertiary); }
-.sourceHealthSummary { color: var(--color-text-secondary); font-weight: 500; }
-.sourceHealthStaleNotice { padding: 0.5rem; border-radius: var(--radius-sm); background: rgba(245, 158, 11, 0.1); color: var(--color-warning); line-height: 1.45; }
-.sourceHealthList { display: flex; flex-direction: column; gap: 0.5rem; }
-.sourceHealthRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.25rem 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--color-border); }
-.sourceHealthTarget { display: flex; align-items: center; gap: 0.5rem; min-width: 0; color: var(--color-text-primary); font-weight: 600; }
-.sourceHealthMeta { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; color: var(--color-text-tertiary); }
-.sourceHealthIssue { grid-column: 1 / -1; color: var(--color-text-secondary); line-height: 1.45; }
 .cardActions { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
 .label { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); display: block; margin-bottom: 0.375rem; }
 .presetSection { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -98,15 +82,9 @@
 .sourceOverrides[open] summary { margin-bottom: 0.5rem; }
 .sourceOverrideGrid { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
 .sourceOverrideBulkActions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; }
-.sourceOverrideSummary { color: var(--color-text-secondary); font-size: 0.75rem; line-height: 1.4; }
 .sourceOverrideDiscoveryNotice { flex-basis: 100%; color: var(--color-success); font-size: 0.75rem; line-height: 1.4; }
-.sourceOverrideDiscoveryOption { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--color-text-secondary); font-size: 0.75rem; cursor: pointer; }
-.sourceOverrideCompatibleRisk { margin-top: 0.75rem; padding: 0.625rem; border-radius: var(--radius-md); font-size: 0.75rem; line-height: 1.45; }
-.sourceOverrideCompatibleRisk { border: 1px solid rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.08); color: var(--color-warning); }
-.sourceOverrideCompatibleRisk p { margin: 0; }
 .sourceOverrideField { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--color-border); }
 .sourceOverrideField:last-child { padding-bottom: 0; border-bottom: 0; }
-.sourceOverrideActions { display: flex; justify-content: flex-end; }
 .select {
   width: 100%; padding: 0.5rem 0.75rem; background: var(--color-surface2);
   border: 1px solid var(--color-border); border-radius: var(--radius-md);
@@ -115,50 +93,9 @@
 .select:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
 .checkboxRow { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-primary); font-size: 0.875rem; }
 .formError { padding: 0.5rem 0.625rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.8125rem; }
-.conversionPreviewBody { display: flex; flex-direction: column; gap: 1rem; }
-.previewList { display: flex; flex-direction: column; gap: 1rem; }
-.previewListItem { display: flex; flex-direction: column; gap: 0.625rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border); }
-.previewListItem:last-child { padding-bottom: 0; border-bottom: 0; }
-.previewListHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
-.previewListHeader h3 { margin: 0; color: var(--color-text-primary); font-size: 0.9375rem; font-weight: 600; }
-.previewLoading { padding: 1rem; color: var(--color-text-secondary); text-align: center; }
-.previewRefreshing { color: var(--color-text-secondary); font-size: 0.75rem; }
-.conversionResult { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.875rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface2); color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
-.conversionResult_direct { border-color: rgba(16, 185, 129, 0.45); }
-.conversionResult_converted { border-color: rgba(59, 130, 246, 0.45); }
-.conversionResult_unsupported { border-color: rgba(239, 68, 68, 0.45); }
-.conversionResultHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
-.conversionResult p { margin: 0; }
-.conversionCounts { display: flex; gap: 1rem; flex-wrap: wrap; color: var(--color-text-primary); font-weight: 500; }
-.conversionWarning { color: var(--color-warning); }
-.skippedTypes { display: flex; gap: 0.375rem; flex-wrap: wrap; }
-.conversionMappings { display: grid; gap: 0.5rem; }
-.conversionMappings h4 { margin: 0; }
-.conversionMappingTableWrap { max-width: 100%; overflow-x: auto; }
-.conversionMappingTable { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-.conversionMappingTable th,
-.conversionMappingTable td { min-width: 16rem; padding: 0.5rem; border: 1px solid var(--color-border); text-align: left; vertical-align: top; }
-.conversionMappingTable th { background: var(--color-surface); color: var(--color-text-secondary); }
-.conversionMappingTable code { white-space: pre-wrap; overflow-wrap: anywhere; }
-.conversionIssues { display: flex; flex-direction: column; }
-.conversionIssues h4 { margin: 0; color: var(--color-text-primary); font-size: 0.8125rem; }
-.conversionIssue { padding: 0.625rem 0; border-top: 1px solid var(--color-border); background: transparent; }
-.conversionIssues h4 + .conversionIssue { margin-top: 0.5rem; }
-.conversionIssueHeader { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.conversionIssueHeader code { color: var(--color-warning); font-weight: 600; }
-.conversionIssueHeader span:last-child { margin-left: auto; color: var(--color-text-tertiary); }
-.conversionIssueResolution { margin-top: 0.5rem; color: var(--color-text-secondary); line-height: 1.45; }
-.conversionIssueResolution strong { color: var(--color-text-primary); }
-.conversionIssueExamples { display: grid; gap: 0.25rem; margin: 0.5rem 0 0; padding-left: 1.25rem; }
-.conversionIssueExamples code { color: var(--color-text-primary); overflow-wrap: anywhere; }
-.conversionCode { max-height: 18rem; margin: 0; overflow: auto; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.5; white-space: pre; }
-.previewTruncated { color: var(--color-text-tertiary); font-size: 0.75rem; }
-
 @media (max-width: 640px) {
   .listToolbar { grid-template-columns: minmax(0, 1fr); }
   .listToolbarActions { justify-content: flex-start; }
   .sectionToggle { flex-wrap: wrap; }
   .grid { grid-template-columns: minmax(0, 1fr); }
-  .sourceHealthRow { grid-template-columns: minmax(0, 1fr); }
-  .sourceHealthMeta { justify-content: flex-start; }
 }

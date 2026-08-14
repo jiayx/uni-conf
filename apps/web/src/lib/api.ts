@@ -14,12 +14,6 @@ import type {
   ProxyGroup,
   ProxyRule,
   RemoteRuleSet,
-  RemoteRuleSetValidationResult,
-  RemoteRuleSetSourceValidationInput,
-  RemoteRuleSetSourceValidationBatchResult,
-  RemoteRuleSetSourceHealthResult,
-  RemoteRuleSetConversionPreview,
-  RemoteRuleSetConversionPreviewBatchResult,
   RuleSetCatalog,
   ExportConfig,
   ExportFormat,
@@ -331,18 +325,6 @@ const remoteRuleSets = {
     post('/remote-rule-sets/batch', { sets: data }),
   update: (id: string, data: Partial<RemoteRuleSet>): Promise<RemoteRuleSet> =>
     put(`/remote-rule-sets/${pathSegment(id)}`, data),
-  validate: (id: string): Promise<RemoteRuleSetValidationResult> =>
-    post(`/remote-rule-sets/${pathSegment(id)}/validate`, {}),
-  validateAllSources: (id: string): Promise<RemoteRuleSetSourceHealthResult> =>
-    post(`/remote-rule-sets/${pathSegment(id)}/validate-all`, {}),
-  validateSource: (data: RemoteRuleSetSourceValidationInput): Promise<RemoteRuleSetValidationResult> =>
-    post('/remote-rule-sets/validate-source', data),
-  validateSources: (sources: RemoteRuleSetSourceValidationInput[]): Promise<RemoteRuleSetSourceValidationBatchResult> =>
-    post('/remote-rule-sets/validate-sources', { sources }),
-  previewConversion: (id: string, targetFormat: ExportFormat): Promise<RemoteRuleSetConversionPreview> =>
-    post(`/remote-rule-sets/${pathSegment(id)}/conversion-preview`, { targetFormat }),
-  previewConversions: (id: string): Promise<RemoteRuleSetConversionPreviewBatchResult> =>
-    post(`/remote-rule-sets/${pathSegment(id)}/conversion-previews`, {}),
   remove: (id: string): Promise<void> => del(`/remote-rule-sets/${pathSegment(id)}`),
 }
 

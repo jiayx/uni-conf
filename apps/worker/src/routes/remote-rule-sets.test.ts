@@ -6,27 +6,11 @@ import {
   isValidRuleSetBehavior,
   validateRemoteRuleSetWrite,
 } from './remote-rule-sets'
-import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
-import { convertRemoteRuleSetContent, fetchRemoteRuleSetContent, getConvertedRemoteRuleSet, RuleSetConversionError } from '../services/rule-set-conversion'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 vi.mock('../services/zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(),
 }))
-
-vi.mock('../services/remote-rule-set-validation', () => ({
-  validateRemoteRuleSetContent: vi.fn(),
-}))
-
-vi.mock('../services/rule-set-conversion', async () => {
-  const actual = await vi.importActual<typeof import('../services/rule-set-conversion')>('../services/rule-set-conversion')
-  return {
-    ...actual,
-    convertRemoteRuleSetContent: vi.fn(),
-    fetchRemoteRuleSetContent: vi.fn(),
-    getConvertedRemoteRuleSet: vi.fn(),
-  }
-})
 
 describe('remote rule set routes', () => {
   it('treats provider presets as managed rows', () => {
@@ -220,7 +204,6 @@ describe('remote rule set routes', () => {
     expect(response.status).toBe(200)
     expect(db.updates).toHaveLength(1)
     expect(db.updates[0]?.[10]).toBe(0)
-    expect(db.healthDeletes).toHaveLength(0)
     expect(db.batches).toHaveLength(0)
   })
 
@@ -297,8 +280,7 @@ describe('remote rule set routes', () => {
       'AI', 'https://example.com/ai.list', 'mihomo', 'classical', 'quixotic', 'ai',
     ])
     expect(db.updates[0]?.[6]).toBe('{"singbox":"https://rules.example.com/ai.srs"}')
-    expect(db.healthDeletes).toEqual([['preset-ai']])
-    expect(db.batches).toHaveLength(1)
+    expect(db.batches).toHaveLength(0)
   })
 
   it('persists target-native source overrides for custom rule sets', async () => {
@@ -316,8 +298,7 @@ describe('remote rule set routes', () => {
     expect(response.status).toBe(200)
     expect(db.updates).toHaveLength(1)
     expect(db.updates[0]?.[6]).toBe('{"egern":"https://rules.example.com/native.yaml"}')
-    expect(db.healthDeletes).toEqual([['preset-ai']])
-    expect(db.batches).toHaveLength(1)
+    expect(db.batches).toHaveLength(0)
   })
 
   it('rejects deleting managed remote rule sets through the route', async () => {
@@ -336,390 +317,6 @@ describe('remote rule set routes', () => {
     expect(db.deletes).toHaveLength(0)
   })
 
-  it('validates a stored remote rule set through the content validator', async () => {
-    const existing = managedRemoteRuleSetRow()
-    const db = createRemoteRuleSetRouteDb({ existing, enabledTargetGroupIds: new Set(['builtin-ai']) })
-    vi.mocked(validateRemoteRuleSetContent).mockResolvedValue({
-      status: 'valid',
-      checkedAt: '2026-07-14T00:00:00.000Z',
-      url: String(existing['url']),
-      format: 'mihomo',
-      behavior: 'classical',
-      inspectionMode: 'text',
-      httpStatus: 200,
-      contentType: 'text/plain',
-      byteLength: 128,
-      ruleCount: 4,
-      invalidRuleCount: 0,
-      issues: [],
-    })
-
-    const response = await remoteRuleSetsApp.request('/preset-ai/validate', { method: 'POST' }, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(validateRemoteRuleSetContent).toHaveBeenCalledWith(expect.objectContaining({ id: 'preset-ai', format: 'mihomo' }))
-    await expect(response.json()).resolves.toMatchObject({ success: true, data: { status: 'valid', ruleCount: 4 } })
-  })
-
-  it('returns 404 when validating a missing remote rule set', async () => {
-    const db = createRemoteRuleSetRouteDb({ existing: null as unknown as Record<string, unknown>, enabledTargetGroupIds: new Set() })
-    const response = await remoteRuleSetsApp.request('/missing/validate', { method: 'POST' }, { DB: db })
-
-    expect(response.status).toBe(404)
-    await expect(response.json()).resolves.toEqual({ success: false, error: 'Remote rule set not found' })
-  })
-
-  it('summarizes the stored default and target-native source health', async () => {
-    vi.mocked(validateRemoteRuleSetContent).mockClear()
-    vi.mocked(validateRemoteRuleSetContent).mockImplementation(async ruleSet => {
-      const status = ruleSet.url.includes('broken') ? 'invalid' : 'valid'
-      return {
-        status, checkedAt: '2026-07-18T00:00:00.000Z',
-        url: ruleSet.url, format: ruleSet.format, behavior: ruleSet.behavior,
-        inspectionMode: 'structured',
-        httpStatus: 200, byteLength: 128, ruleCount: 4,
-        invalidRuleCount: 0, issues: [],
-      }
-    })
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({
-        preset_source: null, preset_id: null,
-        source_overrides: JSON.stringify({
-          egern: 'https://rules.example.com/broken.yaml',
-          singbox: 'https://rules.example.com/native.srs',
-        }),
-      }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-
-    const response = await remoteRuleSetsApp.request('/preset-ai/validate-all', { method: 'POST' }, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(validateRemoteRuleSetContent).toHaveBeenCalledTimes(3)
-    expect(vi.mocked(validateRemoteRuleSetContent).mock.calls.every(call => Boolean(call[1]?.checkedAt))).toBe(true)
-    expect(db.healthWrites).toHaveLength(1)
-    expect(db.healthWrites[0]?.[0]).toBe('preset-ai')
-    expect(db.healthWrites[0]?.[1]).toEqual(expect.any(String))
-    expect(db.healthWrites[0]?.[2]).toEqual(expect.any(String))
-    expect(JSON.parse(String(db.healthWrites[0]?.[3]))).toMatchObject({ status: 'invalid', summary: { total: 3 } })
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: {
-        status: 'invalid',
-        defaultSource: { status: 'valid', format: 'mihomo' },
-        sourceOverrides: [
-          { targetFormat: 'egern', result: { status: 'invalid' } },
-          { targetFormat: 'singbox', result: { status: 'valid' } },
-        ],
-        summary: { total: 3, valid: 2, warning: 0, invalid: 1 },
-      },
-    })
-  })
-
-  it('returns the persisted whole-source health snapshot and computes freshness', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow(),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-      sourceHealth: sourceHealthRow(),
-    })
-
-    const response = await remoteRuleSetsApp.request('/preset-ai', {}, { DB: db })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: {
-        id: 'preset-ai',
-        sourceHealth: { status: 'valid', stale: false, expiresAt: '2099-07-19T00:00:00.000Z' },
-      },
-    })
-  })
-
-  it('preserves source health when a full-form update keeps every source field unchanged', async () => {
-    const existing = managedRemoteRuleSetRow({
-      preset_source: null,
-      preset_id: null,
-      source_overrides: '{"egern":"https://rules.example.com/native.yaml"}',
-    })
-    const db = createRemoteRuleSetRouteDb({
-      existing,
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-      sourceHealth: sourceHealthRow(),
-    })
-
-    const response = await remoteRuleSetsApp.request('/preset-ai', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Renamed AI',
-        url: existing.url,
-        format: existing.format,
-        behavior: existing.behavior,
-        sourceOverrides: { egern: 'https://rules.example.com/native.yaml' },
-        targetGroupId: existing.target_group_id,
-        updateInterval: existing.update_interval,
-        enabled: true,
-        sortOrder: existing.sort_order,
-      }),
-    }, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(db.healthDeletes).toHaveLength(0)
-    await expect(response.json()).resolves.toMatchObject({ data: { sourceHealth: { stale: false, status: 'valid' } } })
-  })
-
-  it('validates an unsaved target-native source with its target format', async () => {
-    vi.mocked(validateRemoteRuleSetContent).mockResolvedValue({
-      status: 'valid', checkedAt: '2026-07-18T00:00:00.000Z',
-      url: 'https://rules.example.com/egern.yaml', format: 'egern', behavior: 'domain',
-      inspectionMode: 'structured', httpStatus: 200, contentType: 'text/yaml',
-      byteLength: 256, ruleCount: 8, invalidRuleCount: 0, issues: [],
-    })
-
-    const response = await remoteRuleSetsApp.request('/validate-source', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        url: ' https://rules.example.com/egern.yaml ',
-        targetFormat: 'egern',
-        behavior: 'domain',
-      }),
-    }, { DB: {} as D1Database })
-
-    expect(response.status).toBe(200)
-    expect(validateRemoteRuleSetContent).toHaveBeenCalledWith({
-      url: 'https://rules.example.com/egern.yaml', format: 'egern', behavior: 'domain',
-    })
-    await expect(response.json()).resolves.toMatchObject({ success: true, data: { status: 'valid', format: 'egern' } })
-  })
-
-  it('rejects unsafe or unsupported target-native source validation requests', async () => {
-    vi.mocked(validateRemoteRuleSetContent).mockClear()
-    const unsafe = await remoteRuleSetsApp.request('/validate-source', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url: 'http://127.0.0.1/rules', targetFormat: 'egern', behavior: 'domain' }),
-    }, { DB: {} as D1Database })
-    const unsupported = await remoteRuleSetsApp.request('/validate-source', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url: 'https://rules.example.com/list', targetFormat: 'nodes_raw', behavior: 'domain' }),
-    }, { DB: {} as D1Database })
-
-    expect(unsafe.status).toBe(400)
-    expect(unsupported.status).toBe(400)
-    await expect(unsafe.json()).resolves.toMatchObject({ code: 'unsafe_url' })
-    await expect(unsupported.json()).resolves.toMatchObject({ code: 'invalid_format' })
-    expect(validateRemoteRuleSetContent).not.toHaveBeenCalled()
-  })
-
-  it('validates multiple target-native sources in one ordered batch', async () => {
-    vi.mocked(validateRemoteRuleSetContent).mockClear()
-    vi.mocked(validateRemoteRuleSetContent).mockImplementation(async ruleSet => ({
-      status: 'valid', checkedAt: '2026-07-18T00:00:00.000Z',
-      url: ruleSet.url, format: ruleSet.format, behavior: ruleSet.behavior,
-      inspectionMode: 'structured', httpStatus: 200, byteLength: 128,
-      ruleCount: 4, invalidRuleCount: 0, issues: [],
-    }))
-
-    const response = await remoteRuleSetsApp.request('/validate-sources', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sources: [
-        { url: 'https://rules.example.com/egern.yaml', targetFormat: 'egern', behavior: 'domain' },
-        { url: 'https://rules.example.com/singbox.srs', targetFormat: 'singbox', behavior: 'domain' },
-      ] }),
-    }, { DB: {} as D1Database })
-
-    expect(response.status).toBe(200)
-    expect(validateRemoteRuleSetContent).toHaveBeenCalledTimes(2)
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: { results: [
-        { targetFormat: 'egern', result: { format: 'egern', status: 'valid' } },
-        { targetFormat: 'singbox', result: { format: 'singbox', status: 'valid' } },
-      ] },
-    })
-  })
-
-  it('rejects duplicate target formats before starting a source validation batch', async () => {
-    vi.mocked(validateRemoteRuleSetContent).mockClear()
-    const response = await remoteRuleSetsApp.request('/validate-sources', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sources: [
-        { url: 'https://rules.example.com/one.yaml', targetFormat: 'egern', behavior: 'domain' },
-        { url: 'https://rules.example.com/two.yaml', targetFormat: 'egern', behavior: 'domain' },
-      ] }),
-    }, { DB: {} as D1Database })
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ code: 'duplicate_target' })
-    expect(validateRemoteRuleSetContent).not.toHaveBeenCalled()
-  })
-
-  it('returns direct compatibility without downloading the source', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({ preset_source: null, preset_id: null, format: 'surge' }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-    const response = await remoteRuleSetsApp.request('/preset-ai/conversion-preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetFormat: 'surge' }),
-    }, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(getConvertedRemoteRuleSet).not.toHaveBeenCalled()
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: {
-        checkedAt: expect.any(String),
-        mode: 'direct',
-        targetFormat: 'surge',
-        sourceFormat: 'surge',
-        outputFormat: 'surge',
-      },
-    })
-  })
-
-  it('prefers a custom target-native source override without conversion', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({
-        preset_source: null,
-        preset_id: null,
-        format: 'clash',
-        url: 'https://example.com/default.list',
-        source_overrides: JSON.stringify({ egern: 'https://example.com/native-egern.yaml' }),
-      }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-    const response = await remoteRuleSetsApp.request('/preset-ai/conversion-preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetFormat: 'egern' }),
-    }, { DB: db })
-
-    expect(response.status).toBe(200)
-    expect(getConvertedRemoteRuleSet).not.toHaveBeenCalled()
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: { mode: 'direct', sourceFormat: 'egern', outputFormat: 'egern' },
-    })
-  })
-
-  it('previews converted content with exact counts and truncation metadata', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({ preset_source: null, preset_id: null, format: 'singbox', url: 'https://example.com/source.json' }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-    vi.mocked(getConvertedRemoteRuleSet).mockResolvedValue({
-      content: `HOST-SUFFIX,example.com\n${'x'.repeat(13 * 1024)}`,
-      contentType: 'text/plain; charset=utf-8',
-      convertedRuleCount: 8,
-      skippedRuleCount: 2,
-      skippedRuleTypes: { 'PROCESS-NAME': 1, COMPOUND: 1 },
-      skippedRuleExamples: {
-        'PROCESS-NAME': ['{"process_name":["browser"]}'],
-        COMPOUND: ['{"domain_suffix":["example.com"],"network":["tcp"]}'],
-      },
-      convertedRuleExamples: [
-        { source: '{"domain_suffix":["example.com"]}', target: 'HOST-SUFFIX,example.com' },
-      ],
-      convertedRuleExamplesTruncated: true,
-    })
-    const response = await remoteRuleSetsApp.request('/preset-ai/conversion-preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetFormat: 'quantumultx' }),
-    }, { DB: db, KV: {} as KVNamespace })
-
-    expect(response.status).toBe(200)
-    expect(getConvertedRemoteRuleSet).toHaveBeenCalledWith(
-      expect.objectContaining({ format: 'singbox' }),
-      'quantumultx',
-      expect.objectContaining({ kv: expect.anything(), bypassCache: true }),
-    )
-    const payload = await response.json() as { data: { preview: string; truncated: boolean } }
-    expect(payload).toMatchObject({
-      success: true,
-      data: {
-        checkedAt: expect.any(String),
-        mode: 'converted', targetFormat: 'quantumultx', outputFormat: 'quantumultx',
-        convertedRuleCount: 8, skippedRuleCount: 2, truncated: true,
-        convertedExamples: [
-          { source: '{"domain_suffix":["example.com"]}', target: 'HOST-SUFFIX,example.com' },
-        ],
-        convertedExamplesTruncated: true,
-        issues: [
-          { type: 'COMPOUND', count: 1, reason: 'compound-condition', resolution: 'use-native-source' },
-          { type: 'PROCESS-NAME', count: 1, reason: 'unsupported-directive', resolution: 'use-native-source' },
-        ],
-      },
-    })
-    expect(payload.data.preview).toHaveLength(12 * 1024)
-    expect(payload.data.preview).toMatch(/^HOST-SUFFIX,example\.com/)
-  })
-
-  it('previews every client in one response while downloading a shared source once', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({
-        preset_source: null,
-        preset_id: null,
-        format: 'text',
-        behavior: 'domain',
-        url: 'https://example.com/domains.list',
-      }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-    vi.mocked(fetchRemoteRuleSetContent).mockClear()
-    vi.mocked(convertRemoteRuleSetContent).mockClear()
-    vi.mocked(fetchRemoteRuleSetContent).mockResolvedValue(new TextEncoder().encode('example.com'))
-    vi.mocked(convertRemoteRuleSetContent).mockReturnValue({
-      content: 'example.com',
-      contentType: 'text/plain; charset=utf-8',
-      convertedRuleCount: 1,
-      skippedRuleCount: 0,
-      skippedRuleTypes: {},
-      skippedRuleExamples: {},
-      convertedRuleExamples: [],
-      convertedRuleExamplesTruncated: false,
-    })
-
-    const response = await remoteRuleSetsApp.request('/preset-ai/conversion-previews', {
-      method: 'POST',
-    }, { DB: db, KV: {} as KVNamespace })
-
-    expect(response.status).toBe(200)
-    const payload = await response.json() as { data: { results: Array<{ targetFormat: string; status: string }> } }
-    expect(payload.data.results).toHaveLength(8)
-    expect(payload.data.results.map(item => item.targetFormat)).toEqual([
-      'mihomo', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
-    ])
-    expect(payload.data.results.every(item => item.status === 'ready')).toBe(true)
-    expect(fetchRemoteRuleSetContent).toHaveBeenCalledTimes(1)
-    expect(convertRemoteRuleSetContent).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports unsupported targets without attempting a conversion', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({ preset_source: null, preset_id: null, format: 'unknown' }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-    const response = await remoteRuleSetsApp.request('/preset-ai/conversion-preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetFormat: 'singbox' }),
-    }, { DB: db })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ success: true, data: { mode: 'unsupported' } })
-  })
-
-  it('validates preview targets and preserves typed conversion failures', async () => {
-    const db = createRemoteRuleSetRouteDb({
-      existing: managedRemoteRuleSetRow({ preset_source: null, preset_id: null, format: 'singbox' }),
-      enabledTargetGroupIds: new Set(['builtin-ai']),
-    })
-    const invalid = await remoteRuleSetsApp.request('/preset-ai/conversion-preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetFormat: 'nodes_raw' }),
-    }, { DB: db })
-    expect(invalid.status).toBe(400)
-
-    vi.mocked(getConvertedRemoteRuleSet).mockRejectedValue(new RuleSetConversionError('too_large', 'Rule set is too large to convert'))
-    const tooLarge = await remoteRuleSetsApp.request('/preset-ai/conversion-preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetFormat: 'quantumultx' }),
-    }, { DB: db })
-    expect(tooLarge.status).toBe(413)
-    await expect(tooLarge.json()).resolves.toMatchObject({ success: false, code: 'too_large' })
-  })
 })
 
 function managedRemoteRuleSetRow(patch: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
@@ -744,48 +341,23 @@ function managedRemoteRuleSetRow(patch: Partial<Record<string, unknown>> = {}): 
   }
 }
 
-function sourceHealthRow(): Record<string, unknown> {
-  return {
-    remote_rule_set_id: 'preset-ai',
-    expires_at: '2099-07-19T00:00:00.000Z',
-    result: JSON.stringify({
-      status: 'valid', checkedAt: '2099-07-18T00:00:00.000Z',
-      defaultSource: {
-        status: 'valid', checkedAt: '2099-07-18T00:00:00.000Z',
-        url: 'https://example.com/ai.list', format: 'mihomo', behavior: 'classical',
-        inspectionMode: 'structured', byteLength: 128, ruleCount: 4, invalidRuleCount: 0, issues: [],
-      },
-      sourceOverrides: [],
-      summary: { total: 1, valid: 1, warning: 0, invalid: 0 },
-    }),
-  }
-}
-
 function createRemoteRuleSetRouteDb({
   existing,
   enabledTargetGroupIds,
-  sourceHealth,
   allRuleSets = [],
-  allSourceHealth = [],
   events,
 }: {
   existing: Record<string, unknown>
   enabledTargetGroupIds: Set<string>
-  sourceHealth?: Record<string, unknown>
   allRuleSets?: Record<string, unknown>[]
-  allSourceHealth?: Record<string, unknown>[]
   events?: string[]
-}): D1Database & { updates: unknown[][]; deletes: unknown[][]; healthWrites: unknown[][]; healthDeletes: unknown[][]; batches: unknown[][] } {
+}): D1Database & { updates: unknown[][]; deletes: unknown[][]; batches: unknown[][] } {
   const updates: unknown[][] = []
   const deletes: unknown[][] = []
-  const healthWrites: unknown[][] = []
-  const healthDeletes: unknown[][] = []
   const batches: unknown[][] = []
   return {
     updates,
     deletes,
-    healthWrites,
-    healthDeletes,
     batches,
     prepare: vi.fn((sql: string) => ({
       bind: (...args: unknown[]) => ({
@@ -795,7 +367,6 @@ function createRemoteRuleSetRouteDb({
             return existing
           }
           if (sql.includes('SELECT id, preset_source, preset_id FROM remote_rule_sets WHERE id = ?')) return existing
-          if (sql.includes('FROM remote_rule_set_source_health WHERE remote_rule_set_id = ?')) return sourceHealth ?? null
           if (sql.includes('SELECT id, collection_ids FROM groups')) {
             const id = String(args[0] ?? '')
             return enabledTargetGroupIds.has(id) ? { id, collection_ids: '[]' } : null
@@ -806,16 +377,13 @@ function createRemoteRuleSetRouteDb({
         run: async () => {
           if (sql.includes('UPDATE remote_rule_sets SET')) updates.push(args)
           if (sql.includes('DELETE FROM remote_rule_sets WHERE id = ?')) deletes.push(args)
-          if (sql.includes('INSERT INTO remote_rule_set_source_health')) healthWrites.push(args)
-          if (sql.includes('DELETE FROM remote_rule_set_source_health')) healthDeletes.push(args)
           return { success: true }
         },
         raw: async () => [],
       }),
       first: async () => null,
       all: async () => ({
-        results: sql.includes('FROM remote_rule_set_source_health') ? allSourceHealth
-          : sql.includes('FROM remote_rule_sets') ? allRuleSets
+        results: sql.includes('FROM remote_rule_sets') ? allRuleSets
             : [],
       }),
       run: async () => ({ success: true }),
@@ -826,5 +394,5 @@ function createRemoteRuleSetRouteDb({
       for (const statement of statements) await statement.run()
       return []
     }),
-  } as unknown as D1Database & { updates: unknown[][]; deletes: unknown[][]; healthWrites: unknown[][]; healthDeletes: unknown[][]; batches: unknown[][] }
+  } as unknown as D1Database & { updates: unknown[][]; deletes: unknown[][]; batches: unknown[][] }
 }

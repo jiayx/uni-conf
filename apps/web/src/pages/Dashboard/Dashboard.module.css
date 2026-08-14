@@ -48,12 +48,6 @@
 .wide .statValue { font-size: 1rem; }
 .statLabel { font-size: 0.8125rem; color: var(--color-text-secondary); }
 .error { padding: 0.75rem 1rem; background: var(--color-error-subtle); color: var(--color-error); border-radius: var(--radius-md); font-size: 0.875rem; }
-.ruleSetHealth { display: flex; flex-direction: column; gap: 0.75rem; }
-.ruleSetHealthHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.ruleSetHealthHeader a { color: var(--color-accent); font-size: 0.8125rem; font-weight: 600; text-decoration: none; }
-.ruleSetHealthDescription { margin: 0; color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.45; }
-.ruleSetHealthBadges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.ruleSetHealthMeta { color: var(--color-text-tertiary); font-size: 0.75rem; }
 .attentionCenter { display: grid; gap: 0.875rem; }
 .attentionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .attentionDescription { margin: 0; color: var(--color-text-secondary); font-size: 0.8125rem; line-height: 1.45; }

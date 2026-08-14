@@ -1,22 +1,15 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
-import type { RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetConversionPreviewBatchItem, RemoteRuleSetConversionPreviewBatchResult, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
-import { resolveRuleSetConversionIssues } from '@uni-conf/rule-set'
+import type { RemoteRuleSet, RemoteRuleSetSourceOverrides, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
   isFullConfigExportFormat,
   isRuleSetFormat,
-  isRuleSetFormatCompatible,
-  resolveRemoteRuleSetForExport,
 } from '@uni-conf/shared'
 import { DEFAULT_RULE_TARGET_GROUP_ID, isEnabledTargetGroup, listEnabledTargetGroupIds } from '../services/group-targets'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
-import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
-import { convertRemoteRuleSetContent, fetchRemoteRuleSetContent, getConvertedRemoteRuleSet, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
-import { mapWithConcurrency } from '../services/async-pool'
-import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import { listSourceRemoteRuleSets } from '../services/source-rule-sets'
 import { requestWorkspaceId, workspaceEntityId } from '../services/workspaces'
@@ -28,9 +21,7 @@ app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM remote_rule_sets WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC'
   ).bind(workspaceId).all<Record<string, unknown>>()
-  const healthByRuleSetId = await listSourceHealthSnapshots(c.env.DB, workspaceId)
-
-  return c.json({ success: true, data: results.map(row => attachSourceHealth(mapRemoteRuleSet(row), healthByRuleSetId.get(String(row.id)))) })
+  return c.json({ success: true, data: results.map(mapRemoteRuleSet) })
 })
 
 app.post('/', async (c) => {
@@ -157,225 +148,6 @@ app.post('/batch', async (c) => {
   return c.json({ success: true, data: results.map(mapRemoteRuleSet) }, 201)
 })
 
-app.post('/validate-source', async (c) => {
-  const body = await c.req.json<Partial<RemoteRuleSetSourceValidationInput>>().catch(() => null)
-  const normalized = normalizeSourceValidationInput(body)
-  if (!normalized.valid) return c.json({ success: false, error: normalized.error, code: normalized.code }, 400)
-
-  const result = await validateRemoteRuleSetContent({
-    url: normalized.value.url,
-    format: normalized.value.targetFormat,
-    behavior: normalized.value.behavior,
-  })
-  return c.json({ success: true, data: result })
-})
-
-app.post('/validate-sources', async (c) => {
-  const body = await c.req.json<{ sources?: Array<Partial<RemoteRuleSetSourceValidationInput>> }>().catch(() => null)
-  if (!body || !Array.isArray(body.sources) || body.sources.length === 0 || body.sources.length > FULL_CONFIG_EXPORT_FORMATS.length) {
-    return c.json({ success: false, error: 'sources must contain between 1 and 9 items', code: 'invalid_batch' }, 400)
-  }
-
-  const normalizedSources: RemoteRuleSetSourceValidationInput[] = []
-  const targets = new Set<RemoteRuleSetSourceOverrideTarget>()
-  for (const [index, source] of body.sources.entries()) {
-    const normalized = normalizeSourceValidationInput(source)
-    if (!normalized.valid) {
-      return c.json({ success: false, error: `invalid source at index ${index}: ${normalized.error}`, code: normalized.code }, 400)
-    }
-    if (targets.has(normalized.value.targetFormat)) {
-      return c.json({ success: false, error: `duplicate target format: ${normalized.value.targetFormat}`, code: 'duplicate_target' }, 400)
-    }
-    targets.add(normalized.value.targetFormat)
-    normalizedSources.push(normalized.value)
-  }
-
-  const results = await mapWithConcurrency(normalizedSources, 3, async source => ({
-    targetFormat: source.targetFormat,
-    result: await validateRemoteRuleSetContent({
-      url: source.url,
-      format: source.targetFormat,
-      behavior: source.behavior,
-    }),
-  }))
-  return c.json({ success: true, data: { results } satisfies RemoteRuleSetSourceValidationBatchResult })
-})
-
-app.post('/:id/validate', async (c) => {
-  const workspaceId = requestWorkspaceId(c)
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
-    .bind(c.req.param('id'), workspaceId)
-    .first<Record<string, unknown>>()
-
-  if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
-  const result = await validateRemoteRuleSetContent(mapRemoteRuleSet(row))
-  return c.json({ success: true, data: result })
-})
-
-app.post('/:id/validate-all', async (c) => {
-  const workspaceId = requestWorkspaceId(c)
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
-    .bind(c.req.param('id'), workspaceId)
-    .first<Record<string, unknown>>()
-  if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
-
-  const snapshot = await validateAndPersistRuleSetSources(c.env.DB, mapRemoteRuleSet(row))
-  const result: RemoteRuleSetSourceHealthResult = {
-    status: snapshot.status,
-    checkedAt: snapshot.checkedAt,
-    defaultSource: snapshot.defaultSource,
-    sourceOverrides: snapshot.sourceOverrides,
-    summary: snapshot.summary,
-  }
-  return c.json({ success: true, data: result })
-})
-
-app.post('/:id/conversion-preview', async (c) => {
-  const workspaceId = requestWorkspaceId(c)
-  const body: { targetFormat?: unknown } = await c.req.json<{ targetFormat?: unknown }>().catch(() => ({}))
-  if (!isFullConfigExportFormat(body.targetFormat)) {
-    return c.json({ success: false, error: 'invalid conversion preview target' }, 400)
-  }
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
-    .bind(c.req.param('id'), workspaceId)
-    .first<Record<string, unknown>>()
-  if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
-
-  try {
-    const result = await buildConversionPreview(mapRemoteRuleSet(row), body.targetFormat, c.env)
-    return c.json({ success: true, data: result })
-  } catch (error) {
-    const failure = conversionPreviewFailure(error)
-    return c.json({ success: false, error: failure.error, code: failure.code }, failure.status)
-  }
-})
-
-app.post('/:id/conversion-previews', async (c) => {
-  const workspaceId = requestWorkspaceId(c)
-  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
-    .bind(c.req.param('id'), workspaceId)
-    .first<Record<string, unknown>>()
-  if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
-
-  const ruleSet = mapRemoteRuleSet(row)
-  const downloads = new Map<string, Promise<Uint8Array>>()
-  const results = await Promise.all(FULL_CONFIG_EXPORT_FORMATS.map(async targetFormat => {
-    try {
-      return {
-        targetFormat,
-        status: 'ready',
-        result: await buildConversionPreview(ruleSet, targetFormat, c.env, downloads),
-      } satisfies RemoteRuleSetConversionPreviewBatchItem
-    } catch (error) {
-      const failure = conversionPreviewFailure(error)
-      return {
-        targetFormat,
-        status: 'error',
-        code: failure.code,
-        error: failure.error,
-      } satisfies RemoteRuleSetConversionPreviewBatchItem
-    }
-  }))
-  return c.json({ success: true, data: { results } satisfies RemoteRuleSetConversionPreviewBatchResult })
-})
-
-async function buildConversionPreview(
-  ruleSet: RemoteRuleSet,
-  targetFormat: RemoteRuleSetSourceOverrideTarget,
-  env: Env,
-  downloads?: Map<string, Promise<Uint8Array>>,
-): Promise<RemoteRuleSetConversionPreview> {
-  const checkedAt = new Date().toISOString()
-  const resolved = resolveRemoteRuleSetForExport(ruleSet, targetFormat)
-  if (resolved && isRuleSetFormatCompatible(targetFormat, resolved.format)) {
-    return {
-      checkedAt,
-      targetFormat,
-      sourceFormat: resolved.format,
-      outputFormat: resolved.format,
-      mode: 'direct',
-      convertedRuleCount: 0,
-      skippedRuleCount: 0,
-      skippedRuleTypes: {},
-      issues: [],
-      convertedExamples: [],
-      convertedExamplesTruncated: false,
-      truncated: false,
-    }
-  }
-
-  const conversion = resolveRuleSetConversionSource(ruleSet, targetFormat)
-  if (!conversion) {
-    return {
-      checkedAt,
-      targetFormat,
-      sourceFormat: ruleSet.format,
-      mode: 'unsupported',
-      convertedRuleCount: 0,
-      skippedRuleCount: 0,
-      skippedRuleTypes: {},
-      issues: [],
-      convertedExamples: [],
-      convertedExamplesTruncated: false,
-      truncated: false,
-    }
-  }
-
-  let converted
-  if (downloads) {
-    const sourceKey = `${conversion.source.url}|${conversion.source.format}|${conversion.source.behavior}`
-    let download = downloads.get(sourceKey)
-    if (!download) {
-      download = fetchRemoteRuleSetContent(conversion.source)
-      downloads.set(sourceKey, download)
-    }
-    converted = convertRemoteRuleSetContent(conversion.source, conversion.target, await download)
-  } else {
-    converted = await getConvertedRemoteRuleSet(conversion.source, conversion.target, {
-      kv: env.KV,
-      bypassCache: true,
-    })
-  }
-  const previewLimit = 12 * 1024
-  return {
-    checkedAt,
-    targetFormat,
-    sourceFormat: conversion.source.format,
-    outputFormat: conversion.target,
-    mode: 'converted',
-    convertedRuleCount: converted.convertedRuleCount,
-    skippedRuleCount: converted.skippedRuleCount,
-    skippedRuleTypes: converted.skippedRuleTypes,
-    issues: resolveRuleSetConversionIssues(converted),
-    convertedExamples: converted.convertedRuleExamples,
-    convertedExamplesTruncated: converted.convertedRuleExamplesTruncated,
-    contentType: converted.contentType,
-    preview: converted.content.slice(0, previewLimit),
-    truncated: converted.content.length > previewLimit,
-  }
-}
-
-function conversionPreviewFailure(error: unknown): {
-  code: 'download_failed' | 'too_large' | 'invalid_content' | 'unknown'
-  error: string
-  status: 413 | 422 | 502
-} {
-  if (error instanceof RuleSetConversionError && error.code === 'too_large') {
-    return { code: error.code, error: error.message, status: 413 }
-  }
-  if (error instanceof RuleSetConversionError && error.code === 'download_failed') {
-    return { code: error.code, error: error.message, status: 502 }
-  }
-  if (error instanceof RuleSetConversionError) {
-    return { code: error.code, error: error.message, status: 422 }
-  }
-  return {
-    code: 'unknown',
-    error: 'Rule set cannot be converted without changing its meaning',
-    status: 422,
-  }
-}
-
 app.get('/:id', async (c) => {
   const workspaceId = requestWorkspaceId(c)
   const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
@@ -383,8 +155,7 @@ app.get('/:id', async (c) => {
     .first<Record<string, unknown>>()
 
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
-  const health = await getSourceHealthSnapshot(c.env.DB, c.req.param('id'))
-  return c.json({ success: true, data: attachSourceHealth(mapRemoteRuleSet(row), health) })
+  return c.json({ success: true, data: mapRemoteRuleSet(row) })
 })
 
 app.put('/:id', async (c) => {
@@ -478,15 +249,7 @@ app.put('/:id', async (c) => {
       workspaceId
     )
 
-  const sourceChanged = remoteRuleSetSourceChanged(validation, existing)
-  if (sourceChanged) {
-    await c.env.DB.batch([
-      updateStatement,
-      c.env.DB.prepare('DELETE FROM remote_rule_set_source_health WHERE remote_rule_set_id = ?').bind(id),
-    ])
-  } else {
-    await updateStatement.run()
-  }
+  await updateStatement.run()
 
   if (managed && validation.targetOverrideGroupId !== undefined) {
     await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
@@ -494,8 +257,7 @@ app.put('/:id', async (c) => {
   const updated = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
     .bind(id, workspaceId)
     .first<Record<string, unknown>>()
-  const sourceHealth = sourceChanged ? undefined : await getSourceHealthSnapshot(c.env.DB, id)
-  return c.json({ success: true, data: attachSourceHealth(mapRemoteRuleSet(updated!), sourceHealth) })
+  return c.json({ success: true, data: mapRemoteRuleSet(updated!) })
 })
 
 app.delete('/:id', async (c) => {
@@ -600,29 +362,6 @@ function scopeDefaultTarget(input: CreateRemoteRuleSetInput, workspaceId: string
     : input
 }
 
-function attachSourceHealth(ruleSet: RemoteRuleSet, sourceHealth?: RemoteRuleSetSourceHealthSnapshot): RemoteRuleSet {
-  return sourceHealth ? { ...ruleSet, sourceHealth } : ruleSet
-}
-
-function remoteRuleSetSourceChanged(
-  validation: Extract<RemoteRuleSetWriteValidation, { valid: true }>,
-  existing: Record<string, unknown>,
-): boolean {
-  if (validation.url !== undefined && validation.url !== String(existing.url ?? '')) return true
-  if (validation.format !== undefined && validation.format !== existing.format) return true
-  if (validation.behavior !== undefined && validation.behavior !== existing.behavior) return true
-  if (validation.updateInterval !== undefined && validation.updateInterval !== Number(existing.update_interval ?? 24)) return true
-  if (validation.sourceOverrides !== undefined) {
-    const previous = mapRemoteRuleSet(existing).sourceOverrides
-    const targets = new Set([...Object.keys(previous), ...Object.keys(validation.sourceOverrides)])
-    for (const target of targets) {
-      const key = target as RemoteRuleSetSourceOverrideTarget
-      if (previous[key] !== validation.sourceOverrides[key]) return true
-    }
-  }
-  return false
-}
-
 export function validateRemoteRuleSetWrite(
   body: Partial<RemoteRuleSet>,
   options: { create: boolean }
@@ -700,22 +439,6 @@ export function validateRemoteRuleSetWrite(
     lastUpdated: body.lastUpdated !== undefined ? normalizeNullableText(body.lastUpdated) : undefined,
     notes: body.notes !== undefined ? normalizeNullableText(body.notes) : undefined,
   }
-}
-
-type NormalizedSourceValidationInput =
-  | { valid: true; value: RemoteRuleSetSourceValidationInput }
-  | { valid: false; error: string; code: 'unsafe_url' | 'invalid_format' | 'invalid_behavior' }
-
-function normalizeSourceValidationInput(value: Partial<RemoteRuleSetSourceValidationInput> | null): NormalizedSourceValidationInput {
-  const url = normalizeHttpUrl(value?.url)
-  if (!url) return { valid: false, error: 'url must be a public http(s) URL', code: 'unsafe_url' }
-  if (!isFullConfigExportFormat(value?.targetFormat)) {
-    return { valid: false, error: 'invalid target-native source format', code: 'invalid_format' }
-  }
-  if (!isValidRuleSetBehavior(value?.behavior)) {
-    return { valid: false, error: 'invalid rule set behavior', code: 'invalid_behavior' }
-  }
-  return { valid: true, value: { url, targetFormat: value.targetFormat, behavior: value.behavior } }
 }
 
 function normalizeSourceOverrides(value: unknown): RemoteRuleSetSourceOverrides | null {

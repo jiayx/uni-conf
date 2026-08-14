@@ -102,7 +102,7 @@ rule-providers:
     await syncSourceLinkedRemoteRuleSets(db, 'source-1', '2026-07-26T00:00:00.000Z')
 
     expect(db.batch).toHaveBeenCalledOnce()
-    expect((db.batch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toHaveLength(3)
+    expect((db.batch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toHaveLength(2)
     expect(boundOperations).toContainEqual({
       sql: expect.stringContaining('source_missing = 1'),
       args: ['2026-07-26T00:00:00.000Z', 'source-1', 'default'],

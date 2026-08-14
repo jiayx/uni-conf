@@ -26,7 +26,6 @@ describe('database migrations', () => {
       'groups',
       'rules',
       'remote_rule_sets',
-      'remote_rule_set_source_health',
       'export_configs',
       'app_settings',
     ]) {
@@ -76,15 +75,10 @@ describe('database migrations', () => {
     }
   })
 
-  it('keeps audit and health data free of raw credentials', () => {
+  it('keeps audit data free of raw credentials', () => {
     const history = tableDefinition('source_import_runs')
     expect(history).toContain('FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE SET NULL')
     expect(history).not.toMatch(/raw_content|parsed_config|raw_config|password/i)
-
-    const health = tableDefinition('remote_rule_set_source_health')
-    expect(health).toContain('FOREIGN KEY (remote_rule_set_id) REFERENCES remote_rule_sets(id) ON DELETE CASCADE')
-    expect(health).toContain('expires_at TEXT NOT NULL')
-    expect(health).toContain('result TEXT NOT NULL')
   })
 })
 

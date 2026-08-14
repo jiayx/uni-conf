@@ -25,7 +25,6 @@ import {
 import { enabledNodeRowsQuery } from './services/enabled-node-rows'
 import { getAppSettings } from './services/app-settings'
 import { applyCollectionTransforms } from './services/collection-transforms'
-import { listSourceHealthSnapshots } from './services/remote-rule-set-health'
 import {
   DEFAULT_WORKSPACE_ID,
   workspaceEntityId,
@@ -148,10 +147,6 @@ export async function buildExportData(
     db,
     `SELECT * FROM sources WHERE workspace_id = '${workspaceId}' AND enabled = 1 AND type = 'url' ORDER BY created_at ASC`
   )
-  const sourceHealthByRuleSetId = remoteSetRows.length > 0
-    ? await listSourceHealthSnapshots(db, workspaceId)
-    : new Map()
-
   return {
     config,
     nodeRows: exportNodeRows,
@@ -163,11 +158,7 @@ export async function buildExportData(
     nodes: exportNodeRows.map(mapNode),
     groups: groupRows.map(mapGroup),
     rules: ruleRows.map(mapRule),
-    remoteSets: remoteSetRows.map((row) => {
-      const ruleSet = mapRemoteRuleSet(row)
-      const sourceHealth = sourceHealthByRuleSetId.get(ruleSet.id)
-      return sourceHealth ? { ...ruleSet, sourceHealth } : ruleSet
-    }),
+    remoteSets: remoteSetRows.map(mapRemoteRuleSet),
     collectionNodeNames: buildCollectionNodeNames(collectionRows, exportNodeRows),
   }
 }

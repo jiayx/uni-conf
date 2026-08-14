@@ -210,15 +210,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_rule_sets_source_key
   ON remote_rule_sets(source_id, source_rule_set_key)
   WHERE source_id IS NOT NULL AND source_rule_set_key IS NOT NULL;
 
--- Operational health snapshots are intentionally separate from configuration backups.
-CREATE TABLE IF NOT EXISTS remote_rule_set_source_health (
-  remote_rule_set_id TEXT PRIMARY KEY,
-  checked_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  result TEXT NOT NULL,
-  FOREIGN KEY (remote_rule_set_id) REFERENCES remote_rule_sets(id) ON DELETE CASCADE
-);
-
 -- Export configurations
 CREATE TABLE IF NOT EXISTS export_configs (
   id TEXT PRIMARY KEY,

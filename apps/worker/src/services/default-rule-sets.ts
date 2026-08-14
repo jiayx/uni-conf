@@ -38,7 +38,6 @@ export async function ensureDefaultRemoteRuleSets(
   const catalogSnapshot = snapshot ?? await getRuleSetCatalogSnapshot()
   const groups = await listTargetGroups(db, workspaceId)
   const existingPresets = await listExistingPresetRows(db, workspaceId)
-  const healthInvalidationIds = new Set<string>()
   const statements: D1PreparedStatement[] = []
   const managedPresetKeys = new Set(catalogSnapshot.catalogs.flatMap(catalog =>
     catalog.items
@@ -96,11 +95,6 @@ export async function ensureDefaultRemoteRuleSets(
           && existing.notes === state.notes
           && JSON.stringify(existing.source_overrides) === JSON.stringify(sourceOverrides)
         ) continue
-        if (
-          existing.url !== url
-          || existing.format !== format
-          || existing.behavior !== behavior
-        ) healthInvalidationIds.add(existing.id)
         statements.push(db
           .prepare('UPDATE remote_rule_sets SET name = COALESCE(?, name), url = ?, format = ?, behavior = ?, source_overrides = ?, target_group_id = ?, enabled = ?, sort_order = ?, notes = ?, updated_at = ? WHERE id = ?')
           .bind(name ?? null, url, format, behavior, JSON.stringify(sourceOverrides), targetGroup.id, state.enabled, sortOrder, state.notes, ts, existing.id))
@@ -133,9 +127,6 @@ export async function ensureDefaultRemoteRuleSets(
     }
   }
 
-  statements.push(...Array.from(healthInvalidationIds, id => db
-    .prepare('DELETE FROM remote_rule_set_source_health WHERE remote_rule_set_id = ?')
-    .bind(id)))
   if (statements.length > 0) await db.batch(statements)
 }
 

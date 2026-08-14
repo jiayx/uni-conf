@@ -117,7 +117,6 @@ export async function syncSourceLinkedRemoteRuleSets(
         row.id,
         sourceId,
       ),
-      db.prepare('DELETE FROM remote_rule_set_source_health WHERE remote_rule_set_id = ?').bind(row.id),
     )
   }
   await db.batch(statements)

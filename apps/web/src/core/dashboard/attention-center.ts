@@ -3,7 +3,6 @@ import type { DashboardStats } from '@uni-conf/types'
 export type DashboardAttentionSeverity = 'error' | 'warning'
 export type DashboardAttentionId =
   | 'source_refresh'
-  | 'rule_source_invalid'
   | 'export_paused'
 
 export interface DashboardAttentionItem {
@@ -25,15 +24,6 @@ export function deriveDashboardAttention(stats: DashboardStats): DashboardAttent
     })
   }
 
-  const ruleSetHealth = stats.ruleSetHealth
-  if ((ruleSetHealth?.invalid ?? 0) > 0) {
-    items.push({
-      id: 'rule_source_invalid',
-      severity: 'error',
-      count: ruleSetHealth!.invalid,
-      to: '/remote-rule-sets?attention=1',
-    })
-  }
   if (stats.defaultExportEnabled === false) {
     items.push({
       id: 'export_paused',

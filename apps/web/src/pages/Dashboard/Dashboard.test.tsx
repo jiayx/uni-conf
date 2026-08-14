@@ -54,20 +54,10 @@ describe('Dashboard', () => {
     vi.mocked(api.dashboard.stats).mockResolvedValue({
       ...stats,
       sourceRefreshFailureCount: 2,
-      ruleSetHealth: {
-        total: 4,
-        valid: 0,
-        warning: 1,
-        invalid: 1,
-        stale: 1,
-        pending: 1,
-      },
     })
     render(<MemoryRouter><Dashboard /></MemoryRouter>)
 
     expect(await screen.findByText('Subscription refresh failures: 2')).toBeInTheDocument()
-    expect(screen.getByText('Invalid rule-set sources: 1')).toBeInTheDocument()
-    expect(screen.queryByText('Rule source health')).not.toBeInTheDocument()
   })
 
   it('offers setup instead of quick export when no data exists', async () => {
