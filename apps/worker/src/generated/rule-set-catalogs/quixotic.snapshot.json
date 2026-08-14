@@ -90,16 +90,23 @@
     },
     {
       "routing": {
+        "category": "direct",
+        "target": "DIRECT",
+        "provisioning": "foundation",
+        "order": 15,
+        "activeForUnmatchedPolicies": ["proxy", "direct"]
+      },
+      "rules": [{ "id": "httpdns", "name": "HTTPDNS" }]
+    },
+    {
+      "routing": {
         "category": "privacy",
         "target": "REJECT",
         "provisioning": "foundation",
         "order": 20,
         "activeForUnmatchedPolicies": ["proxy", "direct"]
       },
-      "rules": [
-        { "id": "adrules", "name": "Advertising" },
-        { "id": "httpdns", "name": "HTTPDNS" }
-      ]
+      "rules": [{ "id": "adrules", "name": "Advertising" }]
     },
     {
       "routing": {

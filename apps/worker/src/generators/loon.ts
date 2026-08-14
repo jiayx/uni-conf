@@ -23,6 +23,7 @@ import {
   LOCAL_PROXY_BYPASS_ENTRIES,
   TUN_EXCLUDED_ROUTE_ENTRIES,
 } from './network-defaults'
+import { MAINLAND_DNS_BOOTSTRAP, MAINLAND_DOH_SERVERS } from './dns-defaults'
 
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
 
@@ -321,8 +322,8 @@ export function generateLoon(
   lines.push(`ipasn-url = ${ASN_MMDB_URL}`)
   lines.push(`skip-proxy = ${LOCAL_PROXY_BYPASS_ENTRIES.join(', ')}`)
   lines.push(`bypass-tun = ${TUN_EXCLUDED_ROUTE_ENTRIES.join(', ')}`)
-  lines.push('dns-server = 119.29.29.29, 223.5.5.5')
-  lines.push('doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query')
+  lines.push(`dns-server = ${MAINLAND_DNS_BOOTSTRAP.join(', ')}`)
+  lines.push(`doh-server = ${MAINLAND_DOH_SERVERS.join(', ')}`)
   lines.push(`real-ip = ${inlineRealIpDomains(dnsPolicy, 'loon', options.managedRealIpDomains).join(', ')}`)
   lines.push('allow-udp-proxy = true')
   lines.push('allow-wifi-access = false')

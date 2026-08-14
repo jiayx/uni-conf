@@ -57,6 +57,8 @@ describe('default remote rule sets', () => {
 
     expect(proxy.get('cdn')).toBeUndefined()
     expect(proxy.get('public-direct-cdn')).toBeUndefined()
+    expect(proxy.get('httpdns')).toEqual({ enabled: 1, sortOrder: 15 })
+    expect(proxy.get('adrules')).toEqual({ enabled: 1, sortOrder: 20 })
     expect(proxy.get('apple-cn')).toEqual({ enabled: 1, sortOrder: 30 })
     expect(proxy.get('speedtest')).toEqual({ enabled: 1, sortOrder: 150 })
     expect(proxy.get('cn')).toEqual({ enabled: 1, sortOrder: 800 })
@@ -64,6 +66,8 @@ describe('default remote rule sets', () => {
     expect(proxy.get('gfw')).toEqual({ enabled: 0, sortOrder: 800 })
 
     expect(direct.get('public-direct-cdn')).toBeUndefined()
+    expect(direct.get('httpdns')).toEqual({ enabled: 1, sortOrder: 15 })
+    expect(direct.get('adrules')).toEqual({ enabled: 1, sortOrder: 20 })
     expect(direct.get('apple-cn')).toEqual({ enabled: 1, sortOrder: 30 })
     expect(direct.get('speedtest')).toEqual({ enabled: 1, sortOrder: 150 })
     expect(direct.get('cn')).toEqual({ enabled: 0, sortOrder: 800 })

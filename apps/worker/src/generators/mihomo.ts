@@ -16,6 +16,7 @@ import {
   inlineRealIpDomains,
 } from './dns-policy';
 import { TUN_EXCLUDED_ROUTE_ENTRIES } from './network-defaults';
+import { MAINLAND_DNS_BOOTSTRAP, MAINLAND_DOH_SERVERS, OVERSEAS_DOH_SERVERS } from './dns-defaults';
 
 // ─── Mihomo YAML generator ────────────────────────────────────────────────────
 
@@ -226,15 +227,17 @@ function buildMihomoDnsLines(policy: ExportDnsPolicy, useManagedFakeIpFilterProv
   for (const domain of customRealIpDomains(policy)) lines.push(`    - "${domain}"`);
 
   lines.push('  default-nameserver:');
-  lines.push('    - 223.5.5.5');
-  lines.push('    - 119.29.29.29');
+  for (const server of MAINLAND_DNS_BOOTSTRAP) lines.push(`    - ${server}`);
   lines.push('  nameserver:');
-  lines.push('    - https://223.5.5.5/dns-query');
-  lines.push('    - https://120.53.53.53/dns-query');
+  for (const server of MAINLAND_DOH_SERVERS) lines.push(`    - ${server}`);
+
+  lines.push('  proxy-server-nameserver:');
+  for (const server of MAINLAND_DOH_SERVERS) lines.push(`    - ${server}`);
+  lines.push('  direct-nameserver:');
+  for (const server of MAINLAND_DOH_SERVERS) lines.push(`    - ${server}`);
 
   lines.push('  fallback:');
-  lines.push('    - tls://8.8.8.8');
-  lines.push('    - tls://1.1.1.1');
+  for (const server of OVERSEAS_DOH_SERVERS) lines.push(`    - ${server}#PROXY`);
   lines.push('  fallback-filter:');
   lines.push('    geoip: true');
   lines.push('    geoip-code: CN');
@@ -248,11 +251,9 @@ function buildStashDnsLines(policy: ExportDnsPolicy, managedDomains?: string[]):
     'dns:',
     '  enable: true',
     '  default-nameserver:',
-    '    - 223.5.5.5',
-    '    - 119.29.29.29',
+    ...MAINLAND_DNS_BOOTSTRAP.map((server) => `    - ${server}`),
     '  nameserver:',
-    '    - https://223.5.5.5/dns-query',
-    '    - https://120.53.53.53/dns-query',
+    ...MAINLAND_DOH_SERVERS.slice(0, 2).map((server) => `    - ${server}`),
   ];
   lines.push('  fake-ip-filter:');
   for (const domain of inlineRealIpDomains(policy, 'stash', managedDomains)) lines.push(`    - "${domain}"`);

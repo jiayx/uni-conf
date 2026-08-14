@@ -41,6 +41,22 @@ describe('rule-set catalog snapshots', () => {
     ).toBeUndefined()
     expect(
       snapshot.catalogs
+        .find((catalog) => catalog.id === 'quixotic')
+        ?.items.find((item) => item.id === 'httpdns'),
+    ).toMatchObject({
+      suggestedTarget: 'DIRECT',
+      sortOrder: 15,
+    })
+    expect(
+      snapshot.catalogs
+        .find((catalog) => catalog.id === 'quixotic')
+        ?.items.find((item) => item.id === 'adrules'),
+    ).toMatchObject({
+      suggestedTarget: 'REJECT',
+      sortOrder: 20,
+    })
+    expect(
+      snapshot.catalogs
         .flatMap((catalog) => catalog.items)
         .every((item) => item.provisioning !== 'optional'),
     ).toBe(true)

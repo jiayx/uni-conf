@@ -20,6 +20,11 @@ import {
   LOCAL_PROXY_BYPASS_ENTRIES,
   TUN_EXCLUDED_ROUTE_ENTRIES,
 } from './network-defaults'
+import {
+  MAINLAND_DNS_BOOTSTRAP,
+  MAINLAND_DOH_SERVERS,
+  OVERSEAS_DOH_SERVERS,
+} from './dns-defaults'
 
 type Row = Record<string, unknown>
 type RuleCompatibilityType = Parameters<typeof getRuleCompatibilityLevel>[0]
@@ -130,7 +135,7 @@ export function generateQuantumultX(
     '[dns]',
     'no-system',
     'no-ipv6',
-    'doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    `doh-server = ${MAINLAND_DOH_SERVERS.join(', ')}`,
     '',
     '[policy]',
   ]
@@ -310,8 +315,8 @@ function surgeGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): 
     `skip-proxy = ${LOCAL_PROXY_BYPASS}`,
     'exclude-simple-hostnames = true',
     `tun-excluded-routes = ${TUN_EXCLUDED_ROUTES}`,
-    'dns-server = 223.5.5.5, 119.29.29.29',
-    'encrypted-dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    `dns-server = ${MAINLAND_DNS_BOOTSTRAP.join(', ')}`,
+    `encrypted-dns-server = ${MAINLAND_DOH_SERVERS.join(', ')}`,
     `always-real-ip = ${inlineRealIpDomains(policy, 'surge', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'udp-policy-not-supported-behaviour = REJECT',
@@ -333,8 +338,9 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
     'prefer-ipv6 = false',
     `skip-proxy = ${LOCAL_PROXY_BYPASS}`,
     `tun-excluded-routes = ${TUN_EXCLUDED_ROUTES}`,
-    'dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
-    'fallback-dns-server = 223.5.5.5, 119.29.29.29',
+    `dns-server = ${MAINLAND_DOH_SERVERS.join(', ')}`,
+    `fallback-dns-server = ${OVERSEAS_DOH_SERVERS.map((server) => `${server}#proxy`).join(', ')}`,
+    'dns-fallback-system = false',
     `always-real-ip = ${inlineRealIpDomains(policy, 'shadowrocket', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'dns-direct-system = false',
@@ -349,9 +355,9 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
 
 function egernDns(_policy: ExportDnsPolicy): Record<string, unknown> {
   return {
-    bootstrap: ['system', '223.5.5.5', '119.29.29.29'],
+    bootstrap: [...MAINLAND_DNS_BOOTSTRAP],
     upstreams: {
-      mainland: ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
+      mainland: [...MAINLAND_DOH_SERVERS],
     },
     forward: [
       {

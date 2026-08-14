@@ -13,7 +13,7 @@ import { bundledRuleSetCatalogDefinitions } from '../generated/rule-set-catalogs
 import { safeRemoteFetch } from './safe-remote-fetch'
 import type { Env } from '../types'
 
-const CATALOG_CACHE_KEY = 'rule-set-catalogs:v2'
+const CATALOG_CACHE_KEY = 'rule-set-catalogs:v3'
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 export const RULE_SET_CATALOG_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
 

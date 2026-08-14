@@ -96,7 +96,14 @@
       "sortOrder": 10
     },
     {
-      "ids": ["adrules", "httpdns"],
+      "ids": ["httpdns"],
+      "category": "direct",
+      "target": "DIRECT",
+      "provisioning": "foundation",
+      "sortOrder": 15
+    },
+    {
+      "ids": ["adrules"],
       "category": "privacy",
       "target": "REJECT",
       "provisioning": "foundation",

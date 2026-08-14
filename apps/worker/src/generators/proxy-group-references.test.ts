@@ -491,7 +491,7 @@ describe('proxy group references', () => {
     expect(stash).not.toContain('sniffer:')
     expect(stash).not.toContain('tun:')
     expect(stash).toContain('    - https://223.5.5.5/dns-query')
-    expect(stash).toContain('    - https://120.53.53.53/dns-query')
+    expect(stash).toContain('    - https://223.6.6.6/dns-query')
     expect(stash).not.toContain('nameserver-policy:')
     expect(stash).not.toContain('https://1.1.1.1/dns-query')
     expect(stash).not.toContain('https://8.8.8.8/dns-query')
@@ -515,6 +515,14 @@ describe('proxy group references', () => {
     const content = generateMihomoYaml([], [], [], [])
 
     expect(content).toContain('enhanced-mode: fake-ip')
+    expect(content).toContain('proxy-server-nameserver:')
+    expect(content).toContain('direct-nameserver:')
+    expect(content).toContain('    - https://223.5.5.5/dns-query')
+    expect(content).toContain('    - https://223.6.6.6/dns-query')
+    expect(content).toContain('    - https://1.1.1.1/dns-query#PROXY')
+    expect(content).toContain('    - https://8.8.8.8/dns-query#PROXY')
+    expect(content).not.toContain('    - tls://1.1.1.1')
+    expect(content).not.toContain('    - tls://8.8.8.8')
     expect(content).toContain('fallback-filter:')
     expect(content).not.toContain('nameserver-policy:')
     expect(content).toContain('fake-ip-range:')
@@ -654,7 +662,7 @@ describe('proxy group references', () => {
       }),
     )
     expect(fakeIp.dns.servers).toContainEqual(expect.objectContaining({ tag: 'proxyDns' }))
-    expect(fakeIp.dns.final).toBe('proxyDns')
+    expect(fakeIp.dns.final).toBe('localDns')
     expect(fakeIp.dns.strategy).toBe('ipv4_only')
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
   })
@@ -668,10 +676,10 @@ describe('proxy group references', () => {
     expect(loon).toContain('[General]')
     expect(loon).toContain('ip-mode = v4-only')
     expect(loon).not.toContain('ip-mode = ipv4-only')
-    expect(loon).toContain('dns-server = 119.29.29.29, 223.5.5.5')
+    expect(loon).toContain('dns-server = 223.5.5.5, 119.29.29.29')
     expect(loon).not.toContain('dns-server = system')
     expect(loon).toContain(
-      'doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+      'doh-server = https://223.5.5.5/dns-query, https://223.6.6.6/dns-query, https://doh.pub/dns-query',
     )
     expect(loon).not.toContain('https://1.1.1.1/dns-query')
     expect(loon).not.toContain('https://8.8.8.8/dns-query')
@@ -697,7 +705,7 @@ describe('proxy group references', () => {
     expect(surge).toContain('exclude-simple-hostnames = true')
     expect(surge).toContain('tun-excluded-routes = 10.0.0.0/8')
     expect(surge).toContain(
-      'encrypted-dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+      'encrypted-dns-server = https://223.5.5.5/dns-query, https://223.6.6.6/dns-query, https://doh.pub/dns-query',
     )
     expect(surge).toContain('[Host]\n\n[URL Rewrite]')
     expect(surge).not.toContain('*.cn = server:')
@@ -716,9 +724,12 @@ describe('proxy group references', () => {
     expect(shadowrocket).toContain('dns-direct-system = false')
     expect(shadowrocket).toContain('tun-excluded-routes = 10.0.0.0/8')
     expect(shadowrocket).toContain(
-      'dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+      'dns-server = https://223.5.5.5/dns-query, https://223.6.6.6/dns-query, https://doh.pub/dns-query',
     )
-    expect(shadowrocket).toContain('fallback-dns-server = 223.5.5.5, 119.29.29.29')
+    expect(shadowrocket).toContain(
+      'fallback-dns-server = https://1.1.1.1/dns-query#proxy, https://8.8.8.8/dns-query#proxy',
+    )
+    expect(shadowrocket).toContain('dns-fallback-system = false')
     expect(shadowrocket).toContain('*.lan')
     expect(shadowrocket).toContain('[Host]\n\n[URL Rewrite]')
     expect(shadowrocket).not.toContain('*.cn = server:')
@@ -732,7 +743,7 @@ describe('proxy group references', () => {
     expect(quantumultx).toContain('excluded_routes=10.0.0.0/8')
     expect(quantumultx).toContain('[dns]\nno-system\nno-ipv6')
     expect(quantumultx).toContain(
-      'doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+      'doh-server = https://223.5.5.5/dns-query, https://223.6.6.6/dns-query, https://doh.pub/dns-query',
     )
     expect(quantumultx).not.toContain('server = /*.cn/')
     expect(quantumultx).toContain(
@@ -767,9 +778,13 @@ describe('proxy group references', () => {
     expect(egern.bypass_tunnel_proxy).toContain('192.168.0.0/16')
     expect(egern.geoip_db_url).toContain('Loyalsoldier/geoip@release/Country-without-asn.mmdb')
     expect(egern.asn_db_url).toContain('Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb')
-    expect(egern.dns.bootstrap).toEqual(['system', '223.5.5.5', '119.29.29.29'])
+    expect(egern.dns.bootstrap).toEqual(['223.5.5.5', '119.29.29.29'])
     expect(egern.dns.upstreams).toEqual({
-      mainland: ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
+      mainland: [
+        'https://223.5.5.5/dns-query',
+        'https://223.6.6.6/dns-query',
+        'https://doh.pub/dns-query',
+      ],
     })
     expect(egern.dns.forward).toEqual([
       { domain_wildcard: { match: '*', value: 'mainland' } },
@@ -801,7 +816,7 @@ describe('proxy group references', () => {
     const content = generateShadowrocket([], [toRow(proxyGroup), toRow(directGroup)], rules, [])
 
     expect(content).toContain(
-      'dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+      'dns-server = https://223.5.5.5/dns-query, https://223.6.6.6/dns-query, https://doh.pub/dns-query',
     )
     expect(content).toContain('[Host]\n\n[URL Rewrite]')
     expect(content).toContain('DOMAIN-SUFFIX,google.com,PROXY,force-remote-dns')
@@ -835,21 +850,23 @@ describe('proxy group references', () => {
 
   it('uses an existing sing-box outbound for DNS and rule set downloads', () => {
     const withProxy = JSON.parse(generateSingboxJson([], [proxyGroup, autoGroup], [], [])) as {
-      dns: { servers: Array<Record<string, unknown>> }
+      dns: { servers: Array<Record<string, unknown>>; final: string }
       route: { rule_set: Array<Record<string, unknown>> }
     }
     const withoutProxy = JSON.parse(generateSingboxJson([], [], [], [])) as {
-      dns: { servers: Array<Record<string, unknown>> }
+      dns: { servers: Array<Record<string, unknown>>; final: string }
       route: { rule_set: Array<Record<string, unknown>> }
     }
 
     expect(withProxy.dns.servers.find((server) => server.tag === 'proxyDns')).toMatchObject({
       detour: 'PROXY',
     })
+    expect(withProxy.dns.final).toBe('proxyDns')
     expect(withProxy.route.rule_set.every((ruleSet) => ruleSet.download_detour === 'PROXY')).toBe(true)
     expect(withoutProxy.dns.servers.find((server) => server.tag === 'proxyDns')).toMatchObject({
       detour: 'direct',
     })
+    expect(withoutProxy.dns.final).toBe('localDns')
     expect(withoutProxy.route.rule_set.every((ruleSet) => ruleSet.download_detour === 'direct')).toBe(true)
   })
 

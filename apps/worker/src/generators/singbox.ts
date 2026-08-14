@@ -62,6 +62,7 @@ export function generateSingboxJson(
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
 function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
+  const hasProxyDetour = proxyDetour !== 'direct';
   const servers: Record<string, unknown>[] = [
     {
       type: 'tls',
@@ -105,7 +106,7 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
   return {
     servers,
     ...(rules.length > 0 ? { rules } : {}),
-    final: 'proxyDns',
+    final: hasProxyDetour ? 'proxyDns' : 'localDns',
     strategy: 'ipv4_only',
     disable_cache: false,
     disable_expire: false,
