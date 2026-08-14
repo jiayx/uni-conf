@@ -57,9 +57,11 @@ describe('subscription route helpers', () => {
     expect(getExportFormatFromSubscriptionFilename('sing-box.json')).toBeNull()
   })
 
-  it('exposes Clash as an explicit Mihomo-compatible subscription filename', () => {
-    expect(getExportSubscriptionFilename('clash')).toBe('clash.yaml')
-    expect(getExportFormatFromSubscriptionFilename('clash.yaml')).toBe('clash')
+  it('rejects the removed legacy Clash subscription filename', () => {
+    expect(getExportFormatFromSubscriptionFilename('clash.yaml')).toBeNull()
+    expect(isExportFormat('clash')).toBe(false)
+    expect(isFullConfigExportFormat('clash')).toBe(false)
+    expect(isRuleSetFormat('clash')).toBe(true)
   })
 
   it('derives every target format registry from one complete partition', () => {
@@ -67,7 +69,7 @@ describe('subscription route helpers', () => {
       ...FULL_CONFIG_EXPORT_FORMATS,
       ...NODE_SUBSCRIPTION_EXPORT_FORMATS,
     ])
-    expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'mrs', 'text'])
+    expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'clash', 'mrs', 'text'])
     expect(FULL_CONFIG_EXPORT_FORMATS.every(isFullConfigExportFormat)).toBe(true)
     expect(EXPORT_SUBSCRIPTION_FORMATS.every(isExportFormat)).toBe(true)
     expect(RULE_SET_FORMATS.every(isRuleSetFormat)).toBe(true)

@@ -765,8 +765,7 @@
     "resume_subscription": "恢复订阅",
     "download": "下载配置",
     "formats": {
-      "mihomo": "Mihomo",
-      "clash": "Clash",
+      "mihomo": "Mihomo / Clash.Meta",
       "singbox": "sing-box",
       "loon": "Loon",
       "surge": "Surge",

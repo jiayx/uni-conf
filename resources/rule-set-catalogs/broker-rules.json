@@ -14,8 +14,7 @@
       "format": "mihomo",
       "behavior": "classical",
       "nativeFor": [
-        "mihomo",
-        "clash"
+        "mihomo"
       ]
     },
     {

@@ -681,9 +681,9 @@ describe('remote rule set routes', () => {
 
     expect(response.status).toBe(200)
     const payload = await response.json() as { data: { results: Array<{ targetFormat: string; status: string }> } }
-    expect(payload.data.results).toHaveLength(9)
+    expect(payload.data.results).toHaveLength(8)
     expect(payload.data.results.map(item => item.targetFormat)).toEqual([
-      'mihomo', 'clash', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
+      'mihomo', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
     ])
     expect(payload.data.results.every(item => item.status === 'ready')).toBe(true)
     expect(fetchRemoteRuleSetContent).toHaveBeenCalledTimes(1)

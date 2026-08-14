@@ -141,7 +141,7 @@ describe('Export', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
-    await user.click(await screen.findByRole('button', { name: 'Preview Mihomo config' }))
+    await user.click(await screen.findByRole('button', { name: 'Preview Mihomo / Clash.Meta config' }))
 
     for (let index = 1; index <= 4; index += 1) {
       expect(await screen.findByText(`Notice ${index}`)).toBeInTheDocument()

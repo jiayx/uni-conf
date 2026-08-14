@@ -66,7 +66,7 @@ export function renderExportData(
   const ir = materializeExportIntermediateRepresentation(data)
   const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = ir
 
-  if (format === 'mihomo' || format === 'clash') {
+  if (format === 'mihomo') {
     return {
       content: generateMihomoYaml(nodes, groups, rules, remoteSets, collectionNodeNames, {
         ...options,

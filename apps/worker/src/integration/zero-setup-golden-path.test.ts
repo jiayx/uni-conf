@@ -681,8 +681,7 @@ rule-providers:
     expect(defaultConfig).toBeTruthy()
 
     const clashRes = await request(`/sub/${defaultConfig!.token}/clash.yaml`)
-    expect(clashRes.status).toBe(200)
-    expect(await clashRes.text()).toContain('mixed-port: 7890')
+    expect(clashRes.status).toBe(400)
 
     const subRes = await request(`/sub/${defaultConfig!.token}/mihomo.yaml`)
     expect(subRes.status).toBe(200)
@@ -993,7 +992,7 @@ rule-providers:
 })
 
 function assertExportShape(format: ExportFormat, content: string): void {
-  if (format === 'mihomo' || format === 'clash' || format === 'stash') {
+  if (format === 'mihomo' || format === 'stash') {
     const parsed = parseYAML(content) as Record<string, unknown>
     expect(Array.isArray(parsed.proxies), `${format} proxies`).toBe(true)
     expect(Array.isArray(parsed.rules), `${format} rules`).toBe(true)

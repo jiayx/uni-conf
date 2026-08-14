@@ -64,14 +64,13 @@ describe('renderExportData', () => {
   it('emits parseable structures for structured full-config formats', () => {
     const data = makeExportData()
     const mihomo = yaml.load(renderExportData(data, 'mihomo')?.content ?? '') as { proxies?: unknown[]; rules?: unknown[] }
-    const clash = yaml.load(renderExportData(data, 'clash')?.content ?? '') as { proxies?: unknown[]; rules?: unknown[] }
     const stash = yaml.load(renderExportData(data, 'stash')?.content ?? '') as { proxies?: unknown[]; rules?: unknown[] }
     const singbox = JSON.parse(renderExportData(data, 'singbox')?.content ?? '{}') as {
       outbounds?: unknown[]
       route?: { rules?: unknown[] }
     }
 
-    for (const parsed of [mihomo, clash, stash]) {
+    for (const parsed of [mihomo, stash]) {
       expect(parsed.proxies?.length).toBeGreaterThan(0)
       expect(parsed.rules?.length).toBeGreaterThan(0)
     }
@@ -418,7 +417,7 @@ function makeNodeRow(protocol: ProxyProtocol = 'ss'): Record<string, unknown> {
 }
 
 function renderedContainsNode(format: ExportFormat, content: string, server: string): boolean {
-  if (format === 'mihomo' || format === 'clash' || format === 'stash') {
+  if (format === 'mihomo' || format === 'stash') {
     const parsed = yaml.load(content) as { proxies?: Array<{ server?: string }> }
     return parsed.proxies?.some((proxy) => proxy.server === server) ?? false
   }

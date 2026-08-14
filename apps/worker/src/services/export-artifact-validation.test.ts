@@ -6,7 +6,6 @@ import { exportArtifactWarnings, validateRenderedExport } from './export-artifac
 describe('export artifact validation', () => {
   it.each([
     ['mihomo', validMihomoYaml()],
-    ['clash', validMihomoYaml()],
     ['stash', validMihomoYaml()],
     ['singbox', JSON.stringify({ outbounds: [{ type: 'direct', tag: 'direct' }], route: { rules: [{ outbound: 'direct' }], final: 'direct' } })],
     ['egern', validEgernYaml()],
@@ -20,7 +19,7 @@ describe('export artifact validation', () => {
     expect(validateRenderedExport(format, content)).toEqual({
       format,
       kind: format === 'singbox' ? 'json'
-        : ['mihomo', 'clash', 'stash', 'egern'].includes(format) ? 'yaml'
+        : ['mihomo', 'stash', 'egern'].includes(format) ? 'yaml'
           : format.startsWith('nodes_') ? 'subscription' : 'ini',
       valid: true,
       issues: [],

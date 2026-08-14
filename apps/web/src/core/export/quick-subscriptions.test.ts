@@ -10,11 +10,11 @@ describe('buildQuickSubscriptionLinks', () => {
       'UniConf',
     )
 
-    expect(links).toHaveLength(11)
+    expect(links).toHaveLength(10)
     expect(links[0]).toEqual({
       value: 'mihomo',
-      label: 'Mihomo YAML',
-      url: 'https://conf.example.com/sub/token-1/mihomo.yaml?name=UniConf%20%C2%B7%20Mihomo',
+      label: 'Mihomo / Clash.Meta YAML',
+      url: 'https://conf.example.com/sub/token-1/mihomo.yaml?name=UniConf%20%C2%B7%20Mihomo%20%2F%20Clash.Meta',
     })
     expect(links.at(-1)).toEqual({
       value: 'nodes_raw',

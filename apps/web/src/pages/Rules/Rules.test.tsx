@@ -178,7 +178,7 @@ describe('Rules filters', () => {
     await user.type(within(editor).getByLabelText('Match Value'), '443')
 
     await user.click(within(editor).getByText('Target client result'))
-    expect(within(editor).getByRole('article', { name: 'Mihomo: Convert' }))
+    expect(within(editor).getByRole('article', { name: 'Mihomo / Clash.Meta: Convert' }))
       .toHaveTextContent('PORT,443 → DST-PORT,443')
     expect(within(editor).getByRole('article', { name: 'Surge: Convert' }))
       .toHaveTextContent('PORT,443 → DEST-PORT,443')

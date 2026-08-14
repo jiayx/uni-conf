@@ -17,7 +17,7 @@ describe('buildClientImportLink', () => {
     )
   })
 
-  it.each(['mihomo', 'clash', 'quantumultx', 'nodes_base64', 'nodes_raw'] as const)(
+  it.each(['mihomo', 'quantumultx', 'nodes_base64', 'nodes_raw'] as const)(
     'does not invent an unsafe scheme for %s',
     (format) => {
       expect(buildClientImportLink(format, subscriptionUrl, 'Home Profile')).toBeNull()

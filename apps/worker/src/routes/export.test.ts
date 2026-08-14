@@ -7,7 +7,7 @@ import {
 
 describe('export route helpers', () => {
   it('derives export config names from the target format', () => {
-    expect(resolveExportConfigName(undefined, 'mihomo')).toBe('Mihomo 配置')
+    expect(resolveExportConfigName(undefined, 'mihomo')).toBe('Mihomo / Clash.Meta 配置')
     expect(resolveExportConfigName('', 'singbox')).toBe('sing-box 配置')
   })
 

@@ -7,7 +7,7 @@ export type ConvertibleRuleSetTarget =
   | 'quantumultx'
   | 'egern'
 
-export type RuleSetRuleTarget = ConvertibleRuleSetTarget | 'clash' | 'stash'
+export type RuleSetRuleTarget = ConvertibleRuleSetTarget | 'stash'
 
 export interface RuleSetRuleResolution {
   level: 'full' | 'convert' | 'unsupported'
@@ -26,7 +26,7 @@ export function resolveRuleSetRuleForTarget(
     if (target === 'singbox' && ['tcp', 'udp', 'icmp'].includes(value)) {
       return { level: 'full', type, payload: value }
     }
-    if (['mihomo', 'clash', 'stash'].includes(target) && ['tcp', 'udp'].includes(value)) {
+    if (['mihomo', 'stash'].includes(target) && ['tcp', 'udp'].includes(value)) {
       return { level: 'full', type, payload: value }
     }
     if (target === 'surge' && ['tcp', 'udp'].includes(value)) {
@@ -42,7 +42,7 @@ export function resolveRuleSetRuleForTarget(
   }
 
   if (type === 'PROTOCOL') {
-    if (['mihomo', 'clash', 'stash'].includes(target) && ['tcp', 'udp'].includes(value)) {
+    if (['mihomo', 'stash'].includes(target) && ['tcp', 'udp'].includes(value)) {
       return { level: 'convert', type: 'NETWORK', payload: value, reason: 'protocol-to-network' }
     }
     if (target === 'singbox') {

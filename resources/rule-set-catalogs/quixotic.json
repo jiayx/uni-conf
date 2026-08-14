@@ -12,7 +12,7 @@
       "include": ["*.list"],
       "format": "mihomo",
       "behavior": "classical",
-      "nativeFor": ["mihomo", "clash"]
+      "nativeFor": ["mihomo"]
     },
     {
       "id": "stash",

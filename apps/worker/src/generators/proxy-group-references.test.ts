@@ -485,14 +485,11 @@ describe('proxy group references', () => {
     expect(content).not.toContain('socks-port:')
     expect(content).not.toContain('redir-port:')
 
-    const clash = generateMihomoYaml([], [], [], [], {}, { ruleSetExportFormat: 'clash' })
     const stash = generateStashYaml([], [], [], [])
-    for (const compatibleConfig of [clash, stash]) {
-      expect(compatibleConfig).toContain('ipv6: false')
-      expect(compatibleConfig).not.toContain('find-process-mode:')
-      expect(compatibleConfig).not.toContain('sniffer:')
-      expect(compatibleConfig).not.toContain('tun:')
-    }
+    expect(stash).toContain('ipv6: false')
+    expect(stash).not.toContain('find-process-mode:')
+    expect(stash).not.toContain('sniffer:')
+    expect(stash).not.toContain('tun:')
     expect(stash).toContain('    - https://223.5.5.5/dns-query')
     expect(stash).toContain('    - https://120.53.53.53/dns-query')
     expect(stash).not.toContain('nameserver-policy:')

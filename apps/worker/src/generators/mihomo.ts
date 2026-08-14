@@ -22,7 +22,7 @@ interface MihomoGeneratorOptions {
   dnsPolicy?: ExportDnsPolicy;
   managedRealIpDomains?: string[];
   ruleSetConversionBaseUrl?: string;
-  ruleSetExportFormat?: Extract<ExportFormat, 'mihomo' | 'clash' | 'stash'>;
+  ruleSetExportFormat?: Extract<ExportFormat, 'mihomo' | 'stash'>;
 }
 
 export function generateMihomoYaml(
@@ -281,7 +281,7 @@ function resolveMihomoRuleProviderContainer(
 
 function nodeToMihomo(
   node: ProxyNode,
-  target: Extract<ExportFormat, 'mihomo' | 'clash' | 'stash'>
+  target: Extract<ExportFormat, 'mihomo' | 'stash'>
 ): string | null {
   const nativeProxy = nativeMihomoProxy(node);
   if (nativeProxy) return JSON.stringify(nativeProxy);

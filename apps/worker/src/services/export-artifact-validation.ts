@@ -12,7 +12,7 @@ export function validateRenderedExport(
   format: ExportFormat,
   content: string
 ): ExportArtifactValidationResult {
-  if (format === 'mihomo' || format === 'clash' || format === 'stash') {
+  if (format === 'mihomo' || format === 'stash') {
     return validateYamlProxyConfig(format, content)
   }
   if (format === 'egern') return validateEgernConfig(content)

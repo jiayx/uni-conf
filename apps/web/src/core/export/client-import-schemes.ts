@@ -40,7 +40,6 @@ export function buildClientImportLink(
         url: `egern:/profiles/new?name=${encodedName}&url=${encodedUrl}`,
       }
     case 'mihomo':
-    case 'clash':
     case 'quantumultx':
     case 'nodes_base64':
     case 'nodes_raw':

@@ -358,19 +358,15 @@ describe('remote rule set generators', () => {
     expect(quantumultx).toContain(`${conversionBaseUrl}/remote-singbox/quantumultx.list`);
   });
 
-  it('keeps Clash and Stash target-native sources distinct from Mihomo sources', () => {
+  it('keeps Stash target-native sources distinct from Mihomo sources', () => {
     const clientSpecificSet: RemoteRuleSet = {
       ...singboxRemoteSet,
       sourceOverrides: {
         mihomo: 'https://example.com/mihomo.yaml',
-        clash: 'https://example.com/clash.yaml',
         stash: 'https://example.com/stash.yaml',
       },
     };
 
-    const clash = generateMihomoYaml(
-      [], [proxyGroup, directGroup], [matchRule], [clientSpecificSet], {}, { ruleSetExportFormat: 'clash' }
-    );
     const stash = generateStashYaml(
       [], [proxyGroup, directGroup], [matchRule], [clientSpecificSet]
     );
@@ -378,29 +374,21 @@ describe('remote rule set generators', () => {
       [], [proxyGroup, directGroup], [matchRule], [clientSpecificSet]
     );
 
-    expect(clash).toContain('https://example.com/clash.yaml');
-    expect(clash).not.toContain('https://example.com/mihomo.yaml');
     expect(stash).toContain('https://example.com/stash.yaml');
     expect(stash).not.toContain('https://example.com/mihomo.yaml');
     expect(mihomo).toContain('https://example.com/mihomo.yaml');
-    expect(clash).not.toContain('geox-url:');
     expect(stash).not.toContain('geox-url:');
     expect(mihomo).toContain('geox-url:');
   });
 
-  it('preserves Clash and Stash identity in shared Mihomo-container conversion URLs', () => {
+  it('preserves Stash identity in shared Mihomo-container conversion URLs', () => {
     const conversionBaseUrl = 'https://config.example.com/sub/public-token/rules';
 
-    const clash = generateMihomoYaml(
-      [], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet], {},
-      { ruleSetConversionBaseUrl: conversionBaseUrl, ruleSetExportFormat: 'clash' }
-    );
     const stash = generateStashYaml(
       [], [proxyGroup, directGroup], [matchRule], [singboxRemoteSet], {},
       { ruleSetConversionBaseUrl: conversionBaseUrl }
     );
 
-    expect(clash).toContain(`${conversionBaseUrl}/remote-singbox/mihomo.yaml?for=clash`);
     expect(stash).toContain(`${conversionBaseUrl}/remote-singbox/mihomo.yaml?for=stash`);
   });
 

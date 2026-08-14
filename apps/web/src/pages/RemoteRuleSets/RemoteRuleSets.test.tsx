@@ -356,10 +356,10 @@ describe('RemoteRuleSets content validation', () => {
     await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
 
     const results = await screen.findByRole('list', { name: 'Compatibility results for all clients' })
-    for (const client of ['Mihomo', 'Clash', 'sing-box', 'Loon', 'Surge', 'Shadowrocket', 'QuantumultX', 'Stash', 'Egern']) {
+    for (const client of ['Mihomo / Clash.Meta', 'sing-box', 'Loon', 'Surge', 'Shadowrocket', 'QuantumultX', 'Stash', 'Egern']) {
       expect(within(results).getByRole('listitem', { name: client })).toBeInTheDocument()
     }
-    expect(within(results).queryByRole('button', { name: /^(Mihomo|Clash|sing-box|Loon)$/ })).not.toBeInTheDocument()
+    expect(within(results).queryByRole('button', { name: /^(Mihomo \/ Clash\.Meta|sing-box|Loon)$/ })).not.toBeInTheDocument()
   })
 
   it('keeps the last successful conversion visible but marks it stale after a refresh failure', async () => {
@@ -391,7 +391,7 @@ describe('RemoteRuleSets content validation', () => {
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
-    const mihomo = await screen.findByRole('listitem', { name: 'Mihomo' })
+    const mihomo = await screen.findByRole('listitem', { name: 'Mihomo / Clash.Meta' })
     expect(await within(mihomo).findByText('Preserved rules: 11')).toBeInTheDocument()
     expect(within(mihomo).getByText(/Preview generated/)).toBeInTheDocument()
 

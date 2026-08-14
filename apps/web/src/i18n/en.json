@@ -765,8 +765,7 @@
     "resume_subscription": "Resume Subscription",
     "download": "Download Config",
     "formats": {
-      "mihomo": "Mihomo",
-      "clash": "Clash",
+      "mihomo": "Mihomo / Clash.Meta",
       "singbox": "sing-box",
       "loon": "Loon",
       "surge": "Surge",

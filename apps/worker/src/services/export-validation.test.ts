@@ -234,22 +234,6 @@ describe('export validation', () => {
     }));
   });
 
-  it('uses Mihomo node capabilities for Clash exports', () => {
-    const warnings = validateExportData(makeExportData({
-      nodes: [makeNode('node-vless', 'VLESS 01', { protocol: 'vless' })],
-      groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
-      collectionNodeNames: { 'collection-auto': ['VLESS 01'] },
-    }), 'clash');
-
-    expect(warnings).not.toContainEqual(expect.objectContaining({
-      nodeId: 'node-vless',
-    }));
-    expect(warnings).not.toContainEqual(expect.objectContaining({
-      groupId: 'auto',
-      message: expect.stringContaining('VLESS 01'),
-    }));
-  });
-
   it('uses native profile capabilities for Quantumult X exports', () => {
     const warnings = validateExportData(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],

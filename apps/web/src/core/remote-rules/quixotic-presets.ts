@@ -13,8 +13,8 @@ export {
 
 export const RULE_SET_FORMAT_OPTIONS: Array<{ value: RuleSetFormat; label: string; exportTargets: string }> = [
   { value: 'mrs', label: 'Mihomo MRS', exportTargets: 'Mihomo' },
-  { value: 'mihomo', label: 'Mihomo', exportTargets: 'Mihomo / Clash / Stash' },
-  { value: 'clash', label: 'Clash Classical', exportTargets: 'Mihomo / Clash' },
+  { value: 'mihomo', label: 'Mihomo', exportTargets: 'Mihomo / Clash.Meta / Stash' },
+  { value: 'clash', label: 'Clash Classical', exportTargets: 'Mihomo / Clash.Meta' },
   { value: 'singbox', label: 'sing-box SRS', exportTargets: 'sing-box' },
   { value: 'surge', label: 'Surge', exportTargets: 'Surge' },
   { value: 'loon', label: 'Loon', exportTargets: 'Loon' },

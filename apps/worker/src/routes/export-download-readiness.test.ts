@@ -643,40 +643,6 @@ describe('export download readiness', () => {
     expect(yaml.load(await response.text())).toEqual({ domain_suffix_set: ['example.com'] })
   })
 
-  it('uses the requested Clash context instead of a Mihomo override at the conversion endpoint', async () => {
-    const sourceUrl = 'https://rules.example.com/source.json'
-    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
-      remoteSets: [{
-        id: 'rules-clash', name: 'Client-specific Rules', url: sourceUrl,
-        format: 'singbox', behavior: 'classical', targetGroupId: 'group-1', updateInterval: 12,
-        sourceOverrides: { mihomo: 'https://rules.example.com/native-mihomo.yaml' },
-        enabled: true, sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-      }],
-    }))
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      version: 3,
-      rules: [{ domain_suffix: ['example.com'] }],
-    })))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const response = await subscriptionRouter.request(
-      '/sub/token/rules/rules-clash/mihomo.yaml?for=clash',
-      {},
-      { DB: createMockDb() }
-    )
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('X-UniConf-Capability-Profile')).toBe(
-      `uni-conf-exporter/clash@${EXPORT_CAPABILITY_PROFILE_REVISION}`,
-    )
-    expect(fetchMock).toHaveBeenCalledWith(
-      sourceUrl,
-      expect.objectContaining({ redirect: 'manual' }),
-    )
-    expect(await response.text()).toContain('DOMAIN-SUFFIX,example.com')
-    expect(buildExportData).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'clash', 'default')
-  })
-
   it('rejects an invalid target-client context at the conversion endpoint', async () => {
     const response = await subscriptionRouter.request(
       '/sub/token/rules/rules-1/mihomo.yaml?for=nodes_raw',

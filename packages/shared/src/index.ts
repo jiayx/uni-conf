@@ -494,7 +494,6 @@ export type RuleCompatibilityLevel = 'full' | 'partial' | 'convert' | 'unsupport
 
 export const FULL_CONFIG_EXPORT_FORMATS = [
   'mihomo',
-  'clash',
   'singbox',
   'loon',
   'surge',
@@ -516,6 +515,7 @@ export const EXPORT_SUBSCRIPTION_FORMATS = [
 
 export const RULE_SET_FORMATS = [
   ...FULL_CONFIG_EXPORT_FORMATS,
+  'clash',
   'mrs',
   'text',
 ] as const satisfies readonly RuleSetFormat[];
@@ -583,7 +583,6 @@ function isRecordValue(value: unknown): value is Record<string, unknown> {
 
 export const EXPORT_FORMAT_FILENAMES: Record<ExportFormat, string> = {
   mihomo: 'mihomo.yaml',
-  clash: 'clash.yaml',
   singbox: 'singbox.json',
   loon: 'loon.conf',
   surge: 'surge.conf',
@@ -613,7 +612,6 @@ export const RULE_COMPATIBILITY: Record<
 > = {
   DOMAIN: {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -624,7 +622,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'DOMAIN-SUFFIX': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -635,7 +632,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'DOMAIN-KEYWORD': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -646,7 +642,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'DOMAIN-REGEX': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'unsupported',
     surge: 'partial',
@@ -657,7 +652,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'IP-CIDR': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -668,7 +662,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'IP-CIDR6': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -679,7 +672,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'IP-ASN': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'unsupported',
     loon: 'full',
     surge: 'full',
@@ -690,7 +682,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   GEOIP: {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -701,7 +692,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   GEOSITE: {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'unsupported',
     surge: 'unsupported',
@@ -712,7 +702,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'PROCESS-NAME': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'partial',
     surge: 'full',
@@ -723,7 +712,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'PROCESS-PATH': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'unsupported',
     surge: 'full',
@@ -734,7 +722,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   PORT: {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -745,7 +732,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'SRC-PORT': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -756,7 +742,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'SRC-IP-CIDR': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'unsupported',
     surge: 'full',
@@ -767,7 +752,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   PROTOCOL: {
     mihomo: 'partial',
-    clash: 'partial',
     singbox: 'partial',
     loon: 'partial',
     surge: 'full',
@@ -778,7 +762,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   NETWORK: {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'partial',
     surge: 'partial',
@@ -789,7 +772,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'IN-TYPE': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'unsupported',
     loon: 'unsupported',
     surge: 'unsupported',
@@ -800,7 +782,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   'RULE-SET': {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'unsupported',
     surge: 'full',
@@ -811,7 +792,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   SCRIPT: {
     mihomo: 'partial',
-    clash: 'partial',
     singbox: 'unsupported',
     loon: 'partial',
     surge: 'unsupported',
@@ -822,7 +802,6 @@ export const RULE_COMPATIBILITY: Record<
   },
   MATCH: {
     mihomo: 'full',
-    clash: 'full',
     singbox: 'full',
     loon: 'full',
     surge: 'full',
@@ -869,7 +848,7 @@ export function resolveRuleForExport(type: RuleType, payload: string, format: Ex
   if ((type === 'NETWORK' || type === 'PROTOCOL') && isFullConfigExportFormat(format)) {
     return resolveRuleSetRuleForTarget(type, payload, format);
   }
-  if (type === 'PORT' && (format === 'mihomo' || format === 'clash' || format === 'stash')) {
+  if (type === 'PORT' && (format === 'mihomo' || format === 'stash')) {
     return {
       level: 'convert',
       type: 'DST-PORT',
@@ -1347,14 +1326,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
       engine: 'enhanced-mode',
     },
   },
-  clash: {
-    outputKind: 'full-config',
-    nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
-    ruleSetFormats: ['mihomo', 'clash', 'stash', 'text'],
-    dns: {
-      engine: 'enhanced-mode',
-    },
-  },
   singbox: {
     outputKind: 'full-config',
     nodeProtocols: SINGBOX_EXPORT_NODE_PROTOCOLS,
@@ -1499,7 +1470,7 @@ export function getRuleSetConversionTargetFormat(
   if (exportFormat === 'singbox' && parseableSourceFormats.includes(sourceFormat)) {
     return 'singbox';
   }
-  if (['mihomo', 'clash', 'stash'].includes(exportFormat) && ['mrs', 'singbox', 'egern'].includes(sourceFormat)) {
+  if (['mihomo', 'stash'].includes(exportFormat) && ['mrs', 'singbox', 'egern'].includes(sourceFormat)) {
     return 'mihomo';
   }
   if (
@@ -1799,7 +1770,6 @@ const QUIXOTIC_RAW_BASE = 'https://raw.githubusercontent.com/QuixoticHeart/rule-
 
 const QUIXOTIC_FORMAT_PATHS: Record<string, { path: string; extension: string; ruleSetFormat: string }> = {
   mihomo: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
-  clash: { path: 'meta', extension: 'list', ruleSetFormat: 'mihomo' },
   stash: { path: 'stash', extension: 'list', ruleSetFormat: 'stash' },
   singbox: { path: 'singbox/version5', extension: 'srs', ruleSetFormat: 'singbox' },
   surge: { path: 'surge', extension: 'list', ruleSetFormat: 'surge' },

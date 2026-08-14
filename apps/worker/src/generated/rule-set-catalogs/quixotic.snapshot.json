@@ -12,7 +12,7 @@
       "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/{id}.list",
       "format": "mihomo",
       "behavior": "classical",
-      "nativeTargets": ["mihomo", "clash"]
+      "nativeTargets": ["mihomo"]
     },
     "stash": {
       "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/stash/{id}.list",

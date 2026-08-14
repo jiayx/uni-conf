@@ -31,7 +31,6 @@ import styles from './Rules.module.css'
 
 const RULE_COMPATIBILITY_TARGETS: ExportFormat[] = [
   'mihomo',
-  'clash',
   'singbox',
   'surge',
   'loon',

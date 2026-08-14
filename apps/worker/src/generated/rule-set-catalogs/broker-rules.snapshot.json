@@ -12,7 +12,7 @@
       "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Clash/Broker.yaml",
       "format": "mihomo",
       "behavior": "classical",
-      "nativeTargets": ["mihomo", "clash"]
+      "nativeTargets": ["mihomo"]
     },
     "stash": {
       "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Stash/Broker.yaml",

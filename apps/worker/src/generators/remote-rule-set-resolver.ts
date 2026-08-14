@@ -70,9 +70,9 @@ function buildConversionUrl(
   exportFormat: ExportFormat,
 ): string {
   const url = `${conversionBaseUrl}/${encodeURIComponent(ruleSetId)}/${conversionTargetFilename(target)}`
-  // Clash and Stash share Mihomo's converted YAML container, but may select
-  // different target-native source overrides. Preserve the actual client
-  // identity so the token endpoint resolves the same source as preflight.
+  // Stash shares Mihomo's converted YAML container but may select a different
+  // target-native source override. Preserve the actual client identity so the
+  // token endpoint resolves the same source as preflight.
   return target === 'mihomo' && exportFormat !== 'mihomo'
     ? `${url}?for=${encodeURIComponent(exportFormat)}`
     : url
