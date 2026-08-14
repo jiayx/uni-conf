@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as yaml from 'js-yaml'
-import { convertRuleSetContent, resolveRuleSetConversionIssues } from './conversion'
+import { convertRuleSetContent } from './conversion'
 
 describe('rule set conversion', () => {
   it('auto-detects structured response bytes for generic text sources', () => {
@@ -32,25 +32,6 @@ describe('rule set conversion', () => {
     expect(result.convertedRuleCount).toBe(2)
     expect(result.skippedRuleCount).toBe(1)
     expect(result.skippedRuleTypes).toEqual({ SCRIPT: 1 })
-    expect(result.skippedRuleExamples).toEqual({
-      SCRIPT: ['SCRIPT,legacy-script'],
-    })
-    expect(result.convertedRuleExamples).toEqual([
-      {
-        source: 'DOMAIN-SUFFIX,example.com',
-        target: '{"domain_suffix":["example.com"]}',
-      },
-      {
-        source: 'IP-CIDR,10.0.0.0/8,no-resolve',
-        target: '{"ip_cidr":["10.0.0.0/8"]}',
-      },
-    ])
-    expect(resolveRuleSetConversionIssues(result)).toEqual([
-      {
-        type: 'SCRIPT', count: 1, reason: 'unsupported-directive',
-        resolution: 'use-native-source', examples: ['SCRIPT,legacy-script'],
-      },
-    ])
   })
 
   it('does not broaden sing-box rules that contain multiple AND condition families', () => {
@@ -66,20 +47,6 @@ describe('rule set conversion', () => {
     expect(result.content).not.toContain('combined.example')
     expect(result.skippedRuleCount).toBe(1)
     expect(result.skippedRuleTypes).toEqual({ COMPOUND: 1 })
-    expect(result.skippedRuleExamples.COMPOUND?.[0]).toContain('combined.example')
-    expect(resolveRuleSetConversionIssues(result)[0]).toMatchObject({
-      reason: 'compound-condition', resolution: 'use-native-source',
-    })
-  })
-
-  it('recommends removing a lossy option only when the option itself is unsupported', () => {
-    expect(resolveRuleSetConversionIssues({
-      skippedRuleTypes: { 'IP-CIDR-NO-RESOLVE': 1 },
-      skippedRuleExamples: { 'IP-CIDR-NO-RESOLVE': ['IP-CIDR,10.0.0.0/8,no-resolve'] },
-    })).toEqual([{
-      type: 'IP-CIDR-NO-RESOLVE', count: 1, reason: 'unsupported-option',
-      resolution: 'remove-unsupported-option', examples: ['IP-CIDR,10.0.0.0/8,no-resolve'],
-    }])
   })
 
   it('converts sing-box rules to native Egern YAML and reports non-equivalent conditions', () => {
@@ -161,17 +128,6 @@ describe('rule set conversion', () => {
       'IP-CIDR-OPTION-UNKNOWN-OPTION': 1,
       'DOMAIN-SUFFIX-OPTION-NO-RESOLVE': 1,
     })
-    expect(resolveRuleSetConversionIssues(result)).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        type: 'IP-CIDR-OPTION-UNKNOWN-OPTION',
-        reason: 'unsupported-option',
-        resolution: 'remove-unsupported-option',
-      }),
-      expect.objectContaining({
-        type: 'SRC-IP-CIDR-NO-RESOLVE',
-        reason: 'unsupported-option',
-      }),
-    ]))
   })
 
   it('maps text port ranges to sing-box range fields without changing their meaning', () => {
@@ -366,10 +322,6 @@ describe('rule set conversion', () => {
     )
     expect(result.content).toBe('IP-CIDR,10.0.0.0/8\n')
     expect(result.skippedRuleTypes).toEqual({ 'IP-CIDR-NO-RESOLVE': 1 })
-    expect(result.convertedRuleExamples).toEqual([{
-      source: 'IP-CIDR,10.0.0.0/8,no-resolve',
-      target: 'IP-CIDR,10.0.0.0/8',
-    }])
   })
 
   it('rejects malformed domain and CIDR payloads instead of emitting invalid target rules', () => {
@@ -380,9 +332,6 @@ describe('rule set conversion', () => {
     )
     expect(JSON.parse(domains.content).rules).toEqual([{ domain: ['valid.example'] }])
     expect(domains.skippedRuleTypes).toEqual({ 'INVALID-DOMAIN': 2 })
-    expect(resolveRuleSetConversionIssues(domains)).toContainEqual(expect.objectContaining({
-      type: 'INVALID-DOMAIN', reason: 'invalid-rule', resolution: 'repair-source-rule', examples: ['invalid domain', 'https://not-a-domain.example/path'],
-    }))
 
     const cidrs = convertRuleSetContent(
       { format: 'text', behavior: 'ipcidr' },
@@ -410,7 +359,7 @@ describe('rule set conversion', () => {
     expect(result.skippedRuleTypes).toEqual({ 'INVALID-DOMAIN-REGEX': 1 })
   })
 
-  it('caps diagnostic examples without losing exact skipped counts', () => {
+  it('keeps exact skipped counts for large inputs', () => {
     const invalidRules = Array.from({ length: 30 }, (_, index) => `SCRIPT,legacy-${index}`).join('\n')
     const result = convertRuleSetContent(
       { format: 'clash', behavior: 'classical' },
@@ -419,39 +368,6 @@ describe('rule set conversion', () => {
     )
 
     expect(result.skippedRuleTypes).toEqual({ SCRIPT: 30 })
-    expect(result.skippedRuleExamples.SCRIPT).toHaveLength(3)
-    expect(resolveRuleSetConversionIssues(result)).toMatchObject([{
-      type: 'SCRIPT', count: 30, reason: 'unsupported-directive', resolution: 'use-native-source',
-    }])
-  })
-
-  it('caps converted rule mappings without changing complete conversion counts', () => {
-    const validRules = Array.from(
-      { length: 30 },
-      (_, index) => `DOMAIN-SUFFIX,example-${index}.com`,
-    ).join('\n')
-    const result = convertRuleSetContent(
-      { format: 'clash', behavior: 'classical' },
-      'quantumultx',
-      validRules,
-    )
-
-    expect(result.convertedRuleCount).toBe(30)
-    expect(result.convertedRuleExamples).toHaveLength(20)
-    expect(result.convertedRuleExamplesTruncated).toBe(true)
-    expect(result.convertedRuleExamples[0]).toEqual({
-      source: 'DOMAIN-SUFFIX,example-0.com',
-      target: 'HOST-SUFFIX,example-0.com',
-    })
-
-    const duplicates = convertRuleSetContent(
-      { format: 'clash', behavior: 'classical' },
-      'quantumultx',
-      Array.from({ length: 30 }, () => 'DOMAIN-SUFFIX,same.example').join('\n'),
-    )
-    expect(duplicates.convertedRuleCount).toBe(30)
-    expect(duplicates.convertedRuleExamples).toHaveLength(1)
-    expect(duplicates.convertedRuleExamplesTruncated).toBe(false)
   })
 
   it('does not ignore unknown sing-box conditions when a known condition is also present', () => {

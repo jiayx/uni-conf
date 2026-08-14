@@ -14,7 +14,6 @@ const REQUIRED_REMOTE_RULE_SET_KEYS = [
   'empty_description',
   'target',
   'section_meta',
-  'rule_target',
   'target_disabled',
   'system_disabled_notice',
   'source_selection_label',
@@ -38,7 +37,6 @@ const REQUIRED_REMOTE_RULE_SET_KEYS = [
   'managed_sources_help',
   'managed_preset_source_help',
   'disabled_target_error',
-  'all_enabled',
   'behavior_domain',
   'behavior_classical',
 ]

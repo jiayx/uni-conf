@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Badge } from '@/components/ui/Badge/Badge'
@@ -55,8 +55,6 @@ const SOURCE_OVERRIDE_TARGETS = FULL_CONFIG_EXPORT_FORMATS
 const REQUESTED_EDIT_PARAMS = ['nativeSource'] as const
 
 type CompatibilityMode = 'all' | 'direct' | 'converted' | 'unsupported'
-type AttentionMode = 'all' | 'attention'
-
 function createEmptyForm(targetGroupId = ''): RemoteSetForm {
   return {
     name: '',
@@ -75,7 +73,6 @@ function createEmptyForm(targetGroupId = ''): RemoteSetForm {
 export function RemoteRuleSets() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const confirmAction = useConfirmDialog()
   const { groups, fetchGroups } = useGroupsStore()
   const applySettings = useSettingsStore(state => state.applySettings)
@@ -107,9 +104,6 @@ export function RemoteRuleSets() {
   const [searchQuery, setSearchQuery] = useState('')
   const [compatibilityTarget, setCompatibilityTarget] = useState<ExportFormat | ''>('')
   const [compatibilityMode, setCompatibilityMode] = useState<CompatibilityMode>('all')
-  const [attentionMode, setAttentionMode] = useState<AttentionMode>(
-    () => searchParams.get('attention') === '1' ? 'attention' : 'all',
-  )
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string> | null>(null)
   const formDirty = showModal && !formValuesEqual(form, initialForm)
   useUnsavedChangesGuard(formDirty)
@@ -157,29 +151,14 @@ export function RemoteRuleSets() {
     () => filterSectionsByCompatibility(searchedSections, compatibilityTarget, compatibilityMode),
     [compatibilityMode, compatibilityTarget, searchedSections],
   )
-  const needsAttention = (set: RemoteRuleSet, targetEnabled: boolean) => ruleSetNeedsAttention(
-    set,
-    targetEnabled,
-    compatibilityTarget,
-  )
-  const attentionCount = countRuleSets(compatibilitySections, needsAttention)
-  const visibleSections = filterRuleSetSectionsByPredicate(
-    compatibilitySections,
-    attentionMode === 'attention' ? needsAttention : () => true,
-  )
+  const visibleSections = compatibilitySections
   const normalizedSearchQuery = searchQuery.trim()
   const compatibilityFilterActive = compatibilityTarget !== '' && compatibilityMode !== 'all'
-  const attentionFilterActive = attentionMode === 'attention'
-  const listFilterActive = normalizedSearchQuery.length > 0 || compatibilityFilterActive || attentionFilterActive
+  const listFilterActive = normalizedSearchQuery.length > 0 || compatibilityFilterActive
   const resolvedExpandedGroupIds = expandedGroupIds ?? defaultExpandedGroupIds
+  const allSectionsExpanded = setsByTargetGroup.length > 0
+    && setsByTargetGroup.every(section => resolvedExpandedGroupIds.has(section.groupId))
   const visibleSetCount = visibleSections.reduce((count, section) => count + section.sets.length, 0)
-  const changeAttentionMode = (mode: AttentionMode) => {
-    setAttentionMode(mode)
-    const nextParams = new URLSearchParams(searchParams)
-    if (mode === 'attention') nextParams.set('attention', '1')
-    else nextParams.delete('attention')
-    setSearchParams(nextParams, { replace: true })
-  }
   const selectedFormatOption = RULE_SET_FORMAT_OPTIONS.find(item => item.value === form.format)
   const editingManagedSet = Boolean(editingSet && !canEditRemoteRuleSet(editingSet))
   const editingPresetId = editingSet?.presetSource === 'quixotic' ? editingSet.presetId : undefined
@@ -648,40 +627,17 @@ export function RemoteRuleSets() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setExpandedGroupIds(new Set(setsByTargetGroup.map(section => section.groupId)))}
+                onClick={() => setExpandedGroupIds(allSectionsExpanded
+                  ? new Set()
+                  : new Set(setsByTargetGroup.map(section => section.groupId)))}
                 disabled={listFilterActive}
-              >{t('remoteRuleSets.expand_all')}</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpandedGroupIds(new Set())}
-                disabled={listFilterActive}
-              >{t('remoteRuleSets.collapse_all')}</Button>
+              >{t(allSectionsExpanded ? 'remoteRuleSets.collapse_all' : 'remoteRuleSets.expand_all')}</Button>
             </div>
             <div className={styles.toolbarSummary} aria-live="polite">
               <div className={styles.searchSummary}>
                 {listFilterActive
                   ? t('remoteRuleSets.search_results', { setCount: visibleSetCount, strategyCount: visibleSections.length })
                   : t('remoteRuleSets.browse_hint')}
-              </div>
-              <div className={styles.statusFilters} aria-label={t('remoteRuleSets.status_filter_label')}>
-                <button
-                  type="button"
-                  className={`${styles.compatibilityFilter} ${attentionMode === 'all' ? styles.compatibilityFilterActive : ''}`}
-                  aria-pressed={attentionMode === 'all'}
-                  onClick={() => changeAttentionMode('all')}
-                >
-                  {t('remoteRuleSets.status_all', { count: countRuleSets(compatibilitySections, () => true) })}
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.compatibilityFilter} ${attentionMode === 'attention' ? styles.compatibilityFilterActive : ''}`}
-                  aria-pressed={attentionMode === 'attention'}
-                  disabled={attentionMode !== 'attention' && attentionCount === 0}
-                  onClick={() => changeAttentionMode('attention')}
-                >
-                  {t('remoteRuleSets.status_attention', { count: attentionCount })}
-                </button>
               </div>
               {compatibilityTarget && (
                 <div className={styles.compatibilityFilters} aria-label={t('remoteRuleSets.compatibility_filter_label')}>
@@ -709,11 +665,9 @@ export function RemoteRuleSets() {
           {visibleSections.length === 0 ? (
             <EmptyState
               title={t('remoteRuleSets.no_search_results')}
-              description={t(attentionFilterActive
-                ? 'remoteRuleSets.no_attention_results_help'
-                : compatibilityFilterActive
-                  ? 'remoteRuleSets.no_compatibility_results_help'
-                  : 'remoteRuleSets.no_search_results_help')}
+              description={t(compatibilityFilterActive
+                ? 'remoteRuleSets.no_compatibility_results_help'
+                : 'remoteRuleSets.no_search_results_help')}
             />
           ) : visibleSections.map(section => {
             const sectionExpanded = listFilterActive || resolvedExpandedGroupIds.has(section.groupId)
@@ -1208,37 +1162,6 @@ function filterSectionsByCompatibility<T extends { sets: RemoteRuleSet[] }>(
   if (!target || mode === 'all') return sections
   return sections.flatMap(section => {
     const matchingSets = section.sets.filter(set => getRemoteRuleSetCompatibilityMode(target, set) === mode)
-    return matchingSets.length > 0 ? [{ ...section, sets: matchingSets }] : []
-  })
-}
-
-function ruleSetNeedsAttention(
-  set: RemoteRuleSet,
-  targetEnabled: boolean,
-  compatibilityTarget: ExportFormat | '',
-): boolean {
-  if (!targetEnabled || !set.enabled) return false
-  if (set.sourceMissing) return true
-  return compatibilityTarget !== ''
-    && getRemoteRuleSetCompatibilityMode(compatibilityTarget, set) === 'unsupported'
-}
-
-function countRuleSets<T extends { targetEnabled: boolean; sets: RemoteRuleSet[] }>(
-  sections: T[],
-  predicate: (set: RemoteRuleSet, targetEnabled: boolean) => boolean,
-): number {
-  return sections.reduce(
-    (count, section) => count + section.sets.filter(set => predicate(set, section.targetEnabled)).length,
-    0,
-  )
-}
-
-function filterRuleSetSectionsByPredicate<T extends { targetEnabled: boolean; sets: RemoteRuleSet[] }>(
-  sections: T[],
-  predicate: (set: RemoteRuleSet, targetEnabled: boolean) => boolean,
-): T[] {
-  return sections.flatMap(section => {
-    const matchingSets = section.sets.filter(set => predicate(set, section.targetEnabled))
     return matchingSets.length > 0 ? [{ ...section, sets: matchingSets }] : []
   })
 }

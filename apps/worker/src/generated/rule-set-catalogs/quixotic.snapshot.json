@@ -4,9 +4,9 @@
   "repository": {
     "url": "https://github.com/QuixoticHeart/rule-set",
     "branch": "ruleset",
-    "commit": "79546fdc361d292cb4f122c7ef07dd1af2b3d6ed"
+    "commit": "2a5d3fa9bb7146206a6e5ee6bb7343a2bb6928a7"
   },
-  "syncedAt": "2026-08-13T20:16:02.939Z",
+  "syncedAt": "2026-08-14T16:17:24.987Z",
   "sourceProfiles": {
     "mihomo": {
       "urlTemplate": "https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/{id}.list",

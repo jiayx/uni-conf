@@ -34,6 +34,13 @@
     "description": "This address may be incorrect or the page may have moved.",
     "back_home": "Back to dashboard"
   },
+  "routeError": {
+    "status": "Application error",
+    "title": "This page could not be displayed",
+    "description": "Reload the page to try again. If the problem continues, return to the dashboard and retry the operation.",
+    "reload": "Reload page",
+    "back_home": "Back to dashboard"
+  },
   "common": {
     "add": "Add",
     "edit": "Edit",
@@ -564,8 +571,6 @@
   },
   "remoteRuleSets": {
     "target": "Use after match",
-    "rule_target": "Traffic destination",
-    "all_enabled": "All active",
     "title": "Rule Set Management",
     "description": "Manage {{setCount}} rule sets by traffic destination",
     "search_label": "Find rule sets",
@@ -579,16 +584,12 @@
     "compatibility_direct": "Native {{count}}",
     "compatibility_converted": "Safe conversion {{count}}",
     "compatibility_unsupported": "Unsupported {{count}}",
-    "status_filter_label": "Filter by operational status",
-    "status_all": "All states {{count}}",
-    "status_attention": "Needs attention {{count}}",
     "expand_all": "Expand all",
     "collapse_all": "Collapse all",
     "toggle_section": "Toggle rule sets for {{name}}",
     "no_search_results": "No matching rule sets",
     "no_search_results_help": "Try another policy name, rule set name, format, or URL.",
     "no_compatibility_results_help": "No rule sets in the current search have this compatibility status. Choose another status or target client.",
-    "no_attention_results_help": "No enabled rule sets in the current view have expired, pending, invalid, or unsupported sources.",
     "add_supplement": "Add Supplemental Rule Set",
     "edit_supplement": "Edit Supplemental Rule Set",
     "configure_managed_sources_title": "Configure Native Sources · {{name}}",

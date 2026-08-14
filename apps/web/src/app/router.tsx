@@ -10,11 +10,13 @@ import { RemoteRuleSets } from '@/pages/RemoteRuleSets/RemoteRuleSets'
 import { Export } from '@/pages/Export/Export'
 import { Settings } from '@/pages/Settings/Settings'
 import { NotFound } from '@/pages/NotFound/NotFound'
+import { RouteError } from '@/pages/RouteError/RouteError'
 
 export const appRoutes: RouteObject[] = [
   {
     path: '/',
     element: <Layout />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'sources', element: <Sources /> },

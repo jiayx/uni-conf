@@ -6,7 +6,7 @@
     "branch": "main",
     "commit": "b0cf3ae27bcdcc5a5193ab860d4b2e18bc55f275"
   },
-  "syncedAt": "2026-08-13T20:16:05.521Z",
+  "syncedAt": "2026-08-14T16:17:27.579Z",
   "sourceProfiles": {
     "mihomo": {
       "urlTemplate": "https://raw.githubusercontent.com/forecho/broker-rules/main/rule/Clash/Broker.yaml",

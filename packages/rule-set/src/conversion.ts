@@ -1,8 +1,6 @@
 import * as yaml from 'js-yaml'
 import type {
   RuleSetBehavior,
-  RuleSetConversionIssue,
-  RuleSetConversionMapping,
   RuleSetFormat,
 } from '@uni-conf/types'
 import { isMihomoMrs, parseMihomoMrs } from './codecs/mihomo-mrs'
@@ -19,13 +17,11 @@ export interface NormalizedRule {
   type: string
   payload: string
   noResolve?: boolean
-  source: string
 }
 
 export interface ParsedRuleSet {
   rules: NormalizedRule[]
   skippedRuleTypes: Record<string, number>
-  skippedRuleExamples: Record<string, string[]>
 }
 
 export interface RuleSetConversionResult {
@@ -34,9 +30,6 @@ export interface RuleSetConversionResult {
   convertedRuleCount: number
   skippedRuleCount: number
   skippedRuleTypes: Record<string, number>
-  skippedRuleExamples: Record<string, string[]>
-  convertedRuleExamples: RuleSetConversionMapping[]
-  convertedRuleExamplesTruncated: boolean
 }
 
 export interface RuleSetSourceDescriptor {
@@ -44,24 +37,6 @@ export interface RuleSetSourceDescriptor {
   behavior: RuleSetBehavior
 }
 
-const MAX_SKIPPED_EXAMPLES_PER_TYPE = 3
-const MAX_SKIPPED_EXAMPLES_TOTAL = 20
-const MAX_DIAGNOSTIC_EXAMPLE_CHARS = 240
-const MAX_CONVERTED_EXAMPLES = 20
-
-export function resolveRuleSetConversionIssues(
-  result: Pick<RuleSetConversionResult, 'skippedRuleTypes' | 'skippedRuleExamples'>
-): RuleSetConversionIssue[] {
-  return Object.entries(result.skippedRuleTypes)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([type, count]) => ({
-      type,
-      count,
-      reason: resolveConversionIssueReason(type),
-      resolution: resolveConversionIssueResolution(type),
-      examples: result.skippedRuleExamples[type] ?? [],
-    }))
-}
 
 type PortPayload =
   | { kind: 'single'; port: number }
@@ -97,30 +72,15 @@ export function convertRuleSetContent(
 
   if (target === 'singbox') {
     const skippedRuleTypes = { ...parsed.skippedRuleTypes }
-    const skippedRuleExamples = cloneExamples(parsed.skippedRuleExamples)
-    const convertedRuleExamples: RuleSetConversionMapping[] = []
-    let convertedRuleExamplesTruncated = false
     const rules = parsed.rules.flatMap((rule) => {
       const noResolveIsImplicit = rule.noResolve
         && (rule.type === 'IP-CIDR' || rule.type === 'IP-CIDR6')
       if (rule.noResolve && !noResolveIsImplicit) {
-        addSkippedRule(
-          skippedRuleTypes,
-          skippedRuleExamples,
-          `${rule.type}-NO-RESOLVE`,
-          formatNormalizedRule(rule)
-        )
+        addSkippedRule(skippedRuleTypes, `${rule.type}-NO-RESOLVE`)
         return []
       }
       const converted = ruleToSingboxSource(rule)
-      if (!converted) addSkippedRule(skippedRuleTypes, skippedRuleExamples, rule.type, formatNormalizedRule(rule))
-      else {
-        convertedRuleExamplesTruncated ||= addConvertedRuleExample(
-          convertedRuleExamples,
-          rule.source,
-          formatDiagnosticValue(converted)
-        )
-      }
+      if (!converted) addSkippedRule(skippedRuleTypes, rule.type)
       return converted ? [converted] : []
     })
     if (rules.length === 0) throw new Error('No rules can be represented safely in sing-box source format')
@@ -130,9 +90,6 @@ export function convertRuleSetContent(
       convertedRuleCount: rules.length,
       skippedRuleCount: sumCounts(skippedRuleTypes),
       skippedRuleTypes,
-      skippedRuleExamples,
-      convertedRuleExamples,
-      convertedRuleExamplesTruncated,
     }
   }
 
@@ -142,26 +99,11 @@ export function convertRuleSetContent(
 
   if (target !== 'mihomo') {
     const skippedRuleTypes = { ...parsed.skippedRuleTypes }
-    const skippedRuleExamples = cloneExamples(parsed.skippedRuleExamples)
-    const convertedRuleExamples: RuleSetConversionMapping[] = []
-    let convertedRuleExamplesTruncated = false
     const lines = parsed.rules.flatMap((rule) => {
       const converted = ruleToTextClient(rule, target)
-      if (!converted) addSkippedRule(skippedRuleTypes, skippedRuleExamples, rule.type, formatNormalizedRule(rule))
-      else {
-        if (rule.noResolve && target === 'quantumultx') {
-          addSkippedRule(
-            skippedRuleTypes,
-            skippedRuleExamples,
-            `${rule.type}-NO-RESOLVE`,
-            formatNormalizedRule(rule)
-          )
-        }
-        convertedRuleExamplesTruncated ||= addConvertedRuleExample(
-          convertedRuleExamples,
-          rule.source,
-          converted
-        )
+      if (!converted) addSkippedRule(skippedRuleTypes, rule.type)
+      else if (rule.noResolve && target === 'quantumultx') {
+        addSkippedRule(skippedRuleTypes, `${rule.type}-NO-RESOLVE`)
       }
       return converted ? [converted] : []
     })
@@ -172,35 +114,17 @@ export function convertRuleSetContent(
       convertedRuleCount: lines.length,
       skippedRuleCount: sumCounts(skippedRuleTypes),
       skippedRuleTypes,
-      skippedRuleExamples,
-      convertedRuleExamples,
-      convertedRuleExamplesTruncated,
     }
   }
 
   const skippedRuleTypes = { ...parsed.skippedRuleTypes }
-  const skippedRuleExamples = cloneExamples(parsed.skippedRuleExamples)
-  const convertedRuleExamples: RuleSetConversionMapping[] = []
-  let convertedRuleExamplesTruncated = false
   const payload = parsed.rules.flatMap((rule) => {
     if (rule.noResolve && source.behavior !== 'classical') {
-      addSkippedRule(
-        skippedRuleTypes,
-        skippedRuleExamples,
-        `${rule.type}-NO-RESOLVE`,
-        formatNormalizedRule(rule)
-      )
+      addSkippedRule(skippedRuleTypes, `${rule.type}-NO-RESOLVE`)
       return []
     }
     const converted = ruleToMihomoPayload(rule, source.behavior)
-    if (!converted) addSkippedRule(skippedRuleTypes, skippedRuleExamples, rule.type, formatNormalizedRule(rule))
-    else {
-      convertedRuleExamplesTruncated ||= addConvertedRuleExample(
-        convertedRuleExamples,
-        rule.source,
-        converted
-      )
-    }
+    if (!converted) addSkippedRule(skippedRuleTypes, rule.type)
     return converted ? [converted] : []
   })
   if (payload.length === 0) throw new Error('No rules can be represented safely in Mihomo provider format')
@@ -210,9 +134,6 @@ export function convertRuleSetContent(
     convertedRuleCount: payload.length,
     skippedRuleCount: sumCounts(skippedRuleTypes),
     skippedRuleTypes,
-    skippedRuleExamples,
-    convertedRuleExamples,
-    convertedRuleExamplesTruncated,
   }
 }
 
@@ -281,42 +202,34 @@ function parseEgernSource(content: string): ParsedRuleSet {
   const knownKeys = new Set([...mappings.map(([key]) => key), 'no_resolve'])
   const rules: NormalizedRule[] = []
   const skippedRuleTypes: Record<string, number> = {}
-  const skippedRuleExamples: Record<string, string[]> = {}
   for (const [key, type] of mappings) {
     const values = source[key]
     if (values === undefined) continue
     if (!Array.isArray(values)) {
-      addSkippedRule(skippedRuleTypes, skippedRuleExamples, `INVALID-${formatEgernRuleType(key)}`, `${key}: ${formatDiagnosticValue(values)}`)
+      addSkippedRule(skippedRuleTypes, `INVALID-${formatEgernRuleType(key)}`)
       continue
     }
     for (const value of values) {
       if (typeof value !== 'string' && typeof value !== 'number') {
-        addSkippedRule(skippedRuleTypes, skippedRuleExamples, `INVALID-${type}`, `${key}: ${formatDiagnosticValue(value)}`)
+        addSkippedRule(skippedRuleTypes, `INVALID-${type}`)
         continue
       }
       const rule: NormalizedRule = {
         type,
         payload: String(value),
         noResolve: Boolean(source['no_resolve']) && (type === 'IP-CIDR' || type === 'IP-CIDR6'),
-        source: formatDiagnosticValue(`${key}: ${formatDiagnosticValue(value)}`),
       }
       if (isValidNormalizedRule(rule)) rules.push(rule)
-      else addSkippedRule(skippedRuleTypes, skippedRuleExamples, `INVALID-${type}`, `${key}: ${formatDiagnosticValue(value)}`)
+      else addSkippedRule(skippedRuleTypes, `INVALID-${type}`)
     }
   }
   for (const [key, value] of Object.entries(source)) {
     if (!knownKeys.has(key) && isPopulatedCondition(value)) {
       const count = Array.isArray(value) ? Math.max(value.length, 1) : 1
-      addSkippedRule(
-        skippedRuleTypes,
-        skippedRuleExamples,
-        formatEgernRuleType(key),
-        `${key}: ${formatDiagnosticValue(value)}`,
-        count
-      )
+      addSkippedRule(skippedRuleTypes, formatEgernRuleType(key), count)
     }
   }
-  return { rules, skippedRuleTypes, skippedRuleExamples }
+  return { rules, skippedRuleTypes }
 }
 
 function convertToEgernSource(
@@ -330,9 +243,6 @@ function convertToEgernSource(
   }
   const result: Record<string, Array<string | number>> = {}
   const skippedRuleTypes = { ...parsed.skippedRuleTypes }
-  const skippedRuleExamples = cloneExamples(parsed.skippedRuleExamples)
-  const convertedRuleExamples: RuleSetConversionMapping[] = []
-  let convertedRuleExamplesTruncated = false
   let convertedRuleCount = 0
   for (const rule of parsed.rules) {
     const resolution = rule.type === 'NETWORK' || rule.type === 'PROTOCOL'
@@ -343,23 +253,13 @@ function convertToEgernSource(
       || ['tcp', 'udp', 'http', 'https', 'quic', 'stun'].includes(resolution.payload.toLowerCase())
     // Egern's no_resolve is set-wide; applying it to a mixed source would alter other rules.
     if (!key || !supportedProtocol || rule.noResolve) {
-      addSkippedRule(
-        skippedRuleTypes,
-        skippedRuleExamples,
-        rule.noResolve ? `${rule.type}-NO-RESOLVE` : rule.type,
-        formatNormalizedRule(rule)
-      )
+      addSkippedRule(skippedRuleTypes, rule.noResolve ? `${rule.type}-NO-RESOLVE` : rule.type)
       continue
     }
     const value = key === 'dest_port_set' && /^\d+$/.test(resolution.payload)
       ? Number(resolution.payload)
       : key === 'protocol_set' ? resolution.payload.toLowerCase() : resolution.payload
     ;(result[key] ??= []).push(value)
-    convertedRuleExamplesTruncated ||= addConvertedRuleExample(
-      convertedRuleExamples,
-      rule.source,
-      `${key}: ${formatDiagnosticValue(value)}`
-    )
     convertedRuleCount += 1
   }
   if (convertedRuleCount === 0) throw new Error('No rules can be represented safely in Egern source format')
@@ -369,9 +269,6 @@ function convertToEgernSource(
     convertedRuleCount,
     skippedRuleCount: sumCounts(skippedRuleTypes),
     skippedRuleTypes,
-    skippedRuleExamples,
-    convertedRuleExamples,
-    convertedRuleExamplesTruncated,
   }
 }
 
@@ -383,22 +280,19 @@ function parseTextSource(content: string, behavior: RuleSetBehavior): ParsedRule
   const values = extractTextRuleValues(content)
   const rules: NormalizedRule[] = []
   const skippedRuleTypes: Record<string, number> = {}
-  const skippedRuleExamples: Record<string, string[]> = {}
   for (const value of values) {
     if (typeof value !== 'string') {
       addSkippedRule(
         skippedRuleTypes,
-        skippedRuleExamples,
         behavior === 'domain' ? 'INVALID-DOMAIN' : behavior === 'ipcidr' ? 'INVALID-CIDR' : 'INVALID',
-        formatDiagnosticValue(value),
       )
       continue
     }
     const rule = normalizeTextRule(value, behavior)
     if (rule) rules.push(rule)
-    else addSkippedRule(skippedRuleTypes, skippedRuleExamples, skippedTextRuleReason(value, behavior), value)
+    else addSkippedRule(skippedRuleTypes, skippedTextRuleReason(value, behavior))
   }
-  return { rules, skippedRuleTypes, skippedRuleExamples }
+  return { rules, skippedRuleTypes }
 }
 
 function extractTextRuleValues(content: string): unknown[] {
@@ -425,14 +319,13 @@ function normalizeTextRule(value: string, behavior: RuleSetBehavior): Normalized
     const suffix = text.startsWith('+.') ? text.slice(2) : text.startsWith('.') ? text.slice(1) : null
     const payload = suffix ?? text
     if (!isValidDomainPayload(payload)) return null
-    return { type: suffix === null ? 'DOMAIN' : 'DOMAIN-SUFFIX', payload, source: formatDiagnosticValue(text) }
+    return { type: suffix === null ? 'DOMAIN' : 'DOMAIN-SUFFIX', payload }
   }
   if (behavior === 'ipcidr') {
     if (!isValidCidr(text)) return null
     return {
       type: text.includes(':') ? 'IP-CIDR6' : 'IP-CIDR',
       payload: text,
-      source: formatDiagnosticValue(text),
     }
   }
   const [rawType, rawPayload, ...options] = text.split(',').map((part) => part.trim())
@@ -460,7 +353,7 @@ function normalizeTextRule(value: string, behavior: RuleSetBehavior): Normalized
     ? normalizePortPayload(rawPayload)
     : rawPayload
   if (normalizedPayload === null) return null
-  const rule = { type, payload: normalizedPayload, noResolve, source: formatDiagnosticValue(text) }
+  const rule = { type, payload: normalizedPayload, noResolve }
   return isValidNormalizedRule(rule) ? rule : null
 }
 
@@ -473,23 +366,20 @@ function parseSingboxSource(content: string): ParsedRuleSet {
 function parseSingboxRules(sourceRules: unknown[]): ParsedRuleSet {
   const rules: NormalizedRule[] = []
   const skippedRuleTypes: Record<string, number> = {}
-  const skippedRuleExamples: Record<string, string[]> = {}
   for (const item of sourceRules) {
     const converted = normalizeSingboxRule(item)
     rules.push(...converted.rules)
     mergeCounts(skippedRuleTypes, converted.skippedRuleTypes)
-    mergeExamples(skippedRuleExamples, converted.skippedRuleExamples)
   }
-  return { rules, skippedRuleTypes, skippedRuleExamples }
+  return { rules, skippedRuleTypes }
 }
 
 function normalizeSingboxRule(value: unknown): ParsedRuleSet {
-  const example = formatDiagnosticValue(value)
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return skippedSingboxRule('INVALID', example)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return skippedSingboxRule('INVALID')
   const rule = value as Record<string, unknown>
-  if (rule['invert']) return skippedSingboxRule('INVERT', example)
-  if (rule['action']) return skippedSingboxRule('ACTION', example)
-  if (rule['rule_set']) return skippedSingboxRule('RULE-SET', example)
+  if (rule['invert']) return skippedSingboxRule('INVERT')
+  if (rule['action']) return skippedSingboxRule('ACTION')
+  if (rule['rule_set']) return skippedSingboxRule('RULE-SET')
   const mappings: Array<[string, string]> = [
     ['domain', 'DOMAIN'], ['domain_suffix', 'DOMAIN-SUFFIX'], ['domain_keyword', 'DOMAIN-KEYWORD'],
     ['domain_regex', 'DOMAIN-REGEX'], ['ip_cidr', 'IP-CIDR'], ['source_ip_cidr', 'SRC-IP-CIDR'],
@@ -514,15 +404,14 @@ function normalizeSingboxRule(value: unknown): ParsedRuleSet {
     .filter(([key, item]) => key !== 'type' && !knownKeys.has(key) && isPopulatedCondition(item))
     .map(([key]) => key)
   // Items within one condition family are OR; different families are AND.
-  if (populatedFamilies.length + unknownKeys.length !== 1) return skippedSingboxRule('COMPOUND', example)
-  if (unknownKeys.length === 1) return skippedSingboxRule(formatSingboxRuleType(unknownKeys[0]!), example)
+  if (populatedFamilies.length + unknownKeys.length !== 1) return skippedSingboxRule('COMPOUND')
+  if (unknownKeys.length === 1) return skippedSingboxRule(formatSingboxRuleType(unknownKeys[0]!))
   const rules: NormalizedRule[] = []
   const skippedRuleTypes: Record<string, number> = {}
-  const skippedRuleExamples: Record<string, string[]> = {}
   for (const [key, type] of populatedFamilies[0]!) {
     for (const item of rule[key] as unknown[]) {
       if (typeof item !== 'string' && typeof item !== 'number') {
-        addSkippedRule(skippedRuleTypes, skippedRuleExamples, `INVALID-${type}`, example)
+        addSkippedRule(skippedRuleTypes, `INVALID-${type}`)
         continue
       }
       const rawPayload = String(item)
@@ -533,19 +422,19 @@ function normalizeSingboxRule(value: unknown): ParsedRuleSet {
           : null
       const parsedPort = portKind ? parsePortPayload(rawPayload) : null
       if (portKind && (!parsedPort || parsedPort.kind !== portKind)) {
-        addSkippedRule(skippedRuleTypes, skippedRuleExamples, `INVALID-${type}`, example)
+        addSkippedRule(skippedRuleTypes, `INVALID-${type}`)
         continue
       }
       const payload = parsedPort
         ? parsedPort.kind === 'single' ? String(parsedPort.port) : parsedPort.range.replace(':', '-')
         : rawPayload
       const resolvedType = type === 'IP-CIDR' && payload.includes(':') ? 'IP-CIDR6' : type
-      const normalized = { type: resolvedType, payload, source: example }
+      const normalized = { type: resolvedType, payload }
       if (isValidNormalizedRule(normalized)) rules.push(normalized)
-      else addSkippedRule(skippedRuleTypes, skippedRuleExamples, `INVALID-${resolvedType}`, example)
+      else addSkippedRule(skippedRuleTypes, `INVALID-${resolvedType}`)
     }
   }
-  return { rules, skippedRuleTypes, skippedRuleExamples }
+  return { rules, skippedRuleTypes }
 }
 
 function ruleToSingboxSource(rule: NormalizedRule): Record<string, unknown> | null {
@@ -713,8 +602,8 @@ function normalizePortPayload(value: string): string | null {
   return parsed.kind === 'single' ? String(parsed.port) : parsed.range.replace(':', '-')
 }
 
-function skippedSingboxRule(reason: string, example: string): ParsedRuleSet {
-  return { rules: [], skippedRuleTypes: { [reason]: 1 }, skippedRuleExamples: { [reason]: [example] } }
+function skippedSingboxRule(reason: string): ParsedRuleSet {
+  return { rules: [], skippedRuleTypes: { [reason]: 1 } }
 }
 
 function isPopulatedCondition(value: unknown): boolean {
@@ -735,87 +624,14 @@ function incrementCount(counts: Record<string, number>, type: string, amount = 1
 
 function addSkippedRule(
   counts: Record<string, number>,
-  examples: Record<string, string[]>,
   type: string,
-  example: string,
   amount = 1
 ): void {
   incrementCount(counts, type, amount)
-  const existing = examples[type] ?? []
-  const totalExamples = Object.values(examples).reduce((sum, items) => sum + items.length, 0)
-  if (
-    existing.length >= MAX_SKIPPED_EXAMPLES_PER_TYPE
-    || totalExamples >= MAX_SKIPPED_EXAMPLES_TOTAL
-    || existing.includes(example)
-  ) return
-  examples[type] = [...existing, example]
-}
-
-function addConvertedRuleExample(
-  examples: RuleSetConversionMapping[],
-  source: string,
-  target: string
-): boolean {
-  const normalized = {
-    source: formatDiagnosticValue(source),
-    target: formatDiagnosticValue(target),
-  }
-  if (examples.some(item => item.source === normalized.source && item.target === normalized.target)) return false
-  if (examples.length >= MAX_CONVERTED_EXAMPLES) return true
-  examples.push(normalized)
-  return false
 }
 
 function mergeCounts(target: Record<string, number>, source: Record<string, number>): void {
   for (const [type, count] of Object.entries(source)) incrementCount(target, type, count)
-}
-
-function mergeExamples(target: Record<string, string[]>, source: Record<string, string[]>): void {
-  for (const [type, values] of Object.entries(source)) {
-    for (const value of values) {
-      const existing = target[type] ?? []
-      const totalExamples = Object.values(target).reduce((sum, items) => sum + items.length, 0)
-      if (existing.length >= MAX_SKIPPED_EXAMPLES_PER_TYPE || totalExamples >= MAX_SKIPPED_EXAMPLES_TOTAL) break
-      if (!existing.includes(value)) target[type] = [...existing, value]
-    }
-  }
-}
-
-function cloneExamples(source: Record<string, string[]>): Record<string, string[]> {
-  return Object.fromEntries(Object.entries(source).map(([type, values]) => [type, [...values]]))
-}
-
-function formatNormalizedRule(rule: NormalizedRule): string {
-  return formatDiagnosticValue(`${rule.type},${rule.payload}${rule.noResolve ? ',no-resolve' : ''}`)
-}
-
-function formatDiagnosticValue(value: unknown): string {
-  let formatted: string
-  if (typeof value === 'string') formatted = value
-  else {
-    try {
-      formatted = JSON.stringify(value) ?? String(value)
-    } catch {
-      formatted = String(value)
-    }
-  }
-  const compact = formatted.replace(/\s+/g, ' ').trim()
-  return compact.length > MAX_DIAGNOSTIC_EXAMPLE_CHARS
-    ? `${compact.slice(0, MAX_DIAGNOSTIC_EXAMPLE_CHARS - 1)}…`
-    : compact
-}
-
-export function resolveConversionIssueReason(type: string): RuleSetConversionIssue['reason'] {
-  if (type === 'COMPOUND') return 'compound-condition'
-  if (type.startsWith('INVALID')) return 'invalid-rule'
-  if (type.endsWith('-NO-RESOLVE') || type.includes('-OPTION-')) return 'unsupported-option'
-  return 'unsupported-directive'
-}
-
-export function resolveConversionIssueResolution(type: string): RuleSetConversionIssue['resolution'] {
-  if (type.startsWith('INVALID')) return 'repair-source-rule'
-  if (type.endsWith('-NO-RESOLVE') || type.includes('-OPTION-')) return 'remove-unsupported-option'
-  return 'use-native-source'
 }
 
 function sumCounts(counts: Record<string, number>): number {

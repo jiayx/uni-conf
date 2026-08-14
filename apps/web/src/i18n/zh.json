@@ -34,6 +34,13 @@
     "description": "这个地址可能有误，或者页面已经移动。",
     "back_home": "返回概览"
   },
+  "routeError": {
+    "status": "应用错误",
+    "title": "这个页面暂时无法显示",
+    "description": "请重新加载页面。如果问题仍然存在，可以先返回概览，再重试刚才的操作。",
+    "reload": "重新加载",
+    "back_home": "返回概览"
+  },
   "common": {
     "add": "添加",
     "edit": "编辑",
@@ -564,8 +571,6 @@
   },
   "remoteRuleSets": {
     "target": "匹配后使用",
-    "rule_target": "分流目标",
-    "all_enabled": "全部生效",
     "title": "规则集管理",
     "description": "按流量去向管理 {{setCount}} 个规则集",
     "search_label": "查找规则集",
@@ -579,16 +584,12 @@
     "compatibility_direct": "原生兼容 {{count}}",
     "compatibility_converted": "安全转换 {{count}}",
     "compatibility_unsupported": "不支持 {{count}}",
-    "status_filter_label": "按运行状态筛选",
-    "status_all": "全部状态 {{count}}",
-    "status_attention": "需要处理 {{count}}",
     "expand_all": "全部展开",
     "collapse_all": "全部收起",
     "toggle_section": "展开或收起 {{name}} 的规则集",
     "no_search_results": "没有匹配的规则集",
     "no_search_results_help": "可以尝试策略名称、规则集名称、格式或 URL。",
     "no_compatibility_results_help": "当前搜索范围内没有这种兼容状态的规则集，请切换状态或目标客户端。",
-    "no_attention_results_help": "当前视图中没有来源过期、待检查、无效或目标客户端不支持的已启用规则集。",
     "add_supplement": "添加补充规则集",
     "edit_supplement": "编辑补充规则集",
     "configure_managed_sources_title": "配置原生来源 · {{name}}",

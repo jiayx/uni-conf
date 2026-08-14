@@ -56,15 +56,15 @@ describe('useRequestedEdit', () => {
   it('passes and consumes requested editor context without removing unrelated filters', async () => {
     const onEdit = vi.fn()
     render(
-      <MemoryRouter initialEntries={['/remote-rule-sets?edit=item%2F1&nativeSource=singbox&attention=1']}>
+      <MemoryRouter initialEntries={['/remote-rule-sets?edit=item%2F1&nativeSource=singbox&view=compact']}>
         <Harness consumeParams={['nativeSource']} onEdit={onEdit} />
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('?attention=1')).toBeInTheDocument()
+    expect(await screen.findByText('?view=compact')).toBeInTheDocument()
     expect(onEdit).toHaveBeenCalledOnce()
     const requestParams = onEdit.mock.calls[0]?.[1] as URLSearchParams
     expect(requestParams.get('nativeSource')).toBe('singbox')
-    expect(requestParams.get('attention')).toBe('1')
+    expect(requestParams.get('view')).toBe('compact')
   })
 })

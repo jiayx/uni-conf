@@ -57,7 +57,7 @@ type CompactRuleSetCatalog = {
 
 export const bundledRuleSetCatalogSnapshot = {
   schemaVersion: 1,
-  generatedAt: "2026-08-13T20:16:05.521Z",
+  generatedAt: "2026-08-14T16:17:27.579Z",
   catalogs: [
     expandRuleSetCatalog(catalog0 as CompactRuleSetCatalog),
     expandRuleSetCatalog(catalog1 as CompactRuleSetCatalog),

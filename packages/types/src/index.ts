@@ -348,30 +348,6 @@ export interface RemoteRuleSet {
   updatedAt: string;
 }
 
-export type RuleSetConversionIssueReason =
-  | 'invalid-rule'
-  | 'compound-condition'
-  | 'unsupported-directive'
-  | 'unsupported-option';
-
-export type RuleSetConversionIssueResolution =
-  | 'repair-source-rule'
-  | 'use-native-source'
-  | 'remove-unsupported-option';
-
-export interface RuleSetConversionIssue {
-  type: string;
-  count: number;
-  reason: RuleSetConversionIssueReason;
-  resolution: RuleSetConversionIssueResolution;
-  examples: string[];
-}
-
-export interface RuleSetConversionMapping {
-  source: string;
-  target: string;
-}
-
 // ============================================================
 // Export Config
 // ============================================================

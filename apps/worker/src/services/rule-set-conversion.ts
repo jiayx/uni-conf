@@ -2,7 +2,6 @@ import type {
   CompatibilityWarning,
   ExportFormat,
   RemoteRuleSet,
-  RuleSetConversionMapping,
   RuleSetConversionPolicy,
   RuleSetFormat,
 } from '@uni-conf/types'
@@ -275,10 +274,6 @@ function parseCachedConversionResult(value: string): RuleSetConversionResult | n
       || parsed.convertedRuleCount === 0
       || !isNonNegativeInteger(parsed.skippedRuleCount)
       || !isCountRecord(parsed.skippedRuleTypes)
-      || !isExamplesRecord(parsed.skippedRuleExamples)
-      || !Array.isArray(parsed.convertedRuleExamples)
-      || !parsed.convertedRuleExamples.every(isConversionMapping)
-      || typeof parsed.convertedRuleExamplesTruncated !== 'boolean'
     ) return null
     return parsed as RuleSetConversionResult
   } catch {
@@ -293,17 +288,6 @@ function isNonNegativeInteger(value: unknown): value is number {
 function isCountRecord(value: unknown): value is Record<string, number> {
   return isRecord(value)
     && Object.values(value).every(isNonNegativeInteger)
-}
-
-function isExamplesRecord(value: unknown): value is Record<string, string[]> {
-  return isRecord(value)
-    && Object.values(value).every(item => Array.isArray(item) && item.every(value => typeof value === 'string'))
-}
-
-function isConversionMapping(value: unknown): value is RuleSetConversionMapping {
-  return isRecord(value)
-    && typeof value.source === 'string'
-    && typeof value.target === 'string'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

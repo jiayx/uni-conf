@@ -111,10 +111,6 @@ describe('rule set conversion orchestration', () => {
     expect(converted.convertedRuleCount).toBe(1)
     expect(converted.skippedRuleCount).toBe(2)
     expect(converted.skippedRuleTypes).toEqual({ INVALID: 2 })
-    expect(converted.skippedRuleExamples.INVALID).toEqual([
-      '443',
-      '{"type":"DOMAIN","value":"hidden.example"}',
-    ])
 
     const strict = await preflightRuleSetConversions(makeExportData(makeRuleSet()), 'singbox', {
       policy: 'strict',

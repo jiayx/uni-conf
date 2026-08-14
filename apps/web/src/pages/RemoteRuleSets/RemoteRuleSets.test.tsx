@@ -411,6 +411,13 @@ describe('RemoteRuleSets content validation', () => {
     expect(await screen.findByRole('button', { name: 'Toggle rule sets for PROXY' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(screen.getByRole('button', { name: 'Collapse all' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^Toggle rule sets for / })
+      .every(button => button.getAttribute('aria-expanded') === 'true')).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Collapse all' }))
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Toggle rule sets for PROXY' }))
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
     expect(screen.getByText('Proxy Domains')).toBeInTheDocument()
@@ -463,8 +470,6 @@ describe('RemoteRuleSets content validation', () => {
     expect(screen.getByRole('button', { name: 'Native 1' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Safe conversion 1' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unsupported 1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Needs attention 1' })).toBeInTheDocument()
-
     await user.click(screen.getByRole('button', { name: 'Unsupported 1' }))
 
     expect(screen.getByText('Unsupported Surge')).toBeInTheDocument()
