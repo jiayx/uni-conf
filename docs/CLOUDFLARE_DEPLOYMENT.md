@@ -20,14 +20,13 @@ UniConf 部署后会使用以下 Cloudflare 服务：
 
 Cloudflare 会复制 UniConf 仓库，并为项目创建 D1、KV 和 Worker。
 
-### 2. 填写配置
+### 2. 填写访问密钥
 
 部署页面需要填写：
 
-| 配置             | 说明                                                                              |
-| ---------------- | --------------------------------------------------------------------------------- |
-| `API_KEY`        | 管理页面的访问密钥。请使用足够长的随机字符串，并妥善保存                          |
-| `ALLOWED_ORIGIN` | 部署后的完整访问地址，例如 `https://uni-conf.example.workers.dev`，不要带结尾 `/` |
+| 配置      | 说明                                                     |
+| --------- | -------------------------------------------------------- |
+| `API_KEY` | 管理页面的访问密钥。请使用足够长的随机字符串，并妥善保存 |
 
 `API_KEY` 不是配置导出的订阅 Token。订阅 Token 会在创建导出档案时由 UniConf 自动生成。
 
@@ -81,43 +80,22 @@ pnpm exec wrangler login
 pnpm exec wrangler whoami
 ```
 
-### 2. 创建 D1 和 KV
+### 2. 构建并部署
 
-在仓库根目录执行：
-
-```bash
-pnpm exec wrangler d1 create uni-conf-db
-pnpm exec wrangler kv namespace create uni-conf-kv
-```
-
-保存命令输出中的 D1 `database_id` 和 KV `id`。
-
-### 3. 配置生产环境
-
-复制本地生产配置：
+执行：
 
 ```bash
-cp cloudflare.production.example.json cloudflare.production.json
+pnpm build
+pnpm deploy
 ```
 
-编辑 `cloudflare.production.json`：
+`pnpm deploy` 会先应用 D1 migration，再部署 Worker 和管理页面。Wrangler 会根据 `wrangler.jsonc` 自动创建或复用 D1 和 KV，不需要填写资源 ID。
 
-| 配置项             | 填写内容                                                  |
-| ------------------ | --------------------------------------------------------- |
-| `allowedOrigin`    | 最终访问地址，例如 `https://uni-conf.example.workers.dev` |
-| `d1DatabaseName`   | D1 的名称                                                 |
-| `d1DatabaseId`     | D1 的 `database_id`                                       |
-| `kvNamespaceId`    | KV 的 `id`                                                |
+命令行首次自动创建资源时，Wrangler 可能会把生成的 ID 写回本地 `wrangler.jsonc`。这些账号专属改动只用于本机，不要提交到公共仓库。
 
-该文件已被 Git 忽略，不会把账号专属的 Cloudflare 资源 ID 提交到公共仓库。发布命令会根据公共的 `wrangler.jsonc` 和这份本地配置生成同样被忽略的 `wrangler.production.local.jsonc`，以后无需重复查询或填写。
+### 3. 设置访问密钥
 
-访问地址只填写 Origin，即协议、主机名和可选端口，不包含路径，也不要带结尾 `/`。
-
-账号的 Workers.dev 子域可以在 Cloudflare 控制台的 Workers & Pages 页面查看。
-
-### 4. 设置访问密钥
-
-在仓库根目录执行：
+首次部署完成后执行：
 
 ```bash
 pnpm exec wrangler secret put API_KEY --env production
@@ -127,20 +105,7 @@ pnpm exec wrangler secret put API_KEY --env production
 
 不要把访问密钥写入 `wrangler.jsonc` 或提交到 Git。
 
-### 5. 构建并部署
-
-执行：
-
-```bash
-pnpm build
-pnpm deploy:production
-```
-
-`pnpm deploy:production` 会先应用 D1 migration，再部署 Worker 和管理页面。
-
-部署完成后，Wrangler 会显示访问地址。
-
-### 6. 验证部署
+### 4. 验证部署
 
 打开以下地址检查服务状态：
 
@@ -161,38 +126,33 @@ pnpm smoke
 unset UNICONF_API_KEY
 ```
 
-### 7. 配置自定义域名
+### 5. 配置自定义域名
 
 在 Cloudflare 控制台进入对应 Worker，打开域名与路由设置并添加自定义域名。
 
-然后修改本地 `cloudflare.production.json` 中的 `allowedOrigin` 并重新部署：
+管理页面和 API 默认使用当前请求的同源地址，因此更换自定义域名后无需修改 Worker 配置。
 
-```bash
-pnpm deploy:production
-```
-
-### 8. 更新现有部署
+### 6. 更新现有部署
 
 获取新版本后：
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm deploy:production
+pnpm deploy
 ```
 
 部署命令会先更新数据库结构，再部署新版本。
 
 ## 常见问题
 
-| 现象                                          | 处理方法                                                                    |
-| --------------------------------------------- | --------------------------------------------------------------------------- |
-| 无法使用访问密钥登录                          | 确认输入的值与 production 环境中的 `API_KEY` secret 一致                    |
-| `/api/ready` 提示 D1 或 KV 不可用             | 检查 `wrangler.jsonc` 中 production 的 D1、KV ID                            |
-| `D1_ERROR: no such table` 或 `no such column` | 重新执行 `pnpm db:migrate:production`                                      |
-| 返回 `ALLOWED_ORIGIN` 相关错误                | 检查地址是否包含正确协议和域名，并去掉路径及结尾 `/`                        |
-| 页面仍是旧版本                                | 重新执行 `pnpm build` 和 `pnpm deploy:production`                           |
-| 定时刷新没有立即执行                          | 定时任务每五分钟调度一次，只有已经到期的订阅或资源才会刷新                  |
+| 现象                                          | 处理方法                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| 无法使用访问密钥登录                          | 确认输入的值与 production 环境中的 `API_KEY` secret 一致           |
+| `/api/ready` 提示 D1 或 KV 不可用             | 检查 Worker 的 `DB`、`KV` binding 是否已由 Wrangler 正确创建或复用 |
+| `D1_ERROR: no such table` 或 `no such column` | 重新执行 `pnpm db:migrate:production`                              |
+| 页面仍是旧版本                                | 重新执行 `pnpm build` 和 `pnpm deploy`                             |
+| 定时刷新没有立即执行                          | 定时任务每五分钟调度一次，只有已经到期的订阅或资源才会刷新         |
 
 ## 相关文档
 

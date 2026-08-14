@@ -11,8 +11,6 @@ apps/worker/dist/
 # Cloudflare
 .wrangler/
 .dev.vars*
-cloudflare.production.json
-wrangler.production.local.jsonc
 
 # Env
 .env

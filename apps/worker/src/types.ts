@@ -3,5 +3,4 @@ export interface Env {
   KV: KVNamespace;
   ENVIRONMENT: string;
   API_KEY?: string;
-  ALLOWED_ORIGIN?: string;
 }

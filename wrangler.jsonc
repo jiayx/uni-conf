@@ -7,74 +7,50 @@
   "assets": {
     "directory": "apps/web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/sub/*"]
+    "run_worker_first": ["/api/*", "/sub/*"],
   },
   "vars": {
-    "ENVIRONMENT": "development"
+    "ENVIRONMENT": "development",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "uni-conf-db",
       "database_id": "local",
-      "migrations_dir": "apps/worker/migrations"
-    }
+      "migrations_dir": "apps/worker/migrations",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "local"
-    }
+      "id": "local",
+    },
   ],
   "dev": {
     "port": 8787,
-    "local_protocol": "http"
+    "local_protocol": "http",
   },
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/5 * * * *"],
   },
   "env": {
-    "staging": {
-      "name": "uni-conf-staging",
-      "vars": {
-        "ENVIRONMENT": "production",
-        "ALLOWED_ORIGIN": "REPLACE_WITH_STAGING_ORIGIN"
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "uni-conf-db-staging",
-          "database_id": "REPLACE_WITH_STAGING_D1_ID",
-          "migrations_dir": "apps/worker/migrations"
-        }
-      ],
-      "kv_namespaces": [
-        {
-          "binding": "KV",
-          "id": "REPLACE_WITH_STAGING_KV_ID"
-        }
-      ]
-    },
     "production": {
       "name": "uni-conf",
       "vars": {
         "ENVIRONMENT": "production",
-        "ALLOWED_ORIGIN": "REPLACE_WITH_PRODUCTION_ORIGIN"
       },
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "REPLACE_WITH_PRODUCTION_D1_NAME",
-          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
-          "migrations_dir": "apps/worker/migrations"
-        }
+          "database_name": "uni-conf-db",
+          "migrations_dir": "apps/worker/migrations",
+        },
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "REPLACE_WITH_PRODUCTION_KV_ID"
-        }
-      ]
-    }
-  }
+        },
+      ],
+    },
+  },
 }

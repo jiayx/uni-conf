@@ -90,13 +90,12 @@ describe('worker entrypoint', () => {
     expect(response.status).toBe(200)
   })
 
-  it('reports ready only when bindings and production security configuration are available', async () => {
+  it('reports ready when bindings and the production API key are available', async () => {
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/api/ready'),
       createReadyEnv({
         ENVIRONMENT: 'production',
         API_KEY: 'secret',
-        ALLOWED_ORIGIN: 'https://uni-conf.example.com',
       }),
       {} as ExecutionContext,
     )
@@ -111,7 +110,6 @@ describe('worker entrypoint', () => {
           database: true,
           kv: true,
           apiKeyConfigured: true,
-          allowedOriginConfigured: true,
         },
       },
     })
@@ -138,7 +136,6 @@ describe('worker entrypoint', () => {
       database: false,
       kv: true,
       apiKeyConfigured: false,
-      allowedOriginConfigured: false,
     })
     expect(JSON.stringify(payload)).not.toContain('D1 unavailable')
   })
@@ -165,21 +162,32 @@ describe('worker entrypoint', () => {
     await expect(response.json()).resolves.toEqual({ success: true, data: { ok: true } })
   })
 
-  it('fails closed when production CORS configuration is missing', async () => {
+  it('defaults production CORS to the request origin', async () => {
+    const sameOriginResponse = await worker.fetch(
+      new Request('https://uni-conf.example.com/api/auth/check', {
+        headers: {
+          Authorization: 'Bearer secret',
+          Origin: 'https://uni-conf.example.com',
+        },
+      }),
+      { ENVIRONMENT: 'production', API_KEY: 'secret' } as Env,
+      {} as ExecutionContext,
+    )
     const response = await worker.fetch(
       new Request('https://uni-conf.example.com/api/auth/check', {
-        headers: { Authorization: 'Bearer secret' },
+        headers: {
+          Authorization: 'Bearer secret',
+          Origin: 'https://other.example.com',
+        },
       }),
       { ENVIRONMENT: 'production', API_KEY: 'secret' } as Env,
       {} as ExecutionContext,
     )
 
-    expect(response.status).toBe(500)
-    expect(response.headers.get('Access-Control-Allow-Origin')).not.toBe('*')
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'ALLOWED_ORIGIN is required in production',
-    })
+    expect(sameOriginResponse.headers.get('Access-Control-Allow-Origin')).toBe('https://uni-conf.example.com')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
+    await expect(response.json()).resolves.toEqual({ success: true, data: { ok: true } })
   })
 
   it('rejects oversized API request bodies', async () => {

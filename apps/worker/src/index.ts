@@ -60,10 +60,10 @@ app.use(
   }),
 )
 
-// CORS - restrict to ALLOWED_ORIGIN when configured; defaults to '*' for local development
+// CORS - stay on the request origin in production; local development may use a separate frontend origin
 app.use('/api/*', (c, next) =>
   cors({
-    origin: c.env.ALLOWED_ORIGIN || (c.env.ENVIRONMENT === 'production' ? '' : '*'),
+    origin: c.env.ENVIRONMENT === 'production' ? new URL(c.req.url).origin : '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Workspace-Id'],
     exposeHeaders: ['Content-Disposition', 'X-Request-Id', 'X-UniConf-Error-Code', 'X-UniConf-Capability-Profile'],
@@ -100,13 +100,6 @@ app.get('/api/ready', async (c) => {
     },
     ready ? 200 : 503,
   )
-})
-
-app.use('/api/*', async (c, next) => {
-  if (c.env.ENVIRONMENT === 'production' && !c.env.ALLOWED_ORIGIN) {
-    return c.json({ success: false, error: 'ALLOWED_ORIGIN is required in production' }, 500)
-  }
-  return next()
 })
 
 // Everything else under /api/* requires the shared bearer token when API_KEY is configured
@@ -245,7 +238,6 @@ export async function checkReadiness(env: Env): Promise<{
   database: boolean
   kv: boolean
   apiKeyConfigured: boolean
-  allowedOriginConfigured: boolean
 }> {
   const [database, kv] = await Promise.all([
     checkBinding(async () => Boolean(await env.DB?.prepare('SELECT 1 AS ok').first<{ ok: number }>())),
@@ -259,7 +251,6 @@ export async function checkReadiness(env: Env): Promise<{
     database,
     kv,
     apiKeyConfigured: !production || Boolean(env.API_KEY),
-    allowedOriginConfigured: !production || Boolean(env.ALLOWED_ORIGIN),
   }
 }
 
