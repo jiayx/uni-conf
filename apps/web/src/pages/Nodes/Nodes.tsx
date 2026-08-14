@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
@@ -22,6 +22,7 @@ import { useSourcesStore } from '@/store/sources.store'
 import { api } from '@/lib/api'
 import { useRequestedEdit } from '@/core/navigation/use-requested-edit'
 import { formValuesEqual, useUnsavedChangesGuard } from '@/core/forms/use-unsaved-changes'
+import { writeClipboardText } from '@/core/clipboard/write-text'
 import {
   MAINSTREAM_PROXY_PROTOCOLS,
   PROTOCOL_FORM_FIELDS,
@@ -81,10 +82,16 @@ export function Nodes() {
   const [formSaving, setFormSaving] = useState(false)
   const [actionError, setActionError] = useState<unknown>(null)
   const [rowAction, setRowAction] = useState<{ id: string; type: 'toggle' | 'delete' } | null>(null)
+  const [copyingNodeId, setCopyingNodeId] = useState<string | null>(null)
+  const [copiedNodeId, setCopiedNodeId] = useState<string | null>(null)
+  const copiedResetTimer = useRef<number | null>(null)
   const formDirty = showModal && !formValuesEqual({ form, uriInput }, initialEditor)
   useUnsavedChangesGuard(formDirty)
 
   useEffect(() => { void fetchNodes(); void fetchSources() }, [fetchNodes, fetchSources])
+  useEffect(() => () => {
+    if (copiedResetTimer.current !== null) window.clearTimeout(copiedResetTimer.current)
+  }, [])
   useEffect(() => {
     if (searchParams.get('create') !== '1') return
     const nextParams = new URLSearchParams(searchParams)
@@ -336,6 +343,30 @@ export function Nodes() {
     }
   }
 
+  const handleCopyUri = async (node: ProxyNode) => {
+    setCopyingNodeId(node.id)
+    if (copiedResetTimer.current !== null) window.clearTimeout(copiedResetTimer.current)
+    setCopiedNodeId(null)
+    setActionError(null)
+    try {
+      const { uri } = await api.nodes.getUri(node.id)
+      try {
+        await writeClipboardText(uri)
+      } catch {
+        throw new Error(t('common.clipboard_copy_failed'))
+      }
+      setCopiedNodeId(node.id)
+      copiedResetTimer.current = window.setTimeout(() => {
+        setCopiedNodeId(current => current === node.id ? null : current)
+        copiedResetTimer.current = null
+      }, 2000)
+    } catch (error) {
+      setActionError(error)
+    } finally {
+      setCopyingNodeId(current => current === node.id ? null : current)
+    }
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
@@ -467,23 +498,15 @@ export function Nodes() {
                   </td>
                   <td data-label={t('common.actions')}>
                     <div className={styles.rowActions}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        loading={rowAction?.id === node.id && rowAction.type === 'toggle'}
-                        disabled={rowAction?.id === node.id}
-                        onClick={() => void handleToggleEnabled(node)}
-                      >
-                        {node.enabled ? t('common.disable') : t('common.enable')}
-                      </Button>
                       {node.isManual && (
                         <>
-                          <Button variant="ghost" size="sm" disabled={rowAction?.id === node.id || detailLoading} onClick={() => void openEdit(node)}>
+                          <Button variant="ghost" size="sm" className={styles.rowActionButton} disabled={rowAction?.id === node.id || detailLoading} onClick={() => void openEdit(node)}>
                             {t('common.edit')}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className={styles.rowActionButton}
                             loading={rowAction?.id === node.id && rowAction.type === 'delete'}
                             disabled={rowAction?.id === node.id}
                             aria-label={t('nodes.delete_node', { name: node.name })}
@@ -493,6 +516,28 @@ export function Nodes() {
                           </Button>
                         </>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={styles.rowActionButton}
+                        loading={rowAction?.id === node.id && rowAction.type === 'toggle'}
+                        disabled={rowAction?.id === node.id}
+                        onClick={() => void handleToggleEnabled(node)}
+                      >
+                        {node.enabled ? t('common.disable') : t('common.enable')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={styles.rowActionButton}
+                        disabled={copyingNodeId === node.id}
+                        aria-label={copiedNodeId === node.id
+                          ? t('nodes.node_uri_copied', { name: node.name })
+                          : t('nodes.copy_node_uri', { name: node.name })}
+                        onClick={() => void handleCopyUri(node)}
+                      >
+                        {copiedNodeId === node.id ? t('common.copied') : t('nodes.copy_uri')}
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -562,16 +607,12 @@ export function Nodes() {
         <Input label={t('nodes.server')} value={form.server} onChange={e => setForm(f => ({ ...f, server: e.target.value }))} />
         <Input label={t('nodes.port')} type="number" min="1" max="65535" value={form.port} onChange={e => setForm(f => ({ ...f, port: Number(e.target.value) }))} />
         {protocolFields.length > 0 && (
-          <div className={styles.protocolFields}>
-            {protocolFields.map(field => (
-              <ProtocolFieldInput
-                key={field.key}
-                field={field}
-                value={form.extra[field.key] ?? field.defaultValue ?? (field.type === 'boolean' ? false : '')}
-                onChange={value => setForm(f => ({ ...f, extra: { ...f.extra, [field.key]: value } }))}
-              />
-            ))}
-          </div>
+          <ProtocolFieldsEditor
+            protocol={form.protocol}
+            fields={protocolFields}
+            values={form.extra}
+            onChange={(key, value) => setForm(f => ({ ...f, extra: { ...f.extra, [key]: value } }))}
+          />
         )}
         <div className={styles.protocolPicker}>
           <label className={styles.selectLabel} htmlFor="manual-node-country">{t('nodes.country')}</label>
@@ -684,6 +725,83 @@ function ProtocolFieldInput({
         else onChange(e.target.value)
       }}
     />
+  )
+}
+
+function ProtocolFieldsEditor({
+  protocol,
+  fields,
+  values,
+  onChange,
+}: {
+  protocol: ProxyProtocol
+  fields: readonly ProtocolFieldDefinition[]
+  values: Record<string, ManualNodeExtraValue>
+  onChange: (key: string, value: ManualNodeExtraValue) => void
+}) {
+  const { t } = useTranslation()
+  const fieldMap = new Map(fields.map(field => [field.key, field]))
+  const renderField = (key: string, className?: string) => {
+    const field = fieldMap.get(key)
+    if (!field) return null
+    return (
+      <div key={field.key} className={className}>
+        <ProtocolFieldInput
+          field={field}
+          value={values[field.key] ?? field.defaultValue ?? (field.type === 'boolean' ? false : '')}
+          onChange={value => onChange(field.key, value)}
+        />
+      </div>
+    )
+  }
+
+  if (protocol === 'anytls') {
+    return (
+      <div className={styles.anytlsFields}>
+        <fieldset className={styles.protocolSection}>
+          <legend className="sr-only">{t('nodes.authentication')}</legend>
+          <div className={styles.protocolSectionTitle} aria-hidden="true">
+            <span>{t('nodes.authentication')}</span>
+          </div>
+          {renderField('password')}
+        </fieldset>
+        <fieldset className={styles.protocolSection}>
+          <legend className="sr-only">{t('nodes.tls_identity')}</legend>
+          <div className={styles.protocolSectionTitle} aria-hidden="true">
+            <span>{t('nodes.tls_identity')}</span>
+          </div>
+          <div className={styles.protocolSectionHint}>{t('nodes.anytls_tls_required')}</div>
+          <div className={styles.protocolSectionGrid}>
+            {renderField('sni')}
+            {renderField('clientFingerprint')}
+            {renderField('alpn', styles.protocolFieldWide)}
+          </div>
+        </fieldset>
+        <fieldset className={styles.protocolSection}>
+          <legend className="sr-only">{t('nodes.connection_options')}</legend>
+          <div className={styles.protocolSectionTitle} aria-hidden="true">
+            <span>{t('nodes.connection_options')}</span>
+          </div>
+          <div className={styles.protocolToggleGrid}>
+            {renderField('udp')}
+            {renderField('skipCertVerify')}
+          </div>
+        </fieldset>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.protocolFields}>
+      {fields.map(field => (
+        <ProtocolFieldInput
+          key={field.key}
+          field={field}
+          value={values[field.key] ?? field.defaultValue ?? (field.type === 'boolean' ? false : '')}
+          onChange={value => onChange(field.key, value)}
+        />
+      ))}
+    </div>
   )
 }
 

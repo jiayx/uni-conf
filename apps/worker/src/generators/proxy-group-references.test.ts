@@ -879,6 +879,7 @@ describe('proxy group references', () => {
     expect(content).toContain('proxies:\n  - {name: "HK AnyTLS", type: anytls')
     expect(content).toContain('password: "secret"')
     expect(content).toContain('client-fingerprint: "chrome"')
+    expect(content).toContain('udp: true')
     expect(content).toContain('alpn: ["h2", "http/1.1"]')
     expect(content).toContain('- "HK AnyTLS"')
   })

@@ -7,7 +7,7 @@ import {
   validateRemoteRuleSetWrite,
 } from './remote-rule-sets'
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
-import { getConvertedRemoteRuleSet, RuleSetConversionError } from '../services/rule-set-conversion'
+import { convertRemoteRuleSetContent, fetchRemoteRuleSetContent, getConvertedRemoteRuleSet, RuleSetConversionError } from '../services/rule-set-conversion'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 
 vi.mock('../services/zero-setup', () => ({
@@ -20,7 +20,12 @@ vi.mock('../services/remote-rule-set-validation', () => ({
 
 vi.mock('../services/rule-set-conversion', async () => {
   const actual = await vi.importActual<typeof import('../services/rule-set-conversion')>('../services/rule-set-conversion')
-  return { ...actual, getConvertedRemoteRuleSet: vi.fn() }
+  return {
+    ...actual,
+    convertRemoteRuleSetContent: vi.fn(),
+    fetchRemoteRuleSetContent: vi.fn(),
+    getConvertedRemoteRuleSet: vi.fn(),
+  }
 })
 
 describe('remote rule set routes', () => {
@@ -643,6 +648,46 @@ describe('remote rule set routes', () => {
     })
     expect(payload.data.preview).toHaveLength(12 * 1024)
     expect(payload.data.preview).toMatch(/^HOST-SUFFIX,example\.com/)
+  })
+
+  it('previews every client in one response while downloading a shared source once', async () => {
+    const db = createRemoteRuleSetRouteDb({
+      existing: managedRemoteRuleSetRow({
+        preset_source: null,
+        preset_id: null,
+        format: 'text',
+        behavior: 'domain',
+        url: 'https://example.com/domains.list',
+      }),
+      enabledTargetGroupIds: new Set(['builtin-ai']),
+    })
+    vi.mocked(fetchRemoteRuleSetContent).mockClear()
+    vi.mocked(convertRemoteRuleSetContent).mockClear()
+    vi.mocked(fetchRemoteRuleSetContent).mockResolvedValue(new TextEncoder().encode('example.com'))
+    vi.mocked(convertRemoteRuleSetContent).mockReturnValue({
+      content: 'example.com',
+      contentType: 'text/plain; charset=utf-8',
+      convertedRuleCount: 1,
+      skippedRuleCount: 0,
+      skippedRuleTypes: {},
+      skippedRuleExamples: {},
+      convertedRuleExamples: [],
+      convertedRuleExamplesTruncated: false,
+    })
+
+    const response = await remoteRuleSetsApp.request('/preset-ai/conversion-previews', {
+      method: 'POST',
+    }, { DB: db, KV: {} as KVNamespace })
+
+    expect(response.status).toBe(200)
+    const payload = await response.json() as { data: { results: Array<{ targetFormat: string; status: string }> } }
+    expect(payload.data.results).toHaveLength(9)
+    expect(payload.data.results.map(item => item.targetFormat)).toEqual([
+      'mihomo', 'clash', 'singbox', 'loon', 'surge', 'shadowrocket', 'quantumultx', 'stash', 'egern',
+    ])
+    expect(payload.data.results.every(item => item.status === 'ready')).toBe(true)
+    expect(fetchRemoteRuleSetContent).toHaveBeenCalledTimes(1)
+    expect(convertRemoteRuleSetContent).toHaveBeenCalledTimes(1)
   })
 
   it('reports unsupported targets without attempting a conversion', async () => {

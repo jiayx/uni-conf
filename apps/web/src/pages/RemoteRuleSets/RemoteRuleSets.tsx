@@ -61,7 +61,11 @@ const REQUESTED_EDIT_PARAMS = ['nativeSource'] as const
 
 interface ConversionPreviewState {
   ruleSet: RemoteRuleSet
-  targetFormat: ExportFormat
+  status: 'loading' | 'ready' | 'error'
+  targets: Partial<Record<ExportFormat, ConversionPreviewTargetState>>
+}
+
+interface ConversionPreviewTargetState {
   status: 'loading' | 'ready' | 'error'
   result?: RemoteRuleSetConversionPreview
   error?: string
@@ -705,29 +709,50 @@ export function RemoteRuleSets() {
 
   const handleValidateAllSourceOverrides = async () => validateSourceOverrideInputs(configuredSourceOverrides)
 
-  const runConversionPreview = async (ruleSet: RemoteRuleSet, targetFormat: ExportFormat) => {
+  const runConversionPreview = async (ruleSet: RemoteRuleSet) => {
     const requestId = ++conversionRequestId.current
-    setConversionPreview(current =>
-      current?.ruleSet.id === ruleSet.id && current.targetFormat === targetFormat
-        ? { ...current, status: 'loading', error: undefined }
-        : { ruleSet, targetFormat, status: 'loading' }
-    )
-    try {
-      const result = await api.remoteRuleSets.previewConversion(ruleSet.id, targetFormat)
-      if (conversionRequestId.current !== requestId) return
-      setConversionPreview({ ruleSet, targetFormat, status: 'ready', result })
-    } catch (e) {
-      if (conversionRequestId.current !== requestId) return
-      setConversionPreview(current => ({
-        ruleSet,
+    const previousTargets = conversionPreview?.ruleSet.id === ruleSet.id
+      ? conversionPreview.targets
+      : {}
+    setConversionPreview({
+      ruleSet,
+      status: 'loading',
+      targets: Object.fromEntries(CONVERSION_PREVIEW_TARGETS.map(targetFormat => [
         targetFormat,
+        { status: 'loading', result: previousTargets[targetFormat]?.result },
+      ])),
+    })
+    let outcomes: Array<readonly [ExportFormat, ConversionPreviewTargetState]>
+    try {
+      const batch = await api.remoteRuleSets.previewConversions(ruleSet.id)
+      outcomes = CONVERSION_PREVIEW_TARGETS.map(targetFormat => {
+        const item = batch.results.find(result => result.targetFormat === targetFormat)
+        if (item?.status === 'ready') {
+          return [targetFormat, { status: 'ready', result: item.result }] as const
+        }
+        const error = item
+          ? new ApiError(item.error, 422, item.code)
+          : new Error('Missing conversion preview result')
+        return [targetFormat, {
+          status: 'error',
+          result: previousTargets[targetFormat]?.result,
+          error: conversionPreviewError(error, t),
+        }] as const
+      })
+    } catch (error) {
+      outcomes = CONVERSION_PREVIEW_TARGETS.map(targetFormat => [targetFormat, {
         status: 'error',
-        result: current?.ruleSet.id === ruleSet.id && current.targetFormat === targetFormat
-          ? current.result
-          : undefined,
-        error: conversionPreviewError(e, t),
-      }))
+        result: previousTargets[targetFormat]?.result,
+        error: conversionPreviewError(error, t),
+      }] as const)
     }
+    if (conversionRequestId.current !== requestId) return
+    const targets = Object.fromEntries(outcomes) as ConversionPreviewState['targets']
+    setConversionPreview({
+      ruleSet,
+      status: outcomes.every(([, outcome]) => outcome.status === 'error') ? 'error' : 'ready',
+      targets,
+    })
   }
 
   const closeConversionPreview = () => {
@@ -765,13 +790,12 @@ export function RemoteRuleSets() {
   }
 
   const openConversionPreview = (ruleSet: RemoteRuleSet) => {
-    const targetFormat: ExportFormat = ruleSet.format === 'singbox' ? 'mihomo' : 'singbox'
-    void runConversionPreview(ruleSet, targetFormat)
+    void runConversionPreview(ruleSet)
   }
 
-  const openNativeSourceRemediation = () => {
+  const openNativeSourceRemediation = (targetFormat: ExportFormat) => {
     if (!conversionPreview) return
-    const { ruleSet, targetFormat } = conversionPreview
+    const { ruleSet } = conversionPreview
     closeConversionPreview()
     if (canEditRemoteRuleSet(ruleSet)) {
       openEdit(ruleSet, targetFormat as RemoteRuleSetSourceOverrideTarget)
@@ -1153,20 +1177,10 @@ export function RemoteRuleSets() {
         footer={
           <>
             <Button variant="secondary" onClick={closeConversionPreview}>{t('common.close')}</Button>
-            {conversionPreview?.result
-              && conversionPreview.result.mode !== 'direct'
-              && (conversionPreview.result.mode === 'unsupported' || conversionPreview.result.skippedRuleCount > 0)
-              && (
-                <Button variant="secondary" onClick={openNativeSourceRemediation}>
-                  {t('remoteRuleSets.preview_configure_native_source', {
-                    client: t(`export.formats.${conversionPreview.targetFormat}`),
-                  })}
-                </Button>
-              )}
             <Button
               loading={conversionPreview?.status === 'loading'}
               onClick={() => {
-                if (conversionPreview) void runConversionPreview(conversionPreview.ruleSet, conversionPreview.targetFormat)
+                if (conversionPreview) void runConversionPreview(conversionPreview.ruleSet)
               }}
             >{t('remoteRuleSets.run_conversion_preview')}</Button>
           </>
@@ -1174,33 +1188,45 @@ export function RemoteRuleSets() {
       >
         {conversionPreview && (
           <div className={styles.conversionPreviewBody}>
-            <div>
-              <label className={styles.label} htmlFor="rule-set-conversion-preview-target">{t('remoteRuleSets.preview_target')}</label>
-              <select
-                id="rule-set-conversion-preview-target"
-                className={styles.select}
-                value={conversionPreview.targetFormat}
-                disabled={conversionPreview.status === 'loading'}
-                onChange={event => {
-                  const targetFormat = event.target.value as ExportFormat
-                  setConversionPreview(current => current ? {
-                    ruleSet: current.ruleSet,
-                    targetFormat,
-                    status: 'ready',
-                  } : current)
-                }}
-              >
-                {CONVERSION_PREVIEW_TARGETS.map(format => (
-                  <option key={format} value={format}>{t(`export.formats.${format}`)}</option>
-                ))}
-              </select>
+            <div className={styles.previewList} role="list" aria-label={t('remoteRuleSets.preview_results')}>
+              {CONVERSION_PREVIEW_TARGETS.map(format => {
+                const target = conversionPreview.targets[format]
+                const result = target?.result
+                const needsNativeSource = result
+                  && result.mode !== 'direct'
+                  && (result.mode === 'unsupported' || result.skippedRuleCount > 0)
+                return (
+                  <section
+                    className={styles.previewListItem}
+                    role="listitem"
+                    aria-label={t(`export.formats.${format}`)}
+                    key={format}
+                  >
+                    <div className={styles.previewListHeader}>
+                      <h3>{t(`export.formats.${format}`)}</h3>
+                      {needsNativeSource && (
+                        <Button variant="secondary" size="sm" onClick={() => openNativeSourceRemediation(format)}>
+                          {t('remoteRuleSets.preview_configure_native_source', {
+                            client: t(`export.formats.${format}`),
+                          })}
+                        </Button>
+                      )}
+                    </div>
+                    {target?.status === 'loading' && !result && (
+                      <div className={styles.previewLoading} role="status">{t('remoteRuleSets.preview_loading')}</div>
+                    )}
+                    {target?.status === 'loading' && result && (
+                      <div className={styles.previewRefreshing} role="status">{t('remoteRuleSets.preview_refreshing')}</div>
+                    )}
+                    {target?.status === 'error' && <div className={styles.formError} role="alert">{target.error}</div>}
+                    {target?.status === 'error' && result && (
+                      <div className={styles.previewRefreshing} role="status">{t('remoteRuleSets.preview_stale_after_error')}</div>
+                    )}
+                    {result && <RuleSetConversionPreviewResult result={result} />}
+                  </section>
+                )
+              })}
             </div>
-            {conversionPreview.status === 'loading' && <div className={styles.previewLoading}>{t('remoteRuleSets.preview_loading')}</div>}
-            {conversionPreview.status === 'error' && <div className={styles.formError} role="alert">{conversionPreview.error}</div>}
-            {conversionPreview.status === 'error' && conversionPreview.result && (
-              <div className={styles.previewLoading} role="status">{t('remoteRuleSets.preview_stale_after_error')}</div>
-            )}
-            {conversionPreview.result && <RuleSetConversionPreviewResult result={conversionPreview.result} />}
           </div>
         )}
       </Modal>

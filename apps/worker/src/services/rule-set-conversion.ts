@@ -35,6 +35,8 @@ type RuleSetConversionFailureCode = RuleSetConversionError['code'] | 'unexpected
 
 const MAX_CONVERTIBLE_RULE_SET_BYTES = 4 * 1024 * 1024
 
+type RuleSetFetchOptions = { fetcher?: typeof fetch; timeoutMs?: number }
+
 export function resolveRuleSetConversionSource(
   ruleSet: RemoteRuleSet,
   exportFormat: ExportFormat
@@ -52,7 +54,7 @@ export function resolveRuleSetConversionSource(
 export async function getConvertedRemoteRuleSet(
   source: RemoteRuleSet,
   target: ConvertibleRuleSetTarget,
-  options: { fetcher?: typeof fetch; kv?: KVNamespace; timeoutMs?: number; bypassCache?: boolean } = {}
+  options: RuleSetFetchOptions & { kv?: KVNamespace; bypassCache?: boolean } = {}
 ): Promise<RuleSetConversionResult> {
   const cacheKey = await buildPrivateCacheKey(
     'converted-rule-set',
@@ -66,6 +68,18 @@ export async function getConvertedRemoteRuleSet(
     // Ignore corrupt or stale cache entries and rebuild them.
   }
 
+  const content = await fetchRemoteRuleSetContent(source, options)
+  const result = convertRemoteRuleSetContent(source, target, content)
+  await options.kv?.put(cacheKey, JSON.stringify(result), {
+    expirationTtl: Math.min(Math.max(source.updateInterval * 3600, 300), 86400),
+  })
+  return result
+}
+
+export async function fetchRemoteRuleSetContent(
+  source: Pick<RemoteRuleSet, 'url'>,
+  options: RuleSetFetchOptions = {},
+): Promise<Uint8Array> {
   let response: Response
   try {
     response = await safeRemoteFetch(options.fetcher ?? fetch, source.url, {
@@ -82,24 +96,24 @@ export async function getConvertedRemoteRuleSet(
     throw new RuleSetConversionError('too_large', 'Rule set is too large to convert')
   }
 
-  let content: Uint8Array
   try {
-    content = await readResponseBytesLimited(response, MAX_CONVERTIBLE_RULE_SET_BYTES)
+    return await readResponseBytesLimited(response, MAX_CONVERTIBLE_RULE_SET_BYTES)
   } catch (error) {
     if (error instanceof RuleSetConversionError) throw error
     throw new RuleSetConversionError('invalid_content', 'Rule set is not valid UTF-8 text')
   }
+}
 
-  let result: RuleSetConversionResult
+export function convertRemoteRuleSetContent(
+  source: RemoteRuleSet,
+  target: ConvertibleRuleSetTarget,
+  content: Uint8Array,
+): RuleSetConversionResult {
   try {
-    result = convertRuleSetContent(source, target, content)
+    return convertRuleSetContent(source, target, content)
   } catch {
     throw new RuleSetConversionError('invalid_content', 'Rule set cannot be converted without changing its meaning')
   }
-  await options.kv?.put(cacheKey, JSON.stringify(result), {
-    expirationTtl: Math.min(Math.max(source.updateInterval * 3600, 300), 86400),
-  })
-  return result
 }
 
 export async function preflightRuleSetConversions(

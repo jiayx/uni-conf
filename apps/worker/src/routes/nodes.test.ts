@@ -17,6 +17,21 @@ vi.mock('../services/zero-setup', () => ({
   })),
 }));
 
+describe('node share URI', () => {
+  it('generates a standard URI from the full stored node configuration', async () => {
+    const response = await nodesApp.request('/node-1/uri', {}, { DB: createManualNodeCreateMockDb() });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      data: {
+        uri: 'trojan://password@de.example.com:443#%F0%9F%87%A9%F0%9F%87%AA%20DE%2001',
+      },
+    });
+  });
+
+});
+
 describe('manual node input', () => {
   it('redacts credentials from list summaries while retaining routing metadata', () => {
     const summary = toNodeSummary({

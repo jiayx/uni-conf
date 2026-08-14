@@ -24,12 +24,20 @@ export function completeManualNodeExtra(
   protocol: ProxyProtocol,
   extra: Record<string, ManualNodeExtraValue>
 ): Record<string, ManualNodeExtraValue> {
+  const fields = protocolFields(protocol)
   const defaults = Object.fromEntries(
-    protocolFields(protocol)
+    fields
       .filter((field) => field.defaultValue !== undefined)
       .map((field) => [field.key, field.defaultValue as ManualNodeExtraValue])
   )
-  return { ...defaults, ...extra }
+  const booleanKeys = new Set(fields.filter(field => field.type === 'boolean').map(field => field.key))
+  const normalized = Object.fromEntries(
+    Object.entries(extra).map(([key, value]) => [
+      key,
+      booleanKeys.has(key) ? normalizeBooleanFieldValue(value) : value,
+    ])
+  )
+  return { ...defaults, ...normalized }
 }
 
 export function buildManualNodeParsedConfig(
@@ -65,4 +73,8 @@ function isMissingValue(value: unknown): boolean {
   if (typeof value === 'string') return value.trim() === ''
   if (Array.isArray(value)) return value.length === 0
   return false
+}
+
+function normalizeBooleanFieldValue(value: ManualNodeExtraValue): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true'
 }

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
 import { mapRemoteRuleSet, newId, now } from '../db/helpers'
-import type { RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
+import type { RemoteRuleSet, RemoteRuleSetConversionPreview, RemoteRuleSetConversionPreviewBatchItem, RemoteRuleSetConversionPreviewBatchResult, RemoteRuleSetSourceHealthResult, RemoteRuleSetSourceHealthSnapshot, RemoteRuleSetSourceOverrides, RemoteRuleSetSourceOverrideTarget, RemoteRuleSetSourceValidationBatchResult, RemoteRuleSetSourceValidationInput, RuleSetBehavior, RuleSetFormat } from '@uni-conf/types'
 import { resolveRuleSetConversionIssues } from '@uni-conf/rule-set'
 import {
   FULL_CONFIG_EXPORT_FORMATS,
@@ -14,7 +14,7 @@ import { DEFAULT_RULE_TARGET_GROUP_ID, isEnabledTargetGroup, listEnabledTargetGr
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { validateRemoteRuleSetContent } from '../services/remote-rule-set-validation'
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
-import { getConvertedRemoteRuleSet, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
+import { convertRemoteRuleSetContent, fetchRemoteRuleSetContent, getConvertedRemoteRuleSet, resolveRuleSetConversionSource, RuleSetConversionError } from '../services/rule-set-conversion'
 import { mapWithConcurrency } from '../services/async-pool'
 import { getSourceHealthSnapshot, listSourceHealthSnapshots, validateAndPersistRuleSetSources } from '../services/remote-rule-set-health'
 import { validateOptionalBooleanFields } from '../services/request-validation'
@@ -241,12 +241,56 @@ app.post('/:id/conversion-preview', async (c) => {
     .first<Record<string, unknown>>()
   if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
 
+  try {
+    const result = await buildConversionPreview(mapRemoteRuleSet(row), body.targetFormat, c.env)
+    return c.json({ success: true, data: result })
+  } catch (error) {
+    const failure = conversionPreviewFailure(error)
+    return c.json({ success: false, error: failure.error, code: failure.code }, failure.status)
+  }
+})
+
+app.post('/:id/conversion-previews', async (c) => {
+  const workspaceId = requestWorkspaceId(c)
+  const row = await c.env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
+    .first<Record<string, unknown>>()
+  if (!row) return c.json({ success: false, error: 'Remote rule set not found' }, 404)
+
   const ruleSet = mapRemoteRuleSet(row)
-  const resolved = resolveRemoteRuleSetForExport(ruleSet, body.targetFormat)
-  if (resolved && isRuleSetFormatCompatible(body.targetFormat, resolved.format)) {
-    const result: RemoteRuleSetConversionPreview = {
-      checkedAt: new Date().toISOString(),
-      targetFormat: body.targetFormat,
+  const downloads = new Map<string, Promise<Uint8Array>>()
+  const results = await Promise.all(FULL_CONFIG_EXPORT_FORMATS.map(async targetFormat => {
+    try {
+      return {
+        targetFormat,
+        status: 'ready',
+        result: await buildConversionPreview(ruleSet, targetFormat, c.env, downloads),
+      } satisfies RemoteRuleSetConversionPreviewBatchItem
+    } catch (error) {
+      const failure = conversionPreviewFailure(error)
+      return {
+        targetFormat,
+        status: 'error',
+        code: failure.code,
+        error: failure.error,
+      } satisfies RemoteRuleSetConversionPreviewBatchItem
+    }
+  }))
+  return c.json({ success: true, data: { results } satisfies RemoteRuleSetConversionPreviewBatchResult })
+})
+
+async function buildConversionPreview(
+  ruleSet: RemoteRuleSet,
+  targetFormat: RemoteRuleSetSourceOverrideTarget,
+  env: Env,
+  downloads?: Map<string, Promise<Uint8Array>>,
+): Promise<RemoteRuleSetConversionPreview> {
+  const checkedAt = new Date().toISOString()
+  const resolved = resolveRemoteRuleSetForExport(ruleSet, targetFormat)
+  if (resolved && isRuleSetFormatCompatible(targetFormat, resolved.format)) {
+    return {
+      checkedAt,
+      targetFormat,
       sourceFormat: resolved.format,
       outputFormat: resolved.format,
       mode: 'direct',
@@ -258,14 +302,13 @@ app.post('/:id/conversion-preview', async (c) => {
       convertedExamplesTruncated: false,
       truncated: false,
     }
-    return c.json({ success: true, data: result })
   }
 
-  const conversion = resolveRuleSetConversionSource(ruleSet, body.targetFormat)
+  const conversion = resolveRuleSetConversionSource(ruleSet, targetFormat)
   if (!conversion) {
-    const result: RemoteRuleSetConversionPreview = {
-      checkedAt: new Date().toISOString(),
-      targetFormat: body.targetFormat,
+    return {
+      checkedAt,
+      targetFormat,
       sourceFormat: ruleSet.format,
       mode: 'unsupported',
       convertedRuleCount: 0,
@@ -276,46 +319,62 @@ app.post('/:id/conversion-preview', async (c) => {
       convertedExamplesTruncated: false,
       truncated: false,
     }
-    return c.json({ success: true, data: result })
   }
 
-  try {
-    const converted = await getConvertedRemoteRuleSet(conversion.source, conversion.target, {
-      kv: c.env.KV,
+  let converted
+  if (downloads) {
+    const sourceKey = `${conversion.source.url}|${conversion.source.format}|${conversion.source.behavior}`
+    let download = downloads.get(sourceKey)
+    if (!download) {
+      download = fetchRemoteRuleSetContent(conversion.source)
+      downloads.set(sourceKey, download)
+    }
+    converted = convertRemoteRuleSetContent(conversion.source, conversion.target, await download)
+  } else {
+    converted = await getConvertedRemoteRuleSet(conversion.source, conversion.target, {
+      kv: env.KV,
       bypassCache: true,
     })
-    const previewLimit = 12 * 1024
-    const result: RemoteRuleSetConversionPreview = {
-      checkedAt: new Date().toISOString(),
-      targetFormat: body.targetFormat,
-      sourceFormat: conversion.source.format,
-      outputFormat: conversion.target,
-      mode: 'converted',
-      convertedRuleCount: converted.convertedRuleCount,
-      skippedRuleCount: converted.skippedRuleCount,
-      skippedRuleTypes: converted.skippedRuleTypes,
-      issues: resolveRuleSetConversionIssues(converted),
-      convertedExamples: converted.convertedRuleExamples,
-      convertedExamplesTruncated: converted.convertedRuleExamplesTruncated,
-      contentType: converted.contentType,
-      preview: converted.content.slice(0, previewLimit),
-      truncated: converted.content.length > previewLimit,
-    }
-    return c.json({ success: true, data: result })
-  } catch (error) {
-    if (error instanceof RuleSetConversionError && error.code === 'too_large') {
-      return c.json({ success: false, error: error.message, code: error.code }, 413)
-    }
-    if (error instanceof RuleSetConversionError && error.code === 'download_failed') {
-      return c.json({ success: false, error: error.message, code: error.code }, 502)
-    }
-    return c.json({
-      success: false,
-      error: 'Rule set cannot be converted without changing its meaning',
-      code: error instanceof RuleSetConversionError ? error.code : 'invalid_content',
-    }, 422)
   }
-})
+  const previewLimit = 12 * 1024
+  return {
+    checkedAt,
+    targetFormat,
+    sourceFormat: conversion.source.format,
+    outputFormat: conversion.target,
+    mode: 'converted',
+    convertedRuleCount: converted.convertedRuleCount,
+    skippedRuleCount: converted.skippedRuleCount,
+    skippedRuleTypes: converted.skippedRuleTypes,
+    issues: resolveRuleSetConversionIssues(converted),
+    convertedExamples: converted.convertedRuleExamples,
+    convertedExamplesTruncated: converted.convertedRuleExamplesTruncated,
+    contentType: converted.contentType,
+    preview: converted.content.slice(0, previewLimit),
+    truncated: converted.content.length > previewLimit,
+  }
+}
+
+function conversionPreviewFailure(error: unknown): {
+  code: 'download_failed' | 'too_large' | 'invalid_content' | 'unknown'
+  error: string
+  status: 413 | 422 | 502
+} {
+  if (error instanceof RuleSetConversionError && error.code === 'too_large') {
+    return { code: error.code, error: error.message, status: 413 }
+  }
+  if (error instanceof RuleSetConversionError && error.code === 'download_failed') {
+    return { code: error.code, error: error.message, status: 502 }
+  }
+  if (error instanceof RuleSetConversionError) {
+    return { code: error.code, error: error.message, status: 422 }
+  }
+  return {
+    code: 'unknown',
+    error: 'Rule set cannot be converted without changing its meaning',
+    status: 422,
+  }
+}
 
 app.get('/:id', async (c) => {
   const workspaceId = requestWorkspaceId(c)

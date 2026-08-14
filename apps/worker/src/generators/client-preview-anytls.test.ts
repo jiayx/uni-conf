@@ -396,6 +396,7 @@ describe('AnyTLS preview generators', () => {
     expect(content).toContain('anytls://secret@hk.example.com:443')
     expect(content).toContain('sni=hk.example.com')
     expect(content).toContain('fp=chrome')
+    expect(content).toContain('udp=true')
   })
 
   it('exports AnyTLS fingerprint aliases in node subscription URIs', () => {

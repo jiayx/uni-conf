@@ -19,6 +19,7 @@ import type {
   RemoteRuleSetSourceValidationBatchResult,
   RemoteRuleSetSourceHealthResult,
   RemoteRuleSetConversionPreview,
+  RemoteRuleSetConversionPreviewBatchResult,
   RuleSetCatalog,
   ExportConfig,
   ExportFormat,
@@ -232,6 +233,7 @@ const nodes = {
   listPage: (params?: NodeListParams): Promise<PaginatedResponse<ProxyNode>> =>
     get(`/nodes${buildNodeListQuery(params)}`),
   get: (id: string): Promise<ProxyNode> => get(`/nodes/${pathSegment(id)}`),
+  getUri: (id: string): Promise<{ uri: string }> => get(`/nodes/${pathSegment(id)}/uri`),
   create: (data: NodeCreateInput): Promise<ProxyNode> =>
     post('/nodes', data),
   update: (id: string, data: Partial<ProxyNode>): Promise<ProxyNode> => put(`/nodes/${pathSegment(id)}`, data),
@@ -339,6 +341,8 @@ const remoteRuleSets = {
     post('/remote-rule-sets/validate-sources', { sources }),
   previewConversion: (id: string, targetFormat: ExportFormat): Promise<RemoteRuleSetConversionPreview> =>
     post(`/remote-rule-sets/${pathSegment(id)}/conversion-preview`, { targetFormat }),
+  previewConversions: (id: string): Promise<RemoteRuleSetConversionPreviewBatchResult> =>
+    post(`/remote-rule-sets/${pathSegment(id)}/conversion-previews`, {}),
   remove: (id: string): Promise<void> => del(`/remote-rule-sets/${pathSegment(id)}`),
 }
 

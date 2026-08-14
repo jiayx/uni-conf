@@ -6,6 +6,7 @@ import { RemoteRuleSets } from './RemoteRuleSets'
 import { api, ApiError } from '@/lib/api'
 import i18n from '@/i18n'
 import { useSettingsStore } from '@/store/settings.store'
+import { FULL_CONFIG_EXPORT_FORMATS } from '@uni-conf/shared'
 
 const groupStore = vi.hoisted(() => ({
   fetchGroups: vi.fn(async () => undefined),
@@ -44,6 +45,7 @@ vi.mock('@/lib/api', async () => {
         validateSource: vi.fn(),
         validateSources: vi.fn(),
         previewConversion: vi.fn(),
+        previewConversions: vi.fn(),
       },
       ruleSetCatalogs: {
         ...actual.api.ruleSetCatalogs,
@@ -124,24 +126,30 @@ describe('RemoteRuleSets content validation', () => {
       invalidRuleCount: 0,
       issues: [],
     })
-    vi.mocked(api.remoteRuleSets.previewConversion).mockResolvedValue({
-      targetFormat: 'singbox',
-      sourceFormat: 'text',
-      outputFormat: 'singbox',
-      mode: 'converted',
-      convertedRuleCount: 11,
-      skippedRuleCount: 1,
-      skippedRuleTypes: { SCRIPT: 1 },
-      convertedExamples: [
-        { source: 'DOMAIN-SUFFIX,example.com', target: '{"domain_suffix":["example.com"]}' },
-      ],
-      convertedExamplesTruncated: true,
-      issues: [{
-        type: 'SCRIPT', count: 1, reason: 'unsupported-directive', resolution: 'use-native-source', examples: ['SCRIPT,legacy-script'],
-      }],
-      contentType: 'application/json; charset=utf-8',
-      preview: '{\n  "version": 3\n}',
-      truncated: true,
+    vi.mocked(api.remoteRuleSets.previewConversions).mockResolvedValue({
+      results: FULL_CONFIG_EXPORT_FORMATS.map(targetFormat => ({
+        targetFormat,
+        status: 'ready' as const,
+        result: {
+          targetFormat,
+          sourceFormat: 'text' as const,
+          outputFormat: targetFormat,
+          mode: 'converted' as const,
+          convertedRuleCount: 11,
+          skippedRuleCount: 1,
+          skippedRuleTypes: { SCRIPT: 1 },
+          convertedExamples: [
+            { source: 'DOMAIN-SUFFIX,example.com', target: '{"domain_suffix":["example.com"]}' },
+          ],
+          convertedExamplesTruncated: true,
+          issues: [{
+            type: 'SCRIPT' as const, count: 1, reason: 'unsupported-directive' as const, resolution: 'use-native-source' as const, examples: ['SCRIPT,legacy-script'],
+          }],
+          contentType: 'application/json; charset=utf-8',
+          preview: '{\n  "version": 3\n}',
+          truncated: true,
+        },
+      })),
     })
   })
 
@@ -310,10 +318,13 @@ describe('RemoteRuleSets content validation', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
 
-    expect(api.remoteRuleSets.previewConversion).toHaveBeenCalledWith('custom-domains', 'singbox')
     expect(await screen.findByRole('dialog')).toHaveTextContent('Compatibility Preview · Custom Domains')
-    expect(screen.getByRole('combobox', { name: 'Target Client' })).toBeInTheDocument()
-    const result = await screen.findByRole('status')
+    const results = screen.getByRole('list', { name: 'Compatibility results for all clients' })
+    await waitFor(() => expect(api.remoteRuleSets.previewConversions).toHaveBeenCalledOnce())
+    expect(api.remoteRuleSets.previewConversions).toHaveBeenCalledWith('custom-domains')
+    expect(screen.queryByRole('combobox', { name: 'Target Client' })).not.toBeInTheDocument()
+    const singbox = within(results).getByRole('listitem', { name: 'sing-box' })
+    const result = within(singbox).getByRole('status')
     expect(result).toHaveTextContent('Safe conversion')
     expect(result).toHaveTextContent('text → singbox')
     expect(result).toHaveTextContent('Preserved rules: 11')
@@ -333,56 +344,84 @@ describe('RemoteRuleSets content validation', () => {
     expect(result).toHaveTextContent('Only the first part is shown')
     expect(result).toHaveTextContent('"version": 3')
 
-    await user.click(screen.getByRole('button', { name: 'Configure sing-box native source' }))
+    await user.click(within(singbox).getByRole('button', { name: 'Configure sing-box native source' }))
     expect(await screen.findByRole('dialog', { name: 'Edit Supplemental Rule Set' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'sing-box native rule-set URL' })).toHaveFocus()
   })
 
-  it('keeps the last successful conversion visible but marks it stale after a refresh failure', async () => {
-    vi.mocked(api.remoteRuleSets.previewConversion)
-      .mockResolvedValueOnce({
-        checkedAt: '2026-07-24T08:30:00.000Z',
-        targetFormat: 'singbox',
-        sourceFormat: 'text',
-        outputFormat: 'singbox',
-        mode: 'converted',
-        convertedRuleCount: 11,
-        skippedRuleCount: 0,
-        skippedRuleTypes: {},
-        issues: [],
-        convertedExamples: [],
-        convertedExamplesTruncated: false,
-        preview: '{"version":3}',
-        truncated: false,
-      })
-      .mockRejectedValueOnce(new ApiError('Upstream unavailable', 502, 'download_failed'))
+  it('lists every target client without target-selection controls', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
-    expect(await screen.findByText('Preserved rules: 11')).toBeInTheDocument()
-    expect(screen.getByText(/Preview generated/)).toBeInTheDocument()
+
+    const results = await screen.findByRole('list', { name: 'Compatibility results for all clients' })
+    for (const client of ['Mihomo', 'Clash', 'sing-box', 'Loon', 'Surge', 'Shadowrocket', 'QuantumultX', 'Stash', 'Egern']) {
+      expect(within(results).getByRole('listitem', { name: client })).toBeInTheDocument()
+    }
+    expect(within(results).queryByRole('button', { name: /^(Mihomo|Clash|sing-box|Loon)$/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps the last successful conversion visible but marks it stale after a refresh failure', async () => {
+    vi.mocked(api.remoteRuleSets.previewConversions).mockResolvedValueOnce({
+      results: FULL_CONFIG_EXPORT_FORMATS.map(targetFormat => ({
+        targetFormat,
+        status: 'ready' as const,
+        result: {
+          checkedAt: '2026-07-24T08:30:00.000Z',
+          targetFormat,
+          sourceFormat: 'text' as const,
+          outputFormat: targetFormat,
+          mode: 'converted' as const,
+          convertedRuleCount: 11,
+          skippedRuleCount: 0,
+          skippedRuleTypes: {},
+          issues: [],
+          convertedExamples: [],
+          convertedExamplesTruncated: false,
+          preview: '{"version":3}',
+          truncated: false,
+        },
+      })),
+    })
+    vi.mocked(api.remoteRuleSets.previewConversions).mockRejectedValueOnce(
+      new ApiError('Upstream unavailable', 502, 'download_failed'),
+    )
+    const user = userEvent.setup()
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
+    const mihomo = await screen.findByRole('listitem', { name: 'Mihomo' })
+    expect(await within(mihomo).findByText('Preserved rules: 11')).toBeInTheDocument()
+    expect(within(mihomo).getByText(/Preview generated/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Refresh Preview' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('could not be downloaded')
-    expect(screen.getByText('This is the last successful result. The refresh failed, so it may not match the current source.')).toBeInTheDocument()
-    expect(screen.getByText('Preserved rules: 11')).toBeInTheDocument()
-    expect(screen.getByText(/Preview generated/)).toBeInTheDocument()
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('could not be downloaded')
+    expect(within(mihomo).getByText('This is the last successful result. The refresh failed, so it may not match the current source.')).toBeInTheDocument()
+    expect(within(mihomo).getByText('Preserved rules: 11')).toBeInTheDocument()
+    expect(within(mihomo).getByText(/Preview generated/)).toBeInTheDocument()
   })
 
   it('does not recommend a native source when safe conversion is complete', async () => {
-    vi.mocked(api.remoteRuleSets.previewConversion).mockResolvedValue({
-      targetFormat: 'singbox', sourceFormat: 'text', outputFormat: 'singbox', mode: 'converted',
-      convertedRuleCount: 12, skippedRuleCount: 0, skippedRuleTypes: {}, issues: [],
-      convertedExamples: [], convertedExamplesTruncated: true,
-      contentType: 'application/json; charset=utf-8', preview: '{"version":3}', truncated: false,
+    vi.mocked(api.remoteRuleSets.previewConversions).mockResolvedValue({
+      results: FULL_CONFIG_EXPORT_FORMATS.map(targetFormat => ({
+        targetFormat,
+        status: 'ready' as const,
+        result: {
+          targetFormat, sourceFormat: 'text' as const, outputFormat: targetFormat, mode: 'converted' as const,
+          convertedRuleCount: 12, skippedRuleCount: 0, skippedRuleTypes: {}, issues: [],
+          convertedExamples: [], convertedExamplesTruncated: true,
+          contentType: 'application/json; charset=utf-8', preview: '{"version":3}', truncated: false,
+        },
+      })),
     })
     const user = userEvent.setup()
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Preserved rules: 12')
+    const singbox = await screen.findByRole('listitem', { name: 'sing-box' })
+    expect(await within(singbox).findByRole('status')).toHaveTextContent('Preserved rules: 12')
     expect(screen.queryByRole('button', { name: 'Configure sing-box native source' })).not.toBeInTheDocument()
   })
 
@@ -868,8 +907,8 @@ describe('RemoteRuleSets content validation', () => {
   })
 
   it('does not reopen a preview modal when a closed request finishes later', async () => {
-    let resolvePreview!: (value: Awaited<ReturnType<typeof api.remoteRuleSets.previewConversion>>) => void
-    vi.mocked(api.remoteRuleSets.previewConversion).mockReturnValue(new Promise(resolve => { resolvePreview = resolve }))
+    let resolvePreview!: (value: Awaited<ReturnType<typeof api.remoteRuleSets.previewConversions>>) => void
+    vi.mocked(api.remoteRuleSets.previewConversions).mockReturnValue(new Promise(resolve => { resolvePreview = resolve }))
     const user = userEvent.setup()
     render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
 
@@ -878,19 +917,12 @@ describe('RemoteRuleSets content validation', () => {
     await user.click(screen.getAllByRole('button', { name: 'Close' }).at(-1)!)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    resolvePreview({
-      targetFormat: 'singbox', sourceFormat: 'text', outputFormat: 'singbox', mode: 'converted',
-      convertedRuleCount: 1, skippedRuleCount: 0, truncated: false,
-      skippedRuleTypes: {},
-      issues: [],
-      convertedExamples: [],
-      convertedExamplesTruncated: true,
-    })
+    resolvePreview({ results: [] })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('turns typed conversion failures into actionable localized guidance', async () => {
-    vi.mocked(api.remoteRuleSets.previewConversion).mockRejectedValue(
+    vi.mocked(api.remoteRuleSets.previewConversions).mockRejectedValue(
       new ApiError('Rule set is too large to convert', 413, 'too_large')
     )
     const user = userEvent.setup()
@@ -898,7 +930,7 @@ describe('RemoteRuleSets content validation', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Compatibility Preview' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('exceeds the 4 MiB safe conversion limit')
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('exceeds the 4 MiB safe conversion limit')
   })
 
   it('collapses a large policy library and searches across hidden sections', async () => {

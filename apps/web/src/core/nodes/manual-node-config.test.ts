@@ -88,6 +88,8 @@ describe('manual node config helpers', () => {
 
   it('reports missing required fields from the protocol registry', () => {
     expect(completeManualNodeExtra('ss', {})).toMatchObject({ method: 'aes-256-gcm' })
+    expect(completeManualNodeExtra('anytls', {})).not.toHaveProperty('udp')
+    expect(completeManualNodeExtra('anytls', { udp: 'false' })).toMatchObject({ udp: false })
     expect(getMissingRequiredManualNodeFields('ss', {})).toEqual(['Password'])
     expect(getMissingRequiredManualNodeFields('anytls', {
       password: '',

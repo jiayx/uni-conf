@@ -52,21 +52,25 @@ describe('api client', () => {
 
     await api.sources.refresh(id)
     await api.sources.retryStructuredImport(id)
+    await api.nodes.getUri(id)
     await api.nodes.update(id, { enabled: false })
     await api.collections.updateWithGroup(id, { name: 'Updated' }, 'select')
     await api.groups.remove(id)
     await api.rules.update(id, { enabled: false })
     await api.remoteRuleSets.previewConversion(id, 'singbox')
+    await api.remoteRuleSets.previewConversions(id)
     await api.export.resetToken(id)
 
     expect(fetchMock.mock.calls.map(call => [call[0], call[1]?.method])).toEqual([
       [`/api/sources/${encoded}/refresh`, 'POST'],
       [`/api/sources/imports/${encoded}/structured/retry`, 'POST'],
+      [`/api/nodes/${encoded}/uri`, 'GET'],
       [`/api/nodes/${encoded}`, 'PUT'],
       [`/api/collections/${encoded}/with-group`, 'PUT'],
       [`/api/groups/${encoded}`, 'DELETE'],
       [`/api/rules/${encoded}`, 'PUT'],
       [`/api/remote-rule-sets/${encoded}/conversion-preview`, 'POST'],
+      [`/api/remote-rule-sets/${encoded}/conversion-previews`, 'POST'],
       [`/api/export/configs/${encoded}/reset-token`, 'POST'],
     ])
   })
@@ -240,6 +244,7 @@ describe('api client', () => {
     await api.sources.refresh('source-1')
     await api.nodes.listPage({ page: 2, pageSize: 10, enabled: true })
     await api.nodes.get('node-1')
+    await api.nodes.getUri('node-1')
     await api.nodes.create({ uri: 'trojan://pwd@example.com:443#Node' })
     await api.nodes.update('node-1', { enabled: false })
     await api.nodes.setEnabled(['node-1', 'node-2'], false)
@@ -278,6 +283,7 @@ describe('api client', () => {
       { url: 'https://example.com/egern.yaml', targetFormat: 'egern', behavior: 'domain' },
     ])
     await api.remoteRuleSets.previewConversion('remote-1', 'singbox')
+    await api.remoteRuleSets.previewConversions('remote-1')
     await api.remoteRuleSets.remove('remote-1')
     await api.export.listConfigs()
     await api.export.getConfig('export-1')
@@ -301,6 +307,7 @@ describe('api client', () => {
     expect(calls).toContainEqual(['/api/sources/imports/run-1/structured/retry', 'POST'])
     expect(calls).toContainEqual(['/api/sources/imports/run-1/undo', 'POST'])
     expect(calls).toContainEqual(['/api/nodes?page=2&pageSize=10&enabled=true', 'GET'])
+    expect(calls).toContainEqual(['/api/nodes/node-1/uri', 'GET'])
     expect(calls).toContainEqual(['/api/nodes/batch-enabled', 'PUT'])
     expect(calls).toContainEqual(['/api/collections/collection-1/preview', 'GET'])
     expect(calls).toContainEqual(['/api/collections/with-group', 'POST'])
@@ -313,6 +320,7 @@ describe('api client', () => {
     expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/validate-all', 'POST'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/validate-source', 'POST'])
     expect(calls).toContainEqual(['/api/remote-rule-sets/validate-sources', 'POST'])
+    expect(calls).toContainEqual(['/api/remote-rule-sets/remote-1/conversion-previews', 'POST'])
     expect(calls).toContainEqual(['/api/export/preview/singbox?configId=export-1', 'GET'])
     expect(calls).toContainEqual(['/api/data/import', 'POST'])
     expect(calls).toContainEqual(['/api/data', 'DELETE'])

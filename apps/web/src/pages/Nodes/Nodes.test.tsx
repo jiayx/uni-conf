@@ -28,6 +28,7 @@ const stores = vi.hoisted(() => ({
 
 const apiMocks = vi.hoisted(() => ({
   getNode: vi.fn(),
+  getNodeUri: vi.fn(),
 }))
 
 vi.mock('@/store/nodes.store', () => ({ useNodesStore: () => stores.nodes }))
@@ -41,6 +42,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
       nodes: {
         ...actual.api.nodes,
         get: apiMocks.getNode,
+        getUri: apiMocks.getNodeUri,
       },
     },
   }
@@ -59,6 +61,7 @@ describe('Nodes filters', () => {
       makeNode('manual', 'Home Relay', 'home.example.net', 'manual', 'socks5', 'US', true, true),
     ]
     apiMocks.getNode.mockImplementation(async (id: string) => stores.nodes.nodes.find(node => node.id === id))
+    apiMocks.getNodeUri.mockImplementation(async (id: string) => ({ uri: `ss://standard-${id}` }))
   })
 
   it('combines source and status filters and can restore the full list', async () => {
@@ -89,6 +92,24 @@ describe('Nodes filters', () => {
     expect(names).toEqual(['Hong Kong Premium', 'Home Relay', 'Tokyo Backup'])
   })
 
+  it('places edit and delete before the right-aligned state and copy actions', async () => {
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    const manualRow = (await screen.findByText('Home Relay')).closest('tr')!
+    expect(within(manualRow).getAllByRole('button').map(button => button.textContent)).toEqual([
+      'Edit',
+      'Delete',
+      'Disable',
+      'Copy',
+    ])
+
+    const subscriptionRow = screen.getByText('Hong Kong Premium').closest('tr')!
+    expect(within(subscriptionRow).getAllByRole('button').map(button => button.textContent)).toEqual([
+      'Disable',
+      'Copy',
+    ])
+  })
+
   it('shows a source-level disabled status without changing the node state', async () => {
     stores.sources.sources[0]!.enabled = false
     const user = userEvent.setup()
@@ -101,6 +122,32 @@ describe('Nodes filters', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'enabled')
     expect(screen.queryByText('Hong Kong Premium')).not.toBeInTheDocument()
     expect(screen.getByText('Home Relay')).toBeInTheDocument()
+  })
+
+  it('copies the standard share URI for subscription and manual nodes', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    const subscriptionRow = (await screen.findByText('Hong Kong Premium')).closest('tr')!
+    await user.click(within(subscriptionRow).getByRole('button', { name: 'Copy node URI for Hong Kong Premium' }))
+
+    expect(apiMocks.getNodeUri).toHaveBeenCalledWith('hong-kong')
+    expect(writeText).toHaveBeenCalledWith('ss://standard-hong-kong')
+    expect(within(subscriptionRow).getByRole('button', { name: 'Node URI copied for Hong Kong Premium' })).toHaveTextContent('Copied!')
+
+    const manualRow = screen.getByText('Home Relay').closest('tr')!
+    expect(within(manualRow).getByRole('button', { name: 'Copy node URI for Home Relay' })).toBeInTheDocument()
+  })
+
+  it('reports clipboard permission failures', async () => {
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'))
+    const user = userEvent.setup()
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Copy node URI for Hong Kong Premium' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy to the clipboard')
   })
 
   it('opens manual entry directly from the dashboard setup link', async () => {
@@ -231,6 +278,46 @@ describe('Nodes filters', () => {
     await user.click(reveal)
     expect(password).toHaveAttribute('type', 'text')
     expect(screen.getByRole('button', { name: 'Hide Password' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows and saves the AnyTLS UDP relay setting when editing', async () => {
+    const anytlsNode = makeNode('anytls-manual', 'AnyTLS Relay', 'anytls.example.com', 'manual', 'anytls', 'HK', true, true)
+    anytlsNode.rawConfig = { password: 'secret', udp: false }
+    anytlsNode.parsedConfig = {
+      protocol: 'anytls',
+      server: anytlsNode.server,
+      port: anytlsNode.port,
+      password: 'secret',
+      tls: true,
+      extra: { udp: false },
+    }
+    stores.nodes.nodes = [anytlsNode]
+    apiMocks.getNode.mockResolvedValue(anytlsNode)
+    const user = userEvent.setup()
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    const authentication = await screen.findByRole('group', { name: 'Authentication' })
+    const tlsIdentity = screen.getByRole('group', { name: 'TLS identity' })
+    const connectionOptions = screen.getByRole('group', { name: 'Connection options' })
+    expect(within(authentication).getByLabelText('Password *')).toBeInTheDocument()
+    expect(within(tlsIdentity).getByLabelText('SNI')).toBeInTheDocument()
+    expect(within(tlsIdentity).getByLabelText('Client Fingerprint')).toBeInTheDocument()
+    expect(within(tlsIdentity).getByLabelText('ALPN')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'TLS' })).not.toBeInTheDocument()
+
+    const udpRelay = within(connectionOptions).getByRole('checkbox', { name: 'UDP Relay' })
+    expect(within(connectionOptions).getByRole('checkbox', { name: 'Skip Cert Verify' })).toBeInTheDocument()
+    expect(udpRelay).not.toBeChecked()
+
+    await user.click(udpRelay)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(stores.nodes.updateNode).toHaveBeenCalledWith('anytls-manual', expect.objectContaining({
+      parsedConfig: expect.objectContaining({
+        extra: expect.objectContaining({ udp: true }),
+      }),
+    }))
   })
 
   it('keeps the editor open and reports detail or save failures', async () => {

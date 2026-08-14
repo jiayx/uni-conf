@@ -454,6 +454,23 @@ export interface RemoteRuleSetConversionPreview {
   truncated: boolean;
 }
 
+export type RemoteRuleSetConversionPreviewBatchItem =
+  | {
+      targetFormat: RemoteRuleSetSourceOverrideTarget;
+      status: 'ready';
+      result: RemoteRuleSetConversionPreview;
+    }
+  | {
+      targetFormat: RemoteRuleSetSourceOverrideTarget;
+      status: 'error';
+      code: 'download_failed' | 'too_large' | 'invalid_content' | 'unknown';
+      error: string;
+    };
+
+export interface RemoteRuleSetConversionPreviewBatchResult {
+  results: RemoteRuleSetConversionPreviewBatchItem[];
+}
+
 // ============================================================
 // Export Config
 // ============================================================

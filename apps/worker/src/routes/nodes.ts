@@ -14,6 +14,7 @@ import {
   MAX_NODE_SEARCH_LENGTH,
 } from '@uni-conf/shared';
 import { requestWorkspaceId, workspaceEntityId } from '../services/workspaces';
+import { nodeToSubscriptionUri } from '../generators/node-subscription';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -300,6 +301,24 @@ function chunkValues<T>(values: T[], size: number): T[][] {
   }
   return chunks;
 }
+
+// ─── Get node URI ─────────────────────────────────────────────────────────────
+
+app.get('/:id/uri', async (c) => {
+  const workspaceId = requestWorkspaceId(c);
+  const row = await c.env.DB.prepare('SELECT * FROM nodes WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
+    .first<Record<string, unknown>>();
+
+  if (!row) return c.json({ success: false, error: 'Node not found' }, 404);
+
+  const uri = nodeToSubscriptionUri(row);
+  if (!uri) {
+    return c.json({ success: false, error: 'This node protocol cannot be represented as a share URI' }, 422);
+  }
+
+  return c.json({ success: true, data: { uri } });
+});
 
 // ─── Get node ─────────────────────────────────────────────────────────────────
 

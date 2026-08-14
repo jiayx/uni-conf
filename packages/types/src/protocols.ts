@@ -385,7 +385,8 @@ export const PROTOCOL_FORM_FIELDS = {
     { key: 'password', label: 'Password', type: 'password', required: true, nativeKeys: { mihomo: 'password', singbox: 'password', uri: 'userinfo' } },
     { key: 'clientFingerprint', label: 'Client Fingerprint', type: 'text', defaultValue: 'chrome', nativeKeys: { mihomo: 'client-fingerprint', singbox: 'tls.utls.fingerprint' } },
     { key: 'alpn', label: 'ALPN', type: 'string-array', placeholder: 'h2,http/1.1', nativeKeys: { mihomo: 'alpn', singbox: 'tls.alpn', uri: 'alpn' } },
-    ...TLS_FIELDS,
+    { key: 'udp', label: 'UDP Relay', type: 'boolean', nativeKeys: { mihomo: 'udp', uri: 'udp' } },
+    ...TLS_FIELDS.filter(field => field.key !== 'tls'),
   ],
   naive: [
     { key: 'username', label: 'Username', type: 'text', nativeKeys: { singbox: 'username', uri: 'username' } },
