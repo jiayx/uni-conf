@@ -158,7 +158,6 @@ export const MANAGED_REAL_IP_DOMAINS = parseManagedRealIpDomainList(QUIXOTIC_FAK
 
 export const DEFAULT_FAKE_IP_POLICY: ExportDnsPolicy = {
   additionalRealIpDomains: [],
-  resolutionMode: 'split',
 };
 
 export type InlineRealIpClient =

@@ -321,9 +321,7 @@ export function generateLoon(
   lines.push(`skip-proxy = ${LOCAL_PROXY_BYPASS_ENTRIES.join(', ')}`)
   lines.push(`bypass-tun = ${TUN_EXCLUDED_ROUTE_ENTRIES.join(', ')}`)
   lines.push('dns-server = 119.29.29.29, 223.5.5.5')
-  if (dnsPolicy.resolutionMode === 'split') {
-    lines.push('doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
-  }
+  lines.push('doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query')
   lines.push(`real-ip = ${inlineRealIpDomains(dnsPolicy, 'loon', options.managedRealIpDomains).join(', ')}`)
   lines.push('allow-udp-proxy = true')
   lines.push('allow-wifi-access = false')
@@ -394,11 +392,9 @@ export function generateLoon(
   lines.push('')
 
   // Optional Loon feature sections are kept present even when UniConf has no entries.
+  // Do not infer DNS location from the TLD here: many mainland services use .com
+  // domains. Global DNS is configured with mainland DoH servers above instead.
   lines.push('[Host]')
-  if (dnsPolicy.resolutionMode === 'split') {
-    lines.push('*.cn = server:223.5.5.5')
-    lines.push('* = server:https://1.1.1.1/dns-query')
-  }
   lines.push('')
 
   lines.push('[Rewrite]')

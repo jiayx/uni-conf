@@ -34,7 +34,7 @@ const groups: ProxyGroup[] = [
 const settings: AppSettings = {
       language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
   exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true,
-  dnsResolutionMode: 'split', dnsRealIpDomains: [],
+  dnsRealIpDomains: [],
   ruleSetConversionPolicy: 'compatible',
   autoRefreshInterval: 240, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],
   autoNodeGroupIncludeFlag: true, routingOutletPreferences: {},

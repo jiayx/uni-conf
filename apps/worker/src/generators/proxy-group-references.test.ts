@@ -471,6 +471,7 @@ describe('proxy group references', () => {
     expect(content).toContain('allow-lan: false')
     expect(content).toContain('mode: rule')
     expect(content).toContain('log-level: warning')
+    expect(content).toContain('ipv6: false')
     expect(content).toContain('find-process-mode: strict')
     expect(content).toContain('unified-delay: true')
     expect(content).toContain('tcp-concurrent: true')
@@ -487,10 +488,16 @@ describe('proxy group references', () => {
     const clash = generateMihomoYaml([], [], [], [], {}, { ruleSetExportFormat: 'clash' })
     const stash = generateStashYaml([], [], [], [])
     for (const compatibleConfig of [clash, stash]) {
+      expect(compatibleConfig).toContain('ipv6: false')
       expect(compatibleConfig).not.toContain('find-process-mode:')
       expect(compatibleConfig).not.toContain('sniffer:')
       expect(compatibleConfig).not.toContain('tun:')
     }
+    expect(stash).toContain('    - https://223.5.5.5/dns-query')
+    expect(stash).toContain('    - https://120.53.53.53/dns-query')
+    expect(stash).not.toContain('nameserver-policy:')
+    expect(stash).not.toContain('https://1.1.1.1/dns-query')
+    expect(stash).not.toContain('https://8.8.8.8/dns-query')
   })
 
   it('configures automatic Geo data updates for Mihomo configs', () => {
@@ -507,38 +514,24 @@ describe('proxy group references', () => {
     expect(content).toContain('GeoLite2-ASN.mmdb')
   })
 
-  it('uses FakeIP with split DNS by default for Mihomo configs', () => {
+  it('uses FakeIP with filtered DNS fallback for Mihomo configs', () => {
     const content = generateMihomoYaml([], [], [], [])
 
     expect(content).toContain('enhanced-mode: fake-ip')
     expect(content).toContain('fallback-filter:')
-    expect(content).toContain('nameserver-policy:')
+    expect(content).not.toContain('nameserver-policy:')
     expect(content).toContain('fake-ip-range:')
     expect(content).toContain('- "rule-set:uni-conf-fake-ip-filter"')
     expect(content).toContain('format: mrs')
     expect(content).not.toContain('RULE-SET,uni-conf-fake-ip-filter')
   })
 
-  it('keeps FakeIP enabled when DNS upstream routing changes', () => {
-    const single = generateMihomoYaml(
-      [],
-      [],
-      [],
-      [],
-      {},
-      {
-        dnsPolicy: {
-          additionalRealIpDomains: [],
-          resolutionMode: 'single',
-        },
-      },
-    )
+  it('keeps FakeIP independent from DNS upstream selection', () => {
     const fakeIp = generateMihomoYaml([], [], [], [])
 
-    expect(single).toContain('enhanced-mode: fake-ip')
-    expect(single).not.toContain('fallback-filter:')
     expect(fakeIp).toContain('enhanced-mode: fake-ip')
     expect(fakeIp).toContain('fake-ip-filter:')
+    expect(fakeIp).toContain('fallback-filter:')
   })
 
   it('translates managed FakeIP exceptions with each inline client\'s host syntax', () => {
@@ -594,6 +587,8 @@ describe('proxy group references', () => {
         servers: Array<Record<string, unknown>>
         rules: Array<Record<string, unknown>>
         cache_capacity: number
+        final: string
+        strategy: string
       }
       inbounds: Array<Record<string, unknown>>
       route: {
@@ -603,29 +598,12 @@ describe('proxy group references', () => {
       }
       experimental: { cache_file: { store_fakeip: boolean } }
     }
-    const single = JSON.parse(
-      generateSingboxJson(
-        [],
-        [],
-        [],
-        [],
-        {},
-        {
-          dnsPolicy: {
-            additionalRealIpDomains: [],
-            resolutionMode: 'single',
-          },
-        },
-      ),
-    ) as {
-      dns: { servers: Array<{ tag: string }>; rules?: unknown; final: string }
-    }
-
     expect(fakeIp.log).toMatchObject({ level: 'warn', timestamp: true })
     expect(fakeIp.inbounds).toContainEqual(
       expect.objectContaining({
         type: 'tun',
         tag: 'tun-in',
+        address: ['172.19.0.1/30'],
         stack: 'system',
         auto_route: true,
         strict_route: true,
@@ -646,7 +624,11 @@ describe('proxy group references', () => {
       expect.objectContaining({
         type: 'fakeip',
         tag: 'fakeip',
+        inet4_range: '198.18.0.0/15',
       }),
+    )
+    expect(fakeIp.dns.servers).not.toContainEqual(
+      expect.objectContaining({ inet6_range: expect.anything() }),
     )
     expect(fakeIp.dns.rules).toContainEqual(
       expect.objectContaining({
@@ -657,13 +639,13 @@ describe('proxy group references', () => {
     )
     expect(fakeIp.dns.rules).toContainEqual(
       expect.objectContaining({
-        query_type: ['A', 'AAAA'],
+        query_type: ['A'],
         action: 'route',
         server: 'fakeip',
       }),
     )
-    expect(fakeIp.dns.rules.findIndex((rule) => rule.rule_set === 'geosite-cn')).toBeLessThan(
-      fakeIp.dns.rules.findIndex((rule) => rule.server === 'fakeip'),
+    expect(fakeIp.dns.rules).not.toContainEqual(
+      expect.objectContaining({ rule_set: 'geosite-cn' }),
     )
     expect(fakeIp.route.default_domain_resolver).toBe('localDns')
     expect(fakeIp.route.rules).toContainEqual({ ip_is_private: true, outbound: 'direct' })
@@ -674,9 +656,9 @@ describe('proxy group references', () => {
         format: 'binary',
       }),
     )
-    expect(single.dns.servers).toContainEqual(expect.objectContaining({ tag: 'fakeip' }))
-    expect(single.dns.rules).toContainEqual(expect.objectContaining({ server: 'fakeip' }))
-    expect(single.dns.final).toBe('localDns')
+    expect(fakeIp.dns.servers).toContainEqual(expect.objectContaining({ tag: 'proxyDns' }))
+    expect(fakeIp.dns.final).toBe('proxyDns')
+    expect(fakeIp.dns.strategy).toBe('ipv4_only')
     expect(fakeIp.experimental.cache_file.store_fakeip).toBe(true)
   })
 
@@ -691,6 +673,14 @@ describe('proxy group references', () => {
     expect(loon).not.toContain('ip-mode = ipv4-only')
     expect(loon).toContain('dns-server = 119.29.29.29, 223.5.5.5')
     expect(loon).not.toContain('dns-server = system')
+    expect(loon).toContain(
+      'doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    )
+    expect(loon).not.toContain('https://1.1.1.1/dns-query')
+    expect(loon).not.toContain('https://8.8.8.8/dns-query')
+    expect(loon).toContain('[Host]\n\n[Rewrite]')
+    expect(loon).not.toContain('*.cn = server:')
+    expect(loon).not.toContain('* = server:')
     expect(loon).toContain('*.lan')
     expect(loon).toContain('wifi-access-http-port = 7222')
     expect(loon).toContain('allow-udp-proxy = true')
@@ -705,9 +695,16 @@ describe('proxy group references', () => {
     const surge = generateSurge(nodeRows, rows, [], [], collectionNodeNames)
     expect(surge).toContain('[General]')
     expect(surge).toContain('loglevel = notify')
+    expect(surge).toContain('ipv6 = false')
     expect(surge).toContain('geoip-maxmind-url = https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb')
     expect(surge).toContain('exclude-simple-hostnames = true')
     expect(surge).toContain('tun-excluded-routes = 10.0.0.0/8')
+    expect(surge).toContain(
+      'encrypted-dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    )
+    expect(surge).toContain('[Host]\n\n[URL Rewrite]')
+    expect(surge).not.toContain('*.cn = server:')
+    expect(surge).not.toContain('* = server:')
     expect(surge).toContain('udp-policy-not-supported-behaviour = REJECT')
     expect(surge).toContain('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
     expect(surge).toContain('[Proxy Group]')
@@ -716,12 +713,18 @@ describe('proxy group references', () => {
     const shadowrocket = generateShadowrocket(nodeRows, rows, [], [], collectionNodeNames)
     expect(shadowrocket).toContain('[General]')
     expect(shadowrocket).toContain('bypass-system = true')
+    expect(shadowrocket).toContain('ipv6 = false')
+    expect(shadowrocket).toContain('prefer-ipv6 = false')
     expect(shadowrocket).toContain('private-ip-answer = true')
     expect(shadowrocket).toContain('dns-direct-system = false')
     expect(shadowrocket).toContain('tun-excluded-routes = 10.0.0.0/8')
-    expect(shadowrocket).toContain('dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
+    expect(shadowrocket).toContain(
+      'dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    )
+    expect(shadowrocket).toContain('fallback-dns-server = 223.5.5.5, 119.29.29.29')
     expect(shadowrocket).toContain('*.lan')
-    expect(shadowrocket).toContain('[Host]\n*.cn = server:223.5.5.5')
+    expect(shadowrocket).toContain('[Host]\n\n[URL Rewrite]')
+    expect(shadowrocket).not.toContain('*.cn = server:')
     expect(shadowrocket).toContain('[Proxy Group]')
     expect(shadowrocket).toContain('FINAL,PROXY')
 
@@ -731,6 +734,10 @@ describe('proxy group references', () => {
     expect(quantumultx).toContain('server_check_timeout=5000')
     expect(quantumultx).toContain('excluded_routes=10.0.0.0/8')
     expect(quantumultx).toContain('[dns]\nno-system\nno-ipv6')
+    expect(quantumultx).toContain(
+      'doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    )
+    expect(quantumultx).not.toContain('server = /*.cn/')
     expect(quantumultx).toContain(
       'url-latency-benchmark=Auto, Supported SS, check-interval=300',
     )
@@ -746,6 +753,12 @@ describe('proxy group references', () => {
       bypass_tunnel_proxy: string[]
       geoip_db_url: string
       asn_db_url: string
+      dns: {
+        bootstrap: string[]
+        upstreams: Record<string, string[]>
+        forward: Array<Record<string, unknown>>
+        proxy_nameservers?: string[]
+      }
       policy_groups: Array<Record<string, { name: string }>>
       rules: Array<Record<string, unknown>>
     }
@@ -757,11 +770,19 @@ describe('proxy group references', () => {
     expect(egern.bypass_tunnel_proxy).toContain('192.168.0.0/16')
     expect(egern.geoip_db_url).toContain('Loyalsoldier/geoip@release/Country-without-asn.mmdb')
     expect(egern.asn_db_url).toContain('Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb')
+    expect(egern.dns.bootstrap).toEqual(['system', '223.5.5.5', '119.29.29.29'])
+    expect(egern.dns.upstreams).toEqual({
+      mainland: ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
+    })
+    expect(egern.dns.forward).toEqual([
+      { domain_wildcard: { match: '*', value: 'mainland' } },
+    ])
+    expect(egern.dns.proxy_nameservers).toBeUndefined()
     expect(egern.policy_groups.map(egernEntryBody).map((group) => group?.name)).toContain(autoGroup.name)
     expect(egern.rules).toContainEqual({ default: { policy: 'PROXY' } })
   })
 
-  it('renders split DNS and remote proxy resolution for Shadowrocket', () => {
+  it('uses remote DNS only for proxy rules in Shadowrocket', () => {
     const rules = [
       {
         id: 'rule-proxy-domain',
@@ -780,30 +801,15 @@ describe('proxy group references', () => {
         no_resolve: 0,
       },
     ]
-    const split = generateShadowrocket([], [toRow(proxyGroup), toRow(directGroup)], rules, [])
-    const single = generateShadowrocket(
-      [],
-      [toRow(proxyGroup), toRow(directGroup)],
-      rules,
-      [],
-      {},
-      {
-        dnsPolicy: {
-          additionalRealIpDomains: [],
-          resolutionMode: 'single',
-        },
-      },
-    )
+    const content = generateShadowrocket([], [toRow(proxyGroup), toRow(directGroup)], rules, [])
 
-    expect(split).toContain('dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query')
-    expect(split).toContain('[Host]\n*.cn = server:223.5.5.5')
-    expect(split).toContain('DOMAIN-SUFFIX,google.com,PROXY,force-remote-dns')
-    expect(split).toContain('DOMAIN-SUFFIX,example.cn,DIRECT')
-    expect(split).not.toContain('DOMAIN-SUFFIX,example.cn,DIRECT,force-remote-dns')
-    expect(single).toContain('dns-server = 223.5.5.5, 119.29.29.29')
-    expect(single).not.toContain('dns-server = system')
-    expect(single).toContain('[Host]\n\n[URL Rewrite]')
-    expect(single).not.toContain('force-remote-dns')
+    expect(content).toContain(
+      'dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    )
+    expect(content).toContain('[Host]\n\n[URL Rewrite]')
+    expect(content).toContain('DOMAIN-SUFFIX,google.com,PROXY,force-remote-dns')
+    expect(content).toContain('DOMAIN-SUFFIX,example.cn,DIRECT')
+    expect(content).not.toContain('DOMAIN-SUFFIX,example.cn,DIRECT,force-remote-dns')
   })
 
   it('still appends text-client fallback rules when MATCH is disabled', () => {

@@ -55,8 +55,8 @@ export async function ensureDefaultExportConfig(
   await db
     .prepare(
       `INSERT INTO export_configs
-        (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, extra_config, created_at, updated_at, workspace_id)
-       VALUES (?, 'UniConf', 'mihomo', ?, 1, '[]', '[]', '[]', '[]', NULL, ?, ?, ?)`
+        (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, created_at, updated_at, workspace_id)
+       VALUES (?, 'UniConf', 'mihomo', ?, 1, '[]', '[]', '[]', '[]', ?, ?, ?)`
     )
     .bind(configId, token, ts, ts, workspaceId)
     .run();

@@ -157,6 +157,19 @@ describe('Sources import flow', () => {
     expect(store.updateSource).toHaveBeenCalledWith('source-1', { enabled: false })
   })
 
+  it('can enable a disabled source without blocking manual refresh', async () => {
+    store.sources = [{ ...makeSource(), enabled: false }]
+    const user = userEvent.setup()
+    render(<MemoryRouter><Sources /></MemoryRouter>)
+
+    expect(screen.getByText('Disabled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh Airport' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Enable Airport' }))
+
+    expect(store.updateSource).toHaveBeenCalledWith('source-1', { enabled: true })
+    expect(store.refreshSource).not.toHaveBeenCalled()
+  })
+
   it('presents an imported config as a managed local source', async () => {
     store.sources = [{
       ...makeSource(),

@@ -642,20 +642,21 @@ export function Sources() {
             <Card key={source.id} className={styles.sourceCard}>
               <div className={styles.cardHeader}>
                 <div className={styles.titleRow}>
-                  <button
-                    type="button"
-                    className={`${styles.toggleBtn} ${source.enabled ? styles.enabled : styles.disabled}`}
-                    aria-label={source.enabled
-                      ? t('sources.disable_source', { name: source.name })
-                      : t('sources.enable_source', { name: source.name })}
-                    aria-busy={rowAction?.id === source.id && rowAction.type === 'toggle'}
-                    disabled={rowAction?.id === source.id || refreshingId === source.id}
-                    onClick={() => void handleToggle(source)}
-                    title={source.enabled ? t('common.disable') : t('common.enable')}
-                  />
                   <div className={styles.cardTitle}>{source.name}</div>
                 </div>
                 <div className={styles.cardActions}>
+                  <Button
+                    variant={source.enabled ? 'ghost' : 'secondary'}
+                    size="sm"
+                    loading={rowAction?.id === source.id && rowAction.type === 'toggle'}
+                    disabled={rowAction?.id === source.id || refreshingId === source.id}
+                    aria-label={source.enabled
+                      ? t('sources.disable_source', { name: source.name })
+                      : t('sources.enable_source', { name: source.name })}
+                    onClick={() => void handleToggle(source)}
+                  >
+                    {source.enabled ? t('common.disable') : t('common.enable')}
+                  </Button>
                   {source.type === 'url' && (
                     <>
                       <Button

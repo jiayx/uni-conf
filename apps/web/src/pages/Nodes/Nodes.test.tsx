@@ -19,8 +19,8 @@ const stores = vi.hoisted(() => ({
   },
   sources: {
     sources: [
-      { id: 'source-a', name: 'Airport A' },
-      { id: 'source-b', name: 'Airport B' },
+      { id: 'source-a', name: 'Airport A', enabled: true },
+      { id: 'source-b', name: 'Airport B', enabled: true },
     ],
     fetchSources: vi.fn(async () => undefined),
   },
@@ -51,6 +51,8 @@ describe('Nodes filters', () => {
     vi.resetAllMocks()
     await i18n.changeLanguage('en')
     stores.nodes.error = null
+    stores.sources.sources[0]!.enabled = true
+    stores.sources.sources[1]!.enabled = true
     stores.nodes.nodes = [
       makeNode('hong-kong', 'Hong Kong Premium', 'hk.example.com', 'source-a', 'ss', 'HK', true),
       makeNode('tokyo', 'Tokyo Backup', 'jp.example.com', 'source-b', 'trojan', 'JP', false),
@@ -75,6 +77,30 @@ describe('Nodes filters', () => {
     expect(screen.getByText('Hong Kong Premium')).toBeInTheDocument()
     expect(screen.getByText('Home Relay')).toBeInTheDocument()
     expect(screen.getByText('Showing 3 of 3 nodes')).toBeInTheDocument()
+  })
+
+  it('keeps effectively disabled nodes after enabled nodes', async () => {
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    const names = (await screen.findAllByRole('row'))
+      .slice(1)
+      .map(row => within(row).getAllByRole('cell')[1]?.textContent)
+
+    expect(names).toEqual(['Hong Kong Premium', 'Home Relay', 'Tokyo Backup'])
+  })
+
+  it('shows a source-level disabled status without changing the node state', async () => {
+    stores.sources.sources[0]!.enabled = false
+    const user = userEvent.setup()
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    const sourceDisabledRow = (await screen.findByText('Hong Kong Premium')).closest('tr')!
+    expect(within(sourceDisabledRow).getByText('Subscription paused')).toBeInTheDocument()
+    expect(within(sourceDisabledRow).getByRole('button', { name: 'Disable' })).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'enabled')
+    expect(screen.queryByText('Hong Kong Premium')).not.toBeInTheDocument()
+    expect(screen.getByText('Home Relay')).toBeInTheDocument()
   })
 
   it('opens manual entry directly from the dashboard setup link', async () => {
@@ -176,6 +202,35 @@ describe('Nodes filters', () => {
     resolveNode(stores.nodes.nodes[2]!)
     expect(await screen.findByDisplayValue('Home Relay')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('reveals node secrets on demand without enabling password-manager autofill', async () => {
+    const manualNode = stores.nodes.nodes[2]!
+    apiMocks.getNode.mockResolvedValueOnce({
+      ...manualNode,
+      rawConfig: { password: 'node-secret' },
+      parsedConfig: {
+        ...manualNode.parsedConfig,
+        password: 'node-secret',
+      },
+    })
+    const user = userEvent.setup()
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    const password = await screen.findByLabelText('Password')
+    const reveal = screen.getByRole('button', { name: 'Show Password' })
+
+    expect(password).toHaveAttribute('type', 'password')
+    expect(password).toHaveAttribute('autocomplete', 'off')
+    expect(password).toHaveAttribute('data-1p-ignore', 'true')
+    expect(password).toHaveAttribute('data-bwignore', 'true')
+    expect(password).toHaveAttribute('data-lpignore', 'true')
+    expect(password).not.toHaveAttribute('name')
+
+    await user.click(reveal)
+    expect(password).toHaveAttribute('type', 'text')
+    expect(screen.getByRole('button', { name: 'Hide Password' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps the editor open and reports detail or save failures', async () => {

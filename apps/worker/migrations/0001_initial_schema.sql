@@ -235,7 +235,6 @@ CREATE TABLE IF NOT EXISTS export_configs (
     rule_set_conversion_policy IS NULL
     OR rule_set_conversion_policy IN ('compatible', 'strict')
   ),
-  extra_config TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
@@ -256,9 +255,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   routing_policy_scenarios TEXT NOT NULL DEFAULT '["ai-development","streaming","diagnostics"]',
   routing_outlet_preferences TEXT,
   export_node_naming_mode TEXT NOT NULL DEFAULT 'smart',
-  dns_resolution_mode TEXT NOT NULL DEFAULT 'split' CHECK (
-    dns_resolution_mode IN ('single', 'split')
-  ),
   dns_real_ip_domains TEXT NOT NULL DEFAULT '[]' CHECK (
     json_valid(dns_real_ip_domains)
     AND json_type(dns_real_ip_domains) = 'array'

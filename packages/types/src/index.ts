@@ -472,7 +472,6 @@ export interface ExportConfig {
   // Null/undefined inherits the global app setting.
   ruleSetConversionPolicy?: RuleSetConversionPolicy | null;
   // Format-specific overrides
-  extraConfig?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -493,11 +492,8 @@ export type RoutingPolicyScenarioId =
   | 'brokerage'
   | 'diagnostics'
   | 'platform';
-export type DnsResolutionMode = 'single' | 'split';
-
 export interface ExportDnsPolicy {
   additionalRealIpDomains: string[];
-  resolutionMode: DnsResolutionMode;
 }
 export type ExportNodeNamingMode = 'original' | 'region_sequence' | 'source_region_sequence' | 'smart';
 export type RuleSetConversionPolicy = 'compatible' | 'strict';
@@ -510,9 +506,7 @@ export interface AppSettings {
   routingPolicyScenarios: RoutingPolicyScenarioId[];
   routingOutletPreferences?: Record<string, string>;
   exportNodeNamingMode: ExportNodeNamingMode;
-  dnsResolutionMode: DnsResolutionMode;
   dnsRealIpDomains: string[];
-  defaultExportToken?: string;
   // Feature flags
   showCompatibilityWarnings: boolean;
   ruleSetConversionPolicy: RuleSetConversionPolicy;
@@ -524,9 +518,8 @@ export interface AppSettings {
   autoNodeGroupIncludeFlag: boolean;
 }
 
-export type AppSettingsPatch = Partial<Omit<AppSettings, 'routingOutletPreferences' | 'defaultExportToken' | 'autoNodeGroupKeys'>> & {
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'routingOutletPreferences' | 'autoNodeGroupKeys'>> & {
   routingOutletPreferences?: Record<string, string> | null;
-  defaultExportToken?: string | null;
   autoNodeGroupKeys?: string[] | null;
 };
 

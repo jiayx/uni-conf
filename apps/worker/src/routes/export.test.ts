@@ -49,38 +49,6 @@ describe('export route helpers', () => {
     })
   })
 
-  it('normalizes export config extra config objects', () => {
-    expect(validateExportConfigSelection({
-      extraConfig: { dns: { enabled: true } },
-    })).toEqual({
-      valid: true,
-      includeCollectionIds: [],
-      includeGroupIds: [],
-      includeRuleIds: [],
-      includeRemoteSetIds: [],
-      extraConfig: { dns: { enabled: true } },
-    })
-    expect(validateExportConfigSelection({ extraConfig: null })).toEqual({
-      valid: true,
-      includeCollectionIds: [],
-      includeGroupIds: [],
-      includeRuleIds: [],
-      includeRemoteSetIds: [],
-      extraConfig: null,
-    })
-  })
-
-  it('rejects malformed export config extra config values', () => {
-    expect(validateExportConfigSelection({ extraConfig: ['dns'] as never })).toEqual({
-      valid: false,
-      error: 'extraConfig must be an object or null',
-    })
-    expect(validateExportConfigSelection({ extraConfig: 'dns' as never })).toEqual({
-      valid: false,
-      error: 'extraConfig must be an object or null',
-    })
-  })
-
   it('accepts explicit conversion policies and null inheritance', () => {
     expect(validateExportConfigSelection({ ruleSetConversionPolicy: 'strict' })).toMatchObject({
       valid: true,

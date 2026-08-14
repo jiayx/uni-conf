@@ -37,7 +37,6 @@ vi.mock('../services/export-artifact-validation', () => ({
 vi.mock('../services/app-settings', () => ({
   getAppSettings: vi.fn(async () => ({
     showCompatibilityWarnings: true,
-    dnsResolutionMode: 'split',
     dnsRealIpDomains: [],
   })),
 }))
@@ -66,7 +65,7 @@ describe('export download readiness', () => {
     vi.unstubAllGlobals()
     vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'compatible',
-      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+      dnsRealIpDomains: [],
     }))
     vi.mocked(ensureDefaultExportConfig).mockResolvedValue({
       id: 'default-mihomo', name: 'Default', format: 'mihomo', token: 'token', enabled: true,
@@ -231,7 +230,7 @@ describe('export download readiness', () => {
   it('blocks partial authenticated and public conversions in strict completeness mode', async () => {
     vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+      dnsRealIpDomains: [],
     }))
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
@@ -281,7 +280,7 @@ describe('export download readiness', () => {
 
     vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+      dnsRealIpDomains: [],
     }))
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       ...strictProfile,
@@ -304,7 +303,6 @@ describe('export download readiness', () => {
 
   it('renders quick downloads with the requested format while reusing the default export scope', async () => {
     vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
-      dnsResolutionMode: 'single',
       dnsRealIpDomains: ['*.example.com'],
     }))
     vi.mocked(buildExportData).mockResolvedValue(makeExportData({
@@ -343,7 +341,6 @@ describe('export download readiness', () => {
       expect.objectContaining({
         dnsPolicy: expect.objectContaining({
           additionalRealIpDomains: ['*.example.com'],
-          resolutionMode: 'single',
         }),
       })
     )
@@ -533,7 +530,7 @@ describe('export download readiness', () => {
   it('enforces strict completeness again at the token-scoped converted rule-set endpoint', async () => {
     vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+      dnsRealIpDomains: [],
     }))
     vi.mocked(buildExportData).mockResolvedValue(makeConvertibleExportData())
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
@@ -556,7 +553,7 @@ describe('export download readiness', () => {
   it('lets a compatible profile override global strict mode at the converted rule-set endpoint', async () => {
     vi.mocked(getAppSettings).mockResolvedValue(makeAppSettings({
       showCompatibilityWarnings: true, ruleSetConversionPolicy: 'strict',
-      dnsResolutionMode: 'split', dnsRealIpDomains: [],
+      dnsRealIpDomains: [],
     }))
     vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({
       id: 'compatible-profile',
@@ -823,7 +820,6 @@ describe('export download readiness', () => {
       expect.objectContaining({
         dnsPolicy: expect.objectContaining({
           additionalRealIpDomains: [],
-          resolutionMode: 'split',
         }),
       })
     )
@@ -976,7 +972,6 @@ function makeAppSettings(patch: Partial<AppSettings> = {}): AppSettings {
     unmatchedTrafficPolicy: 'proxy',
     routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
     exportNodeNamingMode: 'smart',
-    dnsResolutionMode: 'split',
     dnsRealIpDomains: [],
     showCompatibilityWarnings: true,
     ruleSetConversionPolicy: 'compatible',

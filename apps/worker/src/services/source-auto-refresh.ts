@@ -65,7 +65,7 @@ async function refreshDueSourcesInWorkspace(
   const { results } = await db.prepare(
     `SELECT id, last_updated, update_interval
      FROM sources
-     WHERE workspace_id = ? AND enabled = 1 AND type = 'url' AND url IS NOT NULL`
+     WHERE workspace_id = ? AND type = 'url' AND url IS NOT NULL`
   ).bind(workspaceId).all<AutoRefreshSourceRow>();
 
   const dueSources = resolveDueSources(results, settings.autoRefreshInterval, nowMs);

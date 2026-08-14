@@ -12,6 +12,5 @@ export async function getEffectiveExportDnsPolicy(
   const settings = await getAppSettings(db, workspaceId);
   return {
     additionalRealIpDomains: settings.dnsRealIpDomains,
-    resolutionMode: settings.dnsResolutionMode,
   };
 }

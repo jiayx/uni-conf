@@ -58,8 +58,8 @@ exportRouter.post('/configs', async (c) => {
   const format = body.format ?? 'mihomo'
   const workspaceId = requestWorkspaceId(c)
   await c.env.DB.prepare(
-    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, extra_config, created_at, updated_at, workspace_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO export_configs (id, name, format, token, enabled, include_collection_ids, include_group_ids, include_rule_ids, include_remote_set_ids, rule_set_conversion_policy, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -72,7 +72,6 @@ exportRouter.post('/configs', async (c) => {
       JSON.stringify(selection.includeRuleIds),
       JSON.stringify(selection.includeRemoteSetIds),
       selection.ruleSetConversionPolicy ?? null,
-      selection.extraConfig ? JSON.stringify(selection.extraConfig) : null,
       ts,
       ts,
       workspaceId,
@@ -186,11 +185,6 @@ exportRouter.put('/configs/:id', async (c) => {
     fields.push('rule_set_conversion_policy = ?')
     values.push(selection.ruleSetConversionPolicy ?? null)
   }
-  if (body.extraConfig !== undefined) {
-    fields.push('extra_config = ?')
-    values.push(selection.extraConfig === null ? null : JSON.stringify(selection.extraConfig))
-  }
-
   if (fields.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400)
   fields.push('updated_at = ?')
   values.push(ts)
@@ -422,7 +416,6 @@ type ExportSelectionValidation =
       includeRuleIds: string[]
       includeRemoteSetIds: string[]
       ruleSetConversionPolicy?: ExportConfig['ruleSetConversionPolicy']
-      extraConfig?: Record<string, unknown> | null
     }
   | { valid: false; error: string }
 
@@ -438,8 +431,6 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
   if (!includeRuleIds.valid) return includeRuleIds
   const includeRemoteSetIds = normalizeIdList(body.includeRemoteSetIds, 'includeRemoteSetIds')
   if (!includeRemoteSetIds.valid) return includeRemoteSetIds
-  const extraConfig = normalizeExtraConfig(body.extraConfig)
-  if (!extraConfig.valid) return extraConfig
   const ruleSetConversionPolicy = normalizeRuleSetConversionPolicy(body.ruleSetConversionPolicy)
   if (!ruleSetConversionPolicy.valid) return ruleSetConversionPolicy
 
@@ -450,7 +441,6 @@ export function validateExportConfigSelection(body: Partial<ExportConfig>): Expo
     includeRuleIds: includeRuleIds.value,
     includeRemoteSetIds: includeRemoteSetIds.value,
     ...(ruleSetConversionPolicy.value !== undefined ? { ruleSetConversionPolicy: ruleSetConversionPolicy.value } : {}),
-    ...(extraConfig.value !== undefined ? { extraConfig: extraConfig.value } : {}),
   }
 }
 
@@ -468,17 +458,6 @@ function normalizeIdList(value: unknown, field: string): IdListValidation {
     ids.push(item.trim())
   }
   return { valid: true, value: [...new Set(ids)] }
-}
-
-type ExtraConfigValidation = { valid: true; value?: Record<string, unknown> | null } | { valid: false; error: string }
-
-function normalizeExtraConfig(value: unknown): ExtraConfigValidation {
-  if (value === undefined) return { valid: true, value: undefined }
-  if (value === null) return { valid: true, value: null }
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return { valid: true, value: value as Record<string, unknown> }
-  }
-  return { valid: false, error: 'extraConfig must be an object or null' }
 }
 
 type RuleSetConversionPolicyValidation =

@@ -81,7 +81,6 @@ function makeRow(patch: Partial<Record<string, unknown>> = {}): Record<string, u
     include_group_ids: '[]',
     include_rule_ids: '[]',
     include_remote_set_ids: '[]',
-    extra_config: null,
     created_at: createdAt,
     updated_at: createdAt,
     ...patch,

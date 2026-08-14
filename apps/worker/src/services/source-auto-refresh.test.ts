@@ -94,6 +94,10 @@ describe('source auto refresh', () => {
       refreshedSourceIds: ['source-ok'],
       errors: [{ sourceId: 'source-fail', error: 'network failed' }],
     });
+    const sourceQuery = vi.mocked(db.prepare).mock.calls
+      .map(([sql]) => String(sql))
+      .find(sql => sql.includes('FROM sources'));
+    expect(sourceQuery).not.toContain('enabled = 1');
   });
 
   it('skips zero-setup initialization when auto refresh is disabled', async () => {

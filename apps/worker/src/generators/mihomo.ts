@@ -231,10 +231,6 @@ function buildMihomoDnsLines(policy: ExportDnsPolicy, useManagedFakeIpFilterProv
   lines.push('    - https://223.5.5.5/dns-query');
   lines.push('    - https://120.53.53.53/dns-query');
 
-  if (policy.resolutionMode === 'single') {
-    return lines;
-  }
-
   lines.push('  fallback:');
   lines.push('    - tls://8.8.8.8');
   lines.push('    - tls://1.1.1.1');
@@ -243,10 +239,6 @@ function buildMihomoDnsLines(policy: ExportDnsPolicy, useManagedFakeIpFilterProv
   lines.push('    geoip-code: CN');
   lines.push('    ipcidr:');
   lines.push('      - 240.0.0.0/4');
-  lines.push('  nameserver-policy:');
-  lines.push('    "geosite:cn":');
-  lines.push('      - https://223.5.5.5/dns-query');
-  lines.push('      - https://120.53.53.53/dns-query');
   return lines;
 }
 
@@ -263,15 +255,6 @@ function buildStashDnsLines(policy: ExportDnsPolicy, managedDomains?: string[]):
   ];
   lines.push('  fake-ip-filter:');
   for (const domain of inlineRealIpDomains(policy, 'stash', managedDomains)) lines.push(`    - "${domain}"`);
-  if (policy.resolutionMode === 'split') {
-    lines.push('  nameserver-policy:');
-    lines.push('    "geosite:cn":');
-    lines.push('      - https://223.5.5.5/dns-query');
-    lines.push('      - https://120.53.53.53/dns-query');
-    lines.push('    "geosite:geolocation-!cn":');
-    lines.push('      - https://1.1.1.1/dns-query');
-    lines.push('      - https://8.8.8.8/dns-query');
-  }
   return lines;
 }
 

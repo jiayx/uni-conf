@@ -10,16 +10,13 @@ import { MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
 const settings = vi.hoisted((): AppSettings => ({
   language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
   exportNodeNamingMode: 'smart', showCompatibilityWarnings: true, enableAutoRefresh: true,
-  dnsResolutionMode: 'split', dnsRealIpDomains: [],
+  dnsRealIpDomains: [],
   ruleSetConversionPolicy: 'compatible',
   autoRefreshInterval: 240, autoNodeGroupsEnabled: true, autoNodeGroupTypes: ['url-test'],
   autoNodeGroupIncludeFlag: true,
 }))
 const actions = vi.hoisted(() => Object.fromEntries([
-  'setLanguage', 'setTheme', 'setExportNodeNamingMode', 'setShowCompatibilityWarnings',
-  'setRuleSetConversionPolicy',
-  'setEnableAutoRefresh', 'setAutoRefreshInterval', 'setAutoNodeGroupsEnabled', 'setAutoNodeGroupTypes',
-  'setAutoNodeGroupIncludeFlag', 'applySettings',
+  'applySettings',
 ].map((name) => [name, vi.fn()])))
 
 vi.mock('@/store/settings.store', () => ({ useSettingsStore: () => ({ ...settings, ...actions }) }))
@@ -148,16 +145,12 @@ describe('Settings data safety', () => {
 
   it('edits the DNS policy globally and explains its scope', async () => {
     vi.mocked(api.settings.update)
-      .mockResolvedValueOnce({ ...settings, dnsResolutionMode: 'single' })
-      .mockResolvedValueOnce({ ...settings, dnsResolutionMode: 'single', dnsRealIpDomains: ['*.example.com'] })
+      .mockResolvedValueOnce({ ...settings, dnsRealIpDomains: ['*.example.com'] })
     const user = userEvent.setup()
     render(<Settings />)
 
     expect(await screen.findByText(/All full-config exports use FakeIP/)).toBeInTheDocument()
     expect(screen.getByText(/QuixoticHeart's managed FakeIP exceptions are always merged/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Single resolver' }))
-    expect(api.settings.update).toHaveBeenCalledWith({ dnsResolutionMode: 'single' })
-
     const domains = screen.getByRole('textbox', { name: 'Additional real-IP domains' })
     await user.type(domains, '*.example.com')
     await user.tab()
@@ -176,28 +169,6 @@ describe('Settings data safety', () => {
     expect(api.settings.update).not.toHaveBeenCalled()
   })
 
-  it('queues a resolution change triggered while domain changes are saving', async () => {
-    let resolveDomainUpdate: ((value: AppSettings) => void) | undefined
-    vi.mocked(api.settings.update)
-      .mockImplementationOnce(() => new Promise(resolve => {
-        resolveDomainUpdate = resolve
-      }))
-      .mockResolvedValueOnce({ ...settings, dnsResolutionMode: 'single', dnsRealIpDomains: ['*.example.com'] })
-    render(<Settings />)
-    const domains = await screen.findByRole('textbox', { name: 'Additional real-IP domains' })
-    await waitFor(() => expect(domains).toBeEnabled())
-
-    fireEvent.change(domains, { target: { value: '*.example.com' } })
-    fireEvent.blur(domains)
-    fireEvent.click(screen.getByRole('button', { name: 'Single resolver' }))
-
-    expect(api.settings.update).toHaveBeenCalledTimes(1)
-    expect(api.settings.update).toHaveBeenCalledWith({ dnsRealIpDomains: ['*.example.com'] })
-    resolveDomainUpdate?.({ ...settings, dnsRealIpDomains: ['*.example.com'] })
-    await waitFor(() => expect(api.settings.update).toHaveBeenCalledTimes(2))
-    expect(api.settings.update).toHaveBeenLastCalledWith({ dnsResolutionMode: 'single' })
-  })
-
   it('keeps the authoritative selection and shows diagnostics when a setting update fails', async () => {
     vi.mocked(api.settings.update).mockRejectedValueOnce(
       new ApiError('Settings update failed', 409, 'settings_conflict', 'request-settings-1'),
@@ -211,7 +182,6 @@ describe('Settings data safety', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Settings update failed')
     expect(screen.getByText('settings_conflict · request-settings-1')).toBeInTheDocument()
     expect(strictButton).toHaveAttribute('aria-pressed', 'false')
-    expect(actions['setRuleSetConversionPolicy']).not.toHaveBeenCalled()
     expect(strictButton).toBeEnabled()
   })
 

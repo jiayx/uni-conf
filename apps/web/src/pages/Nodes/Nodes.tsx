@@ -93,23 +93,30 @@ export function Nodes() {
   }, [searchParams, setSearchParams])
 
   const sourceNames = new Map(sources.map(source => [source.id, source.name]))
+  const sourceEnabled = new Map(sources.map(source => [source.id, source.enabled]))
   const getSourceName = (id: string) => sourceNames.get(id) ?? (id === 'manual' ? t('nodes.manual') : id)
+  const isDisabledBySource = (node: ProxyNode) => Boolean(
+    node.sourceId && node.sourceId !== 'manual' && sourceEnabled.get(node.sourceId) === false
+  )
+  const isEffectivelyEnabled = (node: ProxyNode) => node.enabled && !isDisabledBySource(node)
   const normalizedSearch = search.trim().toLocaleLowerCase()
-  const filtered = nodes.filter(n => {
-    if (normalizedSearch && ![
-      n.name,
-      n.server,
-      n.country ?? '',
-      n.countryCode ?? '',
-      n.sourceId ? getSourceName(n.sourceId) : t('nodes.manual'),
-    ].some(value => value.toLocaleLowerCase().includes(normalizedSearch))) return false
-    if (filterProtocol && n.protocol !== filterProtocol) return false
-    if (filterCountry && n.countryCode !== filterCountry) return false
-    if (filterSource && (n.sourceId || 'manual') !== filterSource) return false
-    if (filterStatus === 'enabled' && !n.enabled) return false
-    if (filterStatus === 'disabled' && n.enabled) return false
-    return true
-  })
+  const filtered = nodes
+    .filter(n => {
+      if (normalizedSearch && ![
+        n.name,
+        n.server,
+        n.country ?? '',
+        n.countryCode ?? '',
+        n.sourceId ? getSourceName(n.sourceId) : t('nodes.manual'),
+      ].some(value => value.toLocaleLowerCase().includes(normalizedSearch))) return false
+      if (filterProtocol && n.protocol !== filterProtocol) return false
+      if (filterCountry && n.countryCode !== filterCountry) return false
+      if (filterSource && (n.sourceId || 'manual') !== filterSource) return false
+      if (filterStatus === 'enabled' && !isEffectivelyEnabled(n)) return false
+      if (filterStatus === 'disabled' && isEffectivelyEnabled(n)) return false
+      return true
+    })
+    .sort((left, right) => Number(isEffectivelyEnabled(right)) - Number(isEffectivelyEnabled(left)))
 
   const protocols = [...new Set(nodes.map(n => n.protocol))]
   const countries = [...new Set(nodes.map(n => n.countryCode).filter(Boolean))] as string[]
@@ -424,7 +431,9 @@ export function Nodes() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(node => (
+              {filtered.map(node => {
+                const disabledBySource = node.enabled && isDisabledBySource(node)
+                return (
                 <tr key={node.id} className={styles.row}>
                   <td className={styles.selectionColumn} data-label={t('nodes.selection')}>
                     <input
@@ -450,8 +459,10 @@ export function Nodes() {
                   <td data-label={t('nodes.country')}>{node.countryCode ?? '—'}</td>
                   <td data-label={t('nodes.source')}>{node.sourceId ? getSourceName(node.sourceId) : t('nodes.manual')}</td>
                   <td data-label={t('common.status')}>
-                    <Badge variant={node.enabled ? 'success' : 'default'}>
-                      {node.enabled ? t('common.enabled') : t('common.disabled')}
+                    <Badge variant={disabledBySource ? 'warning' : node.enabled ? 'success' : 'default'}>
+                      {disabledBySource
+                        ? t('nodes.disabled_by_source')
+                        : node.enabled ? t('common.enabled') : t('common.disabled')}
                     </Badge>
                   </td>
                   <td data-label={t('common.actions')}>
@@ -485,7 +496,8 @@ export function Nodes() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -608,6 +620,7 @@ function ProtocolFieldInput({
   onChange: (value: ManualNodeExtraValue) => void
 }) {
   const { t } = useTranslation()
+  const [secretVisible, setSecretVisible] = useState(false)
 
   if (field.type === 'boolean') {
     return (
@@ -631,8 +644,22 @@ function ProtocolFieldInput({
     )
   }
 
-  const inputType = field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'
+  const inputType = field.type === 'number'
+    ? 'number'
+    : field.type === 'password' && !secretVisible
+      ? 'password'
+      : 'text'
   const displayValue = Array.isArray(value) ? value.join(',') : String(value ?? '')
+  const secretInputProps = field.type === 'password'
+    ? {
+        autoComplete: 'off',
+        autoCapitalize: 'none' as const,
+        spellCheck: false,
+        'data-1p-ignore': true,
+        'data-bwignore': true,
+        'data-lpignore': 'true',
+      }
+    : {}
 
   return (
     <Input
@@ -640,11 +667,38 @@ function ProtocolFieldInput({
       type={inputType}
       value={displayValue}
       placeholder={field.placeholder}
+      {...secretInputProps}
+      trailingAction={field.type === 'password' ? (
+        <button
+          type="button"
+          aria-label={t(secretVisible ? 'nodes.hide_secret' : 'nodes.show_secret', { field: field.label })}
+          aria-pressed={secretVisible}
+          onClick={() => setSecretVisible(visible => !visible)}
+        >
+          <SecretVisibilityIcon visible={secretVisible} />
+        </button>
+      ) : undefined}
       onChange={e => {
         if (field.type === 'number') onChange(Number(e.target.value))
         else if (field.type === 'string-array') onChange(e.target.value.split(',').map(item => item.trim()).filter(Boolean))
         else onChange(e.target.value)
       }}
     />
+  )
+}
+
+function SecretVisibilityIcon({ visible }: { visible: boolean }) {
+  return visible ? (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m3 3 18 18" />
+      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+      <path d="M9.9 4.2A10.5 10.5 0 0 1 12 4c5.5 0 9 5 9 5a15.7 15.7 0 0 1-2.1 2.7" />
+      <path d="M6.6 6.6C4.4 8 3 10 3 10s3.5 5 9 5c1 0 2-.2 2.9-.5" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12s3.5-5 9-5 9 5 9 5-3.5 5-9 5-9-5-9-5Z" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
   )
 }

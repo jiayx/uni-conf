@@ -21,7 +21,6 @@ describe('settings route helpers', () => {
         'builtin-streaming': 'group:builtin-auto-select',
       },
       exportNodeNamingMode: 'source_region_sequence',
-      dnsResolutionMode: 'split',
       dnsRealIpDomains: ['*.example.local', 'api.example.com'],
       autoNodeGroupsEnabled: true,
       autoNodeGroupTypes: ['url-test', 'fallback'],
@@ -31,9 +30,7 @@ describe('settings route helpers', () => {
       ruleSetConversionPolicy: 'strict',
       enableAutoRefresh: true,
       autoRefreshInterval: 1440,
-      defaultExportToken: ' token-1 ',
     })).toBeNull()
-    expect(validateSettingsPatch({ defaultExportToken: null })).toBeNull()
     expect(validateSettingsPatch({ routingOutletPreferences: null })).toBeNull()
     expect(validateSettingsPatch({ autoNodeGroupKeys: null })).toBeNull()
   })
@@ -51,7 +48,7 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:USA:url-test' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ routingOutletPreferences: { 'builtin-ai': 'auto:country:us:url-test' } })).toBe('invalid routing outlet preferences')
     expect(validateSettingsPatch({ exportNodeNamingMode: 'random' as never })).toBe('invalid export node naming mode')
-    expect(validateSettingsPatch({ dnsResolutionMode: 'fakeip' as never })).toBe('invalid DNS resolution mode')
+    expect(validateSettingsPatch({ dnsResolutionMode: 'split' })).toBe('unknown settings field: dnsResolutionMode')
     expect(validateSettingsPatch({ dnsRealIpDomains: ['valid.example', 'bad domain'] })).toBe('invalid DNS real-IP domains')
     expect(validateSettingsPatch({ dnsRealIpDomains: ['example.com"; injected: true'] })).toBe('invalid DNS real-IP domains')
     expect(validateSettingsPatch({ dnsRealIpDomains: 'example.com' as never })).toBe('invalid DNS real-IP domains')
@@ -61,8 +58,7 @@ describe('settings route helpers', () => {
     expect(validateSettingsPatch({ autoNodeGroupKeys: ['country:US:load-balance'] })).toBe('invalid auto node group key')
     expect(validateSettingsPatch({ autoNodeGroupsEnabled: 'true' as never })).toBe('invalid auto node groups enabled')
     expect(validateSettingsPatch({ autoNodeGroupIncludeFlag: 'true' as never })).toBe('invalid auto node group include flag')
-    expect(validateSettingsPatch({ defaultExportToken: '' })).toBe('invalid default export token')
-    expect(validateSettingsPatch({ defaultExportToken: 123 as never })).toBe('invalid default export token')
+    expect(validateSettingsPatch({ defaultExportToken: 'token-1' })).toBe('unknown settings field: defaultExportToken')
     expect(validateSettingsPatch({ showCompatibilityWarnings: 1 as never })).toBe('invalid compatibility warnings setting')
     expect(validateSettingsPatch({ enableAutoRefresh: 1 as never })).toBe('invalid auto refresh setting')
     expect(validateSettingsPatch({ ruleSetConversionPolicy: 'best-effort' as never })).toBe('invalid rule set conversion policy')
@@ -106,14 +102,11 @@ describe('settings route helpers', () => {
 
   it('stores the global DNS policy in canonical form', () => {
     const update = buildSettingsUpdate({
-      dnsResolutionMode: 'single',
       dnsRealIpDomains: [' +.Example.Local ', 'api.example.com', '*.example.local'],
     }, '2026-07-24T00:00:00.000Z')
 
-    expect(update.sql).toContain('dns_resolution_mode = ?')
     expect(update.sql).toContain('dns_real_ip_domains = ?')
     expect(update.values).toEqual([
-      'single',
       '["*.example.local","api.example.com"]',
       '2026-07-24T00:00:00.000Z',
       'default',
@@ -123,7 +116,6 @@ describe('settings route helpers', () => {
   it('serializes nullable and structured settings without carrying stale values', () => {
     const update = buildSettingsUpdate({
       routingOutletPreferences: { 'builtin-ai': 'group:AI' },
-      defaultExportToken: null,
       autoNodeGroupTypes: ['select', 'fallback'],
       autoNodeGroupKeys: null,
       showCompatibilityWarnings: false,
@@ -131,7 +123,6 @@ describe('settings route helpers', () => {
 
     expect(update.values).toEqual([
       '{"builtin-ai":"group:AI"}',
-      null,
       0,
       '["select","fallback"]',
       null,

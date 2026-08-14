@@ -200,7 +200,6 @@ function makeSettings(patch: Partial<AppSettings>): AppSettings {
     unmatchedTrafficPolicy: 'proxy',
     routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
     exportNodeNamingMode: 'smart',
-    dnsResolutionMode: 'split',
     dnsRealIpDomains: [],
     showCompatibilityWarnings: true,
     ruleSetConversionPolicy: 'compatible',

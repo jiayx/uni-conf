@@ -198,8 +198,6 @@ export function mapExportConfig(row: Record<string, unknown>): ExportConfig {
       row.rule_set_conversion_policy === 'compatible' || row.rule_set_conversion_policy === 'strict'
         ? row.rule_set_conversion_policy
         : null,
-    extraConfig:
-      jsonParse<Record<string, unknown>>(row.extra_config as string | null) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

@@ -161,17 +161,9 @@ describe('Zustand API stores', () => {
 })
 
 describe('settings store', () => {
-  it('applies preferences and theme attributes', () => {
+  it('applies theme attributes', () => {
     const state = useSettingsStore.getState()
-    state.setLanguage('en')
-    state.setTheme('dark')
-    state.setExportNodeNamingMode('original')
-    state.setShowCompatibilityWarnings(false)
-    state.setEnableAutoRefresh(false)
-    state.setAutoRefreshInterval(60)
-    state.setAutoNodeGroupsEnabled(false)
-    state.setAutoNodeGroupTypes(['select'])
-    state.setAutoNodeGroupIncludeFlag(false)
+    state.applyTheme('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
     state.applyTheme('system')
     expect(document.documentElement).not.toHaveAttribute('data-theme')

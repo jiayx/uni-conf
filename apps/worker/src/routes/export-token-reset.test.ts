@@ -84,7 +84,6 @@ function first(sql: string, state: TestState): Record<string, unknown> | null {
       include_group_ids: '[]',
       include_rule_ids: '[]',
       include_remote_set_ids: '[]',
-      extra_config: null,
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
     }

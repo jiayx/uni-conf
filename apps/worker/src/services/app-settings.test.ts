@@ -3,10 +3,8 @@ import {
   normalizeAutoNodeGroupTypes,
   normalizeBooleanDefault,
   normalizeDnsRealIpDomains,
-  normalizeDnsResolutionMode,
   normalizeExportNodeNamingMode,
   normalizeLanguage,
-  normalizeOptionalString,
   normalizeOptionalStringList,
   normalizePositiveInteger,
   normalizeRoutingPolicyScenarios,
@@ -40,8 +38,6 @@ describe('app settings normalization', () => {
     expect(normalizeExportNodeNamingMode('unknown')).toBe('smart')
     expect(normalizeRuleSetConversionPolicy('strict')).toBe('strict')
     expect(normalizeRuleSetConversionPolicy('unknown')).toBe('compatible')
-    expect(normalizeDnsResolutionMode('single')).toBe('single')
-    expect(normalizeDnsResolutionMode('unknown')).toBe('split')
     expect(normalizeDnsRealIpDomains('[" +.Example.com ","api.example.com","*.example.com"]'))
       .toEqual(['*.example.com', 'api.example.com'])
     expect(normalizeDnsRealIpDomains('["example.com\\"; injected: true"]')).toEqual([])
@@ -56,9 +52,5 @@ describe('app settings normalization', () => {
     expect(normalizeOptionalStringList(null)).toBeUndefined()
     expect(normalizeOptionalStringList('[]')).toEqual([])
     expect(normalizeOptionalStringList('["country:US:url-test",""]')).toEqual(['country:US:url-test'])
-    expect(normalizeOptionalString(null)).toBeUndefined()
-    expect(normalizeOptionalString(123)).toBeUndefined()
-    expect(normalizeOptionalString('   ')).toBeUndefined()
-    expect(normalizeOptionalString(' token-1 ')).toBe('token-1')
   })
 })

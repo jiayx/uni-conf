@@ -732,7 +732,7 @@ rule-providers:
         success: boolean
         data: { version: number; containsSensitiveData: boolean; tables: Record<string, Record<string, unknown>[]> }
       }
-      expect(backup).toMatchObject({ success: true, data: { version: 8, containsSensitiveData: true } })
+      expect(backup).toMatchObject({ success: true, data: { version: 9, containsSensitiveData: true } })
       expect((backup.data.tables.nodes ?? []).length).toBeGreaterThanOrEqual(2)
       expect((backup.data.tables.export_configs ?? []).some(row => row.token === defaultConfig!.token)).toBe(true)
       expect((backup.data.tables.remote_rule_sets ?? []).some(row => (

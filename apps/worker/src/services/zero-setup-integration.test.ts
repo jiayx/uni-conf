@@ -276,7 +276,6 @@ function runStatement(state: ZeroSetupState, sql: string, args: unknown[]): void
       include_group_ids: '[]',
       include_rule_ids: '[]',
       include_remote_set_ids: '[]',
-      extra_config: null,
       created_at: args[2],
       updated_at: args[3],
     });

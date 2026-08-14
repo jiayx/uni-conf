@@ -64,7 +64,6 @@ export function generateSurge(
     collectionNodeNames,
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
     general: surgeGeneralLines(dnsPolicy, options.managedRealIpDomains),
-    host: nativeHostDnsLines(dnsPolicy),
     proxySections: surgeAuxiliarySections(nodes),
     trailingSections: [
       '[URL Rewrite]',
@@ -96,8 +95,7 @@ export function generateShadowrocket(
     collectionNodeNames,
     ruleSetConversionBaseUrl: options.ruleSetConversionBaseUrl,
     general: shadowrocketGeneralLines(dnsPolicy, options.managedRealIpDomains),
-    host: shadowrocketHostDnsLines(dnsPolicy),
-    forceRemoteDns: dnsPolicy.resolutionMode === 'split',
+    forceRemoteDns: true,
     trailingSections: ['[URL Rewrite]', '[Script]', '[MITM]'],
   })
   return lines.join('\n')
@@ -131,9 +129,7 @@ export function generateQuantumultX(
     '[dns]',
     'no-system',
     'no-ipv6',
-    ...(dnsPolicy.resolutionMode === 'split'
-      ? ['doh-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query', 'server = /*.cn/223.5.5.5']
-      : ['server = 223.5.5.5', 'server = 119.29.29.29']),
+    'doh-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
     '',
     '[policy]',
   ]
@@ -314,9 +310,7 @@ function surgeGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): 
     'exclude-simple-hostnames = true',
     `tun-excluded-routes = ${TUN_EXCLUDED_ROUTES}`,
     'dns-server = 223.5.5.5, 119.29.29.29',
-    ...(policy.resolutionMode === 'split'
-      ? ['encrypted-dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query']
-      : []),
+    'encrypted-dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
     `always-real-ip = ${inlineRealIpDomains(policy, 'surge', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'udp-policy-not-supported-behaviour = REJECT',
@@ -338,9 +332,8 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
     'prefer-ipv6 = false',
     `skip-proxy = ${LOCAL_PROXY_BYPASS}`,
     `tun-excluded-routes = ${TUN_EXCLUDED_ROUTES}`,
-    policy.resolutionMode === 'split'
-      ? 'dns-server = https://1.1.1.1/dns-query, https://8.8.8.8/dns-query'
-      : 'dns-server = 223.5.5.5, 119.29.29.29',
+    'dns-server = https://doh.pub/dns-query, https://dns.alidns.com/dns-query',
+    'fallback-dns-server = 223.5.5.5, 119.29.29.29',
     `always-real-ip = ${inlineRealIpDomains(policy, 'shadowrocket', managedDomains).join(', ')}`,
     'hijack-dns = *:53',
     'dns-direct-system = false',
@@ -353,42 +346,20 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
   ]
 }
 
-function shadowrocketHostDnsLines(policy: ExportDnsPolicy): string[] {
-  if (policy.resolutionMode !== 'split') return []
-  return ['*.cn = server:223.5.5.5']
-}
-
-function nativeHostDnsLines(policy: ExportDnsPolicy): string[] {
-  if (policy.resolutionMode !== 'split') return []
-  return ['*.cn = server:223.5.5.5,119.29.29.29', '* = server:https://1.1.1.1/dns-query,https://8.8.8.8/dns-query']
-}
-
-function egernDns(policy: ExportDnsPolicy): Record<string, unknown> {
-  if (policy.resolutionMode === 'single') {
-    return {
-      bootstrap: ['system', '223.5.5.5'],
-    }
-  }
+function egernDns(_policy: ExportDnsPolicy): Record<string, unknown> {
   return {
-    bootstrap: ['system', '223.5.5.5'],
+    bootstrap: ['system', '223.5.5.5', '119.29.29.29'],
     upstreams: {
-      global: ['https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'],
+      mainland: ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
     },
     forward: [
       {
-        domain_suffix: {
-          match: 'cn',
-          value: 'bootstrap',
-        },
-      },
-      {
         domain_wildcard: {
           match: '*',
-          value: 'global',
+          value: 'mainland',
         },
       },
     ],
-    proxy_nameservers: ['tls://dns.google', 'https://1.1.1.1/dns-query'],
   }
 }
 

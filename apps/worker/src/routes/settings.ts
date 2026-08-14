@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
-import type { AppSettings, AppSettingsPatch, DnsResolutionMode, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
+import type { AppSettings, AppSettingsPatch, ExportNodeNamingMode, Language, RoutingPolicyScenarioId, RuleSetConversionPolicy, ThemePreference, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import { now } from '../db/helpers'
 import { getAppSettings } from '../services/app-settings'
 import { syncAutoNodeGroups } from '../services/auto-node-groups'
@@ -61,7 +61,6 @@ const EXPORT_NODE_NAMING_MODES: ReadonlySet<ExportNodeNamingMode> = new Set([
   'smart',
 ])
 const RULE_SET_CONVERSION_POLICIES: ReadonlySet<RuleSetConversionPolicy> = new Set(['compatible', 'strict'])
-const DNS_RESOLUTION_MODES: ReadonlySet<DnsResolutionMode> = new Set(['single', 'split'])
 const SETTINGS_PATCH_KEYS: ReadonlySet<string> = new Set([
   'language',
   'theme',
@@ -69,9 +68,7 @@ const SETTINGS_PATCH_KEYS: ReadonlySet<string> = new Set([
   'routingPolicyScenarios',
   'routingOutletPreferences',
   'exportNodeNamingMode',
-  'dnsResolutionMode',
   'dnsRealIpDomains',
-  'defaultExportToken',
   'showCompatibilityWarnings',
   'ruleSetConversionPolicy',
   'enableAutoRefresh',
@@ -116,12 +113,8 @@ export function buildSettingsUpdate(
     )
   }
   if (body.exportNodeNamingMode !== undefined) set('export_node_naming_mode', body.exportNodeNamingMode)
-  if (body.dnsResolutionMode !== undefined) set('dns_resolution_mode', body.dnsResolutionMode)
   if (body.dnsRealIpDomains !== undefined) {
     set('dns_real_ip_domains', JSON.stringify(normalizeDnsRealIpDomainList(body.dnsRealIpDomains)!))
-  }
-  if (body.defaultExportToken !== undefined) {
-    set('default_export_token', normalizeDefaultExportToken(body.defaultExportToken) ?? null)
   }
   if (body.showCompatibilityWarnings !== undefined) {
     set('show_compatibility_warnings', body.showCompatibilityWarnings ? 1 : 0)
@@ -189,14 +182,8 @@ export function validateSettingsPatch(value: unknown): string | null {
   if (body.exportNodeNamingMode !== undefined && !EXPORT_NODE_NAMING_MODES.has(body.exportNodeNamingMode)) {
     return 'invalid export node naming mode'
   }
-  if (body.dnsResolutionMode !== undefined && !DNS_RESOLUTION_MODES.has(body.dnsResolutionMode)) {
-    return 'invalid DNS resolution mode'
-  }
   if (body.dnsRealIpDomains !== undefined && !isValidDnsRealIpDomains(body.dnsRealIpDomains)) {
     return 'invalid DNS real-IP domains'
-  }
-  if (body.defaultExportToken !== undefined && normalizeDefaultExportToken(body.defaultExportToken) === undefined) {
-    return 'invalid default export token'
   }
   if (body.autoNodeGroupTypes !== undefined) {
     if (!Array.isArray(body.autoNodeGroupTypes) || body.autoNodeGroupTypes.some((type) => !isAutoNodeGroupType(type))) {
@@ -237,13 +224,6 @@ export function validateSettingsPatch(value: unknown): string | null {
 
 function isValidDnsRealIpDomains(value: unknown): value is string[] {
   return normalizeDnsRealIpDomainList(value) !== undefined
-}
-
-function normalizeDefaultExportToken(value: unknown): string | null | undefined {
-  if (value === null) return null
-  if (typeof value !== 'string') return undefined
-  const trimmed = value.trim()
-  return trimmed ? trimmed : undefined
 }
 
 function isRoutingOutletPreferenceRef(value: unknown): value is string {

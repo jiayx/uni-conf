@@ -11,7 +11,7 @@ import { api } from '@/lib/api'
 import { clearStoredApiKey } from '@/lib/auth'
 import { useSettingsStore } from '@/store/settings.store'
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, MAX_BACKUP_FILE_BYTES, normalizeDnsRealIpDomainList } from '@uni-conf/shared'
-import type { AppSettingsPatch, AutoNodeGroupType, DnsResolutionMode, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
+import type { AppSettingsPatch, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
 const EXPORT_NODE_NAMING_PRESETS: Array<{ id: ExportNodeNamingMode; nameKey: string; descriptionKey: string }> = [
@@ -49,7 +49,6 @@ export function Settings() {
     language,
     theme,
     exportNodeNamingMode,
-    dnsResolutionMode,
     dnsRealIpDomains,
     showCompatibilityWarnings,
     ruleSetConversionPolicy,
@@ -124,10 +123,6 @@ export function Settings() {
 
   const handleExportNodeNamingMode = (nextMode: ExportNodeNamingMode) => {
     void persistSettings({ exportNodeNamingMode: nextMode })
-  }
-
-  const handleDnsResolutionMode = (mode: DnsResolutionMode) => {
-    void persistSettings({ dnsResolutionMode: mode })
   }
 
   const handleAutoNodeGroupsEnabled = (enabled: boolean) => {
@@ -324,26 +319,6 @@ export function Settings() {
       <Card className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('settings.dns')}</h2>
         <div className={styles.hint}>{t('settings.dns_hint')}</div>
-        <div className={styles.settingBlock}>
-          <div className={styles.settingLabel}>{t('settings.dns_resolution_mode')}</div>
-          <div className={styles.optionGroup}>
-            {(['single', 'split'] as DnsResolutionMode[]).map(mode => (
-              <button
-                key={mode}
-                type="button"
-                className={`${styles.optionBtn} ${dnsResolutionMode === mode ? styles.active : ''}`}
-                aria-pressed={dnsResolutionMode === mode}
-                disabled={settingsControlsLocked}
-                onClick={() => handleDnsResolutionMode(mode)}
-              >
-                {t(`settings.dns_resolution_${mode}`)}
-              </button>
-            ))}
-          </div>
-          <div className={styles.hint}>
-            {t(`settings.dns_resolution_${dnsResolutionMode}_hint`)}
-          </div>
-        </div>
         <Input
           label={t('settings.dns_real_ip_domains')}
           value={dnsRealIpDomainsDraft}

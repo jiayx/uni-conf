@@ -61,8 +61,13 @@ export function generateSingboxJson(
 // ─── DNS ──────────────────────────────────────────────────────────────────────
 
 function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
-  const split = policy.resolutionMode === 'split';
   const servers: Record<string, unknown>[] = [
+    {
+      type: 'tls',
+      tag: 'proxyDns',
+      server: '8.8.8.8',
+      detour: proxyDetour,
+    },
     {
       type: 'https',
       tag: 'localDns',
@@ -71,19 +76,10 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
       detour: 'direct',
     },
   ];
-  if (split) {
-    servers.unshift({
-      type: 'tls',
-      tag: 'proxyDns',
-      server: '8.8.8.8',
-      detour: proxyDetour,
-    });
-  }
   servers.push({
     type: 'fakeip',
     tag: 'fakeip',
     inet4_range: '198.18.0.0/15',
-    inet6_range: 'fc00::/18',
   });
 
   const rules: Record<string, unknown>[] = [];
@@ -99,15 +95,8 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
       server: 'localDns',
     });
   }
-  if (split) {
-    rules.push({
-      rule_set: 'geosite-cn',
-      action: 'route',
-      server: 'localDns',
-    });
-  }
   rules.push({
-    query_type: ['A', 'AAAA'],
+    query_type: ['A'],
     action: 'route',
     server: 'fakeip',
   });
@@ -115,8 +104,8 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
   return {
     servers,
     ...(rules.length > 0 ? { rules } : {}),
-    final: split ? 'proxyDns' : 'localDns',
-    strategy: 'prefer_ipv4',
+    final: 'proxyDns',
+    strategy: 'ipv4_only',
     disable_cache: false,
     disable_expire: false,
     cache_capacity: 4096,
@@ -130,7 +119,7 @@ function buildInbounds(): object[] {
     {
       type: 'tun',
       tag: 'tun-in',
-      address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
+      address: ['172.19.0.1/30'],
       mtu: 9000,
       stack: 'system',
       auto_route: true,
