@@ -291,6 +291,27 @@ describe('manual node input', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default');
   });
 
+  it('creates a workspace-scoped manual source when the source id is omitted', async () => {
+    vi.clearAllMocks();
+    const db = createManualNodeCreateMockDb();
+
+    const response = await nodesApp.request('/', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-workspace-id': 'friends',
+      },
+      body: JSON.stringify({
+        uri: 'trojan://password@de.example.com:443#DE%2001',
+      }),
+    }, { DB: db });
+
+    expect(response.status).toBe(201);
+    expect((db as unknown as { __inserted: Record<string, unknown> }).__inserted.source_id)
+      .toBe('friends:manual');
+    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'friends');
+  });
+
   it('rejects structured manual nodes that miss protocol-required fields', async () => {
     vi.clearAllMocks();
     const db = createManualNodeCreateMockDb();
@@ -540,6 +561,7 @@ function createManualNodeCreateMockDb(isManual = true): D1Database {
       run: async () => ({ success: true }),
       raw: async () => [],
     })),
+    __inserted: inserted,
     __updated: updated,
   } as unknown as D1Database;
 }

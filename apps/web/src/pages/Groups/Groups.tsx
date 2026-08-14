@@ -27,6 +27,7 @@ import {
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
   ROUTING_POLICY_SCENARIOS,
   RULE_TARGET_FOUNDATION_GROUP_IDS,
+  isWorkspaceEntityId,
 } from '@uni-conf/shared'
 import type { GroupType, ProxyGroup, RemoteRuleSet, RoutingPolicyScenarioId, UnmatchedTrafficPolicy } from '@uni-conf/types'
 import styles from './Groups.module.css'
@@ -696,13 +697,13 @@ function ArrowDownIcon() {
 }
 
 function describeFoundationGroup(group: ProxyGroup, t: (key: string) => string): string {
-  if (group.id === 'builtin-proxy') return t('groups.foundation_proxy_desc')
-  if (group.id === 'builtin-direct') return t('groups.foundation_direct_desc')
-  if (group.id === 'builtin-reject') return t('groups.foundation_reject_desc')
-  if (group.id === 'builtin-all-nodes') return t('groups.foundation_all_nodes_desc')
-  if (group.id === 'builtin-node-select') return t('groups.foundation_node_select_desc')
-  if (group.id === 'builtin-auto-select') return t('groups.foundation_auto_select_desc')
-  if (group.id === 'builtin-fallback-select') return t('groups.foundation_fallback_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-proxy')) return t('groups.foundation_proxy_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-direct')) return t('groups.foundation_direct_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-reject')) return t('groups.foundation_reject_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-all-nodes')) return t('groups.foundation_all_nodes_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-node-select')) return t('groups.foundation_node_select_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-auto-select')) return t('groups.foundation_auto_select_desc')
+  if (isWorkspaceEntityId(group.id, 'builtin-fallback-select')) return t('groups.foundation_fallback_desc')
   return t('groups.foundation_default_desc')
 }
 

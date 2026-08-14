@@ -954,11 +954,41 @@ rule-providers:
     expect(groupsResponse.status).toBe(200)
     const groups = await groupsResponse.json() as { data: Array<{ id: string }> }
     expect(groups.data.length).toBeGreaterThan(0)
+    expect(groups.data.every(group => group.id.startsWith(`${created.data.id}:`))).toBe(true)
 
     const exportsResponse = await request('/api/export/configs', { headers: workspaceHeaders })
     expect(exportsResponse.status).toBe(200)
     const exports = await exportsResponse.json() as { data: Array<{ id: string }> }
     expect(exports.data).toHaveLength(1)
+    expect(exports.data[0]?.id).toBe(`${created.data.id}:default-mihomo`)
+
+    const workspaceCollections = await (await request('/api/collections', {
+      headers: workspaceHeaders,
+    })).json() as { data: Array<{ id: string }> }
+    const workspaceCollectionId = workspaceCollections.data[0]?.id
+    expect(workspaceCollectionId).toBeTruthy()
+    expect((await request(`/api/collections/${workspaceCollectionId}`, {
+      headers: workspaceHeaders,
+    })).status).toBe(200)
+    expect((await request(`/api/collections/${workspaceCollectionId}`)).status).toBe(404)
+
+    const manualNodeResponse = await request('/api/nodes', {
+      method: 'POST',
+      headers: workspaceHeaders,
+      body: JSON.stringify({
+        uri: 'trojan://password@friend.example.com:443#Friend%20Node',
+      }),
+    })
+    expect(manualNodeResponse.status).toBe(201)
+    const manualNode = await manualNodeResponse.json() as {
+      data: { id: string; sourceId: string }
+    }
+    expect(manualNode.data.sourceId).toBe(`${created.data.id}:manual`)
+
+    const defaultNodes = await (await request('/api/nodes')).json() as {
+      data: { items: Array<{ id: string }> }
+    }
+    expect(defaultNodes.data.items.some(item => item.id === manualNode.data.id)).toBe(false)
 
     const sourceResponse = await request('/api/sources', {
       method: 'POST',

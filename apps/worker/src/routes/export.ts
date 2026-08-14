@@ -226,8 +226,8 @@ exportRouter.post('/configs/:id/reset-token', async (c) => {
 
   const ts = now()
   const nextToken = generateExportToken()
-  await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ?')
-    .bind(nextToken, ts, id)
+  await c.env.DB.prepare('UPDATE export_configs SET token = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+    .bind(nextToken, ts, id, workspaceId)
     .run()
   await syncDefaultExportTokenAfterReset(c.env.DB, String(existing.token ?? ''), nextToken, ts, workspaceId)
   await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)

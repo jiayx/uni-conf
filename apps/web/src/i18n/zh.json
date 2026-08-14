@@ -255,7 +255,7 @@
     "country_auto": "自动识别（当前未识别）",
     "country_auto_detected": "自动识别：{{country}}",
     "country_hint": "根据节点名称中的国旗、国家/地区名称、代码或常见城市识别；需要时可手动覆盖。",
-    "source": "来源订阅",
+    "source": "来源",
     "manual": "手动节点",
     "field_default": "默认",
     "all_sources": "全部来源",

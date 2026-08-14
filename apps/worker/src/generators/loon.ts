@@ -8,6 +8,7 @@ import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import {
   DEFAULT_HEALTH_CHECK,
   DEFAULT_RULE_TARGET_GROUP_ID,
+  isWorkspaceEntityId,
   getRuleCompatibilityLevel,
   isLoonTransportSupported,
   isRuleSetFormatCompatible,
@@ -418,7 +419,7 @@ export function generateLoon(
 }
 
 function defaultPolicy(groups: Array<Record<string, unknown>>): string {
-  const group = groups.find((item) => String(item['id']) === DEFAULT_RULE_TARGET_GROUP_ID)
+  const group = groups.find((item) => isWorkspaceEntityId(String(item['id']), DEFAULT_RULE_TARGET_GROUP_ID))
   return group ? nativePolicyName(group) : 'DIRECT'
 }
 

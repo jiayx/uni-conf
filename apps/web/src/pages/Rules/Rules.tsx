@@ -21,6 +21,7 @@ import {
   MAX_NODE_SEARCH_LENGTH,
   MAX_RULE_BATCH_SELECTION,
   DEFAULT_RULE_TARGET_GROUP_ID,
+  isWorkspaceEntityId,
   isRuleTargetGroup,
   resolveRuleForExport,
   getRuleNoResolveHandling,
@@ -105,7 +106,9 @@ export function Rules() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = DEFAULT_RULE_TARGET_GROUP_ID
+  const defaultTargetGroupId = targetGroups.find(group =>
+    isWorkspaceEntityId(group.id, DEFAULT_RULE_TARGET_GROUP_ID),
+  )?.id ?? targetGroups[0]?.id ?? ''
   const batchParsed = useMemo(
     () => parseManualRulesWithDiagnostics(
       batchText,

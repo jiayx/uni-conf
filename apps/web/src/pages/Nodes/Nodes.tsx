@@ -101,9 +101,12 @@ export function Nodes() {
 
   const sourceNames = new Map(sources.map(source => [source.id, source.name]))
   const sourceEnabled = new Map(sources.map(source => [source.id, source.enabled]))
-  const getSourceName = (id: string) => sourceNames.get(id) ?? (id === 'manual' ? t('nodes.manual') : id)
+  const getSourceName = (id: string) => sourceNames.get(id) ?? id
+  const getNodeSourceName = (node: ProxyNode) => node.isManual
+    ? t('nodes.manual')
+    : node.sourceId ? getSourceName(node.sourceId) : '—'
   const isDisabledBySource = (node: ProxyNode) => Boolean(
-    node.sourceId && node.sourceId !== 'manual' && sourceEnabled.get(node.sourceId) === false
+    !node.isManual && node.sourceId && sourceEnabled.get(node.sourceId) === false
   )
   const isEffectivelyEnabled = (node: ProxyNode) => node.enabled && !isDisabledBySource(node)
   const normalizedSearch = search.trim().toLocaleLowerCase()
@@ -114,7 +117,7 @@ export function Nodes() {
         n.server,
         n.country ?? '',
         n.countryCode ?? '',
-        n.sourceId ? getSourceName(n.sourceId) : t('nodes.manual'),
+        getNodeSourceName(n),
       ].some(value => value.toLocaleLowerCase().includes(normalizedSearch))) return false
       if (filterProtocol && n.protocol !== filterProtocol) return false
       if (filterCountry && n.countryCode !== filterCountry) return false
@@ -127,7 +130,10 @@ export function Nodes() {
 
   const protocols = [...new Set(nodes.map(n => n.protocol))]
   const countries = [...new Set(nodes.map(n => n.countryCode).filter(Boolean))] as string[]
-  const nodeSourceIds = [...new Set(nodes.map(node => node.sourceId || 'manual'))]
+  const nodeSources = [...new Map(nodes.map(node => [
+    node.sourceId || 'manual',
+    getNodeSourceName(node),
+  ])).entries()]
   const filtersActive = Boolean(normalizedSearch || filterProtocol || filterCountry || filterSource || filterStatus)
   const visibleIds = filtered.map(node => node.id)
   const selectableVisibleIds = visibleIds.slice(0, MAX_NODE_BATCH_SELECTION)
@@ -269,14 +275,14 @@ export function Nodes() {
     setFormError(null)
     try {
       if (!editingRequested && uri) {
-        await addNode({ uri, sourceId: 'manual' })
+        await addNode({ uri })
       } else {
         const selectedCountry = countryOptions.find(option => option.code === form.countryCode)
         const country = selectedCountry
           ? { country: selectedCountry.country, countryCode: selectedCountry.code }
           : detectedCountry
         const payload = {
-          sourceId: editingNode?.sourceId ?? 'manual',
+          ...(editingNode ? { sourceId: editingNode.sourceId } : {}),
           name: form.name,
           protocol: form.protocol,
           server: form.server,
@@ -399,7 +405,7 @@ export function Nodes() {
         </select>
         <select aria-label={t('nodes.source')} className={styles.filterSelect} value={filterSource} onChange={e => { setFilterSource(e.target.value); setSelectedIds(new Set()) }}>
           <option value="">{t('nodes.all_sources')}</option>
-          {nodeSourceIds.map(id => <option key={id} value={id}>{getSourceName(id)}</option>)}
+          {nodeSources.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <select aria-label={t('common.status')} className={styles.filterSelect} value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setSelectedIds(new Set()) }}>
           <option value="">{t('nodes.all_statuses')}</option>
@@ -488,7 +494,7 @@ export function Nodes() {
                   </td>
                   <td className={styles.server} data-label={t('nodes.server')}>{node.server}:{node.port}</td>
                   <td data-label={t('nodes.country')}>{node.countryCode ?? '—'}</td>
-                  <td data-label={t('nodes.source')}>{node.sourceId ? getSourceName(node.sourceId) : t('nodes.manual')}</td>
+                  <td data-label={t('nodes.source')}>{getNodeSourceName(node)}</td>
                   <td data-label={t('common.status')}>
                     <Badge variant={disabledBySource ? 'warning' : node.enabled ? 'success' : 'default'}>
                       {disabledBySource

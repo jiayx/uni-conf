@@ -37,6 +37,7 @@ import { describeCompatibleRuleSetFormats, getRemoteRuleSetCompatibilityMode, is
 import {
   getExportClientCapabilities,
   getExportSubscriptionFilename,
+  isWorkspaceEntityId,
 } from '@uni-conf/shared'
 import type { CompatibilityWarning, ExportArtifactValidationResult, ExportConfig, ExportDownloadReadiness, ExportFormat, NodeCollection, ProxyGroup, ProxyRule, RemoteRuleSet, RuleSetConversionPolicy } from '@uni-conf/types'
 import styles from './Export.module.css'
@@ -173,7 +174,7 @@ export function Export() {
     setShowModal(true)
   }
 
-  useRequestedEdit(configs.filter(config => config.id !== DEFAULT_EXPORT_CONFIG_ID), openEdit)
+  useRequestedEdit(configs.filter(config => !isDefaultExportConfig(config)), openEdit)
 
   const closeFormModal = () => {
     setShowModal(false)
@@ -251,7 +252,7 @@ export function Export() {
   }
 
   const handleResetToken = async (config: ExportConfig) => {
-    const profileName = config.id === DEFAULT_EXPORT_CONFIG_ID
+    const profileName = isDefaultExportConfig(config)
       ? t('export.default_profile_name')
       : config.name
     if (!(await confirmAction({
@@ -281,7 +282,7 @@ export function Export() {
 
   const handleToggleEnabled = async (config: ExportConfig) => {
     const nextEnabled = !config.enabled
-    const profileName = config.id === DEFAULT_EXPORT_CONFIG_ID
+    const profileName = isDefaultExportConfig(config)
       ? t('export.default_profile_name')
       : config.name
     if (!nextEnabled && !(await confirmAction({
@@ -377,8 +378,8 @@ export function Export() {
     }))
   }
 
-  const defaultConfig = configs.find(cfg => cfg.id === DEFAULT_EXPORT_CONFIG_ID)
-  const advancedConfigs = configs.filter(cfg => cfg.id !== DEFAULT_EXPORT_CONFIG_ID)
+  const defaultConfig = configs.find(isDefaultExportConfig)
+  const advancedConfigs = configs.filter(config => !isDefaultExportConfig(config))
   const inheritedConversionPolicyLabel = globalRuleSetConversionPolicy
     ? t('export.conversion_policy_badge_inherit_effective', {
         policy: t(`settings.rule_set_conversion_${globalRuleSetConversionPolicy}`),
@@ -785,6 +786,10 @@ export function Export() {
       </Modal>
     </div>
   )
+}
+
+function isDefaultExportConfig(config: ExportConfig): boolean {
+  return isWorkspaceEntityId(config.id, DEFAULT_EXPORT_CONFIG_ID)
 }
 
 function QuickExportMoreMenu({

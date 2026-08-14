@@ -319,7 +319,7 @@ function validateNodeSubscriptionCompatibility(
 function nodeRemediation(
   node: ExportData['nodes'][number]
 ): NonNullable<CompatibilityWarning['remediation']> {
-  if (!node.isManual && node.sourceId && node.sourceId !== 'manual') {
+  if (!node.isManual && node.sourceId) {
     return { target: 'sources', id: node.sourceId };
   }
   return { target: 'nodes', id: node.id };
@@ -330,7 +330,7 @@ function nodeRowRemediation(
   id: string
 ): NonNullable<CompatibilityWarning['remediation']> {
   const sourceId = String(row['source_id'] ?? '');
-  const isManual = Boolean(row['is_manual']) || sourceId === 'manual';
+  const isManual = Boolean(row['is_manual']);
   if (!isManual && sourceId) return { target: 'sources', id: sourceId };
   return { target: 'nodes', ...(id ? { id } : {}) };
 }

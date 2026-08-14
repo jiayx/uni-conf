@@ -445,23 +445,25 @@ export const RULE_TARGET_FOUNDATION_GROUP_IDS = ['builtin-proxy', 'builtin-direc
 
 export const DEFAULT_RULE_TARGET_GROUP_ID = RULE_TARGET_FOUNDATION_GROUP_IDS[0];
 
-const GLOBAL_NODE_OUTLET_GROUP_ID_SET = new Set<string>(GLOBAL_NODE_OUTLET_GROUP_IDS);
-const RULE_TARGET_FOUNDATION_GROUP_ID_SET = new Set<string>(RULE_TARGET_FOUNDATION_GROUP_IDS);
 const FOUNDATION_POLICY_GROUP_ID_SET = new Set<string>([
   ...RULE_TARGET_FOUNDATION_GROUP_IDS,
   ...GLOBAL_NODE_OUTLET_GROUP_IDS,
 ]);
 
+export function isWorkspaceEntityId(id: string, baseId: string): boolean {
+  return id === baseId || id.endsWith(`:${baseId}`);
+}
+
 export function isGlobalNodeOutletGroupId(id: string): boolean {
-  return GLOBAL_NODE_OUTLET_GROUP_ID_SET.has(id);
+  return GLOBAL_NODE_OUTLET_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId));
 }
 
 export function isRuleTargetFoundationGroupId(id: string): boolean {
-  return RULE_TARGET_FOUNDATION_GROUP_ID_SET.has(id);
+  return RULE_TARGET_FOUNDATION_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId));
 }
 
 export function isFoundationPolicyGroupId(id: string): boolean {
-  return FOUNDATION_POLICY_GROUP_ID_SET.has(id);
+  return [...FOUNDATION_POLICY_GROUP_ID_SET].some((baseId) => isWorkspaceEntityId(id, baseId));
 }
 
 export function isRuleTargetGroup(group: { id: string; collectionIds?: readonly string[] | null }): boolean {

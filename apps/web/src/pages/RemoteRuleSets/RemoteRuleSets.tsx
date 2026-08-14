@@ -25,6 +25,7 @@ import {
   DEFAULT_RULE_TARGET_GROUP_ID,
   FULL_CONFIG_EXPORT_FORMATS,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
+  isWorkspaceEntityId,
   isRuleTargetGroup,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
   resolveQuixoticRuleSetForExport as resolveQuixoticPresetSourceForExport,
@@ -133,7 +134,9 @@ export function RemoteRuleSets() {
   const ruleTargetGroups = groups.filter(isRuleTargetGroup)
   const enabledGroups = ruleTargetGroups.filter(group => group.enabled)
   const targetGroups = enabledGroups.length > 0 ? enabledGroups : ruleTargetGroups
-  const defaultTargetGroupId = DEFAULT_RULE_TARGET_GROUP_ID
+  const defaultTargetGroupId = targetGroups.find(group =>
+    isWorkspaceEntityId(group.id, DEFAULT_RULE_TARGET_GROUP_ID),
+  )?.id ?? targetGroups[0]?.id ?? ''
   const setsByTargetGroup = useMemo(() => groupSetsByTargetGroup(sets, groups), [groups, sets])
   const defaultExpandedGroupIds = useMemo(
     () => new Set(setsByTargetGroup.length <= 3 ? setsByTargetGroup.map(section => section.groupId) : []),

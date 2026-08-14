@@ -112,6 +112,21 @@ describe('Export', () => {
     expect(screen.queryByRole('link', { name: 'Import into Quantumult X' })).not.toBeInTheDocument()
   })
 
+  it('recognizes the default export profile in a custom workspace', async () => {
+    vi.mocked(api.export.listConfigs).mockResolvedValueOnce([{
+      ...configs[0]!,
+      id: 'workspace-id:default-mihomo',
+      workspaceId: 'workspace-id',
+    }])
+
+    render(<MemoryRouter><Export /></MemoryRouter>)
+
+    expect(await screen.findByText('Default Export')).toBeInTheDocument()
+    expect(screen.getByText('Quick Export Links')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Import into Loon' })).toBeInTheDocument()
+    expect(screen.queryByText('Advanced Export Profiles')).not.toBeInTheDocument()
+  })
+
   it('uses preview as the single diagnostic action for advanced profiles', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)

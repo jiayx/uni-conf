@@ -184,9 +184,13 @@ export interface NodeListParams {
   pageSize?: number
 }
 
+type NodeCreateFields = Omit<ProxyNode, 'id' | 'sourceId' | 'createdAt' | 'updatedAt'> & {
+  sourceId?: string
+}
+
 export type NodeCreateInput =
-  | (Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'> & { uri?: never })
-  | ({ uri: string } & Partial<Omit<ProxyNode, 'id' | 'createdAt' | 'updatedAt'>>)
+  | (NodeCreateFields & { uri?: never })
+  | ({ uri: string } & Partial<NodeCreateFields>)
 
 export interface NodeBatchEnabledResult {
   ids: string[]

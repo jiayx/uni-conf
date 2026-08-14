@@ -202,7 +202,9 @@ describe('routing policy group sync', () => {
     expect(isRuleTargetFoundationGroupId('builtin-proxy')).toBe(true);
     expect(isRuleTargetFoundationGroupId('builtin-direct')).toBe(true);
     expect(isRuleTargetFoundationGroupId('builtin-reject')).toBe(true);
+    expect(isRuleTargetFoundationGroupId('workspace-id:builtin-proxy')).toBe(true);
     expect(isFoundationPolicyGroupId('builtin-auto-select')).toBe(true);
+    expect(isFoundationPolicyGroupId('workspace-id:builtin-auto-select')).toBe(true);
     expect(isFoundationPolicyGroupId('builtin-ai')).toBe(false);
   });
 

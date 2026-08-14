@@ -58,7 +58,7 @@ describe('Nodes filters', () => {
     stores.nodes.nodes = [
       makeNode('hong-kong', 'Hong Kong Premium', 'hk.example.com', 'source-a', 'ss', 'HK', true),
       makeNode('tokyo', 'Tokyo Backup', 'jp.example.com', 'source-b', 'trojan', 'JP', false),
-      makeNode('manual', 'Home Relay', 'home.example.net', 'manual', 'socks5', 'US', true, true),
+      makeNode('manual', 'Home Relay', 'home.example.net', 'workspace-id:manual', 'socks5', 'US', true, true),
     ]
     apiMocks.getNode.mockImplementation(async (id: string) => stores.nodes.nodes.find(node => node.id === id))
     apiMocks.getNodeUri.mockImplementation(async (id: string) => ({ uri: `ss://standard-${id}` }))
@@ -80,6 +80,7 @@ describe('Nodes filters', () => {
     expect(screen.getByText('Hong Kong Premium')).toBeInTheDocument()
     expect(screen.getByText('Home Relay')).toBeInTheDocument()
     expect(screen.getByText('Showing 3 of 3 nodes')).toBeInTheDocument()
+    expect(within(screen.getByText('Home Relay').closest('tr')!).getByText('Manual')).toBeInTheDocument()
   })
 
   it('keeps effectively disabled nodes after enabled nodes', async () => {
@@ -161,6 +162,22 @@ describe('Nodes filters', () => {
     expect(within(dialog).getByRole('combobox', { name: 'Protocol' })).toHaveValue('ss')
   })
 
+  it('creates a manual node from a URI without a source id', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter initialEntries={['/nodes?create=1']}><Nodes /></MemoryRouter>)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Manual Entry' })
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Node URI' }),
+      'trojan://password@example.com:443#Example',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(stores.nodes.addNode).toHaveBeenCalledWith({
+      uri: 'trojan://password@example.com:443#Example',
+    })
+  })
+
   it('detects the country from a manual node name and allows one-field override', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter initialEntries={['/nodes?create=1']}><Nodes /></MemoryRouter>)
@@ -197,6 +214,9 @@ describe('Nodes filters', () => {
     expect(stores.nodes.addNode).toHaveBeenCalledWith(expect.objectContaining({
       country: 'Singapore',
       countryCode: 'SG',
+    }))
+    expect(stores.nodes.addNode).toHaveBeenCalledWith(expect.not.objectContaining({
+      sourceId: expect.anything(),
     }))
   })
 

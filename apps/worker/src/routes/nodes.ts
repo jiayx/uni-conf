@@ -152,9 +152,10 @@ app.post('/', async (c) => {
 
   const id = newId();
   const ts = now();
-  // Use 'manual' pseudo-source if no sourceId given
+  // Use the manual source in the active workspace when no source is specified.
   const manualSourceId = workspaceEntityId(workspaceId, 'manual');
-  const sourceId = input.sourceId ?? manualSourceId;
+  const requestedSourceId = input.sourceId?.trim();
+  const sourceId = requestedSourceId || manualSourceId;
 
   // Ensure manual source exists
   if (sourceId === manualSourceId) {

@@ -86,8 +86,8 @@ app.post('/', async (c) => {
 
   await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
-  const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapCollection(row!) }, 201);
@@ -151,8 +151,8 @@ app.post('/with-group', async (c) => {
   ]);
 
   const [collectionRow, groupRow] = await Promise.all([
-    c.env.DB.prepare('SELECT * FROM collections WHERE id = ?').bind(collectionId).first<Record<string, unknown>>(),
-    c.env.DB.prepare('SELECT * FROM groups WHERE id = ?').bind(groupId).first<Record<string, unknown>>(),
+    c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?').bind(collectionId, workspaceId).first<Record<string, unknown>>(),
+    c.env.DB.prepare('SELECT * FROM groups WHERE id = ? AND workspace_id = ?').bind(groupId, workspaceId).first<Record<string, unknown>>(),
   ]);
 
   return c.json({
@@ -167,9 +167,9 @@ app.post('/with-group', async (c) => {
 // ─── Get collection ───────────────────────────────────────────────────────────
 
 app.get('/:id', async (c) => {
-
-  const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
-    .bind(c.req.param('id'))
+  const workspaceId = requestWorkspaceId(c);
+  const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(c.req.param('id'), workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) return c.json({ success: false, error: 'Collection not found' }, 404);
@@ -180,8 +180,9 @@ app.get('/:id', async (c) => {
 
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
-    .bind(id)
+  const workspaceId = requestWorkspaceId(c);
+  const existing = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Collection not found' }, 404);
@@ -195,13 +196,11 @@ app.put('/:id', async (c) => {
     return c.json({ success: false, error: validation.error }, 400);
   }
   const ts = now();
-  const workspaceId = requestWorkspaceId(c);
-
   await c.env.DB.prepare(
     `UPDATE collections SET
       name = ?, source_ids = ?, node_ids = ?, filters = ?, renames = ?,
       dedup = ?, sort = ?, sort_country_order = ?, enabled = ?, notes = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   )
     .bind(
       validation.name ?? existing.name,
@@ -217,14 +216,15 @@ app.put('/:id', async (c) => {
       validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
       validation.notes !== undefined ? validation.notes : existing.notes,
       ts,
-      id
+      id,
+      workspaceId,
     )
     .run();
 
   await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
-  const updated = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
-    .bind(id)
+  const updated = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   return c.json({ success: true, data: mapCollection(updated!) });
@@ -234,8 +234,9 @@ app.put('/:id', async (c) => {
 
 app.put('/:id/with-group', async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
-    .bind(id)
+  const workspaceId = requestWorkspaceId(c);
+  const existing = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!existing) return c.json({ success: false, error: 'Collection not found' }, 404);
@@ -254,7 +255,7 @@ app.put('/:id/with-group', async (c) => {
 
   const effectiveName = collectionValidation.name ?? String(existing.name);
   const effectiveEnabled = collectionValidation.enabled ?? Boolean(existing.enabled);
-  const linkedGroup = await findDedicatedLinkedGroup(c.env.DB, id);
+  const linkedGroup = await findDedicatedLinkedGroup(c.env.DB, id, workspaceId);
   const groupId = linkedGroup ? String(linkedGroup.id) : newId();
   const groupValidation = validateLinkedGroupWrite(
     effectiveName,
@@ -268,16 +269,15 @@ app.put('/:id/with-group', async (c) => {
   }
 
   const ts = now();
-  const workspaceId = requestWorkspaceId(c);
   await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
   const statements = [
-    prepareCollectionUpdate(c.env.DB, id, existing, collectionValidation, ts),
+    prepareCollectionUpdate(c.env.DB, id, existing, collectionValidation, ts, workspaceId),
   ];
 
   if (linkedGroup) {
     statements.push(c.env.DB.prepare(
       `UPDATE groups SET name = ?, type = ?, collection_ids = ?, enabled = ?, updated_at = ?
-       WHERE id = ? AND is_builtin = 0`
+       WHERE id = ? AND workspace_id = ? AND is_builtin = 0`
     ).bind(
       groupValidation.name,
       groupValidation.type,
@@ -285,6 +285,7 @@ app.put('/:id/with-group', async (c) => {
       groupValidation.enabled ? 1 : 0,
       ts,
       groupId,
+      workspaceId,
     ));
   } else {
     const maxRow = await c.env.DB.prepare(
@@ -316,8 +317,8 @@ app.put('/:id/with-group', async (c) => {
   await c.env.DB.batch(statements);
 
   const [collectionRow, groupRow] = await Promise.all([
-    c.env.DB.prepare('SELECT * FROM collections WHERE id = ?').bind(id).first<Record<string, unknown>>(),
-    c.env.DB.prepare('SELECT * FROM groups WHERE id = ?').bind(groupId).first<Record<string, unknown>>(),
+    c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?').bind(id, workspaceId).first<Record<string, unknown>>(),
+    c.env.DB.prepare('SELECT * FROM groups WHERE id = ? AND workspace_id = ?').bind(groupId, workspaceId).first<Record<string, unknown>>(),
   ]);
   return c.json({
     success: true,
@@ -333,8 +334,8 @@ app.put('/:id/with-group', async (c) => {
 app.delete('/:id', async (c) => {
   const id = c.req.param('id');
   const workspaceId = requestWorkspaceId(c);
-  const row = await c.env.DB.prepare('SELECT id, notes FROM collections WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT id, notes FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<{ id: string; notes: string | null }>();
 
   if (!row) return c.json({ success: false, error: 'Collection not found' }, 404);
@@ -419,8 +420,8 @@ app.delete('/:id', async (c) => {
 app.get('/:id/preview', async (c) => {
   const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ?')
-    .bind(id)
+  const row = await c.env.DB.prepare('SELECT * FROM collections WHERE id = ? AND workspace_id = ?')
+    .bind(id, workspaceId)
     .first<Record<string, unknown>>();
 
   if (!row) return c.json({ success: false, error: 'Collection not found' }, 404);
@@ -617,12 +618,13 @@ function prepareCollectionUpdate(
   existing: Record<string, unknown>,
   validation: Extract<CollectionWriteValidation, { valid: true }>,
   timestamp: string,
+  workspaceId: string,
 ) {
   return db.prepare(
     `UPDATE collections SET
       name = ?, source_ids = ?, node_ids = ?, filters = ?, renames = ?,
       dedup = ?, sort = ?, sort_country_order = ?, enabled = ?, notes = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND workspace_id = ?`
   ).bind(
     validation.name ?? existing.name,
     validation.sourceIds !== undefined ? jsonStringify(validation.sourceIds) : existing.source_ids,
@@ -638,6 +640,7 @@ function prepareCollectionUpdate(
     validation.notes !== undefined ? validation.notes : existing.notes,
     timestamp,
     id,
+    workspaceId,
   );
 }
 
@@ -654,11 +657,12 @@ function parseStoredIdList(value: string | null): string[] {
 async function findDedicatedLinkedGroup(
   db: D1Database,
   collectionId: string,
+  workspaceId: string,
 ): Promise<Record<string, unknown> | null> {
   return db.prepare(
-    'SELECT * FROM groups WHERE is_builtin = 0 AND collection_ids = ? ORDER BY created_at ASC LIMIT 1'
+    'SELECT * FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ? ORDER BY created_at ASC LIMIT 1'
   )
-    .bind(jsonStringify([collectionId]))
+    .bind(workspaceId, jsonStringify([collectionId]))
     .first<Record<string, unknown>>();
 }
 
