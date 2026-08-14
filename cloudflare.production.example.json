@@ -1,0 +1,6 @@
+{
+  "allowedOrigin": "https://uni-conf.example.workers.dev",
+  "d1DatabaseName": "uni-conf-db",
+  "d1DatabaseId": "00000000-0000-0000-0000-000000000000",
+  "kvNamespaceId": "00000000000000000000000000000000"
+}

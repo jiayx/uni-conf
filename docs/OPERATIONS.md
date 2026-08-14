@@ -22,6 +22,8 @@ pnpm deploy:production
 
 `pnpm deploy:production` 会先应用 D1 migration，再部署 Worker 和管理页面。
 
+生产环境的 Origin、D1 和 KV 绑定保存在已被 Git 忽略的 `cloudflare.production.json` 中。首次部署从 `cloudflare.production.example.json` 复制并填写一次即可，后续发布不需要再次查询资源 ID。
+
 ## 修改管理端访问密钥
 
 在仓库根目录执行：

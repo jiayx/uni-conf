@@ -64,7 +64,7 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "uni-conf-db",
+          "database_name": "REPLACE_WITH_PRODUCTION_D1_NAME",
           "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
           "migrations_dir": "apps/worker/migrations"
         }

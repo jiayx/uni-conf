@@ -94,13 +94,22 @@ pnpm exec wrangler kv namespace create uni-conf-kv
 
 ### 3. 配置生产环境
 
-编辑根目录的 `wrangler.jsonc`，替换 production 中的三个占位符：
+复制本地生产配置：
 
-| 占位符                           | 填写内容                                                  |
-| -------------------------------- | --------------------------------------------------------- |
-| `REPLACE_WITH_PRODUCTION_ORIGIN` | 最终访问地址，例如 `https://uni-conf.example.workers.dev` |
-| `REPLACE_WITH_PRODUCTION_D1_ID`  | D1 的 `database_id`                                       |
-| `REPLACE_WITH_PRODUCTION_KV_ID`  | KV 的 `id`                                                |
+```bash
+cp cloudflare.production.example.json cloudflare.production.json
+```
+
+编辑 `cloudflare.production.json`：
+
+| 配置项             | 填写内容                                                  |
+| ------------------ | --------------------------------------------------------- |
+| `allowedOrigin`    | 最终访问地址，例如 `https://uni-conf.example.workers.dev` |
+| `d1DatabaseName`   | D1 的名称                                                 |
+| `d1DatabaseId`     | D1 的 `database_id`                                       |
+| `kvNamespaceId`    | KV 的 `id`                                                |
+
+该文件已被 Git 忽略，不会把账号专属的 Cloudflare 资源 ID 提交到公共仓库。发布命令会根据公共的 `wrangler.jsonc` 和这份本地配置生成同样被忽略的 `wrangler.production.local.jsonc`，以后无需重复查询或填写。
 
 访问地址只填写 Origin，即协议、主机名和可选端口，不包含路径，也不要带结尾 `/`。
 
@@ -156,7 +165,7 @@ unset UNICONF_API_KEY
 
 在 Cloudflare 控制台进入对应 Worker，打开域名与路由设置并添加自定义域名。
 
-然后将根目录 `wrangler.jsonc` 中 production 的 `ALLOWED_ORIGIN` 改为新的完整地址并重新部署：
+然后修改本地 `cloudflare.production.json` 中的 `allowedOrigin` 并重新部署：
 
 ```bash
 pnpm deploy:production
