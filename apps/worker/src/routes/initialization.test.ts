@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import initializationApp from './initialization'
-import { ensureZeroSetupDefaults } from '../services/zero-setup'
+import { ensureWorkspaceInitialized } from '../services/zero-setup'
 
 vi.mock('../services/zero-setup', () => ({
-  ensureZeroSetupDefaults: vi.fn(async () => ({ id: 'default-mihomo' })),
+  ensureWorkspaceInitialized: vi.fn(async () => undefined),
 }))
 
 describe('application initialization', () => {
@@ -11,10 +11,11 @@ describe('application initialization', () => {
 
   it('initializes zero-setup state through one explicit command', async () => {
     const db = {} as D1Database
-    const response = await initializationApp.request('/', { method: 'POST' }, { DB: db })
+    const kv = {} as KVNamespace
+    const response = await initializationApp.request('/', { method: 'POST' }, { DB: db, KV: kv })
 
     expect(response.status).toBe(200)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
+    expect(ensureWorkspaceInitialized).toHaveBeenCalledWith(db, kv, expect.any(String), 'default')
     await expect(response.json()).resolves.toEqual({
       success: true,
       data: { initialized: true },

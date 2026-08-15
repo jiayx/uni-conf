@@ -59,7 +59,6 @@ const NON_NULL_COLUMNS = {
 
 app.get('/export', async (c) => {
   const workspaceId = requestWorkspaceId(c)
-  await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId)
   const data: ExportPayload = {
     sources: [],
     nodes: [],

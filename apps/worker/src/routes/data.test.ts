@@ -11,7 +11,7 @@ describe('data reset defaults', () => {
     vi.mocked(ensureZeroSetupDefaults).mockReset()
   })
 
-  it('restores defaults before exporting data', async () => {
+  it('exports data without mutating defaults', async () => {
     const db = createMockDb()
 
     const response = await dataApp.request('/export', {}, { DB: db })
@@ -21,7 +21,7 @@ describe('data reset defaults', () => {
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('pragma')).toBe('no-cache')
     expect(response.headers.get('content-disposition')).toMatch(/^attachment; filename="uni-conf-backup-\d{4}-\d{2}-\d{2}\.json"$/)
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledOnce()
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
   })
 
   it('restores defaults after importing data', async () => {

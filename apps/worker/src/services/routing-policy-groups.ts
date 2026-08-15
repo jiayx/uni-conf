@@ -96,9 +96,12 @@ export async function syncRoutingPolicyGroups(
 
   await db.batch(
     routingGroupIds.map((id) =>
-      db
-        .prepare('UPDATE groups SET group_ids = ?, updated_at = ? WHERE id = ?')
-        .bind(jsonStringify(resolveRoutingMemberGroupIds(results, id, outletPreferences, autoCollectionKeysById)), ts, id)
+      {
+        const groupIds = jsonStringify(resolveRoutingMemberGroupIds(results, id, outletPreferences, autoCollectionKeysById));
+        return db
+          .prepare('UPDATE groups SET group_ids = ?, updated_at = ? WHERE id = ? AND workspace_id = ? AND group_ids IS NOT ?')
+          .bind(groupIds, ts, id, workspaceId, groupIds);
+      }
     )
   );
 }
@@ -274,8 +277,12 @@ async function ensureDefaultGeneratedGroups(
       workspaceId
     )
   );
-  const canonicalStatements = DEFAULT_GENERATED_GROUPS.map((group) =>
-    db.prepare(
+  const canonicalStatements = DEFAULT_GENERATED_GROUPS.map((group) => {
+    const collectionIds = jsonStringify(group.collectionIds.map((id) =>
+      id === DEFAULT_NODE_POOL_COLLECTION_ID ? defaultNodePoolId(workspaceId) : id
+    ));
+    const builtins = jsonStringify(group.builtins);
+    return db.prepare(
       `UPDATE groups SET
         name = ?,
         type = ?,
@@ -288,14 +295,17 @@ async function ensureDefaultGeneratedGroups(
         sort_order = ?,
         is_builtin = 1,
         updated_at = ?
-       WHERE id = ? AND workspace_id = ?`
+       WHERE id = ? AND workspace_id = ?
+         AND (
+           name IS NOT ? OR type IS NOT ? OR collection_ids IS NOT ? OR builtins IS NOT ?
+           OR test_url IS NOT ? OR interval IS NOT ? OR tolerance IS NOT ? OR lazy IS NOT ?
+           OR sort_order IS NOT ? OR is_builtin IS NOT 1
+         )`
     ).bind(
       group.name,
       group.type,
-      jsonStringify(group.collectionIds.map((id) =>
-        id === DEFAULT_NODE_POOL_COLLECTION_ID ? defaultNodePoolId(workspaceId) : id
-      )),
-      jsonStringify(group.builtins),
+      collectionIds,
+      builtins,
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
       DEFAULT_HEALTH_CHECK.tolerance,
@@ -304,8 +314,17 @@ async function ensureDefaultGeneratedGroups(
       ts,
       workspaceEntityId(workspaceId, group.id),
       workspaceId,
+      group.name,
+      group.type,
+      collectionIds,
+      builtins,
+      DEFAULT_HEALTH_CHECK.testUrl,
+      DEFAULT_HEALTH_CHECK.interval,
+      DEFAULT_HEALTH_CHECK.tolerance,
+      DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
+      group.sortOrder,
     )
-  );
+  });
 
   await db.batch(insertStatements);
   await db.batch(canonicalStatements);
@@ -317,16 +336,18 @@ async function applyActiveScenarios(db: D1Database, ts: string, workspaceId: str
   const scenarioGroupNames = resolveManagedScenarioGroupNames();
   const statements = DEFAULT_GENERATED_GROUPS
     .filter((group) => scenarioGroupNames.has(group.name.toUpperCase()))
-    .map((group) =>
-      db
-        .prepare('UPDATE groups SET enabled = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+    .map((group) => {
+      const enabled = activeNames.has(group.name.toUpperCase()) ? 1 : 0;
+      return db
+        .prepare('UPDATE groups SET enabled = ?, updated_at = ? WHERE id = ? AND workspace_id = ? AND enabled IS NOT ?')
         .bind(
-          activeNames.has(group.name.toUpperCase()) ? 1 : 0,
+          enabled,
           ts,
           workspaceEntityId(workspaceId, group.id),
           workspaceId,
+          enabled,
         )
-    );
+    });
 
   if (statements.length > 0) await db.batch(statements);
 }

@@ -90,19 +90,39 @@ export async function syncSourceLinkedRemoteRuleSets(
   if (candidates === null) return
   const candidateByKey = new Map(candidates.map(candidate => [candidate.key, candidate]))
   const { results } = await db.prepare(
-    `SELECT id, source_rule_set_key
+    `SELECT id, source_rule_set_key, url, format, behavior, update_interval, source_missing
      FROM remote_rule_sets
      WHERE source_id = ? AND workspace_id = ?`
-  ).bind(sourceId, workspaceId).all<{ id: string; source_rule_set_key: string | null }>()
+  ).bind(sourceId, workspaceId).all<{
+    id: string
+    source_rule_set_key: string | null
+    url: string
+    format: string
+    behavior: RuleSetBehavior
+    update_interval: number
+    source_missing: number | null
+  }>()
   if (results.length === 0) return
 
-  const statements: D1PreparedStatement[] = [
-    db.prepare('UPDATE remote_rule_sets SET source_missing = 1, updated_at = ? WHERE source_id = ? AND workspace_id = ?')
-      .bind(ts, sourceId, workspaceId),
-  ]
+  const statements: D1PreparedStatement[] = []
   for (const row of results) {
     const candidate = row.source_rule_set_key ? candidateByKey.get(row.source_rule_set_key) : undefined
-    if (!candidate) continue
+    if (!candidate) {
+      if (row.source_missing !== 1) {
+        statements.push(
+          db.prepare('UPDATE remote_rule_sets SET source_missing = 1, updated_at = ? WHERE id = ? AND source_id = ? AND source_missing IS NOT 1')
+            .bind(ts, row.id, sourceId),
+        )
+      }
+      continue
+    }
+    if (
+      row.url === candidate.url
+      && row.format === candidate.format
+      && row.behavior === candidate.behavior
+      && row.update_interval === candidate.updateInterval
+      && row.source_missing === 0
+    ) continue
     statements.push(
       db.prepare(
         `UPDATE remote_rule_sets SET
@@ -119,7 +139,7 @@ export async function syncSourceLinkedRemoteRuleSets(
       ),
     )
   }
-  await db.batch(statements)
+  if (statements.length > 0) await db.batch(statements)
 }
 
 function resolveProviderUrl(value: string, baseUrl?: string): string | null {

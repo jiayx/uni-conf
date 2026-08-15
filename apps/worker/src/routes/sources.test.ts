@@ -939,7 +939,7 @@ proxy-groups:
     }))
   })
 
-  it('initializes zero-setup defaults after a subscription refresh failure', async () => {
+  it('does not reconcile unrelated defaults after a subscription refresh failure', async () => {
     const db = createRefreshMockDb()
     const rawContent = 'not a usable proxy subscription'
     vi.stubGlobal('fetch', vi.fn(async () => ({
@@ -972,7 +972,7 @@ proxy-groups:
       expireTime: 1893456000,
       id: 'source-1',
     })
-    expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, expect.any(String), 'default')
+    expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
   })
 
   it('initializes zero-setup defaults after creating a subscription source', async () => {

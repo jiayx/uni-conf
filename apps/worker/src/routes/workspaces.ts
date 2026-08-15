@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Workspace } from '@uni-conf/types'
 import type { Env } from '../types'
 import { mapWorkspace, now } from '../db/helpers'
-import { ensureZeroSetupDefaults } from '../services/zero-setup'
+import { ensureWorkspaceInitialized, workspaceDefaultsKey } from '../services/zero-setup'
 import {
   DEFAULT_WORKSPACE_ID,
   normalizeWorkspaceId,
@@ -28,7 +28,7 @@ app.post('/', async (c) => {
     .prepare('INSERT INTO workspaces (id, name, is_default, created_at, updated_at) VALUES (?, ?, 0, ?, ?)')
     .bind(id, name, ts, ts)
     .run()
-  await ensureZeroSetupDefaults(c.env.DB, ts, id)
+  await ensureWorkspaceInitialized(c.env.DB, c.env.KV, ts, id)
 
   const row = await c.env.DB.prepare('SELECT * FROM workspaces WHERE id = ?').bind(id).first<Record<string, unknown>>()
   return c.json({ success: true, data: mapWorkspace(row!) }, 201)
@@ -62,6 +62,7 @@ app.delete('/:id', async (c) => {
   if (Number(result.meta?.changes ?? 0) === 0) {
     return c.json({ success: false, error: '配置空间不存在' }, 404)
   }
+  await c.env.KV.delete(workspaceDefaultsKey(id))
   return c.json({ success: true, data: null })
 })
 

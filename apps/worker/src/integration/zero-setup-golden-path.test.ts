@@ -12,6 +12,7 @@ import worker from '../index'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import { DEFAULT_NODE_POOL_COLLECTION_ID, EXPORT_FORMAT_FILENAMES } from '@uni-conf/shared'
+import { WORKSPACE_DEFAULTS_VERSION, workspaceDefaultsKey } from '../services/zero-setup'
 
 const require = createRequire(import.meta.url)
 const singboxSchema = JSON.parse(readFileSync(require.resolve('@black-duty/sing-box-schema/schema.json'), 'utf8')) as Record<string, unknown>
@@ -59,8 +60,10 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
       modules: true,
       script: 'export default { fetch() { return new Response("unused"); } };',
       d1Databases: ['DB'],
+      kvNamespaces: ['KV'],
     })
     const db = await mf.getD1Database('DB')
+    const kv = await mf.getKVNamespace('KV')
 
     const files = readdirSync(migrationsDir).filter((file) => file.endsWith('.sql')).sort()
     for (const file of files) {
@@ -68,7 +71,7 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
       await db.exec(toSingleLineStatements(sql))
     }
 
-    env = { DB: db, ENVIRONMENT: 'test' } as Env
+    env = { DB: db, KV: kv, ENVIRONMENT: 'test' } as Env
   }, 30000)
 
   afterAll(async () => {
@@ -101,6 +104,32 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
       assertExportShape(format, content)
     }
   }
+
+  it('initializes a fresh default workspace once and reuses the KV version marker', async () => {
+    const first = await request('/api/initialize', { method: 'POST' })
+    expect(first.status).toBe(200)
+
+    const exportConfigs = await (await request('/api/export/configs')).json() as {
+      data: Array<{ id: string; token: string }>
+    }
+    expect(exportConfigs.data).toHaveLength(1)
+    expect(exportConfigs.data[0]).toMatchObject({ id: 'default-mihomo' })
+
+    const groups = await (await request('/api/groups')).json() as { data: Array<{ id: string }> }
+    expect(groups.data.some(group => group.id === 'builtin-proxy')).toBe(true)
+    expect(groups.data.some(group => group.id === 'builtin-auto-select')).toBe(true)
+    await expect(env.KV.get(workspaceDefaultsKey('default'))).resolves.toBe(String(WORKSPACE_DEFAULTS_VERSION))
+
+    const before = await env.DB.prepare(
+      'SELECT id, token, updated_at FROM export_configs WHERE id = ? AND workspace_id = ?',
+    ).bind('default-mihomo', 'default').first<Record<string, unknown>>()
+    const second = await request('/api/initialize', { method: 'POST' })
+    expect(second.status).toBe(200)
+    const after = await env.DB.prepare(
+      'SELECT id, token, updated_at FROM export_configs WHERE id = ? AND workspace_id = ?',
+    ).bind('default-mihomo', 'default').first<Record<string, unknown>>()
+    expect(after).toEqual(before)
+  }, 30000)
 
   it('turns a single pasted config import into coherent downloads for every advertised format', async () => {
     // Miniflare/D1 startup and the full zero-setup chain can be slow under CI load.

@@ -97,12 +97,18 @@ async function ensureDefaultNodePoolCollection(db: D1Database, ts: string, works
   await db
     .prepare(
       `UPDATE collections SET
-        name = '默认节点池', source_ids = '[]', node_ids = '[]',
+       name = '默认节点池', source_ids = '[]', node_ids = '[]',
         filters = ?, renames = '[]', dedup = 'full_config', sort = 'name',
         sort_country_order = '[]', enabled = 1, notes = ?, updated_at = ?
-       WHERE id = ? AND workspace_id = ?`
+       WHERE id = ? AND workspace_id = ?
+         AND (
+           name IS NOT '默认节点池' OR source_ids IS NOT '[]' OR node_ids IS NOT '[]'
+           OR filters IS NOT ? OR renames IS NOT '[]' OR dedup IS NOT 'full_config'
+           OR sort IS NOT 'name' OR sort_country_order IS NOT '[]' OR enabled IS NOT 1
+           OR notes IS NOT ?
+         )`
     )
-    .bind(filters, DEFAULT_NODE_POOL_PREFIX, ts, collectionId, workspaceId)
+    .bind(filters, DEFAULT_NODE_POOL_PREFIX, ts, collectionId, workspaceId, filters, DEFAULT_NODE_POOL_PREFIX)
     .run();
 }
 
@@ -236,12 +242,18 @@ async function updateAutoCollection(
   await db
     .prepare(
       `UPDATE collections SET
-        name = ?, source_ids = '[]', node_ids = '[]', filters = ?, renames = '[]',
+       name = ?, source_ids = '[]', node_ids = '[]', filters = ?, renames = '[]',
         dedup = 'full_config', sort = 'name', sort_country_order = '[]',
         enabled = 1, notes = ?, updated_at = ?
-       WHERE id = ?`
+       WHERE id = ?
+         AND (
+           name IS NOT ? OR source_ids IS NOT '[]' OR node_ids IS NOT '[]'
+           OR filters IS NOT ? OR renames IS NOT '[]' OR dedup IS NOT 'full_config'
+           OR sort IS NOT 'name' OR sort_country_order IS NOT '[]' OR enabled IS NOT 1
+           OR notes IS NOT ?
+         )`
     )
-    .bind(name, jsonStringify(filters), marker, ts, id)
+    .bind(name, jsonStringify(filters), marker, ts, id, name, jsonStringify(filters), marker)
     .run();
 }
 
@@ -290,9 +302,10 @@ async function ensureLinkedGroup(
   ts: string,
   workspaceId: string,
 ): Promise<void> {
+  const collectionIds = jsonStringify([collectionId]);
   const row = await db
     .prepare(`SELECT id FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ? ORDER BY sort_order ASC LIMIT 1`)
-    .bind(workspaceId, jsonStringify([collectionId]))
+    .bind(workspaceId, collectionIds)
     .first<{ id: string }>();
 
   if (!row) {
@@ -305,18 +318,31 @@ async function ensureLinkedGroup(
       `UPDATE groups SET
         name = ?, type = ?, collection_ids = ?, group_ids = '[]', builtins = '[]',
         test_url = ?, interval = ?, tolerance = ?, lazy = ?, enabled = 1, updated_at = ?
-       WHERE id = ?`
+       WHERE id = ? AND workspace_id = ?
+         AND (
+           name IS NOT ? OR type IS NOT ? OR collection_ids IS NOT ?
+           OR group_ids IS NOT '[]' OR builtins IS NOT '[]' OR test_url IS NOT ?
+           OR interval IS NOT ? OR tolerance IS NOT ? OR lazy IS NOT ? OR enabled IS NOT 1
+         )`
     )
     .bind(
       name,
       type,
-      jsonStringify([collectionId]),
+      collectionIds,
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
       DEFAULT_HEALTH_CHECK.tolerance,
       DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
       ts,
-      row.id
+      row.id,
+      workspaceId,
+      name,
+      type,
+      collectionIds,
+      DEFAULT_HEALTH_CHECK.testUrl,
+      DEFAULT_HEALTH_CHECK.interval,
+      DEFAULT_HEALTH_CHECK.tolerance,
+      DEFAULT_HEALTH_CHECK.lazy ? 1 : 0,
     )
     .run();
 }

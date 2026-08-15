@@ -847,7 +847,6 @@ export async function recoverStaleSourceImportRuns(
 app.post('/:id/refresh', async (c) => {
   const workspaceId = requestWorkspaceId(c);
   const id = c.req.param('id');
-  const ts = now();
   try {
     const result = await refreshSourceById(c.env.DB, id, workspaceId);
     return c.json({ success: true, data: result });
@@ -856,7 +855,6 @@ app.post('/:id/refresh', async (c) => {
     if (!(err instanceof SourceRefreshError) || err.status >= 422) {
       await recordSourceRefreshError(c.env.DB, id, message);
     }
-    await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
     if (err instanceof SourceRefreshError) {
       return c.json({ success: false, error: err.message }, err.status);
     }
@@ -879,7 +877,8 @@ export class SourceRefreshError extends Error {
 export async function refreshSourceById(
   db: D1Database,
   id: string,
-  workspaceId = DEFAULT_WORKSPACE_ID
+  workspaceId = DEFAULT_WORKSPACE_ID,
+  options: { reconcileDefaults?: boolean } = {},
 ): Promise<SourceRefreshResult> {
   const row = await db.prepare('SELECT * FROM sources WHERE id = ? AND workspace_id = ?')
     .bind(id, workspaceId)
@@ -933,7 +932,9 @@ export async function refreshSourceById(
   await cacheFetchedSourceContent(db, id, rawContent, subscriptionInfo, ts);
   await syncSourceLinkedRemoteRuleSets(db, id, ts, workspaceId);
 
-  return applyParsedSourceContent(db, id, rawContent, subscriptionInfo, row.format, {}, workspaceId);
+  return applyParsedSourceContent(db, id, rawContent, subscriptionInfo, row.format, {
+    reconcileDefaults: options.reconcileDefaults,
+  }, workspaceId);
 }
 
 /**
@@ -953,7 +954,7 @@ export async function importSourceFromContent(
   // Preserve the raw content even if parsing below fails to find usable nodes.
   await cacheFetchedSourceContent(db, id, rawContent, {}, ts);
   await syncSourceLinkedRemoteRuleSets(db, id, ts, workspaceId);
-  return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput, options);
+  return applyParsedSourceContent(db, id, rawContent, {}, sourceFormatInput, options, workspaceId);
 }
 
 async function persistStructuredOnlySourceContent(
@@ -994,7 +995,11 @@ async function applyParsedSourceContent(
     expireTime?: number;
   },
   sourceFormatInput: unknown,
-  options: { nodeImportMode?: 'all' | 'new-only'; allowEmptyNewOnly?: boolean } = {},
+  options: {
+    nodeImportMode?: 'all' | 'new-only';
+    allowEmptyNewOnly?: boolean;
+    reconcileDefaults?: boolean;
+  } = {},
   workspaceId = DEFAULT_WORKSPACE_ID
 ): Promise<SourceRefreshResult> {
   // Detect format and parse nodes
@@ -1165,7 +1170,9 @@ async function applyParsedSourceContent(
   await db.batch(statements);
 
   await syncImportedSourceNodeGroups(db, id, parsedGroups, ts, workspaceId);
-  await ensureZeroSetupDefaults(db, ts, workspaceId);
+  if (options.reconcileDefaults !== false) {
+    await ensureZeroSetupDefaults(db, ts, workspaceId);
+  }
 
   return {
     sourceId: id,
