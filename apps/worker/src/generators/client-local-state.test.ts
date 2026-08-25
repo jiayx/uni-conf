@@ -141,6 +141,7 @@ describe('client-local state boundaries', () => {
     expect(stash).not.toHaveProperty('http')
     expect(stash).not.toHaveProperty('cron')
     expect(stash).not.toHaveProperty('script-providers')
+    expect(egern).not.toHaveProperty('block_quic')
     expect(egern).not.toHaveProperty('url_rewrites')
     expect(egern).not.toHaveProperty('scriptings')
     expect(egern).not.toHaveProperty('mitm')

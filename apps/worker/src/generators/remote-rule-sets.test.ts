@@ -157,6 +157,30 @@ describe('remote rule set generators', () => {
     expect(content).not.toContain('ai.srs');
   });
 
+  it('rejects UDP only after an unsupported final Mihomo proxy', () => {
+    const mihomo = generateMihomoYaml([], [proxyGroup], [matchRule], []);
+    const stash = generateStashYaml([], [proxyGroup], [matchRule], []);
+
+    expect(mihomo).not.toContain('DST-PORT,443)),REJECT');
+    expect(mihomo).toContain('  - MATCH,PROXY\n  - NETWORK,UDP,REJECT');
+
+    expect(stash).toContain('  - PROTOCOL,QUIC,REJECT');
+    expect(stash).toContain('  - MATCH,PROXY');
+    expect(stash).not.toContain('NETWORK,UDP,REJECT');
+    expect(stash.indexOf('  - PROTOCOL,QUIC,REJECT')).toBeLessThan(
+      stash.indexOf('  - MATCH,PROXY')
+    );
+
+    const directMatch = { ...matchRule, targetGroupId: directGroup.id };
+    const direct = generateMihomoYaml([], [directGroup], [directMatch], []);
+    expect(direct).toContain('  - MATCH,DIRECT');
+    expect(direct).not.toContain('NETWORK,UDP,REJECT');
+
+    const scopedProxyGroup = { ...proxyGroup, id: `workspace-1:${DEFAULT_RULE_TARGET_GROUP_ID}` };
+    const implicitMatch = generateMihomoYaml([], [scopedProxyGroup], [], []);
+    expect(implicitMatch).toContain('  - MATCH,PROXY\n  - NETWORK,UDP,REJECT');
+  });
+
   it('emits native MRS metadata for Mihomo rule providers', () => {
     const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [{
       ...remoteSet,

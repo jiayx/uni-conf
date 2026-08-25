@@ -189,6 +189,11 @@ export function generateMihomoYaml(
   const matchRule = enabledRules.find((r) => r.type === 'MATCH');
 
   lines.push('rules:');
+  // Stash can identify and reject application QUIC directly.
+  if (ruleSetExportFormat === 'stash') {
+    lines.push('  - PROTOCOL,QUIC,REJECT');
+  }
+
   for (const rule of enabledRules) {
     if (rule.type === 'MATCH') continue;
     const line = ruleToMihomo(rule, groups);
@@ -204,10 +209,16 @@ export function generateMihomoYaml(
 
   if (matchRule) {
     lines.push(`  - ${ruleToMihomo(matchRule, groups)!}`);
+    if (ruleSetExportFormat === 'mihomo' && isProxyRouteTarget(matchRule.targetGroupId, groups)) {
+      lines.push('  - NETWORK,UDP,REJECT');
+    }
   } else {
     const defaultTarget = defaultPolicyName(groups);
     if (defaultTarget) {
       lines.push(`  - MATCH,${defaultTarget}`);
+      if (ruleSetExportFormat === 'mihomo' && isProxyRouteTarget(DEFAULT_RULE_TARGET_GROUP_ID, groups)) {
+        lines.push('  - NETWORK,UDP,REJECT');
+      }
     } else {
       lines.push('  - MATCH,DIRECT');
     }
@@ -756,6 +767,11 @@ function ruleToMihomo(rule: ProxyRule, groups: ProxyGroup[]): string | null {
   if (resolution.level === 'unsupported') return null;
   const noResolve = rule.noResolve && getRuleNoResolveHandling(rule.type, 'mihomo') === 'native' ? ',no-resolve' : '';
   return `${resolution.type},${resolution.payload},${groupName}${noResolve}`;
+}
+
+function isProxyRouteTarget(groupId: string, groups: ProxyGroup[]): boolean {
+  const group = groups.find((item) => item.id === groupId || isWorkspaceEntityId(item.id, groupId));
+  return Boolean(group && !['direct', 'reject'].includes(group.type));
 }
 
 function defaultPolicyName(groups: ProxyGroup[]): string | undefined {

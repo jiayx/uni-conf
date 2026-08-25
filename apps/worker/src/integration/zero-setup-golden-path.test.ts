@@ -744,7 +744,10 @@ rule-providers:
 
     expect(Array.isArray(parsed.rules)).toBe(true)
     expect(parsed.rules.length).toBeGreaterThan(0)
-    expect(parsed.rules[parsed.rules.length - 1]).toContain('MATCH')
+    expect(parsed.rules.slice(-2)).toEqual([
+      expect.stringContaining('MATCH'),
+      'NETWORK,UDP,REJECT',
+    ])
 
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () => new Response('payload:\n  - +.golden-path.example.com\n')) as typeof fetch

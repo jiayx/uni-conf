@@ -211,7 +211,6 @@ export function generateEgern(
     socks_port: 3090,
     allow_external_connections: false,
     vif_only: false,
-    block_quic: false,
     close_connections_on_policy_change: false,
     bypass_tunnel_proxy: EGERN_BYPASS_TUNNEL_PROXY,
     real_ip_domains: inlineRealIpDomains(dnsPolicy, 'egern', options.managedRealIpDomains),
