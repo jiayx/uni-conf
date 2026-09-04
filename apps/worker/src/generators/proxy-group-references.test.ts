@@ -864,10 +864,12 @@ describe('proxy group references', () => {
     expect(withProxy).toMatchObject({ http_clients: [{ tag: 'ruleSetHttp', detour: 'PROXY' }], route: { default_http_client: 'ruleSetHttp' } })
     expect(withProxy.dns.final).toBe('proxyDns')
     expect(withProxy.route.rule_set.every((ruleSet) => ruleSet.http_client === 'ruleSetHttp')).toBe(true)
-    expect(withoutProxy.dns.servers.find((server) => server.tag === 'proxyDns')).toMatchObject({
-      detour: 'direct',
-    })
-    expect(withoutProxy).toMatchObject({ http_clients: [{ tag: 'ruleSetHttp', detour: 'direct' }], route: { default_http_client: 'ruleSetHttp' } })
+    expect(withoutProxy.dns.servers.find((server) => server.tag === 'proxyDns')).not.toHaveProperty('detour')
+    expect(withoutProxy).toMatchObject({ http_clients: [{ tag: 'ruleSetHttp' }], route: { default_http_client: 'ruleSetHttp' } })
+    expect(withoutProxy).toHaveProperty('http_clients', [{ tag: 'ruleSetHttp' }])
+    for (const config of [withProxy, withoutProxy]) {
+      expect(config.dns.servers.find((server) => server.tag === 'localDns')).not.toHaveProperty('detour')
+    }
     expect(withoutProxy.dns.final).toBe('localDns')
     expect(withoutProxy.route.rule_set.every((ruleSet) => ruleSet.http_client === 'ruleSetHttp')).toBe(true)
   })

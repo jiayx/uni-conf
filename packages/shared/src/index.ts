@@ -1845,9 +1845,12 @@ function decodeUrlPathname(pathname: string): string {
 }
 
 export function resolveQuixoticRuleSetForExport(id: string, format: string): { url: string; format: string } {
+  // Both presets contain the same CIDRs; these clients publish only cncidr.
+  // sing-box expresses the resolve variant through a separate route action.
+  const nativeId = id === 'cncidr-resolve' && ['singbox', 'quantumultx'].includes(format) ? 'cncidr' : id;
   const target = QUIXOTIC_FORMAT_PATHS[format] ?? QUIXOTIC_DEFAULT_FORMAT;
   return {
-    url: buildQuixoticRuleSetUrl(id, format),
+    url: buildQuixoticRuleSetUrl(nativeId, format),
     format: target.ruleSetFormat,
   };
 }

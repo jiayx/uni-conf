@@ -1,3 +1,4 @@
+import { splitOrderedRuleRows } from './rule-order'
 /**
  * Loon configuration generator
  * Generates a complete Loon .conf file
@@ -311,6 +312,7 @@ export function generateLoon(
   const dnsPolicy = options.dnsPolicy ?? DEFAULT_FAKE_IP_POLICY
   const lines: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
+  const { rules: orderedRules, finalRule } = splitOrderedRuleRows(rules)
 
   // [General]
   lines.push('[General]')
@@ -367,16 +369,11 @@ export function generateLoon(
 
   // [Rule]
   lines.push('[Rule]')
-  for (const rule of rules) {
-    if (!rule['enabled']) continue
+  for (const rule of orderedRules) {
     const line = ruleToLoon(rule, groups)
     if (line) lines.push(line)
   }
-  // Ensure FINAL rule exists
-  const hasFinal = rules.some((r) => Boolean(r['enabled']) && String(r['type']) === 'MATCH')
-  if (!hasFinal) {
-    lines.push(`FINAL, ${defaultPolicy(groups)}`)
-  }
+  lines.push(finalRule ? ruleToLoon(finalRule, groups)! : `FINAL, ${defaultPolicy(groups)}`)
   lines.push('')
 
   // [Remote Rule]

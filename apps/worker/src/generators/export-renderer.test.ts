@@ -105,7 +105,7 @@ describe('renderExportData', () => {
       ).toBe(true)
       expect(parsed).toMatchObject({
         $schema: 'https://sing-box.sagernet.org/schema.json',
-        http_clients: [{ tag: 'ruleSetHttp', detour: 'direct' }],
+        http_clients: [{ tag: 'ruleSetHttp' }],
         route: { default_domain_resolver: 'localDns', default_http_client: 'ruleSetHttp' },
       })
     }

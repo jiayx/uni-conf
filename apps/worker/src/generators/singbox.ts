@@ -38,7 +38,7 @@ export function generateSingboxJson(
   const endpoints = serializedNodes.flatMap((item) => (item.endpoint ? [item.endpoint] : []));
   const config = {
     $schema: 'https://sing-box.sagernet.org/schema.json',
-    http_clients: [{ tag: 'ruleSetHttp', detour: proxyDetour }],
+    http_clients: [{ tag: 'ruleSetHttp', ...(proxyDetour !== 'direct' ? { detour: proxyDetour } : {}) }],
     log: {
       level: 'warn',
       timestamp: true,
@@ -70,14 +70,13 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
       type: 'tls',
       tag: 'proxyDns',
       server: '8.8.8.8',
-      detour: proxyDetour,
+      ...(hasProxyDetour ? { detour: proxyDetour } : {}),
     },
     {
       type: 'https',
       tag: 'localDns',
       server: '223.5.5.5',
       path: '/dns-query',
-      detour: 'direct',
     },
   ];
   servers.push({
@@ -645,6 +644,11 @@ function buildRoute(
         update_interval: `${rs.updateInterval}h`,
       });
       ruleSetTags.add(safeName);
+    }
+    if (rs.presetSource === 'quixotic' && rs.presetId === 'cncidr-resolve') {
+      // Resolve only after earlier policies have had a chance to match. An
+      // explicit real-IP DNS server avoids resolving back into our FakeIP pool.
+      routeRules.push({ action: 'resolve', server: 'localDns', strategy: 'ipv4_only' });
     }
     routeRules.push({
       rule_set: [safeName],

@@ -10,6 +10,7 @@ import {
   getRuleNoResolveHandling,
 } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
+import { splitOrderedRuleRows } from './rule-order'
 import { collectGroupMembers } from './group-members'
 import { resolveRemoteRuleSetRowForExport } from './remote-rule-set-resolver'
 import type { ExportDnsPolicy, ProxyGroup, ProxyNode, ProxyRule, RemoteRuleSet } from '@uni-conf/types'
@@ -140,6 +141,7 @@ export function generateQuantumultX(
     '[policy]',
   ]
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
+  const { rules: orderedRules, finalRule } = splitOrderedRuleRows(rules)
 
   for (const group of exportPolicyGroups(groups)) {
     lines.push(groupToQuantumultX(group, groups, nodeNames, collectionNodeNames))
@@ -155,14 +157,11 @@ export function generateQuantumultX(
   }
 
   lines.push('', '[rewrite_remote]', '', '[server_local]', ...nodeLines, '', '[filter_local]')
-  for (const rule of rules) {
-    if (!rule['enabled']) continue
+  for (const rule of orderedRules) {
     const line = ruleToQuantumultX(rule, groups)
     if (line) lines.push(line)
   }
-  if (!hasEnabledMatchRule(rules)) {
-    lines.push(`FINAL,${defaultPolicy(groups)}`)
-  }
+  lines.push(finalRule ? ruleToQuantumultX(finalRule, groups)! : `FINAL,${defaultPolicy(groups)}`)
   lines.push('', '[rewrite_local]', '', '[task_local]', '', '[http_backend]', '', '[mitm]', '')
 
   return lines.join('\n')
@@ -180,6 +179,7 @@ export function generateEgern(
   const proxies = nodes.map(nodeToEgernProxy).filter((proxy): proxy is Record<string, unknown> => proxy !== null)
   const nodeNames = proxies.map(egernEntryName).filter(Boolean)
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
+  const { rules: orderedRules, finalRule } = splitOrderedRuleRows(rules)
   const remoteRules = sortedRemoteSets
     .filter((rs) => rs['enabled'])
     .map((rs) => ({
@@ -197,11 +197,9 @@ export function generateEgern(
         update_interval: Number(rs['update_interval'] ?? 24) * 3600,
       },
     }))
-  const localRules = rules
-    .filter((rule) => rule['enabled'])
+  const localRules = orderedRules
     .map((rule) => ruleToEgern(rule, groups))
     .filter((rule): rule is Record<string, unknown> => Boolean(rule))
-  const hasDefaultRule = rules.some((rule) => rule['enabled'] && String(rule['type']) === 'MATCH')
   const autoUpdateUrl = options.ruleSetConversionBaseUrl?.replace(/\/rules\/?$/, '/egern.yaml')
 
   const config = {
@@ -231,7 +229,7 @@ export function generateEgern(
     policy_groups: exportPolicyGroups(groups).map((group) =>
       groupToEgern(group, groups, nodeNames, collectionNodeNames),
     ),
-    rules: [...remoteRules, ...localRules, ...(hasDefaultRule ? [] : [{ default: { policy: defaultPolicy(groups) } }])],
+    rules: [...localRules, ...remoteRules, finalRule ? ruleToEgern(finalRule, groups)! : { default: { policy: defaultPolicy(groups) } }],
   }
 
   return yaml.dump(config, { lineWidth: -1, noRefs: true })
@@ -266,6 +264,7 @@ function buildIniConfig({
 }): string[] {
   const validNodes: string[] = []
   const sortedRemoteSets = sortRemoteRuleSetRows(remoteSets)
+  const { rules: orderedRules, finalRule } = splitOrderedRuleRows(rules)
   const lines: string[] = [...general, '[Proxy]']
   for (const node of nodes) {
     const line = nodeToIniProxy(node, client)
@@ -282,6 +281,10 @@ function buildIniConfig({
   }
 
   lines.push('', '[Rule]')
+  for (const rule of orderedRules) {
+    const line = ruleToIni(rule, groups, client, forceRemoteDns)
+    if (line) lines.push(line)
+  }
   for (const rs of sortedRemoteSets) {
     if (!rs['enabled']) continue
     const resolved = resolveRemoteRuleSetRowForExport(rs, client, ruleSetConversionBaseUrl)
@@ -289,14 +292,7 @@ function buildIniConfig({
     const target = resolveGroupName(String(rs['target_group_id'] ?? ''), groups)
     lines.push(`RULE-SET,${resolved.url},${target}`)
   }
-  for (const rule of rules) {
-    if (!rule['enabled']) continue
-    const line = ruleToIni(rule, groups, client, forceRemoteDns)
-    if (line) lines.push(line)
-  }
-  if (!hasEnabledMatchRule(rules)) {
-    lines.push(`FINAL,${defaultPolicy(groups)}`)
-  }
+  lines.push(finalRule ? ruleToIni(finalRule, groups, client, forceRemoteDns)! : `FINAL,${defaultPolicy(groups)}`)
   lines.push('', '[Host]', ...(host ?? []))
   for (const section of trailingSections) lines.push('', section)
   lines.push('')
@@ -1332,10 +1328,6 @@ function isNativeOutletGroup(group: Row): boolean {
 function defaultPolicy(groups: Row[]): string {
   const group = groups.find((item) => isWorkspaceEntityId(String(item['id']), DEFAULT_RULE_TARGET_GROUP_ID))
   return group ? nativePolicyName(group) : 'DIRECT'
-}
-
-function hasEnabledMatchRule(rules: Row[]): boolean {
-  return rules.some((rule) => Boolean(rule['enabled']) && String(rule['type']) === 'MATCH')
 }
 
 function sortRemoteRuleSetRows(remoteSets: Row[]): Row[] {

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import * as yaml from 'js-yaml';
-import { DEFAULT_RULE_TARGET_GROUP_ID } from '@uni-conf/shared';
+import { DEFAULT_RULE_TARGET_GROUP_ID, resolveQuixoticRuleSetForExport } from '@uni-conf/shared';
 import type { ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { generateMihomoYaml } from './mihomo';
 import { generateSingboxJson } from './singbox';
 import { generateEgern, generateQuantumultX, generateShadowrocket, generateStashYaml, generateSurge } from './client-configs';
 import { generateLoon } from './loon';
+import { resolveRuleSetConversionSource } from '../services/rule-set-conversion';
+import { bundledRuleSetCatalogSnapshot } from '../generated/rule-set-catalogs';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
@@ -138,10 +140,70 @@ function ruleRow(rule: ProxyRule): Record<string, unknown> {
     target_group_id: rule.targetGroupId,
     enabled: rule.enabled ? 1 : 0,
     no_resolve: rule.noResolve ? 1 : 0,
+    sort_order: rule.order,
   };
 }
 
 describe('remote rule set generators', () => {
+  it('keeps manual overrides ordered before remote policies and fallback in every full-config client', () => {
+    const first = { ...matchRule, id: 'first', type: 'DOMAIN' as const, payload: 'first.example', order: 10 };
+    const second = { ...first, id: 'second', payload: 'second.example', order: 20 };
+    const fallback = { ...matchRule, order: 0 };
+    const rules = [fallback, second, first];
+    const rows = rules.map(ruleRow);
+    for (const render of [generateMihomoYaml, generateStashYaml]) {
+      const config = yaml.load(render([], [proxyGroup, directGroup], rules, [quixoticPresetSet])) as { rules: string[] };
+      const firstIndex = config.rules.findIndex(rule => rule.includes('first.example'));
+      const secondIndex = config.rules.findIndex(rule => rule.includes('second.example'));
+      const remoteIndex = config.rules.findIndex(rule => rule.startsWith('RULE-SET,AI,'));
+      const finalIndex = config.rules.findIndex(rule => rule.startsWith('MATCH,'));
+      expect(firstIndex).toBeGreaterThanOrEqual(0);
+      expect(secondIndex).toBeGreaterThan(firstIndex);
+      expect(remoteIndex).toBeGreaterThan(secondIndex);
+      expect(finalIndex).toBeGreaterThan(remoteIndex);
+    }
+    const singbox = JSON.parse(generateSingboxJson([], [proxyGroup, directGroup], rules, [quixoticPresetSet]));
+    const sbRules = singbox.route.rules as Array<Record<string, unknown>>;
+    expect(sbRules.findIndex(rule => (rule.domain as string[] | undefined)?.includes('first.example')))
+      .toBeLessThan(sbRules.findIndex(rule => (rule.domain as string[] | undefined)?.includes('second.example')));
+    expect(sbRules.at(-1)).toMatchObject({ rule_set: ['AI'] });
+    expect(singbox.route.final).toBe('PROXY');
+
+    const remoteRow = { ...quixoticPresetSet, enabled: 1, target_group_id: directGroup.id, preset_source: 'quixotic', preset_id: 'ai', sort_order: 5 };
+    for (const render of [generateSurge, generateShadowrocket]) {
+      const section = render([], groupRows, rows, [remoteRow]).split('[Rule]')[1]!.split('[Host]')[0]!;
+      expect(section.indexOf('first.example')).toBeGreaterThanOrEqual(0);
+      expect(section.indexOf('second.example')).toBeGreaterThan(section.indexOf('first.example'));
+      expect(section.indexOf('RULE-SET,')).toBeGreaterThan(section.indexOf('second.example'));
+      expect(section.trim().split('\n').at(-1)).toBe('FINAL,PROXY');
+    }
+    for (const [render, local, remote] of [
+      [generateLoon, '[Rule]', '[Remote Rule]'],
+      [generateQuantumultX, '[filter_local]', '[filter_remote]'],
+    ] as const) {
+      const config = render([], groupRows, rows, [remoteRow]);
+      const section = config.split(local)[1]!.split('\n[')[0]!;
+      expect(section.indexOf('first.example')).toBeGreaterThanOrEqual(0);
+      expect(section.indexOf('second.example')).toBeGreaterThan(section.indexOf('first.example'));
+      expect(section.trim().split('\n').at(-1)?.replaceAll(' ', '')).toBe('FINAL,PROXY');
+      expect(config.split(remote)[1]!.split('\n[')[0]).toContain('/ai.list');
+    }
+    const egern = yaml.load(generateEgern([], groupRows, rows, [remoteRow])) as { rules: Array<Record<string, unknown>> };
+    expect(egern.rules).toMatchObject([
+      { domain: { match: 'first.example' } },
+      { domain: { match: 'second.example' } },
+      { rule_set: { policy: 'DIRECT' } },
+      { default: { policy: 'PROXY' } },
+    ]);
+  });
+
+  it('uses the published Quantumult X China IP file for both presets', () => {
+    expect(resolveQuixoticRuleSetForExport('cncidr-resolve', 'quantumultx')).toEqual(
+      resolveQuixoticRuleSetForExport('cncidr', 'quantumultx')
+    );
+    expect(resolveQuixoticRuleSetForExport('cncidr-resolve', 'quantumultx').url).toContain('/quantumultx/cncidr.list');
+  });
+
   it('routes Mihomo remote rule sets before MATCH', () => {
     const content = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet]);
 
@@ -414,6 +476,45 @@ describe('remote rule set generators', () => {
     );
 
     expect(stash).toContain(`${conversionBaseUrl}/remote-singbox/mihomo.yaml?for=stash`);
+  });
+
+  it('reuses native China IP data and resolves only at the China IP Resolve policy', () => {
+    const plain = { ...quixoticPresetSet, id: 'china-ip', presetId: 'cncidr', name: 'China IP', sortOrder: 1 };
+    const resolving = { ...plain, id: 'china-ip-resolve', presetId: 'cncidr-resolve', name: 'China IP Resolve', sortOrder: 3 };
+    const domainPolicy = { ...quixoticPresetSet, sortOrder: 2 };
+    expect(resolveRuleSetConversionSource(resolving, 'singbox')).toBeNull();
+    const config = JSON.parse(generateSingboxJson([], [proxyGroup, directGroup], [matchRule], [resolving, domainPolicy, plain]));
+    for (const tag of ['China_IP', 'China_IP_Resolve']) {
+      expect(config.route.rule_set).toContainEqual(expect.objectContaining({
+        tag,
+        format: 'binary',
+        url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/cncidr.srs',
+      }));
+    }
+    const rules = config.route.rules as Array<Record<string, unknown>>;
+    const plainIndex = rules.findIndex(rule => (rule.rule_set as string[] | undefined)?.includes('China_IP'));
+    const resolvingIndex = rules.findIndex(rule => (rule.rule_set as string[] | undefined)?.includes('China_IP_Resolve'));
+    expect(rules.slice(0, plainIndex + 1).some(rule => rule.action === 'resolve')).toBe(false);
+    expect(rules[resolvingIndex - 1]).toEqual({ action: 'resolve', server: 'localDns', strategy: 'ipv4_only' });
+    expect(rules[plainIndex + 1]).toMatchObject({ rule_set: ['AI'] });
+    expect(resolvingIndex).toBe(plainIndex + 3);
+
+    const disabled = JSON.parse(generateSingboxJson([], [proxyGroup], [], [{ ...resolving, enabled: false }, plain]));
+    expect(disabled.route.rules.some((rule: Record<string, unknown>) => rule.action === 'resolve')).toBe(false);
+  });
+
+  it('maps every bundled Quixotic preset to a catalogued native sing-box resource', () => {
+    const catalog = bundledRuleSetCatalogSnapshot.catalogs.find(item => item.id === 'quixotic')!;
+    for (const preset of catalog.items) {
+      const nativePreset = preset.id === 'cncidr-resolve'
+        ? catalog.items.find(item => item.id === 'cncidr')!
+        : preset;
+      const nativeSource = nativePreset.sources.find(source => source.format === 'singbox');
+      expect(nativeSource, `${preset.id} needs a verified native source or an explicit mapping`).toBeDefined();
+      const resolved = resolveQuixoticRuleSetForExport(preset.id, 'singbox');
+      expect(resolved.format).toBe('singbox');
+      expect(resolved.url.replace('/refs/heads/', '/')).toBe(nativeSource!.url);
+    }
   });
 
   it('resolves Quixotic presets to the current export format', () => {
