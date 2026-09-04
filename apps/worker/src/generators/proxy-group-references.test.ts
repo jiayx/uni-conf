@@ -861,13 +861,15 @@ describe('proxy group references', () => {
     expect(withProxy.dns.servers.find((server) => server.tag === 'proxyDns')).toMatchObject({
       detour: 'PROXY',
     })
+    expect(withProxy).toMatchObject({ http_clients: [{ tag: 'ruleSetHttp', detour: 'PROXY' }], route: { default_http_client: 'ruleSetHttp' } })
     expect(withProxy.dns.final).toBe('proxyDns')
-    expect(withProxy.route.rule_set.every((ruleSet) => ruleSet.download_detour === 'PROXY')).toBe(true)
+    expect(withProxy.route.rule_set.every((ruleSet) => ruleSet.http_client === 'ruleSetHttp')).toBe(true)
     expect(withoutProxy.dns.servers.find((server) => server.tag === 'proxyDns')).toMatchObject({
       detour: 'direct',
     })
+    expect(withoutProxy).toMatchObject({ http_clients: [{ tag: 'ruleSetHttp', detour: 'direct' }], route: { default_http_client: 'ruleSetHttp' } })
     expect(withoutProxy.dns.final).toBe('localDns')
-    expect(withoutProxy.route.rule_set.every((ruleSet) => ruleSet.download_detour === 'direct')).toBe(true)
+    expect(withoutProxy.route.rule_set.every((ruleSet) => ruleSet.http_client === 'ruleSetHttp')).toBe(true)
   })
 
   it('uses the shared default health check settings for sing-box urltest groups', () => {
@@ -1031,7 +1033,7 @@ describe('proxy group references', () => {
     })
   })
 
-  it('exports WireGuard nodes as sing-box 1.13 endpoints', () => {
+  it('exports WireGuard nodes as sing-box 1.14.0 endpoints', () => {
     const singbox = JSON.parse(generateSingboxJson([wireguardNode], [], [], [])) as {
       endpoints?: Array<Record<string, unknown>>
       outbounds: Array<Record<string, unknown>>

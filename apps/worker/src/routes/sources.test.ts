@@ -258,7 +258,7 @@ rule-providers:
     })
   })
 
-  it('imports sing-box 1.13 WireGuard endpoints into the unified node model', () => {
+  it('imports sing-box 1.14.0 WireGuard endpoints into the unified node model', () => {
     const result = detectAndParse(JSON.stringify({
       endpoints: [{
         type: 'wireguard',

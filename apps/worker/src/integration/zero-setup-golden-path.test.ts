@@ -2,8 +2,7 @@
 
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createRequire } from 'node:module'
+import { fileURLToPath, URL } from 'node:url'
 import { load as parseYAML } from 'js-yaml'
 import Ajv2020 from 'ajv/dist/2020'
 import { Miniflare } from 'miniflare'
@@ -14,24 +13,9 @@ import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import { DEFAULT_NODE_POOL_COLLECTION_ID, EXPORT_FORMAT_FILENAMES } from '@uni-conf/shared'
 import { WORKSPACE_DEFAULTS_VERSION, workspaceDefaultsKey } from '../services/zero-setup'
 
-const require = createRequire(import.meta.url)
-const singboxSchema = JSON.parse(readFileSync(require.resolve('@black-duty/sing-box-schema/schema.json'), 'utf8')) as Record<string, unknown>
-// The published 2020-12 document carries legacy nested `id` metadata keys.
-// Remove only those string metadata values so local refs continue to resolve
-// against the root document.
-removeLegacySchemaIds(singboxSchema)
+const singboxSchema = JSON.parse(readFileSync(new URL('../../../../packages/types/schemas/sing-box.json', import.meta.url), 'utf8')) as Record<string, unknown>
 const validateSingbox = new Ajv2020({ strict: false }).compile(singboxSchema)
 
-function removeLegacySchemaIds(value: unknown): void {
-  if (!value || typeof value !== 'object') return
-  if (Array.isArray(value)) {
-    for (const item of value) removeLegacySchemaIds(item)
-    return
-  }
-  const record = value as Record<string, unknown>
-  if (typeof record.id === 'string') delete record.id
-  for (const child of Object.values(record)) removeLegacySchemaIds(child)
-}
 
 const migrationsDir = fileURLToPath(new URL('../../migrations', import.meta.url).toString())
 

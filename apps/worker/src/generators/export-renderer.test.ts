@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { URL } from 'node:url'
 import { createRequire } from 'node:module'
 import Ajv from 'ajv'
 import Ajv2020 from 'ajv/dist/2020'
@@ -20,9 +21,8 @@ const mihomoSchema = JSON.parse(
 ) as Record<string, unknown>
 const validateMihomoSchema = new Ajv({ strict: false }).compile(mihomoSchema)
 const singboxSchema = JSON.parse(
-  readFileSync(require.resolve('@black-duty/sing-box-schema/schema.json'), 'utf8')
+  readFileSync(new URL('../../../../packages/types/schemas/sing-box.json', import.meta.url), 'utf8')
 ) as Record<string, unknown>
-removeLegacySchemaIds(singboxSchema)
 const validateSingboxSchema = new Ajv2020({ strict: false }).compile(singboxSchema)
 
 describe('renderExportData', () => {
@@ -93,7 +93,7 @@ describe('renderExportData', () => {
     }
   })
 
-  it('matches the stable sing-box 1.13 schema for every advertised node protocol', () => {
+  it('matches the stable sing-box 1.14.0 schema for every advertised node protocol', () => {
     for (const protocol of Object.keys(PROXY_PROTOCOL_REGISTRY) as ProxyProtocol[]) {
       if (!isNodeProtocolSupportedByExport(protocol, 'singbox')) continue
       const rendered = renderExportData(makeExportData(protocol), 'singbox')
@@ -104,7 +104,9 @@ describe('renderExportData', () => {
         `${protocol}: ${JSON.stringify(validateSingboxSchema.errors)}`
       ).toBe(true)
       expect(parsed).toMatchObject({
-        route: { default_domain_resolver: 'localDns' },
+        $schema: 'https://sing-box.sagernet.org/schema.json',
+        http_clients: [{ tag: 'ruleSetHttp', detour: 'direct' }],
+        route: { default_domain_resolver: 'localDns', default_http_client: 'ruleSetHttp' },
       })
     }
   })
@@ -198,7 +200,7 @@ describe('renderExportData', () => {
     ])
   })
 
-  it('matches the stable sing-box 1.13 schema for source and process rule fields', () => {
+  it('matches the stable sing-box 1.14.0 schema for source and process rule fields', () => {
     const data = makeExportData()
     const rules: Array<[ProxyRule['type'], string]> = [
       ['SRC-IP-CIDR', '10.0.0.0/8'],
@@ -382,7 +384,7 @@ function makeNode(protocol: ProxyProtocol = 'ss'): ProxyNode {
       uuid: '00000000-0000-4000-8000-000000000001',
       tls: protocol === 'vless',
       extra: {
-        cipher: 'aes-256-gcm',
+        cipher: protocol === 'vmess' ? 'aes-128-gcm' : 'aes-256-gcm',
         username: 'user',
         privateKey: 'private-key',
         publicKey: 'public-key',
@@ -450,16 +452,6 @@ function renderedContainsNode(format: ExportFormat, content: string, server: str
   return content.includes(server)
 }
 
-function removeLegacySchemaIds(value: unknown): void {
-  if (!value || typeof value !== 'object') return
-  if (Array.isArray(value)) {
-    for (const item of value) removeLegacySchemaIds(item)
-    return
-  }
-  const record = value as Record<string, unknown>
-  if (typeof record.id === 'string') delete record.id
-  for (const child of Object.values(record)) removeLegacySchemaIds(child)
-}
 
 function makeGroup(): ProxyGroup {
   return {

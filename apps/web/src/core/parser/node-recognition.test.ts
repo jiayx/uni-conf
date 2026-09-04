@@ -97,7 +97,7 @@ describe('frontend parser node recognition', () => {
     expect(detectFormat('not a subscription')).toBe('unknown')
   })
 
-  it('parses sing-box 1.13 WireGuard endpoints with the shared normalizer', () => {
+  it('parses sing-box 1.14.0 WireGuard endpoints with the shared normalizer', () => {
     const nodes = parseSingboxConfig(JSON.stringify({
       endpoints: [{
         type: 'wireguard',

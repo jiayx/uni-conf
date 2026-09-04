@@ -37,6 +37,8 @@ export function generateSingboxJson(
   const serializedNodes = serializeSingboxNodes(nodes);
   const endpoints = serializedNodes.flatMap((item) => (item.endpoint ? [item.endpoint] : []));
   const config = {
+    $schema: 'https://sing-box.sagernet.org/schema.json',
+    http_clients: [{ tag: 'ruleSetHttp', detour: proxyDetour }],
     log: {
       level: 'warn',
       timestamp: true,
@@ -45,7 +47,7 @@ export function generateSingboxJson(
     inbounds: buildInbounds(),
     ...(endpoints.length > 0 ? { endpoints } : {}),
     outbounds: buildOutbounds(serializedNodes, groups, collectionNodeNames),
-    route: buildRoute(rules, groups, remoteSets, proxyDetour, dnsPolicy, options.ruleSetConversionBaseUrl),
+    route: buildRoute(rules, groups, remoteSets, options.ruleSetConversionBaseUrl),
     experimental: {
       cache_file: {
         enabled: true,
@@ -558,8 +560,6 @@ function buildRoute(
   rules: ProxyRule[],
   groups: ProxyGroup[],
   remoteSets: RemoteRuleSet[],
-  proxyDetour: string,
-  dnsPolicy: ExportDnsPolicy,
   ruleSetConversionBaseUrl?: string
 ): object {
   const routeRules: object[] = [];
@@ -592,8 +592,8 @@ function buildRoute(
 
   // Rule sets
   const ruleSets: object[] = [
-    buildSingboxGeositeRuleSet('geosite-cn', proxyDetour),
-    buildSingboxGeositeRuleSet('geosite-geolocation-!cn', proxyDetour),
+    buildSingboxGeositeRuleSet('geosite-cn'),
+    buildSingboxGeositeRuleSet('geosite-geolocation-!cn'),
   ];
   const ruleSetTags = new Set(['geosite-cn', 'geosite-geolocation-!cn']);
 
@@ -602,19 +602,19 @@ function buildRoute(
     type: 'remote',
     format: 'binary',
     url: QUIXOTIC_FAKE_IP_FILTER_SRS_URL,
-    download_detour: proxyDetour,
+    http_client: 'ruleSetHttp',
     update_interval: '24h',
   });
   ruleSetTags.add(MANAGED_FAKE_IP_FILTER_TAG);
 
   for (const tag of collectGeositeRuleSetTags(enabledRules)) {
     if (ruleSetTags.has(tag)) continue;
-    ruleSets.push(buildSingboxGeositeRuleSet(tag, proxyDetour));
+    ruleSets.push(buildSingboxGeositeRuleSet(tag));
     ruleSetTags.add(tag);
   }
   for (const tag of collectGeoipRuleSetTags(enabledRules)) {
     if (ruleSetTags.has(tag)) continue;
-    ruleSets.push(buildSingboxGeoipRuleSet(tag, proxyDetour));
+    ruleSets.push(buildSingboxGeoipRuleSet(tag));
     ruleSetTags.add(tag);
   }
 
@@ -641,7 +641,7 @@ function buildRoute(
         type: 'remote',
         format: resolved.format === 'singbox' && !resolved.converted ? 'binary' : 'source',
         url: resolved.url,
-        download_detour: proxyDetour,
+        http_client: 'ruleSetHttp',
         update_interval: `${rs.updateInterval}h`,
       });
       ruleSetTags.add(safeName);
@@ -662,8 +662,8 @@ function buildRoute(
     rule_set: ruleSets,
     ...('outbound' in finalTarget ? { final: finalTarget.outbound } : {}),
     auto_detect_interface: true,
-    override_android_vpn: true,
     default_domain_resolver: 'localDns',
+    default_http_client: 'ruleSetHttp',
   };
 }
 
@@ -695,24 +695,24 @@ function collectGeoipRuleSetTags(rules: ProxyRule[]): string[] {
     .filter((tag) => tag !== 'geoip-');
 }
 
-function buildSingboxGeositeRuleSet(tag: string, proxyDetour: string): object {
+function buildSingboxGeositeRuleSet(tag: string): object {
   return {
     tag,
     type: 'remote',
     format: 'binary',
     url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/${tag}.srs`,
-    download_detour: proxyDetour,
+    http_client: 'ruleSetHttp',
     update_interval: '1d',
   };
 }
 
-function buildSingboxGeoipRuleSet(tag: string, proxyDetour: string): object {
+function buildSingboxGeoipRuleSet(tag: string): object {
   return {
     tag,
     type: 'remote',
     format: 'binary',
     url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/${tag}.srs`,
-    download_detour: proxyDetour,
+    http_client: 'ruleSetHttp',
     update_interval: '1d',
   };
 }

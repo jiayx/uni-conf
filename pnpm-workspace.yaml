@@ -28,7 +28,3 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - workerd
-
-peerDependencyRules:
-  allowedVersions:
-    '@black-duty/sing-box-schema>typescript': '>=5 <8'

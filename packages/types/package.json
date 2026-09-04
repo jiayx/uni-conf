@@ -14,10 +14,10 @@
     "typecheck": "pnpm check:protocols && tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "json-schema-to-typescript": "^15.0.4"
   },
   "dependencies": {
-    "@black-duty/sing-box-schema": "1.13.13",
     "meta-json-schema": "1.19.29"
   }
 }

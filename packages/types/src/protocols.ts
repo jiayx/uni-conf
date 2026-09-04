@@ -1,18 +1,5 @@
-import type {
-  AnyTLSOutboundOptions,
-  DirectOutboundOptions,
-  HTTPOutboundOptions,
-  Hysteria2OutboundOptions,
-  HysteriaOutboundOptions,
-  ShadowsocksOutboundOptions,
-  ShadowTLSOutboundOptions,
-  SocksOutboundOptions,
-  SSHOutboundOptions,
-  TrojanOutboundOptions,
-  TUICOutboundOptions,
-  VLESSOutboundOptions,
-  VMessOutboundOptions,
-} from '@black-duty/sing-box-schema'
+import type { SingboxNativeOutbound } from './generated/singbox'
+export type { SingboxNativeOutbound } from './generated/singbox'
 export { GENERATED_PROTOCOL_SCHEMA_METADATA } from './generated/protocol-schema-metadata'
 
 export const PROXY_PROTOCOL_REGISTRY = {
@@ -206,21 +193,6 @@ export type ProxyProtocol = keyof typeof PROXY_PROTOCOL_REGISTRY
 export type MainstreamProxyProtocol = {
   [K in ProxyProtocol]: (typeof PROXY_PROTOCOL_REGISTRY)[K]['mainstream'] extends true ? K : never
 }[ProxyProtocol]
-
-export type SingboxNativeOutbound =
-  | AnyTLSOutboundOptions
-  | DirectOutboundOptions
-  | HTTPOutboundOptions
-  | HysteriaOutboundOptions
-  | Hysteria2OutboundOptions
-  | ShadowsocksOutboundOptions
-  | ShadowTLSOutboundOptions
-  | SocksOutboundOptions
-  | SSHOutboundOptions
-  | TrojanOutboundOptions
-  | TUICOutboundOptions
-  | VLESSOutboundOptions
-  | VMessOutboundOptions
 
 export type MihomoNativeProxy = Record<string, unknown> & {
   name: string

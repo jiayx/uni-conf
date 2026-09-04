@@ -1,18 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
+import { compile } from 'json-schema-to-typescript'
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(import.meta.dirname, '..')
 const outFile = path.join(root, 'src/generated/protocol-schema-metadata.ts')
 
-const singboxSchemaPath = require.resolve('@black-duty/sing-box-schema/schema.json')
+const singboxSchemaPath = path.join(root, 'schemas/sing-box.json')
 const metaPackagePath = require.resolve('meta-json-schema/package.json')
 const mihomoSchemaPath = path.join(path.dirname(metaPackagePath), 'schemas/meta-json-schema.json')
 
 const singboxSchema = JSON.parse(fs.readFileSync(singboxSchemaPath, 'utf8'))
 const mihomoSchema = JSON.parse(fs.readFileSync(mihomoSchemaPath, 'utf8'))
-const singboxPackage = JSON.parse(fs.readFileSync(require.resolve('@black-duty/sing-box-schema/package.json'), 'utf8'))
 const mihomoPackage = JSON.parse(fs.readFileSync(metaPackagePath, 'utf8'))
 
 const MANAGED_SINGBOX_TYPES = new Set([
@@ -22,7 +22,6 @@ const MANAGED_SINGBOX_TYPES = new Set([
   'hysteria',
   'hysteria2',
   'shadowsocks',
-  'shadowsocksr',
   'shadowtls',
   'socks',
   'ssh',
@@ -78,36 +77,25 @@ function collectProperties(schema, bucket = new Set()) {
   return bucket
 }
 
-function extractSingboxOutbounds() {
-  const defs = singboxSchema.$defs ?? {}
-  const outbounds = {}
-  for (const [name, schema] of Object.entries(defs)) {
-    if (!name.endsWith('OutboundOptions')) continue
-    const type = schemaTypeName(schema)
-    if (!type || !MANAGED_SINGBOX_TYPES.has(type)) continue
-    outbounds[type] = {
-      schemaRef: `#/$defs/${name}`,
-      fields: [...collectProperties(schema)].sort(),
-      required: Array.isArray(schema.required) ? schema.required : [],
-    }
-  }
-  return sortObject(outbounds)
-}
-
-function extractSingboxEndpoints() {
-  const defs = singboxSchema.$defs ?? {}
-  const endpoints = {}
-  for (const [name, schema] of Object.entries(defs)) {
-    if (!name.endsWith('EndpointOptions')) continue
-    const type = schemaTypeName(schema)
-    if (!type || !MANAGED_SINGBOX_ENDPOINT_TYPES.has(type)) continue
-    endpoints[type] = {
-      schemaRef: `#/$defs/${name}`,
-      fields: [...collectProperties(schema)].sort(),
-      required: Array.isArray(schema.required) ? schema.required : [],
-    }
-  }
-  return sortObject(endpoints)
+function extractSingboxVariants(name, managedTypes) {
+  return sortObject(
+    Object.fromEntries(
+      singboxSchema.$defs[name].oneOf.flatMap((schema, index) => {
+        const type = schemaTypeName(schema)
+        if (!managedTypes.has(type)) return []
+        return [
+          [
+            type,
+            {
+              schemaRef: `#/$defs/${name}/oneOf/${index}`,
+              fields: [...collectProperties(schema)].sort(),
+              required: schema.required ?? [],
+            },
+          ],
+        ]
+      }),
+    ),
+  )
 }
 
 function extractMihomoProxies() {
@@ -145,9 +133,9 @@ function sortObject(object) {
 const metadata = {
   sources: {
     singbox: {
-      package: '@black-duty/sing-box-schema',
-      version: singboxPackage.version,
-      schema: '@black-duty/sing-box-schema/schema.json',
+      package: 'SagerNet/sing-box',
+      version: '1.14.0',
+      schema: 'packages/types/schemas/sing-box.json',
     },
     mihomo: {
       package: 'meta-json-schema',
@@ -155,8 +143,8 @@ const metadata = {
       schema: 'meta-json-schema/schemas/meta-json-schema.json',
     },
   },
-  singboxOutbounds: extractSingboxOutbounds(),
-  singboxEndpoints: extractSingboxEndpoints(),
+  singboxOutbounds: extractSingboxVariants('Outbound', MANAGED_SINGBOX_TYPES),
+  singboxEndpoints: extractSingboxVariants('Endpoint', MANAGED_SINGBOX_ENDPOINT_TYPES),
   mihomoProxies: extractMihomoProxies(),
 }
 
@@ -169,3 +157,18 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = ${JSON.stringify(metadata, nul
 fs.mkdirSync(path.dirname(outFile), { recursive: true })
 fs.writeFileSync(outFile, contents)
 console.log(`Generated ${path.relative(process.cwd(), outFile)}`)
+
+const outboundSchema = {
+  ...singboxSchema.$defs.Outbound,
+  oneOf: singboxSchema.$defs.Outbound.oneOf.filter((entry) =>
+    MANAGED_SINGBOX_TYPES.has(schemaTypeName(entry)),
+  ),
+  $defs: singboxSchema.$defs,
+}
+fs.writeFileSync(
+  path.join(root, 'src/generated/singbox.ts'),
+  await compile(outboundSchema, 'SingboxNativeOutbound', {
+    bannerComment: '// Generated from the official sing-box 1.14.0 schema. Do not edit by hand.',
+    unreachableDefinitions: false,
+  }),
+)

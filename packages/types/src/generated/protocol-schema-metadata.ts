@@ -4,9 +4,9 @@
 export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
   "sources": {
     "singbox": {
-      "package": "@black-duty/sing-box-schema",
-      "version": "1.13.13",
-      "schema": "@black-duty/sing-box-schema/schema.json"
+      "package": "SagerNet/sing-box",
+      "version": "1.14.0",
+      "schema": "packages/types/schemas/sing-box.json"
     },
     "mihomo": {
       "package": "meta-json-schema",
@@ -16,15 +16,15 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
   },
   "singboxOutbounds": {
     "anytls": {
-      "schemaRef": "#/$defs/AnyTLSOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/0",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
+        "client_metadata",
         "connect_timeout",
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "idle_session_check_interval",
@@ -51,14 +51,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "udp_fragment"
       ],
       "required": [
-        "type",
-        "tag",
-        "password",
-        "server"
+        "type"
       ]
     },
     "direct": {
-      "schemaRef": "#/$defs/DirectOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/3",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -66,7 +63,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "inet4_bind_address",
@@ -90,7 +86,7 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
       ]
     },
     "http": {
-      "schemaRef": "#/$defs/HTTPOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/4",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -98,7 +94,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "headers",
@@ -125,43 +120,45 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "username"
       ],
       "required": [
-        "type",
-        "server"
+        "type"
       ]
     },
     "hysteria": {
-      "schemaRef": "#/$defs/HysteriaOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/5",
       "fields": [
         "auth",
         "auth_str",
         "bind_address_no_port",
         "bind_interface",
         "connect_timeout",
+        "connection_receive_window",
         "detour",
-        "disable_mtu_discovery",
+        "disable_path_mtu_discovery",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "down",
         "down_mbps",
         "fallback_delay",
         "fallback_network_type",
         "hop_interval",
+        "idle_timeout",
         "inet4_bind_address",
         "inet6_bind_address",
+        "initial_packet_size",
+        "keep_alive_period",
+        "max_concurrent_streams",
         "netns",
         "network",
         "network_strategy",
         "network_type",
         "obfs",
         "protect_path",
-        "recv_window",
-        "recv_window_conn",
         "reuse_addr",
         "routing_mark",
         "server",
         "server_port",
         "server_ports",
+        "stream_receive_window",
         "tag",
         "tcp_fast_open",
         "tcp_keep_alive",
@@ -174,27 +171,34 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "up_mbps"
       ],
       "required": [
-        "type",
-        "server"
+        "type"
       ]
     },
     "hysteria2": {
-      "schemaRef": "#/$defs/Hysteria2OutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/6",
       "fields": [
+        "bbr_profile",
         "bind_address_no_port",
         "bind_interface",
         "brutal_debug",
         "connect_timeout",
+        "connection_receive_window",
         "detour",
+        "disable_chrome_parrot",
+        "disable_path_mtu_discovery",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "down_mbps",
         "fallback_delay",
         "fallback_network_type",
         "hop_interval",
+        "hop_interval_max",
+        "idle_timeout",
         "inet4_bind_address",
         "inet6_bind_address",
+        "initial_packet_size",
+        "keep_alive_period",
+        "max_concurrent_streams",
         "netns",
         "network",
         "network_strategy",
@@ -202,11 +206,13 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "obfs",
         "password",
         "protect_path",
+        "realm",
         "reuse_addr",
         "routing_mark",
         "server",
         "server_port",
         "server_ports",
+        "stream_receive_window",
         "tag",
         "tcp_fast_open",
         "tcp_keep_alive",
@@ -218,12 +224,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "up_mbps"
       ],
       "required": [
-        "type",
-        "server"
+        "type"
       ]
     },
     "shadowsocks": {
-      "schemaRef": "#/$defs/ShadowsocksOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/9",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -231,7 +236,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "inet4_bind_address",
@@ -260,14 +264,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "udp_over_tcp"
       ],
       "required": [
-        "type",
-        "method",
-        "password",
-        "server"
+        "type"
       ]
     },
     "shadowtls": {
-      "schemaRef": "#/$defs/ShadowTLSOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/10",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -275,7 +276,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "inet4_bind_address",
@@ -300,13 +300,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "version"
       ],
       "required": [
-        "type",
-        "tls",
-        "server"
+        "type"
       ]
     },
     "socks": {
-      "schemaRef": "#/$defs/SocksOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/12",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -314,7 +312,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "inet4_bind_address",
@@ -341,27 +338,28 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "version"
       ],
       "required": [
-        "type",
-        "server"
+        "type"
       ]
     },
     "ssh": {
-      "schemaRef": "#/$defs/SSHOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/13",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
+        "cipher",
         "client_version",
         "connect_timeout",
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "host_key",
         "host_key_algorithms",
         "inet4_bind_address",
         "inet6_bind_address",
+        "kex_algorithm",
+        "mac",
         "netns",
         "network_strategy",
         "network_type",
@@ -384,12 +382,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "user"
       ],
       "required": [
-        "type",
-        "server"
+        "type"
       ]
     },
     "trojan": {
-      "schemaRef": "#/$defs/TrojanOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/15",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -397,7 +394,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "inet4_bind_address",
@@ -424,27 +420,30 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "udp_fragment"
       ],
       "required": [
-        "type",
-        "password",
-        "server"
+        "type"
       ]
     },
     "tuic": {
-      "schemaRef": "#/$defs/TUICOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/16",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
         "congestion_control",
         "connect_timeout",
+        "connection_receive_window",
         "detour",
+        "disable_path_mtu_discovery",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "heartbeat",
+        "idle_timeout",
         "inet4_bind_address",
         "inet6_bind_address",
+        "initial_packet_size",
+        "keep_alive_period",
+        "max_concurrent_streams",
         "netns",
         "network",
         "network_strategy",
@@ -455,6 +454,7 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "routing_mark",
         "server",
         "server_port",
+        "stream_receive_window",
         "tag",
         "tcp_fast_open",
         "tcp_keep_alive",
@@ -469,12 +469,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "zero_rtt_handshake"
       ],
       "required": [
-        "type",
-        "server"
+        "type"
       ]
     },
     "vless": {
-      "schemaRef": "#/$defs/VLESSOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/18",
       "fields": [
         "bind_address_no_port",
         "bind_interface",
@@ -482,7 +481,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "flow",
@@ -511,13 +509,11 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "uuid"
       ],
       "required": [
-        "type",
-        "uuid",
-        "server"
+        "type"
       ]
     },
     "vmess": {
-      "schemaRef": "#/$defs/VMessOutboundOptions",
+      "schemaRef": "#/$defs/Outbound/oneOf/19",
       "fields": [
         "alter_id",
         "authenticated_length",
@@ -527,7 +523,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "global_padding",
@@ -557,16 +552,13 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "uuid"
       ],
       "required": [
-        "type",
-        "uuid",
-        "security",
-        "server"
+        "type"
       ]
     }
   },
   "singboxEndpoints": {
     "wireguard": {
-      "schemaRef": "#/$defs/WireGuardEndpointOptions",
+      "schemaRef": "#/$defs/Endpoint/oneOf/4",
       "fields": [
         "address",
         "bind_address_no_port",
@@ -575,7 +567,6 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "detour",
         "disable_tcp_keep_alive",
         "domain_resolver",
-        "domain_strategy",
         "fallback_delay",
         "fallback_network_type",
         "inet4_bind_address",
@@ -598,14 +589,15 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
         "tcp_keep_alive_interval",
         "tcp_multi_path",
         "type",
+        "udp_filtering",
         "udp_fragment",
+        "udp_mapping",
+        "udp_nat_max",
         "udp_timeout",
         "workers"
       ],
       "required": [
-        "type",
-        "address",
-        "private_key"
+        "type"
       ]
     }
   },

@@ -332,7 +332,7 @@ describe('remote rule set generators', () => {
     expect(config.route.rule_set).toContainEqual(expect.objectContaining({
       tag: 'geosite-google',
       url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google.srs',
-      download_detour: 'PROXY',
+      http_client: 'ruleSetHttp',
     }));
     expect(config.route.rule_set.filter((item) => item.tag === 'geosite-cn')).toHaveLength(1);
 
