@@ -31,7 +31,3 @@ export const EXPORT_FORMAT_OPTIONS = EXPORT_SUBSCRIPTION_FORMATS.map(value => ({
   value,
   label: EXPORT_FORMAT_LABELS[value],
 }))
-
-export const PREVIEW_FORMATS: ExportFormat[] = EXPORT_FORMAT_OPTIONS.map(option => option.value)
-
-export const QUICK_EXPORT_OPTIONS = EXPORT_FORMAT_OPTIONS

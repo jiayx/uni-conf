@@ -35,6 +35,8 @@ export function WorkspaceSwitcher() {
   }, [activeId])
 
   useEffect(() => {
+    // load updates state only after awaiting the workspace API.
+    // oxlint-disable-next-line react/set-state-in-effect
     void load().catch(() => setError(t('workspaces.load_failed')))
   }, [load, t])
 

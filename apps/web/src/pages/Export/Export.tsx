@@ -19,7 +19,6 @@ import { maskSubscriptionTokenUrl } from '@/core/sources/source-url-privacy'
 import {
   EXPORT_FORMAT_NAMES,
   EXPORT_FORMAT_OPTIONS,
-  QUICK_EXPORT_OPTIONS,
 } from '@/core/export/formats'
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
@@ -444,7 +443,7 @@ export function Export() {
                   </Button>
                 </div>
                 <div className={styles.quickFormatList}>
-                  {QUICK_EXPORT_OPTIONS.map(item => {
+                  {EXPORT_FORMAT_OPTIONS.map(item => {
                     const filename = getExportSubscriptionFilename(item.value)
                     const subUrl = buildPublicSubscriptionUrl(
                       BASE_URL,

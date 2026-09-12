@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import collectionsApp, {
   countCollectionNodes,
-  isManagedAutoNodeCollectionNotes,
+  isManagedNodeCollectionNotes,
   validateCollectionWithGroupInput,
   validateCollectionWrite,
 } from './collections'
@@ -151,10 +151,10 @@ describe('collections route helpers', () => {
   })
 
   it('identifies managed auto node group notes', () => {
-    expect(isManagedAutoNodeCollectionNotes('[uni-conf:auto-node-group] country:US:url-test')).toBe(true)
-    expect(isManagedAutoNodeCollectionNotes('  [uni-conf:auto-node-group] country:HK:fallback')).toBe(true)
-    expect(isManagedAutoNodeCollectionNotes('[uni-conf:source-node-group] source:group')).toBe(false)
-    expect(isManagedAutoNodeCollectionNotes(null)).toBe(false)
+    expect(isManagedNodeCollectionNotes('[uni-conf:auto-node-group] country:US:url-test')).toBe(true)
+    expect(isManagedNodeCollectionNotes('  [uni-conf:auto-node-group] country:HK:fallback')).toBe(true)
+    expect(isManagedNodeCollectionNotes('[uni-conf:source-node-group] source:group')).toBe(false)
+    expect(isManagedNodeCollectionNotes(null)).toBe(false)
   })
 
   it('counts transformed nodes within the collection scope', () => {

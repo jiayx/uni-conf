@@ -5,14 +5,13 @@ import {
   findBlockingNodeExportWarning,
   findEmptyNodeExportWarning,
   resolveExportWarnings,
-  validateExportData,
 } from './export-validation';
 
 const createdAt = '2026-01-01T00:00:00.000Z';
 
 describe('export validation', () => {
   it('warns about empty node exports', () => {
-    const warnings = validateExportData(makeExportData({ nodes: [], rules: [] }), 'mihomo');
+    const warnings = resolveExportWarnings(makeExportData({ nodes: [], rules: [] }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -101,7 +100,7 @@ describe('export validation', () => {
   });
 
   it('does not warn when MATCH is omitted because exporters add the fallback', () => {
-    const warnings = validateExportData(makeExportData({ rules: [] }), 'mihomo');
+    const warnings = resolveExportWarnings(makeExportData({ rules: [] }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).not.toContainEqual(expect.objectContaining({
       message: expect.stringContaining('缺少 MATCH'),
@@ -109,9 +108,9 @@ describe('export validation', () => {
   });
 
   it('warns about duplicate node names', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       nodes: [makeNode('node-1', 'HK 01'), makeNode('node-2', 'HK 01')],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       level: 'partial',
@@ -120,9 +119,9 @@ describe('export validation', () => {
   });
 
   it('warns when an enabled URL source has a refresh error', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       sources: [makeSource('source-1', 'Airport A', { lastRefreshError: 'HTTP 401' })],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       level: 'unsupported',
@@ -133,9 +132,9 @@ describe('export validation', () => {
   });
 
   it('warns when an enabled URL source has never refreshed successfully', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       sources: [makeSource('source-1', 'Airport A', { nodeCount: 0, lastUpdated: undefined })],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       level: 'partial',
@@ -144,11 +143,11 @@ describe('export validation', () => {
   });
 
   it('warns about missing group references from rules, remote sets, and nested groups', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
       rules: [makeRule('rule-1', 'missing-rule-target', 'DOMAIN-SUFFIX', 'example.com')],
       remoteSets: [makeRemoteSet('remote-1', 'missing-remote-target')],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ groupId: 'proxy', level: 'unsupported', remediation: { target: 'groups', id: 'proxy' } }),
@@ -158,10 +157,10 @@ describe('export validation', () => {
   });
 
   it('warns when a policy group node collection has no exportable nodes', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       groups: [makeGroup('empty-auto', 'US Auto', [], { collectionIds: ['collection-us'] })],
       collectionNodeNames: {},
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       groupId: 'empty-auto',
@@ -171,11 +170,11 @@ describe('export validation', () => {
   });
 
   it('warns when a policy group references node names missing from the final proxies', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       nodes: [makeNode('node-1', 'HK 01')],
       groups: [makeGroup('hk-auto', 'HK Auto', [], { collectionIds: ['collection-hk'] })],
       collectionNodeNames: { 'collection-hk': ['HK 01', 'HK Missing'] },
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       groupId: 'hk-auto',
@@ -185,7 +184,7 @@ describe('export validation', () => {
   });
 
   it('warns when a node protocol is not supported by the target exporter', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       nodes: [
         makeNode('node-ss', 'HK 01'),
         makeNode('node-naive', 'Naive 01', { protocol: 'naive' }),
@@ -197,7 +196,7 @@ describe('export validation', () => {
       ],
       groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
       collectionNodeNames: { 'collection-auto': ['HK 01', 'Naive 01'] },
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -219,11 +218,11 @@ describe('export validation', () => {
   });
 
   it('does not warn about WireGuard for sing-box exports', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
       groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
       collectionNodeNames: { 'collection-auto': ['WG 01'] },
-    }), 'singbox');
+    }), 'singbox', { showCompatibilityWarnings: true });
 
     expect(warnings).not.toContainEqual(expect.objectContaining({
       nodeId: 'node-wg',
@@ -235,11 +234,11 @@ describe('export validation', () => {
   });
 
   it('uses native profile capabilities for Quantumult X exports', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
       groups: [makeGroup('auto', 'Auto', [], { collectionIds: ['collection-auto'] })],
       collectionNodeNames: { 'collection-auto': ['WG 01'] },
-    }), 'quantumultx');
+    }), 'quantumultx', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       nodeId: 'node-wg',
@@ -263,10 +262,10 @@ describe('export validation', () => {
     };
     const unsupportedAsn = makeRule('asn-rule', group.id, 'IP-ASN', '13335');
     const processPath = makeRule('process-rule', group.id, 'PROCESS-PATH', '/usr/bin/curl');
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       groups: [group],
       rules: [implicitNoResolve, sourceRule, unsupportedAsn, processPath],
-    }), 'singbox');
+    }), 'singbox', { showCompatibilityWarnings: true });
 
     expect(warnings).not.toContainEqual(expect.objectContaining({
       ruleId: implicitNoResolve.id,
@@ -292,7 +291,7 @@ describe('export validation', () => {
     const invalidRule = makeRule('invalid-cidr', group.id, 'IP-CIDR', '999.1.1.1/24');
     const data = makeExportData({ groups: [group], rules: [invalidRule] });
 
-    expect(validateExportData(data, 'mihomo')).toContainEqual(expect.objectContaining({
+    expect(resolveExportWarnings(data, 'mihomo', { showCompatibilityWarnings: true })).toContainEqual(expect.objectContaining({
       ruleId: invalidRule.id,
       level: 'unsupported',
       messageEn: expect.stringContaining('invalid payload'),
@@ -317,15 +316,15 @@ describe('export validation', () => {
       rules: [protocolTcp, protocolHttp, networkIcmp, portNoResolve],
     });
 
-    const mihomoWarnings = validateExportData(data, 'mihomo');
+    const mihomoWarnings = resolveExportWarnings(data, 'mihomo', { showCompatibilityWarnings: true });
     expect(mihomoWarnings).not.toContainEqual(expect.objectContaining({
       code: 'rule-converted',
     }));
 
-    const quantumultxWarnings = validateExportData(makeExportData({
+    const quantumultxWarnings = resolveExportWarnings(makeExportData({
       groups: [group],
       rules: [makeRule('domain-suffix', group.id, 'DOMAIN-SUFFIX', 'example.com')],
-    }), 'quantumultx');
+    }), 'quantumultx', { showCompatibilityWarnings: true });
     expect(quantumultxWarnings).toEqual([]);
     expect(mihomoWarnings).toContainEqual(expect.objectContaining({
       code: 'rule-unsupported',
@@ -352,7 +351,7 @@ describe('export validation', () => {
       }),
     }));
 
-    const singboxWarnings = validateExportData(data, 'singbox');
+    const singboxWarnings = resolveExportWarnings(data, 'singbox', { showCompatibilityWarnings: true });
     expect(singboxWarnings).not.toContainEqual(expect.objectContaining({
       code: 'rule-converted',
     }));
@@ -384,7 +383,7 @@ describe('export validation', () => {
       level: 'unsupported',
       message: expect.stringContaining('没有可导出到 loon 的节点'),
     }));
-    expect(validateExportData(data, 'loon')).toEqual(expect.arrayContaining([
+    expect(resolveExportWarnings(data, 'loon', { showCompatibilityWarnings: true })).toEqual(expect.arrayContaining([
       expect.objectContaining({
         nodeId: 'node-grpc',
         level: 'partial',
@@ -420,7 +419,7 @@ describe('export validation', () => {
       level: 'unsupported',
       message: expect.stringContaining('没有可导出到 egern 的节点'),
     }));
-    expect(validateExportData(data, 'egern')).toEqual(expect.arrayContaining([
+    expect(resolveExportWarnings(data, 'egern', { showCompatibilityWarnings: true })).toEqual(expect.arrayContaining([
       expect.objectContaining({
         nodeId: 'node-trojan-grpc',
         level: 'partial',
@@ -434,23 +433,23 @@ describe('export validation', () => {
   });
 
   it('silently normalizes MATCH to the final position', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       rules: [
         makeRule('match', 'proxy', 'MATCH', '', 0),
         makeRule('late', 'proxy', 'DOMAIN-SUFFIX', 'example.com', 1),
       ],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toEqual([]);
   });
 
   it('warns when a rule type is unsupported by the export format', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       rules: [
         makeRule('process', 'proxy', 'PROCESS-NAME', 'Example.app', 0),
         makeRule('match', 'proxy', 'MATCH', '', 999),
       ],
-    }), 'shadowrocket');
+    }), 'shadowrocket', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       ruleId: 'process',
@@ -460,12 +459,12 @@ describe('export validation', () => {
   });
 
   it('warns when a rule type is only partially supported by the export format', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       rules: [
         makeRule('regex', 'proxy', 'DOMAIN-REGEX', '^api\\.', 0),
         makeRule('match', 'proxy', 'MATCH', '', 999),
       ],
-    }), 'surge');
+    }), 'surge', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       ruleId: 'regex',
@@ -475,12 +474,12 @@ describe('export validation', () => {
   });
 
   it('warns when script rules cannot be serialized by the target export format', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       rules: [
         makeRule('script', 'proxy', 'SCRIPT', 'script-path', 0),
         makeRule('match', 'proxy', 'MATCH', '', 999),
       ],
-    }), 'quantumultx');
+    }), 'quantumultx', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       ruleId: 'script',
@@ -490,12 +489,12 @@ describe('export validation', () => {
   });
 
   it('does not warn about rule type compatibility for node-only subscriptions', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       rules: [
         makeRule('process', 'proxy', 'PROCESS-NAME', 'Example.app', 0),
         makeRule('match', 'proxy', 'MATCH', '', 999),
       ],
-    }), 'nodes_raw');
+    }), 'nodes_raw', { showCompatibilityWarnings: true });
 
     expect(warnings).not.toContainEqual(expect.objectContaining({
       ruleId: 'process',
@@ -504,11 +503,11 @@ describe('export validation', () => {
   });
 
   it('ignores policy group, rule, and remote rule set warnings for node-only subscriptions', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       groups: [makeGroup('proxy', 'PROXY', ['missing-child'])],
       rules: [makeRule('rule-1', 'missing-rule-target', 'PROCESS-NAME', 'Example.app')],
       remoteSets: [makeRemoteSet('bad-url', 'missing-remote-target', { url: './local-rule.yaml', format: 'singbox' })],
-    }), 'nodes_raw');
+    }), 'nodes_raw', { showCompatibilityWarnings: true });
 
     expect(warnings).not.toContainEqual(expect.objectContaining({ groupId: 'proxy' }));
     expect(warnings).not.toContainEqual(expect.objectContaining({ ruleId: 'rule-1' }));
@@ -516,9 +515,9 @@ describe('export validation', () => {
   });
 
   it('accepts WireGuard nodes for node-only subscriptions', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
-    }), 'nodes_raw');
+    }), 'nodes_raw', { showCompatibilityWarnings: true });
 
     expect(findBlockingNodeExportWarning(makeExportData({
       nodes: [makeNode('node-wg', 'WG 01', { protocol: 'wireguard' })],
@@ -544,7 +543,7 @@ describe('export validation', () => {
         },
       },
     });
-    const warnings = validateExportData(makeExportData({ nodes: [node] }), 'nodes_raw');
+    const warnings = resolveExportWarnings(makeExportData({ nodes: [node] }), 'nodes_raw', { showCompatibilityWarnings: true });
 
     expect(findBlockingNodeExportWarning(makeExportData({ nodes: [node] }), 'nodes_raw')).toBeNull();
     expect(warnings).not.toContainEqual(expect.objectContaining({
@@ -564,7 +563,7 @@ describe('export validation', () => {
         extra: {},
       },
     });
-    const warnings = validateExportData(makeExportData({ nodes: [node] }), 'nodes_raw');
+    const warnings = resolveExportWarnings(makeExportData({ nodes: [node] }), 'nodes_raw', { showCompatibilityWarnings: true });
 
     expect(findBlockingNodeExportWarning(makeExportData({ nodes: [node] }), 'nodes_raw')).toBeNull();
     expect(warnings).not.toContainEqual(expect.objectContaining({
@@ -588,8 +587,8 @@ describe('export validation', () => {
         },
       },
     });
-    const warnings = validateExportData(makeExportData({ nodes: [node] }), 'mihomo');
-    const singboxWarnings = validateExportData(makeExportData({ nodes: [node] }), 'singbox');
+    const warnings = resolveExportWarnings(makeExportData({ nodes: [node] }), 'mihomo', { showCompatibilityWarnings: true });
+    const singboxWarnings = resolveExportWarnings(makeExportData({ nodes: [node] }), 'singbox', { showCompatibilityWarnings: true });
 
     expect(findEmptyNodeExportWarning(makeExportData({ nodes: [node] }), 'mihomo')).toBeNull();
     expect(findBlockingNodeExportWarning(makeExportData({ nodes: [node] }), 'singbox')).toEqual(
@@ -618,7 +617,7 @@ describe('export validation', () => {
       message: expect.stringContaining('没有可导出到 nodes_raw 的节点'),
     }));
 
-    expect(validateExportData(data, 'nodes_raw')).toEqual(expect.arrayContaining([
+    expect(resolveExportWarnings(data, 'nodes_raw', { showCompatibilityWarnings: true })).toEqual(expect.arrayContaining([
       expect.objectContaining({
         client: 'nodes_raw',
         level: 'unsupported',
@@ -634,21 +633,21 @@ describe('export validation', () => {
   });
 
   it('does not report an exact remote rule set conversion as a warning', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       remoteSets: [makeRemoteSet('singbox-remote', 'proxy', { format: 'singbox' })],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toEqual([]);
   });
 
   it('does not warn when a dynamic Quixotic preset resolves to a compatible export format', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       remoteSets: [makeRemoteSet('quixotic-ai', 'proxy', {
         presetSource: 'quixotic',
         presetId: 'ai',
         format: 'mihomo',
       })],
-    }), 'singbox');
+    }), 'singbox', { showCompatibilityWarnings: true });
 
     expect(warnings).not.toContainEqual(expect.objectContaining({
       message: expect.stringContaining('不兼容 singbox'),
@@ -656,9 +655,9 @@ describe('export validation', () => {
   });
 
   it('warns when a remote rule set URL is not downloadable', () => {
-    const warnings = validateExportData(makeExportData({
+    const warnings = resolveExportWarnings(makeExportData({
       remoteSets: [makeRemoteSet('bad-url', 'proxy', { url: './local-rule.yaml' })],
-    }), 'mihomo');
+    }), 'mihomo', { showCompatibilityWarnings: true });
 
     expect(warnings).toContainEqual(expect.objectContaining({
       level: 'unsupported',

@@ -10,7 +10,7 @@ export const GENERATED_PROTOCOL_SCHEMA_METADATA = {
     },
     "mihomo": {
       "package": "meta-json-schema",
-      "version": "1.19.29",
+      "version": "1.19.30",
       "schema": "meta-json-schema/schemas/meta-json-schema.json"
     }
   },

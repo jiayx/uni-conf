@@ -4,16 +4,12 @@ import {
   isCustomBusinessRoutingGroup,
   isFoundationPolicyGroup,
   isNodeOutletGroup,
-  isRuleTargetFoundationGroup,
   isVisibleBusinessRoutingGroup,
 } from './policy-group-categories'
 import type { ProxyGroup } from '@uni-conf/types'
 
 describe('policy group category helpers', () => {
-  it('keeps PROXY, DIRECT, REJECT as fixed rule-target foundations', () => {
-    expect(isRuleTargetFoundationGroup(group('builtin-proxy', 'PROXY'))).toBe(true)
-    expect(isRuleTargetFoundationGroup(group('builtin-direct', 'DIRECT', { type: 'direct' }))).toBe(true)
-    expect(isRuleTargetFoundationGroup(group('builtin-reject', 'REJECT', { type: 'reject' }))).toBe(true)
+  it('recognizes the automatic outlet as a foundation group', () => {
     expect(isFoundationPolicyGroup(group('builtin-auto-select', '自动选择', { type: 'url-test' }))).toBe(true)
   })
 

@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  parseManualRuleLine,
-  parseManualRules,
   parseManualRulesWithDiagnostics,
   resolveManualRuleGroupId,
 } from './manual-rules'
@@ -14,12 +12,12 @@ const groups = [
 
 describe('manual rule parsing', () => {
   it('parses Clash-style lines and resolves explicit target groups', () => {
-    expect(parseManualRules(`
+    expect(parseManualRulesWithDiagnostics(`
       # local override
       DOMAIN-SUFFIX,example.com,PROXY
       DOMAIN,api.example.com,custom-ai
       IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
-    `, 'builtin-proxy', groups, 10)).toEqual([
+    `, 'builtin-proxy', groups, 10).rules).toEqual([
       expect.objectContaining({ type: 'DOMAIN-SUFFIX', payload: 'example.com', targetGroupId: 'builtin-proxy', noResolve: false, order: 10 }),
       expect.objectContaining({ type: 'DOMAIN', payload: 'api.example.com', targetGroupId: 'custom-ai', noResolve: false, order: 11 }),
       expect.objectContaining({ type: 'IP-CIDR', payload: '10.0.0.0/8', targetGroupId: 'builtin-direct', noResolve: true, order: 12 }),
@@ -27,7 +25,7 @@ describe('manual rule parsing', () => {
   })
 
   it('uses the selected fallback target when a line omits policy', () => {
-    expect(parseManualRuleLine('DOMAIN-SUFFIX,example.org', 'builtin-proxy', groups, 0)).toEqual(expect.objectContaining({
+    expect(parseManualRulesWithDiagnostics('DOMAIN-SUFFIX,example.org', 'builtin-proxy', groups, 0).rules[0]).toEqual(expect.objectContaining({
       type: 'DOMAIN-SUFFIX',
       payload: 'example.org',
       targetGroupId: 'builtin-proxy',
@@ -35,10 +33,10 @@ describe('manual rule parsing', () => {
   })
 
   it('ignores invalid or incomplete rules', () => {
-    expect(parseManualRules(`
+    expect(parseManualRulesWithDiagnostics(`
       UNKNOWN,example.com,PROXY
       DOMAIN-SUFFIX
-    `, 'builtin-direct', groups, 0)).toEqual([])
+    `, 'builtin-direct', groups, 0).rules).toEqual([])
   })
 
   it('reports exact invalid source line numbers for all-or-nothing batch import', () => {
@@ -79,12 +77,12 @@ describe('manual rule parsing', () => {
   })
 
   it('accepts an omitted target but rejects unknown extra options', () => {
-    expect(parseManualRuleLine(
+    expect(parseManualRulesWithDiagnostics(
       'IP-CIDR,10.0.0.0/8,,no-resolve',
       'builtin-direct',
       groups,
       0,
-    )).toEqual(expect.objectContaining({
+    ).rules[0]).toEqual(expect.objectContaining({
       targetGroupId: 'builtin-direct',
       noResolve: true,
     }))
@@ -120,12 +118,12 @@ describe('manual rule parsing', () => {
         { lineNumber: 3, reason: 'invalid-payload', detail: 'invalid-domain-regex' },
       ],
     })
-    expect(parseManualRuleLine(
+    expect(parseManualRulesWithDiagnostics(
       'PORT,8000:9000,PROXY',
       'builtin-direct',
       groups,
       0,
-    )).toEqual(expect.objectContaining({
+    ).rules[0]).toEqual(expect.objectContaining({
       payload: '8000-9000',
     }))
   })

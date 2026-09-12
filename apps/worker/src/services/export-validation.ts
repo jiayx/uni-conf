@@ -18,16 +18,6 @@ import { nodeToSubscriptionUri } from '../generators/node-subscription';
 import { resolveRemoteRuleSetForExport } from '../generators/remote-rule-set-resolver';
 import { isSafeRemoteHttpUrl } from './safe-remote-fetch';
 
-export function validateExportData(
-  data: ExportData,
-  format: ExportFormat
-): CompatibilityWarning[] {
-  return [
-    ...validateExportReadiness(data, format),
-    ...validateExportCompatibility(data, format),
-  ];
-}
-
 export function resolveExportWarnings(
   data: ExportData,
   format: ExportFormat,

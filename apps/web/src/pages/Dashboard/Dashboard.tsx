@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { Badge } from '@/components/ui/Badge/Badge'
-import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
+import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
 import { saveExportDownload } from '@/core/export/download-file'
 import { buildQuickSubscriptionLinks } from '@/core/export/quick-subscriptions'
 import { writeClipboardText } from '@/core/clipboard/write-text'
@@ -30,7 +30,7 @@ export function Dashboard() {
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null)
-  const [selectedQuickFormat, setSelectedQuickFormat] = useState<typeof QUICK_EXPORT_OPTIONS[number]['value']>('mihomo')
+  const [selectedQuickFormat, setSelectedQuickFormat] = useState<typeof EXPORT_FORMAT_OPTIONS[number]['value']>('mihomo')
 
   const loadStats = async () => {
     const nextStats = await api.dashboard.stats()
@@ -43,7 +43,7 @@ export function Dashboard() {
       openSetupGuide()
     }
     const defaultFormat = nextStats.defaultExportFormat
-    if (defaultFormat && QUICK_EXPORT_OPTIONS.some(option => option.value === defaultFormat)) {
+    if (defaultFormat && EXPORT_FORMAT_OPTIONS.some(option => option.value === defaultFormat)) {
       setSelectedQuickFormat(defaultFormat)
     }
     setError(null)
@@ -105,7 +105,7 @@ export function Dashboard() {
     }
   }
 
-  const downloadQuickExport = async (format: typeof QUICK_EXPORT_OPTIONS[number]['value']) => {
+  const downloadQuickExport = async (format: typeof EXPORT_FORMAT_OPTIONS[number]['value']) => {
     setDownloadingFormat(format)
     setDownloadError(null)
     try {
@@ -147,7 +147,7 @@ export function Dashboard() {
                   value={selectedQuickFormat}
                   onChange={event => setSelectedQuickFormat(event.target.value as typeof selectedQuickFormat)}
                 >
-                  {QUICK_EXPORT_OPTIONS.map(option => (
+                  {EXPORT_FORMAT_OPTIONS.map(option => (
                     <option key={option.value} value={option.value}>{t(`export.formats.${option.value}`)}</option>
                   ))}
                 </select>

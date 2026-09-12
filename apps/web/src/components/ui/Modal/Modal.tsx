@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../Button/Button'
@@ -32,9 +32,9 @@ export function Modal({
   const contentRef = useRef<HTMLDivElement>(null)
   const [discardRequested, setDiscardRequested] = useState(false)
 
-  useEffect(() => {
-    if (!open || !dirty) setDiscardRequested(false)
-  }, [dirty, open])
+  if (discardRequested && (!open || !dirty)) {
+    setDiscardRequested(false)
+  }
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && closeDisabled) return

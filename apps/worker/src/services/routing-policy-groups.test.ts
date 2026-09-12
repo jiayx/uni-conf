@@ -13,7 +13,6 @@ import {
   FOUNDATION_POLICY_GROUP_NAMES,
   GLOBAL_NODE_OUTLET_GROUP_NAMES,
   isFoundationPolicyGroupId,
-  isRuleTargetFoundationGroupId,
   RULE_TARGET_FOUNDATION_GROUP_NAMES,
 } from '@uni-conf/shared';
 
@@ -199,10 +198,6 @@ describe('routing policy group sync', () => {
       ...RULE_TARGET_FOUNDATION_GROUP_NAMES,
       ...GLOBAL_NODE_OUTLET_GROUP_NAMES,
     ]);
-    expect(isRuleTargetFoundationGroupId('builtin-proxy')).toBe(true);
-    expect(isRuleTargetFoundationGroupId('builtin-direct')).toBe(true);
-    expect(isRuleTargetFoundationGroupId('builtin-reject')).toBe(true);
-    expect(isRuleTargetFoundationGroupId('workspace-id:builtin-proxy')).toBe(true);
     expect(isFoundationPolicyGroupId('builtin-auto-select')).toBe(true);
     expect(isFoundationPolicyGroupId('workspace-id:builtin-auto-select')).toBe(true);
     expect(isFoundationPolicyGroupId('builtin-ai')).toBe(false);

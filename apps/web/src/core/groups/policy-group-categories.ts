@@ -1,7 +1,4 @@
-import {
-  isFoundationPolicyGroupId,
-  isRuleTargetFoundationGroupId,
-} from '@uni-conf/shared'
+import { isFoundationPolicyGroupId } from '@uni-conf/shared'
 import type { ProxyGroup } from '@uni-conf/types'
 
 export function isNodeOutletGroup(group: ProxyGroup): boolean {
@@ -10,10 +7,6 @@ export function isNodeOutletGroup(group: ProxyGroup): boolean {
 
 export function isFoundationPolicyGroup(group: ProxyGroup): boolean {
   return isFoundationPolicyGroupId(group.id)
-}
-
-export function isRuleTargetFoundationGroup(group: ProxyGroup): boolean {
-  return isRuleTargetFoundationGroupId(group.id)
 }
 
 export function isBuiltinBusinessRoutingGroup(group: ProxyGroup): boolean {

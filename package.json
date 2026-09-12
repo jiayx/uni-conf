@@ -2,12 +2,12 @@
   "name": "uni-conf",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@12.3.4",
   "description": "Manage once, export everywhere. A unified proxy configuration management tool.",
   "scripts": {
-    "dev": "pnpm --filter web dev",
+    "dev": "pnpm --filter @uni-conf/web dev",
     "dev:worker": "wrangler dev",
-    "build": "pnpm --filter types build && pnpm --filter web build && pnpm build:worker",
+    "build": "pnpm --filter types build && pnpm --filter @uni-conf/web build && pnpm build:worker",
     "build:worker": "wrangler deploy --dry-run --env=\"\" --outdir apps/worker/dist",
     "deploy": "pnpm db:migrate:production && wrangler deploy --env production",
     "db:migrate": "pnpm db:migrate:local",
@@ -23,7 +23,7 @@
     "format": "pnpm -r format"
   },
   "engines": {
-    "node": "^20.19.0 || >=22.12.0",
+    "node": "^22.13.0 || ^24.0.0 || >=26.0.0",
     "pnpm": ">=11.17.0"
   },
   "cloudflare": {
@@ -38,6 +38,6 @@
     "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
-    "wrangler": "^4.122.0"
+    "wrangler": "^4.131.0"
   }
 }

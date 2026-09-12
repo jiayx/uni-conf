@@ -41,10 +41,26 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
 
   beforeAll(async () => {
     mf = new Miniflare({
-      modules: true,
-      script: 'export default { fetch() { return new Response("unused"); } };',
-      d1Databases: ['DB'],
-      kvNamespaces: ['KV'],
+      workers: [{
+        config: {
+          name: 'test-worker',
+          type: 'worker',
+          compatibilityDate: '2026-09-12',
+          manifest: {
+            mainModule: 'index.js',
+            modules: {
+              'index.js': {
+                type: 'esm',
+                contents: 'export default { fetch() { return new Response("unused"); } };',
+              },
+            },
+          },
+          env: {
+            DB: { type: 'd1', id: 'test-db' },
+            KV: { type: 'kv', id: 'test-kv' },
+          },
+        },
+      }],
     })
     const db = await mf.getD1Database('DB')
     const kv = await mf.getKVNamespace('KV')

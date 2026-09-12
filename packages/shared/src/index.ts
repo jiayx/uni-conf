@@ -178,18 +178,6 @@ export function decodeBase64UrlUtf8(value: string): string {
   return decodeBase64Utf8(padded);
 }
 
-export function decodeMaybeBase64Utf8(value: string): string {
-  try {
-    return decodeBase64Utf8(value);
-  } catch {
-    try {
-      return decodeBase64UrlUtf8(value);
-    } catch {
-      return value;
-    }
-  }
-}
-
 export interface ProxyUrlParts {
   name: string;
   server: string;
@@ -270,10 +258,6 @@ export const PROXY_LINK_URI_SCHEMES = Object.keys(URI_SCHEME_TO_PROTOCOL)
 export function getProxyLinkUriScheme(value: string): string | null {
   const trimmed = value.trimStart().toLowerCase();
   return PROXY_LINK_URI_SCHEMES.find((scheme) => trimmed.startsWith(`${scheme}://`)) ?? null;
-}
-
-export function hasProxyLinkUri(value: string): boolean {
-  return value.split(/\r?\n/).some((line) => getProxyLinkUriScheme(line) !== null);
 }
 
 export const IMPLICIT_TLS_PROXY_PROTOCOLS = [
@@ -456,10 +440,6 @@ export function isWorkspaceEntityId(id: string, baseId: string): boolean {
 
 export function isGlobalNodeOutletGroupId(id: string): boolean {
   return GLOBAL_NODE_OUTLET_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId));
-}
-
-export function isRuleTargetFoundationGroupId(id: string): boolean {
-  return RULE_TARGET_FOUNDATION_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId));
 }
 
 export function isFoundationPolicyGroupId(id: string): boolean {
@@ -819,16 +799,6 @@ export function getRuleCompatibilityLevel(
   format: ExportFormat
 ): RuleCompatibilityLevel {
   return RULE_COMPATIBILITY[ruleType]?.[format] ?? 'unsupported';
-}
-
-export function getRuleCompatibility(ruleType: RuleCompatibilityType): Array<{
-  client: ExportFormat;
-  level: RuleCompatibilityLevel;
-}> {
-  return EXPORT_SUBSCRIPTION_FORMATS.map((format) => ({
-    client: format,
-    level: getRuleCompatibilityLevel(ruleType, format),
-  }));
 }
 
 export type RuleExportCompatibilityReason =
@@ -1402,10 +1372,6 @@ export const EXPORT_CLIENT_CAPABILITIES = {
     },
   },
 } as const satisfies Record<ExportFormat, ExportClientCapabilities>;
-
-export const COMPATIBLE_RULE_SET_FORMATS = Object.fromEntries(
-  EXPORT_SUBSCRIPTION_FORMATS.map((format) => [format, [...EXPORT_CLIENT_CAPABILITIES[format].ruleSetFormats]])
-) as Record<ExportFormat, RuleSetFormat[]>;
 
 export function getExportClientCapabilities(format: ExportFormat): ExportClientCapabilities {
   return EXPORT_CLIENT_CAPABILITIES[format];

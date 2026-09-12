@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { waitFor } from '@testing-library/react'
 import type { NodeCollection, ProxyGroup, ProxyNode, ProxyRule, ProxySource } from '@uni-conf/types'
 import { api } from '@/lib/api'
 import { useCollectionsStore } from './collections.store'
@@ -31,7 +30,7 @@ describe('Zustand API stores', () => {
     vi.clearAllMocks()
     useCollectionsStore.setState({ collections: [], previews: {}, loading: false, error: null })
     useGroupsStore.setState({ groups: [], loading: false, error: null })
-    useNodesStore.setState({ nodes: [], loading: false, error: null, filters: { search: '', sourceId: '', protocol: '', country: '', enabled: undefined } })
+    useNodesStore.setState({ nodes: [], loading: false, error: null })
     useRulesStore.setState({ rules: [], loading: false, error: null })
     useSourcesStore.setState({ sources: [], loading: false, error: null, refreshResults: {}, refreshErrors: {} })
   })
@@ -85,9 +84,9 @@ describe('Zustand API stores', () => {
     vi.mocked(api.nodes.setEnabled).mockResolvedValue({ ids: ['n1'], enabled: true, updatedCount: 1 })
     vi.mocked(api.nodes.remove).mockResolvedValue(undefined)
     const state = useNodesStore.getState()
-    state.setFilters({ search: 'N1', sourceId: 's1', protocol: 'trojan', country: 'US', enabled: true })
-    state.applyFilters()
-    await waitFor(() => expect(api.nodes.listAll).toHaveBeenCalledWith({ search: 'N1', sourceId: 's1', protocol: 'trojan', country: 'US', enabled: true }))
+    const params = { search: 'N1', sourceId: 's1', protocol: 'trojan', country: 'US', enabled: true }
+    await state.fetchNodes(params)
+    expect(api.nodes.listAll).toHaveBeenCalledWith(params)
     await state.addNode(node)
     await state.updateNode('n1', { enabled: false })
     await state.setNodesEnabled(['n1'], false)

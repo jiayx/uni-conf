@@ -4,7 +4,6 @@ import type { NodeCollection, ProxyNode, ProxySource } from '@uni-conf/types'
 import {
   buildSourceGroupSuggestions,
   mapUpstreamGroupType,
-  nextSourceGroupLinkedOrder,
 } from './source-group-suggestions'
 
 const createdAt = '2026-01-01T00:00:00.000Z'
@@ -80,14 +79,6 @@ describe('source group suggestions', () => {
     expect(mapUpstreamGroupType(undefined)).toBe('url-test')
   })
 
-  it('assigns consecutive linked group orders for batch imported upstream groups', () => {
-    expect([
-      nextSourceGroupLinkedOrder(7, 0),
-      nextSourceGroupLinkedOrder(7, 1),
-      nextSourceGroupLinkedOrder(7, 2),
-    ]).toEqual([7, 8, 9])
-    expect(nextSourceGroupLinkedOrder(-1, -1)).toBe(0)
-  })
 })
 
 function makeSource(

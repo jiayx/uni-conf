@@ -3,39 +3,21 @@ import type { ProxyNode } from '@uni-conf/types'
 import { api } from '@/lib/api'
 import type { NodeCreateInput, NodeListParams } from '@/lib/api'
 
-interface NodesFilters {
-  search: string
-  sourceId: string
-  protocol: string
-  country: string
-  enabled: boolean | undefined
-}
-
 interface NodesState {
   nodes: ProxyNode[]
   loading: boolean
   error: unknown | null
-  filters: NodesFilters
   fetchNodes: (params?: NodeListParams) => Promise<void>
   addNode: (data: NodeCreateInput) => Promise<void>
   updateNode: (id: string, data: Partial<ProxyNode>) => Promise<void>
   setNodesEnabled: (ids: string[], enabled: boolean) => Promise<void>
   deleteNode: (id: string) => Promise<void>
-  setFilters: (filters: Partial<NodesFilters>) => void
-  applyFilters: () => void
 }
 
-export const useNodesStore = create<NodesState>((set, get) => ({
+export const useNodesStore = create<NodesState>((set) => ({
   nodes: [],
   loading: false,
   error: null,
-  filters: {
-    search: '',
-    sourceId: '',
-    protocol: '',
-    country: '',
-    enabled: undefined,
-  },
 
   fetchNodes: async (params) => {
     set({ loading: true, error: null })
@@ -68,20 +50,5 @@ export const useNodesStore = create<NodesState>((set, get) => ({
   deleteNode: async (id) => {
     await api.nodes.remove(id)
     set(s => ({ nodes: s.nodes.filter(n => n.id !== id) }))
-  },
-
-  setFilters: (filters) => {
-    set(s => ({ filters: { ...s.filters, ...filters } }))
-  },
-
-  applyFilters: () => {
-    const { filters } = get()
-    const params: NodeListParams = {}
-    if (filters.search) params.search = filters.search
-    if (filters.sourceId) params.sourceId = filters.sourceId
-    if (filters.protocol) params.protocol = filters.protocol
-    if (filters.country) params.country = filters.country
-    if (filters.enabled != null) params.enabled = filters.enabled
-    void get().fetchNodes(params)
   },
 }))

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SOURCE_FORMATS } from '@uni-conf/shared'
-import { QUICK_EXPORT_OPTIONS } from '@/core/export/formats'
+import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
 
 const i18nDir = join(process.cwd(), 'src/i18n')
 
@@ -19,7 +19,7 @@ describe('source i18n keys', () => {
   it('has labels for every dashboard quick export format', () => {
     for (const locale of ['zh', 'en']) {
       const messages = readMessages(locale)
-      for (const option of QUICK_EXPORT_OPTIONS) {
+      for (const option of EXPORT_FORMAT_OPTIONS) {
         expect(messages.export.formats[option.value], `${locale}: export.formats.${option.value}`).toBeTruthy()
       }
     }

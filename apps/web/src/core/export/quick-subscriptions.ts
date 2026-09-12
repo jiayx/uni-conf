@@ -1,5 +1,5 @@
 import { getExportSubscriptionFilename } from '@uni-conf/shared'
-import { EXPORT_FORMAT_NAMES, QUICK_EXPORT_OPTIONS } from './formats'
+import { EXPORT_FORMAT_NAMES, EXPORT_FORMAT_OPTIONS } from './formats'
 
 export function buildPublicSubscriptionUrl(
   origin: string,
@@ -25,7 +25,7 @@ export function buildQuickSubscriptionLinks(
 ) {
   if (!token || !enabled) return []
 
-  return QUICK_EXPORT_OPTIONS.map(option => ({
+  return EXPORT_FORMAT_OPTIONS.map(option => ({
     ...option,
     url: buildPublicSubscriptionUrl(
       origin,

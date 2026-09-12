@@ -43,15 +43,6 @@ export interface ManualRuleParseIssue {
   detail: string
 }
 
-export function parseManualRules(
-  text: string,
-  targetGroupId: string,
-  groups: Array<{ id: string; name: string }>,
-  startOrder: number
-): ManualRuleForm[] {
-  return parseManualRulesWithDiagnostics(text, targetGroupId, groups, startOrder).rules
-}
-
 export function parseManualRulesWithDiagnostics(
   text: string,
   targetGroupId: string,
@@ -81,15 +72,6 @@ export function parseManualRulesWithDiagnostics(
   }
 
   return { rules, invalidLineNumbers, issues, candidateCount }
-}
-
-export function parseManualRuleLine(
-  line: string,
-  fallbackTargetGroupId: string,
-  groups: Array<{ id: string; name: string }>,
-  order: number
-): ManualRuleForm | null {
-  return parseManualRuleLineWithIssue(line, fallbackTargetGroupId, groups, order).rule
 }
 
 type ManualRuleLineResult =

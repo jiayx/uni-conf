@@ -666,10 +666,6 @@ async function findDedicatedLinkedGroup(
     .first<Record<string, unknown>>();
 }
 
-export function isManagedAutoNodeCollectionNotes(value: unknown): boolean {
-  return typeof value === 'string' && value.trim().startsWith(AUTO_NODE_GROUP_PREFIX);
-}
-
 export function isManagedNodeCollectionNotes(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const text = value.trim();
