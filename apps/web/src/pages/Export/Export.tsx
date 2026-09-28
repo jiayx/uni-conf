@@ -1,3 +1,5 @@
+import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
@@ -413,19 +415,18 @@ export function Export() {
                   <div className={styles.configName}>{t('export.default_profile_name')}</div>
                   <div className={styles.badges}>
                     <Badge variant="purple">{t('export.all_formats')}</Badge>
-                    <Badge variant={defaultConfig.enabled ? 'success' : 'default'}>{defaultConfig.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
                     <Badge variant={conversionPolicyBadgeVariant(defaultConfig.ruleSetConversionPolicy)}>
                       {conversionPolicyLabel(defaultConfig.ruleSetConversionPolicy)}
                     </Badge>
                   </div>
                 </div>
                 <div className={styles.configActions}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
+                  <EnabledSwitch
+                    checked={defaultConfig.enabled}
+                    aria-label={defaultConfig.name}
                     loading={togglingId === defaultConfig.id}
                     onClick={() => void handleToggleEnabled(defaultConfig)}
-                  >{t(defaultConfig.enabled ? 'export.pause_subscription' : 'export.resume_subscription')}</Button>
+                  />
                   <Button
                     variant="secondary"
                     size="sm"
@@ -490,12 +491,12 @@ export function Export() {
                               {t('export.one_click_import')}
                             </span>
                           ))}
-                          <Button
-                            variant="secondary"
-                            size="sm"
+                          <IconActionButton
+                            action={copied === actionKey ? 'copied' : 'copy'}
+                            aria-label={copied === actionKey ? t('common.copied') : t('export.copy_url')}
                             disabled={!defaultConfig.enabled}
                             onClick={() => void copyUrl(subUrl, actionKey)}
-                          >{copied === actionKey ? t('common.copied') : t('export.copy_url')}</Button>
+                          />
                           <Button
                             variant="ghost"
                             size="sm"
@@ -540,7 +541,6 @@ export function Export() {
                     <div className={styles.configName}>{cfg.name}</div>
                     <div className={styles.badges}>
                       <Badge variant="purple">{cfg.format.toUpperCase()}</Badge>
-                      <Badge variant={cfg.enabled ? 'success' : 'default'}>{cfg.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
                       <Badge variant={conversionPolicyBadgeVariant(cfg.ruleSetConversionPolicy)}>
                         {conversionPolicyLabel(cfg.ruleSetConversionPolicy)}
                       </Badge>
@@ -548,15 +548,18 @@ export function Export() {
                     <div className={styles.scopeText}>{scopeText}</div>
                   </div>
                   <div className={styles.configActions}>
-                    <Button
-                      variant="secondary" size="sm"
+                    <EnabledSwitch
+                      checked={cfg.enabled}
+                      aria-label={cfg.name}
                       disabled={deletingId === cfg.id}
                       loading={togglingId === cfg.id}
                       onClick={() => void handleToggleEnabled(cfg)}
-                    >{t(cfg.enabled ? 'export.pause_subscription' : 'export.resume_subscription')}</Button>
-                    <Button variant="secondary" size="sm" disabled={deletingId === cfg.id} onClick={() => openEdit(cfg)}>
-                      {t('common.edit')}
-                    </Button>
+                    />
+                    <IconActionButton
+                      action="edit"
+                      disabled={deletingId === cfg.id}
+                      onClick={() => openEdit(cfg)}
+                    />
                     <Button variant="ghost" size="sm" disabled={deletingId === cfg.id} onClick={() => openDuplicate(cfg)}>
                       {t('export.duplicate_config')}
                     </Button>
@@ -578,15 +581,12 @@ export function Export() {
                       loading={resettingId === cfg.id}
                       onClick={() => void handleResetToken(cfg)}
                     >{t('export.reset_token')}</Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
+                    <IconActionButton
+                      action="delete"
                       loading={deletingId === cfg.id}
                       aria-label={t('export.delete_config_named', { name: cfg.name })}
                       onClick={() => void handleDelete(cfg)}
-                    >
-                      {t('common.delete')}
-                    </Button>
+                    />
                   </div>
                 </div>
                 {!cfg.enabled && <div className={styles.disabledNotice}>{t('export.link_paused_hint')}</div>}
@@ -605,11 +605,12 @@ export function Export() {
                         {t('export.one_click_import')}
                       </span>
                     ))}
-                    <Button
-                      variant="secondary" size="sm"
+                    <IconActionButton
+                      action={copied === cfg.id ? 'copied' : 'copy'}
+                      aria-label={copied === cfg.id ? t('common.copied') : t('export.copy_url')}
                       disabled={!cfg.enabled}
                       onClick={() => void copyUrl(subUrl, cfg.id)}
-                    >{copied === cfg.id ? t('common.copied') : t('export.copy_url')}</Button>
+                    />
                     <Button
                       variant="ghost"
                       size="sm"
@@ -925,7 +926,12 @@ function PreviewModalContent({
           <Button variant="secondary" size="sm" loading={preview.refreshing} onClick={onRefresh}>
             {t('common.refresh')}
           </Button>
-          <Button variant="ghost" size="sm" disabled={!canUsePreview} onClick={() => void handleCopy()}>{copied ? t('common.copied') : t('common.copy')}</Button>
+          <IconActionButton
+            action={copied ? 'copied' : 'copy'}
+            aria-label={copied ? t('common.copied') : t('common.copy')}
+            disabled={!canUsePreview}
+            onClick={() => void handleCopy()}
+          />
         </div>
       </div>
       {(preview.refreshError || !preview.readiness.ready) && (

@@ -1,0 +1,27 @@
+.button.button {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.button.button[data-action="delete"]:not(:first-child) {
+  margin-inline-start: 0.25rem;
+}
+
+.button.button[data-action="delete"]:hover:not(:disabled) {
+  color: var(--color-error);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.button > span[aria-hidden='true'] {
+  border-color: currentColor;
+  border-right-color: transparent;
+}

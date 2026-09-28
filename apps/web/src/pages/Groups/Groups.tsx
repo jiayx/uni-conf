@@ -1,3 +1,5 @@
+import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
@@ -538,9 +540,6 @@ export function Groups() {
                 <div className={styles.cardMain}>
                   <div className={styles.cardTop}>
                     <div className={styles.groupName}>{group.name}</div>
-                    <Badge variant={group.enabled ? 'success' : 'default'}>
-                      {group.enabled ? t('common.enabled') : t('common.disabled')}
-                    </Badge>
                   </div>
                   <div className={styles.groupMeta}>
                     <Badge variant={GROUP_TYPE_COLORS[group.type] ?? 'default'}>{typeLabel(group.type)}</Badge>
@@ -581,29 +580,25 @@ export function Groups() {
                       </Button>
                     </div>
                     <div className={styles.cardActions}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <EnabledSwitch
+                        checked={group.enabled}
+                        aria-label={group.name}
                         loading={rowAction?.id === group.id && rowAction.type === 'toggle'}
                         disabled={rowAction?.id === group.id}
                         onClick={() => void handleToggleEnabled(group)}
-                      >
-                        {group.enabled ? t('common.disable') : t('common.enable')}
-                      </Button>
-                      <Button variant="ghost" size="sm" disabled={rowAction?.id === group.id} onClick={() => openEdit(group)}>
-                        {t('common.edit')}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      />
+                      <IconActionButton
+                        action="edit"
+                        disabled={rowAction?.id === group.id}
+                        onClick={() => openEdit(group)}
+                      />
+                      <IconActionButton
+                        action="delete"
                         loading={rowAction?.id === group.id && rowAction.type === 'delete'}
                         disabled={rowAction?.id === group.id}
                         aria-label={t('groups.delete_group', { name: group.name })}
-                        title={t('groups.delete_group', { name: group.name })}
                         onClick={() => void handleDelete(group)}
-                      >
-                        <TrashIcon />
-                      </Button>
+                      />
                     </div>
                   </div>
                 )}
@@ -684,9 +679,6 @@ function PlusIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 }
 
-function TrashIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-}
 
 function ArrowUpIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>

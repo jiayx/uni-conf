@@ -1,0 +1,39 @@
+.control.control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.control:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.control:disabled { opacity: 0.5; cursor: not-allowed; }
+.track {
+  display: inline-flex;
+  align-items: center;
+  width: 30px;
+  height: 18px;
+  padding: 2px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--color-border);
+  transition: background 150ms;
+}
+.thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px #0003;
+  transition: transform 150ms;
+}
+.control[aria-checked='true'] .track { background: var(--color-accent); }
+.control[aria-checked='true'] .thumb { transform: translateX(12px); }
+@media (prefers-reduced-motion: reduce) { .track, .thumb { transition: none; } }

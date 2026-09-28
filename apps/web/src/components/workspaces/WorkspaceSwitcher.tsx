@@ -1,3 +1,4 @@
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useCallback, useEffect, useState } from 'react'
 import type { Workspace } from '@uni-conf/types'
 import { useTranslation } from 'react-i18next'
@@ -166,14 +167,12 @@ export function WorkspaceSwitcher() {
                 {t('common.save')}
               </Button>
               {!workspace.isDefault && (
-                <Button
-                  variant="danger"
-                  size="sm"
+                <IconActionButton
+                  action="delete"
                   disabled={busy}
                   onClick={() => void deleteWorkspace(workspace)}
-                >
-                  {t('common.delete')}
-                </Button>
+                  aria-label={`${t('common.delete')}: ${workspace.name}`}
+                />
               )}
             </div>
           ))}

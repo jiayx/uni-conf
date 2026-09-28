@@ -1,3 +1,5 @@
+import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
@@ -645,29 +647,22 @@ export function Sources() {
                   <div className={styles.cardTitle}>{source.name}</div>
                 </div>
                 <div className={styles.cardActions}>
-                  <Button
-                    variant={source.enabled ? 'ghost' : 'secondary'}
-                    size="sm"
+                  <EnabledSwitch
+                    checked={source.enabled}
+                    aria-label={source.name}
                     loading={rowAction?.id === source.id && rowAction.type === 'toggle'}
                     disabled={rowAction?.id === source.id || refreshingId === source.id}
-                    aria-label={source.enabled
-                      ? t('sources.disable_source', { name: source.name })
-                      : t('sources.enable_source', { name: source.name })}
                     onClick={() => void handleToggle(source)}
-                  >
-                    {source.enabled ? t('common.disable') : t('common.enable')}
-                  </Button>
+                  />
                   {source.type === 'url' && (
                     <>
-                      <Button
-                        variant="ghost" size="sm"
+                      <IconActionButton
+                        action="edit"
                         disabled={rowAction?.id === source.id || refreshingId === source.id}
                         aria-label={t('sources.edit_source', { name: source.name })}
                         onClick={() => handleEdit(source)}
                         title={t('common.edit')}
-                      >
-                        <EditIcon />
-                      </Button>
+                      />
                       <Button
                         variant="ghost" size="sm"
                         loading={refreshingId === source.id}
@@ -680,21 +675,16 @@ export function Sources() {
                       </Button>
                     </>
                   )}
-                  <Button
-                    variant="ghost" size="sm"
+                  <IconActionButton
+                    action="delete"
                     loading={rowAction?.id === source.id && rowAction.type === 'delete'}
                     disabled={rowAction?.id === source.id || refreshingId === source.id}
                     aria-label={t('sources.delete_source', { name: source.name })}
                     onClick={() => void handleDeleteSource(source)}
-                  >
-                    <TrashIcon />
-                  </Button>
+                  />
                 </div>
               </div>
               <div className={styles.cardMeta}>
-                <Badge variant={source.enabled ? 'success' : 'default'}>
-                  {source.enabled ? t('common.enabled') : t('common.disabled')}
-                </Badge>
                 <Badge variant="info">{source.format.toUpperCase()}</Badge>
                 {source.type !== 'url' && <Badge variant="default">{t('sources.imported_source')}</Badge>}
               </div>
@@ -1185,15 +1175,11 @@ function PlusIcon() {
 function ImportIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 }
-function EditIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-}
+
 function RefreshIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
 }
-function TrashIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-}
+
 function SubscriptionIcon() {
   return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
 }

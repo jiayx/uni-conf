@@ -1,3 +1,4 @@
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -153,15 +154,14 @@ export function Dashboard() {
                 </select>
               </label>
               <div className={styles.quickLinkActions}>
-                <Button
-                  variant="secondary"
+                <IconActionButton
+                  action={copiedFormat === selectedQuickFormat ? 'copied' : 'copy'}
+                  aria-label={copiedFormat === selectedQuickFormat ? t('common.copied') : t('export.copy_url')}
                   disabled={!selectedQuickLink}
                   onClick={() => {
                     if (selectedQuickLink) void copySubscriptionUrl(selectedQuickLink.value, selectedQuickLink.url)
                   }}
-                >
-                  {copiedFormat === selectedQuickFormat ? t('common.copied') : t('export.copy_url')}
-                </Button>
+                />
                 <Button
                   variant="secondary"
                   loading={downloadingFormat === selectedQuickFormat}

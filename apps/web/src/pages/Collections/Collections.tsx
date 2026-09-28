@@ -1,3 +1,4 @@
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
@@ -600,19 +601,17 @@ export function Collections() {
               <div className={styles.cardActions}>
                 {!managedNodeGroup && (
                   <>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(collection)}>
-                      {t('common.edit')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <IconActionButton
+                      action="edit"
+                      onClick={() => openEdit(collection)}
+                    />
+                    <IconActionButton
+                      action="delete"
                       loading={rowActionId === collection.id}
                       disabled={rowActionId === collection.id}
                       aria-label={t('collections.delete_collection', { name: collection.name })}
                       onClick={() => void handleDeleteCollection(collection)}
-                    >
-                      {t('common.delete')}
-                    </Button>
+                    />
                   </>
                 )}
               </div>
@@ -904,7 +903,12 @@ function FilterRow({ filter, index, onChange, onRemove }: {
         onChange={e => onChange({ ...filter, value: e.target.value })}
         placeholder={t('collections.filter_value_placeholder')}
       />
-      <Button type="button" variant="ghost" size="sm" aria-label={t('collections.remove_filter', { row })} onClick={onRemove}>{t('common.delete')}</Button>
+      <IconActionButton
+        action="delete"
+        type="button"
+        aria-label={t('collections.remove_filter', { row })}
+        onClick={onRemove}
+      />
     </div>
   )
 }
@@ -949,7 +953,12 @@ function RenameRow({ rename, index, onChange, onRemove }: {
         placeholder={needsReplacement ? t('collections.rename_replacement_placeholder') : t('collections.not_required')}
         disabled={!needsReplacement}
       />
-      <Button type="button" variant="ghost" size="sm" aria-label={t('collections.remove_rename', { row })} onClick={onRemove}>{t('common.delete')}</Button>
+      <IconActionButton
+        action="delete"
+        type="button"
+        aria-label={t('collections.remove_rename', { row })}
+        onClick={onRemove}
+      />
     </div>
   )
 }

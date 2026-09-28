@@ -279,7 +279,7 @@ describe('Rules filters', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Rules /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Disable' }))[0]!)
+    await user.click((await screen.findAllByRole('switch'))[0]!)
     expect(await screen.findByRole('alert')).toHaveTextContent('toggle failed')
 
     await user.click(screen.getAllByTitle('Move down')[0]!)

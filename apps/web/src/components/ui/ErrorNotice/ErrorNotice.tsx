@@ -1,3 +1,4 @@
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -68,9 +69,12 @@ export function ErrorNotice({ error, className = '', title }: ErrorNoticeProps) 
         <div className={styles.diagnostic}>
           <span>{t('common.diagnostic_reference')}</span>
           <code>{diagnostic}</code>
-          <button type="button" onClick={() => void copyDiagnostic()}>
-            {copied ? t('common.copied') : t('common.copy_diagnostic')}
-          </button>
+          <IconActionButton
+            action={copied ? 'copied' : 'copy'}
+            aria-label={copied ? t('common.copied') : t('common.copy_diagnostic')}
+            type="button"
+            onClick={() => void copyDiagnostic()}
+          />
           {copyFailed && <span className={styles.copyFailed}>{t('common.clipboard_copy_failed')}</span>}
         </div>
       )}

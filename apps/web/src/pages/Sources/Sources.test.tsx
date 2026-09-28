@@ -148,7 +148,7 @@ describe('Sources import flow', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Sources /></MemoryRouter>)
 
-    await user.click(screen.getByRole('button', { name: 'Disable Airport' }))
+    await user.click(screen.getByRole('switch', { name: 'Airport' }))
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('source update failed')
@@ -164,7 +164,7 @@ describe('Sources import flow', () => {
 
     expect(screen.getByText('Disabled')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh Airport' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Enable Airport' }))
+    await user.click(screen.getByRole('switch', { name: 'Airport' }))
 
     expect(store.updateSource).toHaveBeenCalledWith('source-1', { enabled: true })
     expect(store.refreshSource).not.toHaveBeenCalled()

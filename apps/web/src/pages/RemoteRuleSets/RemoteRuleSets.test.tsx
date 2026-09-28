@@ -87,6 +87,28 @@ describe('RemoteRuleSets content validation', () => {
     })
   })
 
+  it('blocks repeated toggles while saving and preserves the state on failure', async () => {
+    let rejectUpdate!: (error: Error) => void
+    vi.mocked(api.remoteRuleSets.update).mockImplementationOnce(() => new Promise((_, reject) => {
+      rejectUpdate = reject
+    }))
+    const user = userEvent.setup()
+    render(<MemoryRouter><RemoteRuleSets /></MemoryRouter>)
+
+    const toggle = await screen.findByRole('switch', { name: 'Custom Domains' })
+    toggle.focus()
+    await user.keyboard(' ')
+    expect(toggle).toBeDisabled()
+    expect(toggle).toBeChecked()
+    await user.click(toggle)
+    expect(api.remoteRuleSets.update).toHaveBeenCalledExactlyOnceWith('custom-domains', { enabled: false })
+
+    rejectUpdate(new Error('Update failed'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Update failed')
+    expect(toggle).toBeEnabled()
+    expect(toggle).toBeChecked()
+  })
+
   it('opens and focuses the requested target-native source from a conversion remediation link', async () => {
     render(
       <MemoryRouter initialEntries={['/remote-rule-sets?edit=custom-domains&nativeSource=singbox']}>

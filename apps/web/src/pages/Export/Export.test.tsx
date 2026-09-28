@@ -189,7 +189,7 @@ describe('Export', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Pause Subscription' })).at(-1)!)
+    await user.click((await screen.findAllByRole('switch', { name: 'Mobile' })).at(-1)!)
     expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/Mobile.*all public links/s))
 
     await user.click(screen.getAllByRole('button', { name: 'Reset Token' }).at(-1)!)
@@ -202,7 +202,7 @@ describe('Export', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Pause Subscription' })).at(-1)!)
+    await user.click((await screen.findAllByRole('switch', { name: 'Mobile' })).at(-1)!)
 
     await waitFor(() => expect(api.export.updateConfig).toHaveBeenCalledWith(
       'advanced-1',

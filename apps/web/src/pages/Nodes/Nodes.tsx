@@ -1,3 +1,5 @@
+import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -496,54 +498,46 @@ export function Nodes() {
                   <td data-label={t('nodes.country')}>{node.countryCode ?? '—'}</td>
                   <td data-label={t('nodes.source')}>{getNodeSourceName(node)}</td>
                   <td data-label={t('common.status')}>
-                    <Badge variant={disabledBySource ? 'warning' : node.enabled ? 'success' : 'default'}>
-                      {disabledBySource
-                        ? t('nodes.disabled_by_source')
-                        : node.enabled ? t('common.enabled') : t('common.disabled')}
-                    </Badge>
+                    <EnabledSwitch
+                      checked={node.enabled}
+                      aria-label={node.name}
+                      loading={rowAction?.id === node.id && rowAction.type === 'toggle'}
+                      disabled={rowAction?.id === node.id}
+                      onClick={() => void handleToggleEnabled(node)}
+                    />
+                    {disabledBySource && (
+                      <div><Badge variant="warning">{t('nodes.disabled_by_source')}</Badge></div>
+                    )}
                   </td>
                   <td data-label={t('common.actions')}>
                     <div className={styles.rowActions}>
                       {node.isManual && (
-                        <>
-                          <Button variant="ghost" size="sm" className={styles.rowActionButton} disabled={rowAction?.id === node.id || detailLoading} onClick={() => void openEdit(node)}>
-                            {t('common.edit')}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.rowActionButton}
-                            loading={rowAction?.id === node.id && rowAction.type === 'delete'}
-                            disabled={rowAction?.id === node.id}
-                            aria-label={t('nodes.delete_node', { name: node.name })}
-                            onClick={() => void handleDelete(node)}
-                          >
-                            {t('common.delete')}
-                          </Button>
-                        </>
+                        <IconActionButton
+                          action="edit"
+                          className={styles.rowActionButton}
+                          disabled={rowAction?.id === node.id || detailLoading}
+                          onClick={() => void openEdit(node)}
+                        />
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={styles.rowActionButton}
-                        loading={rowAction?.id === node.id && rowAction.type === 'toggle'}
-                        disabled={rowAction?.id === node.id}
-                        onClick={() => void handleToggleEnabled(node)}
-                      >
-                        {node.enabled ? t('common.disable') : t('common.enable')}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <IconActionButton
+                        action={copiedNodeId === node.id ? 'copied' : 'copy'}
                         className={styles.rowActionButton}
                         disabled={copyingNodeId === node.id}
                         aria-label={copiedNodeId === node.id
                           ? t('nodes.node_uri_copied', { name: node.name })
                           : t('nodes.copy_node_uri', { name: node.name })}
                         onClick={() => void handleCopyUri(node)}
-                      >
-                        {copiedNodeId === node.id ? t('common.copied') : t('nodes.copy_uri')}
-                      </Button>
+                      />
+                      {node.isManual && (
+                        <IconActionButton
+                          action="delete"
+                          className={styles.rowActionButton}
+                          loading={rowAction?.id === node.id && rowAction.type === 'delete'}
+                          disabled={rowAction?.id === node.id}
+                          aria-label={t('nodes.delete_node', { name: node.name })}
+                          onClick={() => void handleDelete(node)}
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>

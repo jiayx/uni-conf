@@ -93,22 +93,17 @@ describe('Nodes filters', () => {
     expect(names).toEqual(['Hong Kong Premium', 'Home Relay', 'Tokyo Backup'])
   })
 
-  it('places edit and delete before the right-aligned state and copy actions', async () => {
+  it('shows edit, copy and delete actions in order for manual nodes', async () => {
     render(<MemoryRouter><Nodes /></MemoryRouter>)
 
     const manualRow = (await screen.findByText('Home Relay')).closest('tr')!
-    expect(within(manualRow).getAllByRole('button').map(button => button.textContent)).toEqual([
-      'Edit',
-      'Delete',
-      'Disable',
-      'Copy',
-    ])
+    const actions = within(manualRow).getAllByRole('button')
+    expect(actions[0]).toHaveAccessibleName('Edit')
+    expect(actions[1]).toHaveAccessibleName('Copy node URI for Home Relay')
+    expect(actions[2]).toBe(within(manualRow).getByRole('button', { name: /Delete.*Home Relay/i }))
 
     const subscriptionRow = screen.getByText('Hong Kong Premium').closest('tr')!
-    expect(within(subscriptionRow).getAllByRole('button').map(button => button.textContent)).toEqual([
-      'Disable',
-      'Copy',
-    ])
+    expect(within(subscriptionRow).getByRole('button')).toHaveAccessibleName('Copy node URI for Hong Kong Premium')
   })
 
   it('shows a source-level disabled status without changing the node state', async () => {
@@ -118,7 +113,7 @@ describe('Nodes filters', () => {
 
     const sourceDisabledRow = (await screen.findByText('Hong Kong Premium')).closest('tr')!
     expect(within(sourceDisabledRow).getByText('Subscription paused')).toBeInTheDocument()
-    expect(within(sourceDisabledRow).getByRole('button', { name: 'Disable' })).toBeInTheDocument()
+    expect(within(sourceDisabledRow).getByRole('switch', { name: 'Hong Kong Premium' })).toBeChecked()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'enabled')
     expect(screen.queryByText('Hong Kong Premium')).not.toBeInTheDocument()
@@ -135,7 +130,7 @@ describe('Nodes filters', () => {
 
     expect(apiMocks.getNodeUri).toHaveBeenCalledWith('hong-kong')
     expect(writeText).toHaveBeenCalledWith('ss://standard-hong-kong')
-    expect(within(subscriptionRow).getByRole('button', { name: 'Node URI copied for Hong Kong Premium' })).toHaveTextContent('Copied!')
+    expect(within(subscriptionRow).getByRole('button', { name: 'Node URI copied for Hong Kong Premium' })).toBeInTheDocument()
 
     const manualRow = screen.getByText('Home Relay').closest('tr')!
     expect(within(manualRow).getByRole('button', { name: 'Copy node URI for Home Relay' })).toBeInTheDocument()
@@ -366,7 +361,7 @@ describe('Nodes filters', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Nodes /></MemoryRouter>)
 
-    await user.click((await screen.findAllByRole('button', { name: 'Disable' }))[0]!)
+    await user.click((await screen.findAllByRole('switch'))[0]!)
     expect(await screen.findByRole('alert')).toHaveTextContent('toggle failed')
     expect(screen.getByRole('button', { name: 'Delete Home Relay' })).toBeInTheDocument()
   })

@@ -1,3 +1,5 @@
+import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
+import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { inferQuixoticRuleSetSourceFromUrl } from '@uni-conf/shared'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -95,6 +97,7 @@ export function RemoteRuleSets() {
   const [sourceCandidateError, setSourceCandidateError] = useState('')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
   const [autoDiscoveredSourceOverrides, setAutoDiscoveredSourceOverrides] = useState<RemoteRuleSet['sourceOverrides']>({})
   const [sourceOverridesExpanded, setSourceOverridesExpanded] = useState(false)
   const [sourceOverrideFocusTarget, setSourceOverrideFocusTarget] = useState<RemoteRuleSetSourceOverrideTarget | null>(null)
@@ -447,16 +450,24 @@ export function RemoteRuleSets() {
   }
 
   const handleToggle = async (set: RemoteRuleSet, usableByCurrentRouting: boolean) => {
+    if (togglingIds.has(set.id)) return
     if (!usableByCurrentRouting && !set.enabled) {
       setError(t('remoteRuleSets.disabled_target_error'))
       return
     }
     setError(null)
+    setTogglingIds(current => new Set(current).add(set.id))
     try {
       const updated = await api.remoteRuleSets.update(set.id, { enabled: !set.enabled })
       setSets(current => current.map(item => (item.id === set.id ? updated : item)))
     } catch (e) {
       setError(e)
+    } finally {
+      setTogglingIds(current => {
+        const next = new Set(current)
+        next.delete(set.id)
+        return next
+      })
     }
   }
 
@@ -722,15 +733,13 @@ export function RemoteRuleSets() {
                       {automaticallyUnused ? (
                         <Badge variant="default">{t('remoteRuleSets.automatically_unused')}</Badge>
                       ) : (
-                        <label className={styles.enableSwitch}>
-                          <input
-                            type="checkbox"
-                            checked={set.enabled}
-                            onChange={() => void handleToggle(set, usableByCurrentRouting)}
-                            disabled={!usableByCurrentRouting && !set.enabled}
-                          />
-                          <span>{set.enabled ? t('common.enabled') : t('common.disabled')}</span>
-                        </label>
+                        <EnabledSwitch
+                          checked={set.enabled}
+                          aria-label={set.name}
+                          loading={togglingIds.has(set.id)}
+                          onClick={() => void handleToggle(set, usableByCurrentRouting)}
+                          disabled={!usableByCurrentRouting && !set.enabled}
+                        />
                       )}
                       <div className={styles.cardTitle}>{set.name}</div>
                     </div>
@@ -776,9 +785,10 @@ export function RemoteRuleSets() {
                     {visibleRemoteRuleSetNotes(set.notes) && <div className={styles.notes}>{visibleRemoteRuleSetNotes(set.notes)}</div>}
                     <div className={styles.cardActions}>
                       {canEditRemoteRuleSet(set) ? (
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(set)}>
-                          {t('common.edit')}
-                        </Button>
+                        <IconActionButton
+                          action="edit"
+                          onClick={() => openEdit(set)}
+                        />
                       ) : (
                         <>
                           {!automaticallyUnused && (
@@ -793,14 +803,11 @@ export function RemoteRuleSets() {
                         </>
                       )}
                       {canEditRemoteRuleSet(set) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={t('common.delete')}
+                        <IconActionButton
+                          action="delete"
+                          aria-label={`${t('common.delete')}: ${set.name}`}
                           onClick={() => void handleDelete(set)}
-                        >
-                          <TrashIcon />
-                        </Button>
+                        />
                       )}
                     </div>
                   </Card>
@@ -1173,9 +1180,6 @@ function PlusIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 }
 
-function TrashIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-}
 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
