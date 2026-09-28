@@ -84,6 +84,7 @@ describe('Export', () => {
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
+    await user.click(await screen.findByText('Choose a client / More formats'))
     await user.click((await screen.findAllByRole('button', { name: 'Copy URL' }))[0]!)
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining(
@@ -93,8 +94,24 @@ describe('Export', () => {
     writeText.mockRestore()
   })
 
-  it('offers client-specific deep links for full remote profiles', async () => {
+  it('copies universal full-config and nodes-only links', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(<MemoryRouter><Export /></MemoryRouter>)
+    await user.click(await screen.findByRole('button', { name: 'Copy Universal link · Full configuration' }))
+    expect(writeText).toHaveBeenLastCalledWith('http://localhost:3000/sub/default-token')
+    await user.click(screen.getByRole('button', { name: 'Copy Universal link · Nodes only' }))
+    expect(writeText).toHaveBeenLastCalledWith('http://localhost:3000/sub/default-token?mode=nodes')
+    writeText.mockRestore()
+  })
+
+  it('offers client-specific deep links after expanding more formats', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><Export /></MemoryRouter>)
+    const summary = await screen.findByText('Choose a client / More formats')
+    expect(summary.closest('details')).not.toHaveAttribute('open')
+    await user.click(summary)
+    expect(summary.closest('details')).toHaveAttribute('open')
 
     const loonLink = await screen.findByRole('link', { name: 'Import into Loon' })
     expect(loonLink).toHaveAttribute(
@@ -156,6 +173,7 @@ describe('Export', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
+    await user.click(await screen.findByText('Choose a client / More formats'))
     await user.click(await screen.findByRole('button', { name: 'Preview Mihomo / Clash.Meta config' }))
 
     for (let index = 1; index <= 4; index += 1) {

@@ -88,6 +88,99 @@ describe('export download readiness', () => {
     })
   })
 
+  it.each([
+    ['mihomo/1.19', 'mihomo'],
+    ['ClashMeta/1.19', 'mihomo'],
+    ['clash-verge/v2.4', 'mihomo'],
+    ['Stash/3.0 Clash', 'stash'],
+    ['Egern/2.0', 'egern'],
+    ['Shadowrocket/3000 CFNetwork/1 Darwin/1', 'shadowrocket'],
+    ['Quantumult X/1.5', 'quantumultx'],
+    ['Quantumult%20X/1.5', 'quantumultx'],
+    ['Surge iOS/3004', 'surge'],
+    ['Loon/1.0', 'loon'],
+    ['sing-box/1.14', 'singbox'],
+  ] as const)('selects full configuration for %s', async (userAgent, format) => {
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({ nodes: [renderableNode()] }))
+    const response = await subscriptionRouter.request('/sub/token', {
+      headers: { 'User-Agent': userAgent },
+    }, { DB: createMockDb() })
+    expect(response.status).toBe(200)
+    expect(renderExportData).toHaveBeenCalledWith(expect.anything(), format, expect.anything())
+    expect(response.headers.get('Vary')).toContain('User-Agent')
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
+  })
+
+  it.each([
+    ['/sub/token?format=stash', 'stash'],
+    ['/sub/token?mode=nodes', 'nodes_base64'],
+    ['/sub/token?mode=nodes&format=nodes_raw', 'nodes_raw'],
+    ['/sub/token/surge.conf?mode=nodes&format=stash', 'surge'],
+  ] as const)('honors explicit selection and legacy filenames: %s', async (path, format) => {
+    const node = renderableNode()
+    vi.mocked(buildExportData).mockResolvedValue(makeExportData({
+      nodes: [node],
+      nodeRows: [{ ...node, parsed_config: JSON.stringify(node.parsedConfig) }],
+    }))
+    const response = await subscriptionRouter.request(path, {
+      headers: { 'User-Agent': 'mihomo/1.19' },
+    }, { DB: createMockDb() })
+    expect(response.status).toBe(200)
+    expect(renderExportData).toHaveBeenCalledWith(expect.anything(), format, expect.anything())
+  })
+
+  it.each([
+    '?mode=invalid', '?format=invalid', '?format=nodes_raw', '?mode=nodes&format=stash',
+  ])('rejects invalid parameters without guessing: %s', async query => {
+    const response = await subscriptionRouter.request(`/sub/token${query}`, {
+      headers: { 'User-Agent': 'Stash/3.0' },
+    }, { DB: createMockDb() })
+    expect(response.status).toBe(400)
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('offers a browser selector but returns a clear error for unknown download clients', async () => {
+    const machine = await subscriptionRouter.request('/sub/token', {}, { DB: createMockDb() })
+    expect(machine.status).toBe(400)
+    expect(machine.headers.get('X-UniConf-Error-Code')).toBe('subscription_client_unknown')
+    const browser = await subscriptionRouter.request('/sub/token', {
+      headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0' },
+    }, { DB: createMockDb() })
+    expect(browser.status).toBe(200)
+    expect(browser.headers.get('Content-Type')).toContain('text/html')
+    expect(await browser.text()).toContain('format=stash')
+    expect(renderExportData).not.toHaveBeenCalled()
+  })
+
+  it('validates tokens before exposing the browser selector', async () => {
+    vi.mocked(getEnabledExportConfigByToken).mockResolvedValue(null)
+    const response = await subscriptionRouter.request('/sub/disabled', {
+      headers: { Accept: 'text/html' },
+    }, { DB: createMockDb() })
+    expect(response.status).toBe(404)
+  })
+
+  it('preserves profile format restrictions for automatic and nodes-only requests', async () => {
+    const config = await getEnabledExportConfigByToken(createMockDb(), 'token')
+    vi.mocked(getEnabledExportConfigByToken).mockResolvedValue({ ...config!, id: 'custom' })
+    for (const path of ['/sub/token', '/sub/token?mode=nodes']) {
+      const response = await subscriptionRouter.request(path, {
+        headers: { 'User-Agent': 'Stash/3.0' },
+      }, { DB: createMockDb() })
+      expect(response.status).toBe(404)
+      expect(response.headers.get('X-UniConf-Error-Code')).toBe('subscription_format_mismatch')
+    }
+    expect(buildExportData).not.toHaveBeenCalled()
+  })
+
+  it('applies export readiness checks to automatic subscriptions', async () => {
+    const response = await subscriptionRouter.request('/sub/token', {
+      headers: { 'User-Agent': 'mihomo' },
+    }, { DB: createMockDb() })
+    expect(response.status).toBe(409)
+    expect(response.headers.get('X-UniConf-Error-Code')).toBe('export_not_ready')
+  })
+
   it('blocks authenticated downloads when no nodes are exportable', async () => {
     const response = await exportRouter.request('/download/mihomo', {}, { DB: createMockDb() })
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { Dashboard } from './Dashboard'
 import { SetupGuideDialog } from '@/components/onboarding/SetupGuideDialog/SetupGuideDialog'
@@ -14,7 +15,6 @@ vi.mock('@/lib/api', async () => {
     api: {
       ...actual.api,
       dashboard: { stats: vi.fn() },
-      export: { ...actual.api.export, downloadFormat: vi.fn() },
     },
   }
 })
@@ -41,13 +41,25 @@ describe('Dashboard', () => {
     vi.mocked(api.dashboard.stats).mockResolvedValue(stats)
   })
 
-  it('shows direct quick actions without running an export preflight', async () => {
+  it('copies the universal configuration link and links to all export options', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(<MemoryRouter><Dashboard /></MemoryRouter>)
-
-    expect(await screen.findByRole('combobox', { name: 'Export Format' })).toHaveValue('mihomo')
-    expect(screen.getByRole('button', { name: 'Copy URL' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled()
+    await user.click(await screen.findByRole('button', { name: 'Copy subscription link' }))
+    expect(writeText).toHaveBeenLastCalledWith('http://localhost:3000/sub/token-1')
+    expect(screen.getByRole('link', { name: 'More export options' })).toHaveAttribute('href', '/export')
     expect(screen.queryByText(/token-1/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'QR code' }))
+    expect(screen.getByRole('dialog', { name: 'UniConf Subscription QR Code' })).toBeInTheDocument()
+    expect(screen.getByTitle('Subscription URL QR code')).toBeInTheDocument()
+    writeText.mockRestore()
+  })
+
+  it('hides subscription actions when the default profile is paused', async () => {
+    vi.mocked(api.dashboard.stats).mockResolvedValue({ ...stats, defaultExportEnabled: false })
+    render(<MemoryRouter><Dashboard /></MemoryRouter>)
+    expect(await screen.findByText('The default public subscription link is paused.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy subscription link' })).not.toBeInTheDocument()
   })
 
   it('shows only persisted actionable failures', async () => {

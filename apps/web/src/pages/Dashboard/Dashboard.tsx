@@ -1,14 +1,13 @@
-import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
-import { useEffect, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
+import { Modal } from '@/components/ui/Modal/Modal'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Card } from '@/components/ui/Card/Card'
 import { Button } from '@/components/ui/Button/Button'
 import { Badge } from '@/components/ui/Badge/Badge'
-import { EXPORT_FORMAT_OPTIONS } from '@/core/export/formats'
-import { saveExportDownload } from '@/core/export/download-file'
-import { buildQuickSubscriptionLinks } from '@/core/export/quick-subscriptions'
+import { buildUniversalSubscriptionUrl } from '@/core/export/quick-subscriptions'
 import { writeClipboardText } from '@/core/clipboard/write-text'
 import {
   deriveDashboardAttention,
@@ -28,10 +27,11 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [copiedFormat, setCopiedFormat] = useState<string | null>(null)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
-  const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null)
-  const [selectedQuickFormat, setSelectedQuickFormat] = useState<typeof EXPORT_FORMAT_OPTIONS[number]['value']>('mihomo')
+  const [showQr, setShowQr] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(copyTimer.current), [])
 
   const loadStats = async () => {
     const nextStats = await api.dashboard.stats()
@@ -42,10 +42,6 @@ export function Dashboard() {
       && window.sessionStorage.getItem(SETUP_GUIDE_DISMISSED_KEY) !== '1'
     ) {
       openSetupGuide()
-    }
-    const defaultFormat = nextStats.defaultExportFormat
-    if (defaultFormat && EXPORT_FORMAT_OPTIONS.some(option => option.value === defaultFormat)) {
-      setSelectedQuickFormat(defaultFormat)
     }
     setError(null)
   }
@@ -84,37 +80,23 @@ export function Dashboard() {
 
   const hasUsableNodes = (stats?.enabledNodeCount ?? 0) > 0
   const needsFirstSetup = !loading && stats?.sourceCount === 0 && stats.nodeCount === 0
-  const quickSubscriptionLinks = buildQuickSubscriptionLinks(
-    window.location.origin,
-    stats?.defaultExportToken,
-    stats?.defaultExportEnabled !== false,
-    stats?.defaultExportName,
-  )
-  const selectedQuickLink = quickSubscriptionLinks.find(item => item.value === selectedQuickFormat)
+  const subscriptionUrl = stats?.defaultExportToken && stats.defaultExportEnabled !== false
+    ? buildUniversalSubscriptionUrl(window.location.origin, stats.defaultExportToken)
+    : null
   const attentionItems = stats
     ? deriveDashboardAttention(stats)
     : []
 
-  const copySubscriptionUrl = async (format: string, url: string) => {
-    setDownloadError(null)
+  const copySubscriptionUrl = async () => {
+    if (!subscriptionUrl) return
+    setCopyError(null)
     try {
-      await writeClipboardText(url)
-      setCopiedFormat(format)
-      window.setTimeout(() => setCopiedFormat(null), 2000)
+      await writeClipboardText(subscriptionUrl)
+      setCopied(true)
+      clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopied(false), 2000)
     } catch {
-      setDownloadError(t('common.clipboard_copy_failed'))
-    }
-  }
-
-  const downloadQuickExport = async (format: typeof EXPORT_FORMAT_OPTIONS[number]['value']) => {
-    setDownloadingFormat(format)
-    setDownloadError(null)
-    try {
-      saveExportDownload(await api.export.downloadFormat(format))
-    } catch (e) {
-      setDownloadError((e as Error).message)
-    } finally {
-      setDownloadingFormat(null)
+      setCopyError(t('common.clipboard_copy_failed'))
     }
   }
 
@@ -129,56 +111,41 @@ export function Dashboard() {
       />
 
       {error && <div className={styles.error}>{error}</div>}
-      {downloadError && <div className={styles.inlineError} role="alert">{downloadError}</div>}
+      {copyError && <div className={styles.inlineError} role="alert">{copyError}</div>}
 
       {hasUsableNodes && (
         <Card className={styles.quickExport}>
-          <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
-          <p className={styles.sectionDescription}>{t('dashboard.quick_export_desc')}</p>
-          {stats?.defaultExportEnabled === false ? (
-            <div className={styles.pausedExport}>
-              <span>{t('dashboard.quick_export_paused')}</span>
-              <Link to="/export">{t('dashboard.manage_export_links')}</Link>
-            </div>
-          ) : <>
-            <div className={styles.quickExportControl}>
-              <label className={styles.quickFormatField}>
-                <span>{t('export.format')}</span>
-                <select
-                  value={selectedQuickFormat}
-                  onChange={event => setSelectedQuickFormat(event.target.value as typeof selectedQuickFormat)}
-                >
-                  {EXPORT_FORMAT_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>{t(`export.formats.${option.value}`)}</option>
-                  ))}
-                </select>
-              </label>
-              <div className={styles.quickLinkActions}>
-                <IconActionButton
-                  action={copiedFormat === selectedQuickFormat ? 'copied' : 'copy'}
-                  aria-label={copiedFormat === selectedQuickFormat ? t('common.copied') : t('export.copy_url')}
-                  disabled={!selectedQuickLink}
-                  onClick={() => {
-                    if (selectedQuickLink) void copySubscriptionUrl(selectedQuickLink.value, selectedQuickLink.url)
-                  }}
-                />
-                <Button
-                  variant="secondary"
-                  loading={downloadingFormat === selectedQuickFormat}
-                  onClick={() => void downloadQuickExport(selectedQuickFormat)}
-                >
-                  {t('common.download')}
+          <div>
+            <h2 className={styles.sectionTitle}>{t('dashboard.quick_export')}</h2>
+            <p className={styles.sectionDescription}>{t(stats?.defaultExportEnabled === false
+              ? 'dashboard.quick_export_paused' : 'dashboard.quick_export_desc')}</p>
+          </div>
+          <div className={styles.quickActions}>
+            {stats?.defaultExportEnabled !== false && (
+              <>
+                <Button disabled={!subscriptionUrl} onClick={() => void copySubscriptionUrl()}>
+                  {t(copied ? 'common.copied' : 'dashboard.copy_subscription')}
                 </Button>
-                <Link className={styles.manageLink} to="/export">{t('dashboard.manage_export_links')}</Link>
-              </div>
-              <p className={styles.sensitiveHint}>{t('dashboard.quick_export_sensitive_hint')}</p>
-            </div>
-          </>}
+                <Button variant="secondary" disabled={!subscriptionUrl} onClick={() => setShowQr(true)}>
+                  {t('dashboard.subscription_qr')}
+                </Button>
+              </>
+            )}
+            <Link className={styles.manageLink} to="/export">{t('dashboard.more_export_options')}</Link>
+          </div>
         </Card>
       )}
 
+      <Modal open={showQr && Boolean(subscriptionUrl)} onOpenChange={setShowQr}
+        title={t('export.qr_title', { name: stats?.defaultExportName || 'UniConf' })}
+        description={t('export.qr_security_hint')} size="sm">
+        {subscriptionUrl && <div className={styles.qrCode}>
+          <QRCodeSVG value={subscriptionUrl} size={240} level="M" marginSize={2} title={t('export.qr_image_label')} />
+        </div>}
+      </Modal>
+
       {attentionItems.length > 0 && (
-        <AttentionCenter items={attentionItems} format={selectedQuickFormat} />
+        <AttentionCenter items={attentionItems} format={stats?.defaultExportFormat ?? 'mihomo'} />
       )}
 
       {loading ? (

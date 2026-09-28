@@ -654,6 +654,13 @@
     "unsupported_formats": "不支持远程规则集"
   },
   "export": {
+    "client_specific_hint": "需要一键导入、预览或下载文件，或自动识别失败时，在这里选择格式。",
+    "client_specific_links": "指定客户端 / 更多格式",
+    "universal_config": "通用链接 · 完整配置",
+    "universal_config_hint": "复制到客户端即可自动获取完整配置，包含分流规则和 DNS。",
+    "universal_nodes": "通用链接 · 仅节点",
+    "universal_nodes_hint": "Base64 节点 URI，不包含分流规则和 DNS。",
+    "copy_universal": "复制{{name}}",
     "auto_conversion_hint": "Clash/Mihomo、Surge、Loon、Shadowrocket、Quantumult X、Egern 与 sing-box 源码规则集会在语义可保持时自动转换。",
     "remote_set_converted_desc": "{{label}} · 将为 {{format}} 自动转换",
     "title": "配置导出",
@@ -867,7 +874,9 @@
     "invalid_key": "访问密钥无效"
   },
   "dashboard": {
-    "quick_export_sensitive_hint": "公开订阅地址包含访问 token，页面不会直接展示，仅在复制时写入剪贴板。",
+    "subscription_qr": "二维码",
+    "copy_subscription": "复制订阅链接",
+    "more_export_options": "更多导出选项",
     "title": "概览",
     "description": "粘贴订阅链接后，UniConf 会自动整理节点、生成节点组和分流策略，并按目标客户端导出配置",
     "sources": "订阅源",
@@ -897,9 +906,8 @@
     "setup_processing_status": "导入订阅并生成基础配置",
     "setup_processing_hint": "完成后将直接显示可复制的客户端订阅地址。",
     "quick_export": "快速导出",
-    "quick_export_desc": "选择客户端后复制订阅链接或下载配置；链接已经包含当前启用的节点、节点组、分流策略和兼容规则集。",
+    "quick_export_desc": "复制链接粘贴到客户端，或扫码添加，即可获取完整配置。",
     "quick_export_paused": "默认公开订阅链接已暂停。",
-    "manage_export_links": "管理导出链接",
     "source_refresh_failed": "订阅源已保存，但刷新失败：{{error}}",
     "never": "从未",
     "go": "前往"

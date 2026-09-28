@@ -34,6 +34,17 @@ UniConf 是一个面向个人自托管场景的代理配置管理工具。它可
 | Egern        | 完整 YAML 配置        |
 | 节点订阅     | Base64 或明文节点 URI |
 
+## 通用订阅链接
+
+默认配置支持 `/sub/<token>`，根据客户端 User-Agent 导出完整配置。支持 Mihomo / Clash 系、sing-box、Loon、Surge、Shadowrocket、Quantumult X、Stash 和 Egern；无法识别时可通过 `?format=stash` 等参数指定格式。浏览器打开时显示格式选择页面，其他无法识别的请求返回明确错误。
+
+- `/sub/<token>`：自动识别客户端，返回完整配置。
+- `/sub/<token>?format=stash`：指定客户端格式，优先于 UA。
+- `/sub/<token>?mode=nodes`：只返回 Base64 节点 URI，不包含规则和 DNS。
+- `/sub/<token>?mode=nodes&format=nodes_raw`：只返回明文节点 URI。
+
+节点订阅适用于支持节点 URI 的订阅入口，并非各客户端原生的 provider 文件。现有带文件名的订阅地址继续有效，以文件名决定格式；高级配置仍限制为创建时选择的格式。所有链接沿用配置的令牌、启停状态和导出范围。
+
 ## 开始使用
 
 1. 按照[部署到 Cloudflare](./docs/CLOUDFLARE_DEPLOYMENT.md)完成部署。

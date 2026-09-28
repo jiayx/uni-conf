@@ -1,3 +1,4 @@
+import { UniversalSubscriptionLinks } from '@/components/export/UniversalSubscriptionLinks/UniversalSubscriptionLinks'
 import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
 import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -443,7 +444,12 @@ export function Export() {
                     {t(revealedUrlScopes.has(defaultConfig.id) ? 'export.hide_urls' : 'export.reveal_urls')}
                   </Button>
                 </div>
-                <div className={styles.quickFormatList}>
+                <UniversalSubscriptionLinks key={defaultConfig.token} origin={BASE_URL} token={defaultConfig.token}
+                  enabled={defaultConfig.enabled} revealed={revealedUrlScopes.has(defaultConfig.id)} />
+                <details className={styles.advanced}>
+                  <summary>{t('export.client_specific_links')}</summary>
+                  <p className={styles.scopeText}>{t('export.client_specific_hint')}</p>
+                  <div className={styles.quickFormatList}>
                   {EXPORT_FORMAT_OPTIONS.map(item => {
                     const filename = getExportSubscriptionFilename(item.value)
                     const subUrl = buildPublicSubscriptionUrl(
@@ -519,7 +525,8 @@ export function Export() {
                       </div>
                     )
                   })}
-                </div>
+                  </div>
+                </details>
               </div>
             </Card>
           )}

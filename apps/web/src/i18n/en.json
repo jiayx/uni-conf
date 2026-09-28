@@ -654,6 +654,13 @@
     "unsupported_formats": "Remote rule sets are not supported"
   },
   "export": {
+    "client_specific_hint": "Choose a format for one-click import, previews, file downloads, or if automatic detection fails.",
+    "client_specific_links": "Choose a client / More formats",
+    "universal_config": "Universal link · Full configuration",
+    "universal_config_hint": "Paste into your client to automatically receive a full configuration, including routing rules and DNS.",
+    "universal_nodes": "Universal link · Nodes only",
+    "universal_nodes_hint": "Base64 node URIs, without routing rules or DNS.",
+    "copy_universal": "Copy {{name}}",
     "auto_conversion_hint": "Clash/Mihomo, Surge, Loon, Shadowrocket, Quantumult X, Egern and sing-box source rule sets are converted automatically when semantics can be preserved.",
     "remote_set_converted_desc": "{{label}} · automatically converted for {{format}}",
     "title": "Config Export",
@@ -867,7 +874,9 @@
     "invalid_key": "Invalid access key"
   },
   "dashboard": {
-    "quick_export_sensitive_hint": "The public URL contains an access token, so it stays hidden until you copy it.",
+    "subscription_qr": "QR code",
+    "copy_subscription": "Copy subscription link",
+    "more_export_options": "More export options",
     "title": "Dashboard",
     "description": "Paste subscription URLs and UniConf will organize nodes, generate node groups and routing policies, then export for the target client",
     "sources": "Sources",
@@ -897,9 +906,8 @@
     "setup_processing_status": "Importing the subscription and generating the base configuration",
     "setup_processing_hint": "When complete, a client subscription URL will appear here ready to copy.",
     "quick_export": "Quick Export",
-    "quick_export_desc": "Choose a client, then copy its subscription link or download the config. Each link includes enabled nodes, node groups, routing policies, and compatible rule sets.",
+    "quick_export_desc": "Paste the link into your client or scan the QR code to load a full configuration.",
     "quick_export_paused": "The default public subscription link is paused.",
-    "manage_export_links": "Manage export links",
     "source_refresh_failed": "Source saved, but refresh failed: {{error}}",
     "never": "Never",
     "go": "Go"

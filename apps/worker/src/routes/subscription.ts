@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { html } from 'hono/html'
 import { buildExportData, getEnabledExportConfigByToken } from '../export-data'
 import { renderExportData } from '../generators/export-renderer'
 import { getAppSettings } from '../services/app-settings'
@@ -7,6 +8,8 @@ import { validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
 import {
   getExportFormatFromSubscriptionFilename,
+  getExportSubscriptionFilename,
+  EXPORT_FORMAT_FILENAMES,
   isFullConfigExportFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
@@ -120,21 +123,33 @@ function isRuleSetConversionExportFormat(value: string): value is Exclude<Export
   return isFullConfigExportFormat(value)
 }
 
-// GET /sub/:token/:filename
-// Public subscription endpoint — no auth required
-subscriptionRouter.get('/sub/:token/:filename', async (c) => {
+// Both public URLs share token checks, scope restrictions and rendering.
+subscriptionRouter.use('/sub/:token', async (c, next) => {
+  await next()
+  c.res.headers.set('Vary', 'User-Agent, Accept')
+  c.res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+subscriptionRouter.get('/sub/:token/:filename?', async (c) => {
   const token = c.req.param('token')
-  const filename = c.req.param('filename')
-  const format = getExportFormatFromSubscriptionFilename(filename)
-  if (!format) {
-    return new Response(`# Unknown format: ${filename}\n`, {
-      status: 400,
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-UniConf-Error-Code': 'subscription_format_invalid',
-      },
-    })
+  const requestedFilename = c.req.param('filename')
+  const mode = c.req.query('mode') ?? 'config'
+  const requestedFormat = c.req.query('format')
+  let format: ExportFormat | null
+  if (requestedFilename) {
+    format = getExportFormatFromSubscriptionFilename(requestedFilename)
+  } else if (mode === 'nodes') {
+    format = requestedFormat === undefined ? 'nodes_base64'
+      : requestedFormat === 'nodes_base64' || requestedFormat === 'nodes_raw' ? requestedFormat : null
+  } else if (mode === 'config') {
+    format = requestedFormat === undefined
+      ? detectSubscriptionFormat(c.req.header('User-Agent') ?? '')
+      : isFullConfigExportFormat(requestedFormat) ? requestedFormat : null
+  } else {
+    format = null
+  }
+  const needsSelection = !requestedFilename && mode === 'config' && requestedFormat === undefined && !format
+  if (!format && !needsSelection) {
+    return convertedRuleSetError('Invalid subscription format or mode', 400, 'subscription_format_invalid')
   }
 
   // Look up export config by token
@@ -151,6 +166,26 @@ subscriptionRouter.get('/sub/:token/:filename', async (c) => {
     })
   }
   const workspaceId = config.workspaceId ?? DEFAULT_WORKSPACE_ID
+  if (!format) {
+    if (!c.req.header('Accept')?.includes('text/html')) {
+      return convertedRuleSetError(
+        'Cannot identify client. Specify ?format=mihomo (or another client), or ?mode=nodes for a node subscription.',
+        400,
+        'subscription_client_unknown',
+      )
+    }
+    const formats = (Object.keys(EXPORT_FORMAT_FILENAMES) as ExportFormat[])
+      .filter(value => config.id === defaultExportConfigId(workspaceId) || value === config.format)
+    c.header('Referrer-Policy', 'no-referrer')
+    c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+    return c.html(html`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1"><title>UniConf · 选择订阅格式</title>
+      <style>body{font:16px system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.6;color-scheme:light dark}li{margin:1rem 0}a{color:inherit}</style></head>
+      <body><h1>选择订阅格式</h1><p>通用链接默认根据客户端导出完整配置。浏览器无法识别客户端，请选择格式；仅订阅节点请选择节点订阅。</p>
+      <ul>${formats.map(value => html`<li><a href="?${isFullConfigExportFormat(value) ? '' : 'mode=nodes&'}format=${value}">${getExportSubscriptionFilename(value)}</a></li>`)}</ul>
+      <p>订阅链接包含访问令牌，请勿分享给他人。</p></body></html>`)
+  }
+  const filename = getExportSubscriptionFilename(format)
   if (config.id !== defaultExportConfigId(workspaceId) && config.format !== format) {
     return new Response('# Subscription format does not match this export profile\n', {
       status: 404,
@@ -291,4 +326,19 @@ function convertedRuleSetError(message: string, status: 400 | 404 | 409 | 413 | 
       'X-UniConf-Error-Code': code,
     },
   })
+}
+
+function detectSubscriptionFormat(userAgent: string): ExportFormat | null {
+  // Specific clients can also mention their underlying Clash core.
+  const clients: [RegExp, ExportFormat][] = [
+    [/\bstash\b/i, 'stash'],
+    [/\begern\b/i, 'egern'],
+    [/\bshadowrocket\b/i, 'shadowrocket'],
+    [/\bquantumult(?:[\s_-]|%20)*x\b/i, 'quantumultx'],
+    [/\bsurge\b/i, 'surge'],
+    [/\bloon\b/i, 'loon'],
+    [/\bsing[- ]?box\b/i, 'singbox'],
+    [/\b(?:mihomo|clash(?:[ ._-]?meta)?)\b/i, 'mihomo'],
+  ]
+  return clients.find(([pattern]) => pattern.test(userAgent))?.[1] ?? null
 }

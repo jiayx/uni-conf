@@ -1,6 +1,3 @@
-import { getExportSubscriptionFilename } from '@uni-conf/shared'
-import { EXPORT_FORMAT_NAMES, EXPORT_FORMAT_OPTIONS } from './formats'
-
 export function buildPublicSubscriptionUrl(
   origin: string,
   token: string,
@@ -17,21 +14,6 @@ export function buildSubscriptionDisplayName(profileName: string, formatName: st
   return `${profileName.trim() || 'UniConf'} · ${formatName}`
 }
 
-export function buildQuickSubscriptionLinks(
-  origin: string,
-  token?: string | null,
-  enabled = true,
-  name?: string | null,
-) {
-  if (!token || !enabled) return []
-
-  return EXPORT_FORMAT_OPTIONS.map(option => ({
-    ...option,
-    url: buildPublicSubscriptionUrl(
-      origin,
-      token,
-      getExportSubscriptionFilename(option.value),
-      name ? buildSubscriptionDisplayName(name, EXPORT_FORMAT_NAMES[option.value]) : undefined,
-    ),
-  }))
+export function buildUniversalSubscriptionUrl(origin: string, token: string, mode: 'config' | 'nodes' = 'config'): string {
+  return `${origin.replace(/\/+$/, '')}/sub/${encodeURIComponent(token)}${mode === 'nodes' ? '?mode=nodes' : ''}`
 }

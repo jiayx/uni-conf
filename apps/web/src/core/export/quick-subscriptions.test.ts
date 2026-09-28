@@ -1,29 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicSubscriptionUrl, buildQuickSubscriptionLinks } from './quick-subscriptions'
+import { buildPublicSubscriptionUrl, buildUniversalSubscriptionUrl } from './quick-subscriptions'
 
-describe('buildQuickSubscriptionLinks', () => {
-  it('builds canonical subscription URLs for every quick export format', () => {
-    const links = buildQuickSubscriptionLinks(
-      'https://conf.example.com/',
-      'token-1',
-      true,
-      'UniConf',
-    )
-
-    expect(links).toHaveLength(10)
-    expect(links[0]).toEqual({
-      value: 'mihomo',
-      label: 'Mihomo / Clash.Meta YAML',
-      url: 'https://conf.example.com/sub/token-1/mihomo.yaml?name=UniConf%20%C2%B7%20Mihomo%20%2F%20Clash.Meta',
-    })
-    expect(links.at(-1)).toEqual({
-      value: 'nodes_raw',
-      label: 'Node Subscription (Raw)',
-      url: 'https://conf.example.com/sub/token-1/nodes-raw.txt?name=UniConf%20%C2%B7%20Node%20Subscription%20(Raw)',
-    })
-    expect(links.every(link => link.url.includes('?name=UniConf%20%C2%B7%20'))).toBe(true)
-  })
-
+describe('subscription URLs', () => {
   it('URL-encodes the export profile name and omits blank names', () => {
     expect(buildPublicSubscriptionUrl(
       'https://conf.example.com',
@@ -38,13 +16,11 @@ describe('buildQuickSubscriptionLinks', () => {
       ' ',
     )).toBe('https://conf.example.com/sub/token-1/mihomo.yaml')
   })
+})
 
-  it('returns no links until the default token exists', () => {
-    expect(buildQuickSubscriptionLinks('https://conf.example.com', null)).toEqual([])
-    expect(buildQuickSubscriptionLinks('https://conf.example.com', '')).toEqual([])
-  })
-
-  it('returns no links while the default export profile is paused', () => {
-    expect(buildQuickSubscriptionLinks('https://conf.example.com', 'token-1', false)).toEqual([])
-  })
+it('builds a full-config universal URL and an explicit nodes-only URL', () => {
+  expect(buildUniversalSubscriptionUrl('https://conf.example.com/', 'token-1'))
+    .toBe('https://conf.example.com/sub/token-1')
+  expect(buildUniversalSubscriptionUrl('https://conf.example.com/', 'token-1', 'nodes'))
+    .toBe('https://conf.example.com/sub/token-1?mode=nodes')
 })
