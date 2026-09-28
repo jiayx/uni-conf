@@ -47,7 +47,7 @@
   border: 1px solid var(--color-border);
 }
 .secondary:hover:not(:disabled) {
-  background: var(--color-surface2);
+  background: var(--color-surface-2);
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
@@ -57,7 +57,7 @@
   color: var(--color-text-secondary);
 }
 .ghost:hover:not(:disabled) {
-  background: var(--color-surface2);
+  background: var(--color-surface-2);
   color: var(--color-text-primary);
 }
 
@@ -78,11 +78,16 @@
 .icon svg { width: 16px; height: 16px; }
 
 /* Loading spinner */
+.loading > :not(.spinner) { opacity: 0; }
+
 .spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   display: inline-block;

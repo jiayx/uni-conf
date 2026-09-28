@@ -491,8 +491,8 @@ export function Rules() {
                     <div className={styles.orderCell}>
                       <span>{index + 1}</span>
                       <div className={styles.orderControls}>
-                        <Button variant="ghost" size="sm" disabled={filtersActive || reordering || index === 0} onClick={() => void moveRule(index, -1)} title={filtersActive ? t('rules.reorder_filtered_notice') : t('common.move_up')}><ArrowUpIcon /></Button>
-                        <Button variant="ghost" size="sm" disabled={filtersActive || reordering || index === rules.length - 1} onClick={() => void moveRule(index, 1)} title={filtersActive ? t('rules.reorder_filtered_notice') : t('common.move_down')}><ArrowDownIcon /></Button>
+                        <IconActionButton action="move_up" disabled={filtersActive || reordering || index === 0} onClick={() => void moveRule(index, -1)} title={filtersActive ? t('rules.reorder_filtered_notice') : t('common.move_up')} />
+                        <IconActionButton action="move_down" disabled={filtersActive || reordering || index === rules.length - 1} onClick={() => void moveRule(index, 1)} title={filtersActive ? t('rules.reorder_filtered_notice') : t('common.move_down')} />
                       </div>
                     </div>
                   </td>
@@ -810,13 +810,4 @@ function setFormValue<K extends keyof ManualRuleForm>(
 
 function PlusIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-}
-
-
-function ArrowUpIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-}
-
-function ArrowDownIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
 }

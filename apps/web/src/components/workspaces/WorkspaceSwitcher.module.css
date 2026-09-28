@@ -41,7 +41,8 @@
   cursor: pointer;
 }
 
-.manageButton:hover {
+.manageButton:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
   border-color: var(--color-accent);
   color: var(--color-text-primary);
 }

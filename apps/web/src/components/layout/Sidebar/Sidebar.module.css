@@ -131,7 +131,7 @@
 
 .navItem:hover {
   color: var(--color-text-primary);
-  background: var(--color-surface2);
+  background: var(--color-surface-2);
 }
 
 .navItem.active {

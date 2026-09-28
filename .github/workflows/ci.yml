@@ -34,10 +34,10 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
+      - name: Test rule-set codecs and conversion
+        run: pnpm --filter @uni-conf/rule-set test
 
-      - name: Coverage
+      - name: Test apps with coverage
         run: pnpm test:coverage
 
       - name: Build

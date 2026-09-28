@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { QRCodeSVG } from 'qrcode.react'
+import { SubscriptionQrModal } from '../SubscriptionQrModal'
 import { Button } from '@/components/ui/Button/Button'
 import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
-import { Modal } from '@/components/ui/Modal/Modal'
 import { ErrorNotice } from '@/components/ui/ErrorNotice/ErrorNotice'
 import { buildUniversalSubscriptionUrl } from '@/core/export/quick-subscriptions'
 import { maskSubscriptionTokenUrl } from '@/core/sources/source-url-privacy'
@@ -12,7 +11,7 @@ import styles from './UniversalSubscriptionLinks.module.css'
 
 export function UniversalSubscriptionLinks({ origin, token, enabled = true, revealed = false }: {
   origin: string
-  token?: string | null
+  token: string
   enabled?: boolean
   revealed?: boolean
 }) {
@@ -22,8 +21,8 @@ export function UniversalSubscriptionLinks({ origin, token, enabled = true, reve
   const [error, setError] = useState<unknown>(null)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(copyTimer.current), [])
-  const available = Boolean(token) && enabled
-  const qrUrl = available && qrMode ? buildUniversalSubscriptionUrl(origin, token!, qrMode) : null
+  const available = enabled
+  const qrUrl = available && qrMode ? buildUniversalSubscriptionUrl(origin, token, qrMode) : null
 
   const copy = async (mode: 'config' | 'nodes', url: string) => {
     setError(null)
@@ -41,7 +40,7 @@ export function UniversalSubscriptionLinks({ origin, token, enabled = true, reve
     <div className={styles.list}>
       {error != null && <ErrorNotice error={error} />}
       {(['config', 'nodes'] as const).map(mode => {
-        const url = token ? buildUniversalSubscriptionUrl(origin, token, mode) : ''
+        const url = buildUniversalSubscriptionUrl(origin, token, mode)
         const title = t(`export.universal_${mode}`)
         return (
           <div key={mode} className={styles.row}>
@@ -62,10 +61,10 @@ export function UniversalSubscriptionLinks({ origin, token, enabled = true, reve
           </div>
         )
       })}
-      <Modal open={Boolean(qrUrl)} onOpenChange={open => { if (!open) setQrMode(null) }}
-        title={qrMode ? t(`export.universal_${qrMode}`) : ''} description={t('export.qr_security_hint')} size="sm">
-        {qrUrl && <div className={styles.qr}><QRCodeSVG value={qrUrl} size={240} level="M" marginSize={2} title={t('export.qr_image_label')} /></div>}
-      </Modal>
+      <SubscriptionQrModal
+        subscription={qrUrl && qrMode ? { title: t(`export.universal_${qrMode}`), url: qrUrl } : null}
+        onClose={() => setQrMode(null)}
+      />
     </div>
   )
 }

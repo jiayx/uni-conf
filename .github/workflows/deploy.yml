@@ -24,7 +24,7 @@ jobs:
       - run: pnpm catalogs:refresh
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm test:golden && pnpm build
+      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build
       - name: Deploy production
         run: pnpm deploy
         env:

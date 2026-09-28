@@ -3,7 +3,7 @@ import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
 import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { QRCodeSVG } from 'qrcode.react'
+import { SubscriptionQrModal } from '@/components/export/SubscriptionQrModal'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
@@ -25,7 +25,6 @@ import {
 } from '@/core/export/formats'
 import { exportConfigScopeSummary } from '@/core/export/scope-summary'
 import { exportWarningSummaryText, summarizeExportWarnings } from '@/core/export/warning-summary'
-import { countContentLines } from '@/core/export/content-preview'
 import { highlightExportContent } from '@/core/export/config-syntax'
 import {
   buildPublicSubscriptionUrl,
@@ -750,27 +749,7 @@ export function Export() {
           </div>
         </details>
       </Modal>
-      <Modal
-        open={Boolean(subscriptionQr)}
-        onOpenChange={open => {
-          if (!open) setSubscriptionQr(null)
-        }}
-        title={subscriptionQr?.title ?? ''}
-        description={t('export.qr_security_hint')}
-        size="sm"
-      >
-        {subscriptionQr && (
-          <div className={styles.qrCode}>
-            <QRCodeSVG
-              value={subscriptionQr.url}
-              size={240}
-              level="M"
-              marginSize={2}
-              title={t('export.qr_image_label')}
-            />
-          </div>
-        )}
-      </Modal>
+      <SubscriptionQrModal subscription={subscriptionQr} onClose={() => setSubscriptionQr(null)} />
       <Modal
         open={Boolean(previewModal)}
         onOpenChange={open => {
@@ -1041,4 +1020,13 @@ function MultiSelect({ label, emptyText, hint, options, value, onChange }: Multi
       )}
     </div>
   )
+}
+
+function countContentLines(content: string): number {
+  if (content.length === 0) return 0
+  let lines = 1
+  for (let index = 0; index < content.length; index += 1) {
+    if (content.charCodeAt(index) === 10) lines += 1
+  }
+  return lines
 }

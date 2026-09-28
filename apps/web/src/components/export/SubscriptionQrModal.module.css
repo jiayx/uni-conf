@@ -1,0 +1,2 @@
+.qr { display: flex; justify-content: center; }
+.qr svg { max-width: 100%; height: auto; }

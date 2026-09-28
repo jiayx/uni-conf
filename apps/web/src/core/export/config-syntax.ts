@@ -4,7 +4,7 @@ export type ConfigSyntaxLanguage = 'json' | 'yaml' | 'ini'
 
 const MAX_HIGHLIGHT_LENGTH = 512 * 1024
 
-export function getExportSyntaxLanguage(format: ExportFormat): ConfigSyntaxLanguage | null {
+function getExportSyntaxLanguage(format: ExportFormat): ConfigSyntaxLanguage | null {
   if (format === 'singbox') return 'json'
   if (format === 'mihomo' || format === 'stash' || format === 'egern') {
     return 'yaml'

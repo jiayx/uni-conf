@@ -566,18 +566,13 @@ export function Groups() {
                 {!group.isBuiltin && (
                   <div className={styles.cardFooter}>
                     <div className={styles.orderControls}>
-                      <Button variant="ghost" size="sm" disabled={reordering || customIndex <= 0} onClick={() => void moveCustomGroup(group.id, -1)} title={t('common.move_up')}>
-                        <ArrowUpIcon />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <IconActionButton action="move_up" disabled={reordering || customIndex <= 0} onClick={() => void moveCustomGroup(group.id, -1)} title={t('common.move_up')} />
+                      <IconActionButton
+                        action="move_down"
                         disabled={reordering || customIndex < 0 || customIndex === customRoutingGroups.length - 1}
                         onClick={() => void moveCustomGroup(group.id, 1)}
                         title={t('common.move_down')}
-                      >
-                        <ArrowDownIcon />
-                      </Button>
+                      />
                     </div>
                     <div className={styles.cardActions}>
                       <EnabledSwitch
@@ -680,13 +675,7 @@ function PlusIcon() {
 }
 
 
-function ArrowUpIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-}
 
-function ArrowDownIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
-}
 
 function describeFoundationGroup(group: ProxyGroup, t: (key: string) => string): string {
   if (isWorkspaceEntityId(group.id, 'builtin-proxy')) return t('groups.foundation_proxy_desc')

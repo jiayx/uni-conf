@@ -99,8 +99,6 @@
 .quickActions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
 .manageLink { display: inline-flex; min-height: 44px; align-items: center; color: var(--color-accent); font-size: 0.8125rem; font-weight: 600; text-decoration: none; }
 .quickActions button { min-height: 44px; padding-inline: 1rem; }
-.qrCode { display: flex; justify-content: center; }
-.qrCode svg { max-width: 100%; height: auto; }
 .manageLink:hover { text-decoration: underline; }
 
 @media (max-width: 640px) {

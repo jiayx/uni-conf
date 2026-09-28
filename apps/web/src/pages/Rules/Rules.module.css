@@ -64,14 +64,14 @@
 }
 
 .row:last-child { border-bottom: none; }
-.row:hover { background: var(--color-surface2); }
+.row:hover { background: var(--color-surface-2); }
 
 .row:nth-child(even) {
   background: rgba(0, 0, 0, 0.02);
 }
 
 .row:nth-child(even):hover {
-  background: var(--color-surface2);
+  background: var(--color-surface-2);
 }
 
 .table td {

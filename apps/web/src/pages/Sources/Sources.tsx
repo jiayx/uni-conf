@@ -663,16 +663,14 @@ export function Sources() {
                         onClick={() => handleEdit(source)}
                         title={t('common.edit')}
                       />
-                      <Button
-                        variant="ghost" size="sm"
+                      <IconActionButton
+                        action="refresh"
                         loading={refreshingId === source.id}
                         disabled={rowAction?.id === source.id}
                         aria-label={t('sources.refresh_source', { name: source.name })}
                         onClick={() => void handleRefresh(source.id)}
                         title={t('sources.refresh_now')}
-                      >
-                        <RefreshIcon />
-                      </Button>
+                      />
                     </>
                   )}
                   <IconActionButton
@@ -1174,10 +1172,6 @@ function PlusIcon() {
 }
 function ImportIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-}
-
-function RefreshIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
 }
 
 function SubscriptionIcon() {

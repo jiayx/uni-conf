@@ -24,11 +24,11 @@ export function Button({
       type={type}
       className={`${styles.btn} ${styles[variant]} ${styles[size]} ${loading ? styles.loading : ''} ${className}`}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
-      {loading ? (
-        <span className={styles.spinner} aria-hidden="true" />
-      ) : icon ? (
+      {loading && <span className={styles.spinner} aria-hidden="true" />}
+      {icon ? (
         <span className={styles.icon}>{icon}</span>
       ) : null}
       {children && <span>{children}</span>}

@@ -11,9 +11,17 @@
   margin-inline-start: 0.25rem;
 }
 
-.button.button[data-action="delete"]:hover:not(:disabled) {
+.button.button:is(:hover, :focus-visible):not(:disabled) {
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
+}
+
+.button.button:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text-secondary) 18%, transparent);
+}
+
+.button.button[data-action="delete"]:is(:hover, :focus-visible):not(:disabled) {
   color: var(--color-error);
-  background: rgba(239, 68, 68, 0.1);
 }
 
 .button svg {

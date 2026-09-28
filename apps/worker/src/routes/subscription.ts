@@ -20,9 +20,7 @@ import {
   resolveRuleSetConversionSource,
   RuleSetConversionError,
 } from '../services/rule-set-conversion'
-import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
-import { getEffectiveExportDnsPolicy } from '../services/export-dns'
-import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
+import { buildExportRenderOptions, resolveExportRuleSetConversionPolicy } from '../services/export-options'
 import { DEFAULT_WORKSPACE_ID, defaultExportConfigId } from '../services/workspaces'
 import { buildContentEtag, requestMatchesEtag } from '../services/content-etag'
 
@@ -52,7 +50,7 @@ subscriptionRouter.get('/sub/:token/rules/:ruleSetId/:filename', async (c) => {
   const exportFormat =
     requestedExportFormat === undefined
       ? target
-      : isRuleSetConversionExportFormat(requestedExportFormat)
+      : isFullConfigExportFormat(requestedExportFormat)
         ? requestedExportFormat
         : null
   if (!exportFormat) {
@@ -117,10 +115,6 @@ function parseTextConversionTarget(filename: string): 'surge' | 'loon' | 'shadow
   return ['surge', 'loon', 'shadowrocket', 'quantumultx'].includes(value)
     ? (value as 'surge' | 'loon' | 'shadowrocket' | 'quantumultx')
     : null
-}
-
-function isRuleSetConversionExportFormat(value: string): value is Exclude<ExportFormat, 'nodes_base64' | 'nodes_raw'> {
-  return isFullConfigExportFormat(value)
 }
 
 // Both public URLs share token checks, scope restrictions and rendering.
@@ -226,13 +220,9 @@ subscriptionRouter.get('/sub/:token/:filename?', async (c) => {
       },
     })
   }
-  const rendered = renderExportData(exportData, format, {
-    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format, workspaceId),
-    managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
-      ? await getManagedRealIpDomains(c.env.KV)
-      : undefined,
-    ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, token),
-  })
+  const rendered = renderExportData(exportData, format,
+    await buildExportRenderOptions(c.req.url, config.token, format, settings, c.env.KV),
+  )
   if (!rendered) {
     return new Response(`# Unknown format: ${filename}\n`, {
       status: 400,
@@ -311,10 +301,6 @@ export function buildSubscriptionUserInfoHeader(sources: ProxySource[]): string 
 function subscriptionUserInfoHeaders(sources: ProxySource[]): Record<string, string> {
   const value = buildSubscriptionUserInfoHeader(sources)
   return value ? { 'Subscription-Userinfo': value } : {}
-}
-
-export function buildRuleSetConversionBaseUrl(requestUrl: string, token: string): string {
-  return `${new URL(requestUrl).origin}/sub/${encodeURIComponent(token)}/rules`
 }
 
 function convertedRuleSetError(message: string, status: 400 | 404 | 409 | 413 | 422 | 502, code: string): Response {

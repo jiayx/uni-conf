@@ -12,9 +12,8 @@ import { findBlockingExportWarning, resolveExportWarnings } from '../services/ex
 import { exportArtifactWarnings, validateRenderedExport } from '../services/export-artifact-validation'
 import type { Env } from '../types'
 import type { CompatibilityWarning, ExportConfig, ExportFormat, ExportResult } from '@uni-conf/types'
-import { buildRuleSetConversionBaseUrl } from './subscription'
 import { preflightRuleSetConversions } from '../services/rule-set-conversion'
-import { resolveExportRuleSetConversionPolicy } from '../services/export-conversion-policy'
+import { buildExportRenderOptions, resolveExportRuleSetConversionPolicy } from '../services/export-options'
 import { validateOptionalBooleanFields } from '../services/request-validation'
 import {
   getExportCapabilityProfile,
@@ -22,8 +21,6 @@ import {
   isExportFormat,
   serializeExportCapabilityProfile,
 } from '@uni-conf/shared'
-import { getEffectiveExportDnsPolicy } from '../services/export-dns'
-import { exportNeedsInlineManagedRealIpDomains, getManagedRealIpDomains } from '../services/managed-dns-resources'
 import {
   defaultExportConfigId,
   requestWorkspaceId,
@@ -265,13 +262,9 @@ async function inspectExport(
     kv: c.env.KV,
     policy: resolveExportRuleSetConversionPolicy(config, settings.ruleSetConversionPolicy),
   })
-  const rendered = renderExportData(exportData, format, {
-    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format, workspaceId),
-    managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
-      ? await getManagedRealIpDomains(c.env.KV)
-      : undefined,
-    ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
-  })
+  const rendered = renderExportData(exportData, format,
+    await buildExportRenderOptions(c.req.url, config.token, format, settings, c.env.KV),
+  )
   if (!rendered) return null
   const warnings = resolveExportWarnings(exportData, format, {
     showCompatibilityWarnings: settings.showCompatibilityWarnings,
@@ -347,13 +340,9 @@ exportRouter.get('/download/:format', async (c) => {
       409,
     )
   }
-  const rendered = renderExportData(exportData, format, {
-    dnsPolicy: await getEffectiveExportDnsPolicy(c.env.DB, format, workspaceId),
-    managedRealIpDomains: exportNeedsInlineManagedRealIpDomains(format)
-      ? await getManagedRealIpDomains(c.env.KV)
-      : undefined,
-    ruleSetConversionBaseUrl: buildRuleSetConversionBaseUrl(c.req.url, config.token),
-  })
+  const rendered = renderExportData(exportData, format,
+    await buildExportRenderOptions(c.req.url, config.token, format, settings, c.env.KV),
+  )
   if (!rendered) {
     c.header('X-UniConf-Error-Code', 'export_format_invalid')
     return c.json({ success: false, code: 'export_format_invalid', error: `Unsupported format: ${format}` }, 400)

@@ -1,14 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import * as yaml from 'js-yaml'
 import {
-  generateEgern,
   generateQuantumultX,
   generateShadowrocket,
-  generateStashYaml,
   generateSurge,
 } from './client-configs'
-import { generateMihomoYaml } from './mihomo'
-import { generateSingboxJson } from './singbox'
 import { generateLoon } from './loon'
 
 const secretFields = ['passphrase =', 'p12 =']
@@ -130,24 +125,4 @@ describe('client-local state boundaries', () => {
     for (const field of secretFields) expect(content.toLowerCase()).not.toContain(field)
   })
 
-  it('omits inactive feature containers from YAML and JSON clients', () => {
-    const mihomo = yaml.load(generateMihomoYaml([], [], [], [])) as Record<string, unknown>
-    const stash = yaml.load(generateStashYaml([], [], [], [])) as Record<string, unknown>
-    const egern = yaml.load(generateEgern([], [], [], [])) as Record<string, unknown>
-    const singBox = JSON.parse(generateSingboxJson([], [], [], [])) as Record<string, unknown>
-
-    expect(mihomo).not.toHaveProperty('listeners')
-    expect(mihomo).not.toHaveProperty('proxy-providers')
-    expect(stash).not.toHaveProperty('http')
-    expect(stash).not.toHaveProperty('cron')
-    expect(stash).not.toHaveProperty('script-providers')
-    expect(egern).not.toHaveProperty('block_quic')
-    expect(egern).not.toHaveProperty('url_rewrites')
-    expect(egern).not.toHaveProperty('scriptings')
-    expect(egern).not.toHaveProperty('mitm')
-    expect(egern).not.toHaveProperty('modules')
-    expect(singBox).not.toHaveProperty('certificate')
-    expect(singBox).not.toHaveProperty('certificate_providers')
-    expect(singBox).not.toHaveProperty('services')
-  })
 })

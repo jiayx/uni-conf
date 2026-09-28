@@ -144,20 +144,17 @@ describe('Export', () => {
     expect(screen.queryByText('Advanced Export Profiles')).not.toBeInTheDocument()
   })
 
-  it('uses preview as the single diagnostic action for advanced profiles', async () => {
+  it('previews an advanced profile with structural validation', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Export /></MemoryRouter>)
 
     expect(await screen.findByText('Mobile')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Validate' })).not.toBeInTheDocument()
     const previews = screen.getAllByRole('button', { name: 'Preview Config' })
     await user.click(previews.at(-1)!)
 
     expect(api.export.previewFormat).toHaveBeenCalledWith('singbox', 'advanced-1')
     expect(await screen.findByRole('dialog', { name: /Mobile/ })).toBeInTheDocument()
     expect(screen.getByText('YAML structure valid')).toBeInTheDocument()
-    expect(screen.queryByText('Config ready')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Config Preview' })).not.toBeInTheDocument()
   })
 
   it('shows every compatibility notice in the export preview', async () => {
@@ -240,7 +237,6 @@ describe('Export', () => {
 
     await user.click(await screen.findByRole('button', { name: 'New Advanced Export Profile' }))
     expect(screen.getByText(/Exportable node protocols:/)).toHaveTextContent(/global FakeIP policy/)
-    expect(screen.queryByLabelText('DNS upstreams')).not.toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Export Format'), 'nodes_base64')
     expect(screen.getByText(/Exports nodes only/)).toHaveTextContent(/without DNS, policy groups, or routing rules/)

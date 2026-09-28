@@ -42,7 +42,7 @@
 }
 
 .table tbody tr:hover {
-  background: var(--color-surface2);
+  background: var(--color-surface-2);
 }
 
 .table td {
@@ -57,7 +57,7 @@
 }
 
 .table tbody tr:nth-child(even):hover {
-  background: var(--color-surface2);
+  background: var(--color-surface-2);
 }
 
 /* Dark mode support */

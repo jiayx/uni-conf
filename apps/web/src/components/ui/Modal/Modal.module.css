@@ -66,8 +66,8 @@
     background var(--transition-fast);
 }
 
-.closeButton:hover:not(:disabled) {
-  background: var(--color-surface2);
+.closeButton:is(:hover, :focus-visible):not(:disabled) {
+  background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
   color: var(--color-text-primary);
 }
 

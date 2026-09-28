@@ -7,8 +7,6 @@
 .info p { margin: 0; font-size: 0.8125rem; color: var(--color-text-secondary); line-height: 1.5; }
 .info code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--color-text-tertiary); }
 .actions { display: flex; align-items: center; gap: 0.5rem; }
-.qr { display: flex; justify-content: center; }
-.qr svg { max-width: 100%; height: auto; }
 @media (max-width: 640px) {
   .row { grid-template-columns: minmax(0, 1fr); }
 }

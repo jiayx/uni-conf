@@ -1,5 +1,4 @@
-import { QRCodeSVG } from 'qrcode.react'
-import { Modal } from '@/components/ui/Modal/Modal'
+import { SubscriptionQrModal } from '@/components/export/SubscriptionQrModal'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -136,13 +135,13 @@ export function Dashboard() {
         </Card>
       )}
 
-      <Modal open={showQr && Boolean(subscriptionUrl)} onOpenChange={setShowQr}
-        title={t('export.qr_title', { name: stats?.defaultExportName || 'UniConf' })}
-        description={t('export.qr_security_hint')} size="sm">
-        {subscriptionUrl && <div className={styles.qrCode}>
-          <QRCodeSVG value={subscriptionUrl} size={240} level="M" marginSize={2} title={t('export.qr_image_label')} />
-        </div>}
-      </Modal>
+      <SubscriptionQrModal
+        subscription={showQr && subscriptionUrl ? {
+          title: t('export.qr_title', { name: stats?.defaultExportName || 'UniConf' }),
+          url: subscriptionUrl,
+        } : null}
+        onClose={() => setShowQr(false)}
+      />
 
       {attentionItems.length > 0 && (
         <AttentionCenter items={attentionItems} format={stats?.defaultExportFormat ?? 'mihomo'} />

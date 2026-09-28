@@ -64,8 +64,8 @@
   cursor: pointer;
 }
 
-.trailingAction button:hover {
-  background: var(--color-surface);
+.trailingAction button:is(:hover, :focus-visible):not(:disabled) {
+  background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
   color: var(--color-text-primary);
 }
 
