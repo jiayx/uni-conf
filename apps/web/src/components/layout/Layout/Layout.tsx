@@ -101,7 +101,10 @@ export function Layout() {
               >
                 <MenuIcon />
               </button>
-              <div className={styles.mobileLogoText}>UniConf</div>
+              <div className={styles.mobileBrand}>
+                <img src="/favicon.svg?v=13" alt="" width="28" height="28" />
+                <div className={styles.mobileLogoText}>UniConf</div>
+              </div>
             </div>
 
             <div className={styles.mainContent}>

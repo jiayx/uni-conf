@@ -262,7 +262,8 @@
     "all_protocols": "全部协议",
     "all_countries": "全部地区",
     "all_statuses": "全部状态",
-    "disabled_by_source": "订阅源停用中",
+    "disabled_by_source": "随订阅源停用",
+    "view_source": "查看订阅源",
     "search_placeholder": "搜索名称、服务器、来源或地区...",
     "count_summary": "显示 {{shown}} / {{total}} 个节点",
     "clear_filters": "清除筛选",
@@ -867,7 +868,7 @@
     "access_key_clear_confirm": "忘记已保存的访问密钥并锁定当前浏览器？之后需要重新输入密钥。"
   },
   "auth": {
-    "title": "UniConf 已启用访问保护",
+    "title": "UniConf",
     "description": "请输入访问密钥以继续。",
     "placeholder": "访问密钥",
     "unlock": "继续",

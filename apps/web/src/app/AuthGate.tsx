@@ -55,7 +55,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className={styles.page}>
         <Card className={styles.card}>
-          <h1 className={styles.title}>{t('auth.title')}</h1>
+          <div className={styles.brand}>
+            <img src="/favicon.svg?v=13" alt="" width="40" height="40" />
+            <h1 className={styles.title}>{t('auth.title')}</h1>
+          </div>
           <p className={styles.description}>{t('auth.description')}</p>
           <form onSubmit={handleSubmit} className={styles.form}>
             <Input

@@ -42,6 +42,7 @@ export function Sidebar({ isMobile = false, isOpen, onClose }: SidebarProps) {
     >
       <div className={styles.logo}>
         <div className={styles.logoTitle}>
+          <img className={styles.logoIcon} src="/favicon.svg?v=13" alt="" width="32" height="32" />
           <div className={styles.logoText}>UniConf</div>
           <div className={styles.version}>v0.1.0</div>
         </div>

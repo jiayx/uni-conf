@@ -109,15 +109,24 @@ describe('Nodes filters', () => {
   it('shows a source-level disabled status without changing the node state', async () => {
     stores.sources.sources[0]!.enabled = false
     const user = userEvent.setup()
-    render(<MemoryRouter><Nodes /></MemoryRouter>)
+    const { rerender } = render(<MemoryRouter><Nodes /></MemoryRouter>)
 
     const sourceDisabledRow = (await screen.findByText('Hong Kong Premium')).closest('tr')!
-    expect(within(sourceDisabledRow).getByText('Subscription paused')).toBeInTheDocument()
-    expect(within(sourceDisabledRow).getByRole('switch', { name: 'Hong Kong Premium' })).toBeChecked()
+    expect(within(sourceDisabledRow).getByText('Paused by subscription')).toBeInTheDocument()
+    expect(within(sourceDisabledRow).getByRole('link', { name: 'View subscription' })).toHaveAttribute('href', '/sources')
+    expect(within(sourceDisabledRow).queryByRole('switch')).not.toBeInTheDocument()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'enabled')
     expect(screen.queryByText('Hong Kong Premium')).not.toBeInTheDocument()
     expect(screen.getByText('Home Relay')).toBeInTheDocument()
+
+    stores.sources.sources[0]!.enabled = true
+    stores.sources.sources[1]!.enabled = false
+    rerender(<MemoryRouter><Nodes /></MemoryRouter>)
+    expect(await screen.findByRole('switch', { name: 'Hong Kong Premium' })).toBeChecked()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), '')
+    expect(screen.getByRole('switch', { name: 'Tokyo Backup' })).not.toBeChecked()
+    expect(stores.nodes.updateNode).not.toHaveBeenCalled()
   })
 
   it('copies the standard share URI for subscription and manual nodes', async () => {

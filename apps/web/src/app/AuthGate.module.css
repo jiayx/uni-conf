@@ -17,6 +17,16 @@
   gap: 0.75rem;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand img {
+  flex-shrink: 0;
+}
+
 .title {
   font-size: 1.25rem;
   font-weight: 600;

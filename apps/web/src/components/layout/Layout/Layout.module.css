@@ -91,6 +91,16 @@
     height: 24px;
   }
 
+  .mobileBrand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mobileBrand img {
+    flex-shrink: 0;
+  }
+
   .mobileLogoText {
     font-size: 1.25rem;
     font-weight: 700;

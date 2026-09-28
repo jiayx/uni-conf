@@ -1,7 +1,7 @@
 import { EnabledSwitch } from '@/components/ui/EnabledSwitch/EnabledSwitch'
 import { IconActionButton } from '@/components/ui/IconActionButton/IconActionButton'
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/layout/PageHeader/PageHeader'
 import { Button } from '@/components/ui/Button/Button'
@@ -503,15 +503,19 @@ export function Nodes() {
                   <td data-label={t('nodes.country')}>{node.countryCode ?? '—'}</td>
                   <td data-label={t('nodes.source')}>{getNodeSourceName(node)}</td>
                   <td data-label={t('common.status')}>
-                    <EnabledSwitch
-                      checked={node.enabled}
-                      aria-label={node.name}
-                      loading={rowAction?.id === node.id && rowAction.type === 'toggle'}
-                      disabled={rowAction?.id === node.id}
-                      onClick={() => void handleToggleEnabled(node)}
-                    />
-                    {disabledBySource && (
-                      <div><Badge variant="warning">{t('nodes.disabled_by_source')}</Badge></div>
+                    {disabledBySource ? (
+                      <div className={styles.sourcePaused}>
+                        <Badge variant="warning">{t('nodes.disabled_by_source')}</Badge>
+                        <Link to="/sources" className={styles.sourceLink}>{t('nodes.view_source')}</Link>
+                      </div>
+                    ) : (
+                      <EnabledSwitch
+                        checked={node.enabled}
+                        aria-label={node.name}
+                        loading={rowAction?.id === node.id && rowAction.type === 'toggle'}
+                        disabled={rowAction?.id === node.id}
+                        onClick={() => void handleToggleEnabled(node)}
+                      />
                     )}
                   </td>
                   <td data-label={t('common.actions')}>

@@ -47,7 +47,7 @@ describe('AuthGate', () => {
       </AuthGate>
     )
 
-    expect(await screen.findByText('UniConf is Protected')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'UniConf' })).toBeInTheDocument()
     expect(screen.queryByText('protected content')).not.toBeInTheDocument()
   })
 

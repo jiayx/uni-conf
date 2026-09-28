@@ -262,7 +262,8 @@
     "all_protocols": "All Protocols",
     "all_countries": "All Regions",
     "all_statuses": "All Statuses",
-    "disabled_by_source": "Subscription paused",
+    "disabled_by_source": "Paused by subscription",
+    "view_source": "View subscription",
     "search_placeholder": "Search name, server, source, or region...",
     "count_summary": "Showing {{shown}} of {{total}} nodes",
     "clear_filters": "Clear filters",
@@ -867,7 +868,7 @@
     "access_key_clear_confirm": "Forget the stored access key and lock this browser? You will need to re-enter it."
   },
   "auth": {
-    "title": "UniConf is Protected",
+    "title": "UniConf",
     "description": "Enter the access key to continue.",
     "placeholder": "Access key",
     "unlock": "Continue",
