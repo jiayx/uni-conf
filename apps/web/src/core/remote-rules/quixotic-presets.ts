@@ -1,16 +1,4 @@
 import type { RuleSetFormat } from '@uni-conf/types'
-import {
-  buildQuixoticRuleSetUrl,
-  inferQuixoticRuleSetSourceFromUrl,
-  resolveQuixoticRuleSetBehavior,
-} from '@uni-conf/shared'
-
-export {
-  buildQuixoticRuleSetUrl,
-  inferQuixoticRuleSetSourceFromUrl,
-  resolveQuixoticRuleSetBehavior,
-}
-
 export const RULE_SET_FORMAT_OPTIONS: Array<{ value: RuleSetFormat; label: string; exportTargets: string }> = [
   { value: 'mrs', label: 'Mihomo MRS', exportTargets: 'Mihomo' },
   { value: 'mihomo', label: 'Mihomo', exportTargets: 'Mihomo / Clash.Meta / Stash' },

@@ -1,3 +1,4 @@
+import { ruleDownloadUrl } from './rule-download-url'
 import {
   getRuleSetConversionTargetFormat,
   isRuleSetFormatCompatible,
@@ -14,7 +15,7 @@ export function resolveRemoteRuleSetForExport(
 ): { url: string; format: RemoteRuleSet['format']; converted?: boolean } | null {
   const resolved = resolveSharedRemoteRuleSetForExport(ruleSet, exportFormat)
   if (resolved && isRuleSetFormatCompatible(exportFormat, resolved.format)) {
-    return { url: resolved.url, format: resolved.format as RemoteRuleSet['format'] }
+    return { url: ruleDownloadUrl(resolved.url), format: resolved.format as RemoteRuleSet['format'] }
   }
   const target = resolved ? getRuleSetConversionTargetFormat(resolved.format, exportFormat) : null
   if (conversionBaseUrl && target) {
@@ -24,7 +25,7 @@ export function resolveRemoteRuleSetForExport(
       converted: true,
     }
   }
-  return resolved ? { url: resolved.url, format: resolved.format as RemoteRuleSet['format'] } : null
+  return resolved ? { url: ruleDownloadUrl(resolved.url), format: resolved.format as RemoteRuleSet['format'] } : null
 }
 
 export function resolveRemoteRuleSetRowForExport(
@@ -39,7 +40,9 @@ export function resolveRemoteRuleSetRowForExport(
     presetId: nullableString(ruleSet['preset_id']),
     sourceOverrides: parseSourceOverrides(ruleSet['source_overrides']),
   }, exportFormat)
-  if (resolved && isRuleSetFormatCompatible(exportFormat, resolved.format)) return resolved
+  if (resolved && isRuleSetFormatCompatible(exportFormat, resolved.format)) {
+    return { ...resolved, url: ruleDownloadUrl(resolved.url) }
+  }
   const target = resolved ? getRuleSetConversionTargetFormat(resolved.format, exportFormat) : null
   if (conversionBaseUrl && target) {
     return {
@@ -53,7 +56,7 @@ export function resolveRemoteRuleSetRowForExport(
       converted: true,
     }
   }
-  return resolved
+  return resolved ? { ...resolved, url: ruleDownloadUrl(resolved.url) } : null
 }
 
 function conversionTargetFilename(target: NonNullable<ReturnType<typeof getRuleSetConversionTargetFormat>>): string {

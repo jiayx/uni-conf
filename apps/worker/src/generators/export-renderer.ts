@@ -18,10 +18,7 @@ export interface RenderedExport {
   contentType: string
 }
 
-/** A normalized, immutable boundary between D1-backed export data and serializers. */
-export type ExportIntermediateRepresentation = ExportData
-
-export function materializeExportIntermediateRepresentation(data: ExportData): ExportIntermediateRepresentation {
+function prepareExportData(data: ExportData): ExportData {
   return {
     ...data,
     nodeRows: data.nodeRows.map((row) => ({
@@ -63,8 +60,8 @@ export function renderExportData(
     ruleSetConversionBaseUrl?: string
   } = {},
 ): RenderedExport | null {
-  const ir = materializeExportIntermediateRepresentation(data)
-  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = ir
+  const prepared = prepareExportData(data)
+  const { nodes, groups, rules, remoteSets, nodeRows, groupRows, ruleRows, remoteSetRows, collectionNodeNames } = prepared
 
   if (format === 'mihomo') {
     return {

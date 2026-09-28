@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { jsonParse, jsonStringify, mapNode, newId, now } from '../db/helpers';
+import { chunkValues, jsonParse, mapNode, newId, now } from '../db/helpers';
 import type { ProxyProtocol } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
@@ -199,10 +199,10 @@ app.post('/', async (c) => {
       input.country ?? null,
       input.countryCode ?? null,
       input.enabled !== false ? 1 : 0,
-      jsonStringify(input.tags ?? []),
+      JSON.stringify(input.tags ?? []),
       input.notes ?? null,
-      jsonStringify(rawConfig),
-      jsonStringify(parsedConfig),
+      JSON.stringify(rawConfig),
+      JSON.stringify(parsedConfig),
       ts,
       ts,
       workspaceId
@@ -293,14 +293,6 @@ export function validateNodeBatchEnabledInput(value: unknown): NodeBatchEnabledV
     ids.push(value.trim());
   }
   return { valid: true, ids: [...new Set(ids)], enabled: body.enabled };
-}
-
-function chunkValues<T>(values: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
 }
 
 // ─── Get node URI ─────────────────────────────────────────────────────────────
@@ -403,10 +395,10 @@ app.put('/:id', async (c) => {
       validation.country !== undefined ? validation.country : detectedCountry?.country ?? existing.country,
       validation.countryCode !== undefined ? validation.countryCode : detectedCountry?.countryCode ?? existing.country_code,
       validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
-      validation.tags !== undefined ? jsonStringify(validation.tags) : validation.name !== undefined ? jsonStringify(buildNodeRecognitionTags(nextName)) : existing.tags,
+      validation.tags !== undefined ? JSON.stringify(validation.tags) : validation.name !== undefined ? JSON.stringify(buildNodeRecognitionTags(nextName)) : existing.tags,
       validation.notes !== undefined ? validation.notes : existing.notes,
-      validation.rawConfig !== undefined ? jsonStringify(validation.rawConfig) : existing.raw_config,
-      jsonStringify(nextParsedConfig),
+      validation.rawConfig !== undefined ? JSON.stringify(validation.rawConfig) : existing.raw_config,
+      JSON.stringify(nextParsedConfig),
       ts,
       id,
       workspaceId
@@ -592,7 +584,7 @@ export function validateManualNodeUpdate(body: Record<string, unknown>): ManualN
   };
 }
 
-export function isEnabledOnlyNodeUpdate(body: Record<string, unknown>): body is { enabled: boolean } {
+function isEnabledOnlyNodeUpdate(body: Record<string, unknown>): body is { enabled: boolean } {
   return Object.keys(body).length === 1 && typeof body.enabled === 'boolean';
 }
 

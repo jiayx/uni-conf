@@ -9,7 +9,7 @@ import {
   ROUTING_POLICY_SCENARIOS,
 } from '@uni-conf/shared';
 import type { RoutingPolicyScenarioId } from '@uni-conf/types';
-import { jsonParse, jsonStringify } from '../db/helpers';
+import { jsonParse } from '../db/helpers';
 import { getAppSettings } from './app-settings';
 import {
   DEFAULT_WORKSPACE_ID,
@@ -21,7 +21,7 @@ type GroupRow = Record<string, unknown>;
 type AutoCollectionKeysById = Record<string, string>;
 
 const DEFAULT_PROXY_GROUP_ID = 'builtin-proxy';
-export const ALL_NODE_OUTLET_GROUP_IDS: string[] = [...GLOBAL_NODE_OUTLET_GROUP_IDS];
+const ALL_NODE_OUTLET_GROUP_IDS: string[] = [...GLOBAL_NODE_OUTLET_GROUP_IDS];
 const DEFAULT_MEMBER_GROUP_IDS = [
   DEFAULT_PROXY_GROUP_ID,
   'builtin-direct',
@@ -97,7 +97,7 @@ export async function syncRoutingPolicyGroups(
   await db.batch(
     routingGroupIds.map((id) =>
       {
-        const groupIds = jsonStringify(resolveRoutingMemberGroupIds(results, id, outletPreferences, autoCollectionKeysById));
+        const groupIds = JSON.stringify(resolveRoutingMemberGroupIds(results, id, outletPreferences, autoCollectionKeysById));
         return db
           .prepare('UPDATE groups SET group_ids = ?, updated_at = ? WHERE id = ? AND workspace_id = ? AND group_ids IS NOT ?')
           .bind(groupIds, ts, id, workspaceId, groupIds);
@@ -115,7 +115,7 @@ export function applyRoutingPolicyGroupLinks<T extends GroupRow>(
 
   return groupRows.map((row) => (
     routingGroupIds.has(String(row.id))
-      ? { ...row, group_ids: jsonStringify(resolveRoutingMemberGroupIds(groupRows, String(row.id), outletPreferences, autoCollectionKeysById)) }
+      ? { ...row, group_ids: JSON.stringify(resolveRoutingMemberGroupIds(groupRows, String(row.id), outletPreferences, autoCollectionKeysById)) }
       : row
   ));
 }
@@ -158,7 +158,7 @@ export function resolveRoutingGroupIds(groupRows: GroupRow[]): string[] {
     .filter(Boolean);
 }
 
-export function resolveRoutingMemberGroupIds(
+function resolveRoutingMemberGroupIds(
   groupRows: GroupRow[],
   routingGroupId: string,
   outletPreferences: Record<string, string> = {},
@@ -263,10 +263,10 @@ async function ensureDefaultGeneratedGroups(
       workspaceEntityId(workspaceId, group.id),
       group.name,
       group.type,
-      jsonStringify(group.collectionIds.map((id) =>
+      JSON.stringify(group.collectionIds.map((id) =>
         id === DEFAULT_NODE_POOL_COLLECTION_ID ? defaultNodePoolId(workspaceId) : id
       )),
-      jsonStringify(group.builtins),
+      JSON.stringify(group.builtins),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
       DEFAULT_HEALTH_CHECK.tolerance,
@@ -278,10 +278,10 @@ async function ensureDefaultGeneratedGroups(
     )
   );
   const canonicalStatements = DEFAULT_GENERATED_GROUPS.map((group) => {
-    const collectionIds = jsonStringify(group.collectionIds.map((id) =>
+    const collectionIds = JSON.stringify(group.collectionIds.map((id) =>
       id === DEFAULT_NODE_POOL_COLLECTION_ID ? defaultNodePoolId(workspaceId) : id
     ));
-    const builtins = jsonStringify(group.builtins);
+    const builtins = JSON.stringify(group.builtins);
     return db.prepare(
       `UPDATE groups SET
         name = ?,

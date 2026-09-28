@@ -55,46 +55,23 @@ describe('default remote rule sets', () => {
     const proxy = managedPresetStates(proxyInserted)
     const direct = managedPresetStates(directInserted)
 
-    expect(proxy.get('cdn')).toBeUndefined()
-    expect(proxy.get('public-direct-cdn')).toBeUndefined()
     expect(proxy.get('httpdns')).toEqual({ enabled: 1, sortOrder: 15 })
     expect(proxy.get('adrules')).toEqual({ enabled: 1, sortOrder: 20 })
     expect(proxy.get('apple-cn')).toEqual({ enabled: 1, sortOrder: 30 })
     expect(proxy.get('speedtest')).toEqual({ enabled: 1, sortOrder: 150 })
     expect(proxy.get('cn')).toEqual({ enabled: 1, sortOrder: 800 })
-    expect(proxy.get('cncidr')).toEqual({ enabled: 1, sortOrder: 810 })
+    expect(proxy.get('cncidr-resolve')).toEqual({ enabled: 1, sortOrder: 810 })
     expect(proxy.get('gfw')).toEqual({ enabled: 0, sortOrder: 800 })
 
-    expect(direct.get('public-direct-cdn')).toBeUndefined()
     expect(direct.get('httpdns')).toEqual({ enabled: 1, sortOrder: 15 })
     expect(direct.get('adrules')).toEqual({ enabled: 1, sortOrder: 20 })
     expect(direct.get('apple-cn')).toEqual({ enabled: 1, sortOrder: 30 })
     expect(direct.get('speedtest')).toEqual({ enabled: 1, sortOrder: 150 })
     expect(direct.get('cn')).toEqual({ enabled: 0, sortOrder: 800 })
-    expect(direct.get('cncidr')).toEqual({ enabled: 0, sortOrder: 810 })
+    expect(direct.get('cncidr-resolve')).toEqual({ enabled: 0, sortOrder: 810 })
     expect(direct.get('gfw')).toEqual({ enabled: 1, sortOrder: 800 })
   })
 
-  it('removes previously managed CDN rule sets', async () => {
-    const deleted: string[] = []
-    const db = createMockDb(
-      [],
-      [
-        { id: 'legacy-cdn', preset_source: 'quixotic', preset_id: 'cdn' },
-        {
-          id: 'legacy-public-direct-cdn',
-          preset_source: 'quixotic',
-          preset_id: 'public-direct-cdn',
-        },
-      ],
-      deleted,
-    )
-
-    await ensureDefaultRemoteRuleSets(db, timestamp, 'proxy')
-
-    expect(deleted).toContain('legacy-cdn')
-    expect(deleted).toContain('legacy-public-direct-cdn')
-  })
 })
 
 function managedPresetStates(
@@ -151,8 +128,6 @@ function snapshot(): RuleSetCatalogSnapshot {
 
 function createMockDb(
   inserted: unknown[][],
-  existingPresets: Record<string, unknown>[] = [],
-  deleted: string[] = [],
 ): D1Database {
   const groups = [
     { id: 'builtin-proxy', name: 'PROXY', enabled: 1 },
@@ -174,9 +149,7 @@ function createMockDb(
       all: async () => ({
         results: sql.includes('FROM groups')
           ? groups
-          : sql.includes('FROM remote_rule_sets')
-            ? existingPresets
-            : [],
+          : [],
       }),
       run: async () => ({ success: true }),
       first: async () => null,
@@ -196,9 +169,6 @@ function createMockDb(
         for (const statement of statements) {
           if (statement.__sql?.includes('INSERT INTO remote_rule_sets'))
             inserted.push(statement.__args ?? [])
-          if (statement.__sql?.includes('DELETE FROM remote_rule_sets WHERE id = ?')) {
-            deleted.push(String(statement.__args?.[0] ?? ''))
-          }
         }
         return []
       },

@@ -75,7 +75,7 @@ export async function getConvertedRemoteRuleSet(
   return result
 }
 
-export async function fetchRemoteRuleSetContent(
+async function fetchRemoteRuleSetContent(
   source: Pick<RemoteRuleSet, 'url'>,
   options: RuleSetFetchOptions = {},
 ): Promise<Uint8Array> {
@@ -103,7 +103,7 @@ export async function fetchRemoteRuleSetContent(
   }
 }
 
-export function convertRemoteRuleSetContent(
+function convertRemoteRuleSetContent(
   source: RemoteRuleSet,
   target: ConvertibleRuleSetTarget,
   content: Uint8Array,

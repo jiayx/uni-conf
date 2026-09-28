@@ -18,70 +18,31 @@ export function exportConfigScopeSummary(
   if (isUnrestricted) return t('export.scope_summary_all')
 
   const exportedGroupIds = resolveExportedGroupIds(config, groups)
+  const eligibleRules = rules.filter(rule => rule.enabled && exportedGroupIds.has(rule.targetGroupId))
+  const eligibleRemoteSets = remoteSets.filter(set => (
+    set.enabled && exportedGroupIds.has(set.targetGroupId) && isRemoteRuleSetCompatible(config.format, set)
+  ))
   const details = [
-    summaryPart(t('export.scope_summary_collections'), enabledCount(collections), selectedEnabledCount(collections, config.includeCollectionIds), t),
-    summaryPart(t('export.scope_summary_groups'), enabledCount(groups), exportedGroupIds.size, t),
-    summaryPart(t('export.scope_summary_rules'), targetExportableCount(rules, exportedGroupIds), selectedTargetExportableCount(rules, config.includeRuleIds, exportedGroupIds), t),
-    summaryPart(t('export.scope_summary_remote_sets'), compatibleRemoteSetCount(config, remoteSets, exportedGroupIds), selectedCompatibleRemoteSetCount(config, remoteSets, config.includeRemoteSetIds, exportedGroupIds), t),
+    summaryPart(t('export.scope_summary_collections'), collections.filter(item => item.enabled), config.includeCollectionIds, t),
+    t('export.scope_summary_count', { label: t('export.scope_summary_groups'), selected: exportedGroupIds.size, count: groups.filter(group => group.enabled).length }),
+    summaryPart(t('export.scope_summary_rules'), eligibleRules, config.includeRuleIds, t),
+    summaryPart(t('export.scope_summary_remote_sets'), eligibleRemoteSets, config.includeRemoteSetIds, t),
   ].join(' · ')
   return t('export.scope_summary_custom', { details })
 }
 
 function summaryPart(
   label: string,
-  eligibleCount: number,
-  selectedCount: number,
-  t: (key: string, options?: Record<string, unknown>) => string
+  eligible: Array<{ id: string }>,
+  ids: string[],
+  t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
+  const selected = new Set(ids)
   return t('export.scope_summary_count', {
     label,
-    selected: selectedCount,
-    count: eligibleCount,
+    selected: ids.length === 0 ? eligible.length : eligible.filter(item => selected.has(item.id)).length,
+    count: eligible.length,
   })
-}
-
-function enabledCount(items: Array<{ enabled: boolean }>): number {
-  return items.filter(item => item.enabled).length
-}
-
-function selectedEnabledCount(items: Array<{ id: string; enabled: boolean }>, ids: string[]): number {
-  if (ids.length === 0) return enabledCount(items)
-  const selectedIds = new Set(ids)
-  return items.filter(item => item.enabled && selectedIds.has(item.id)).length
-}
-
-function targetExportableCount(items: Array<{ enabled: boolean; targetGroupId: string }>, exportedGroupIds: Set<string>): number {
-  return items.filter(item => item.enabled && exportedGroupIds.has(item.targetGroupId)).length
-}
-
-function selectedTargetExportableCount(
-  items: Array<{ id: string; enabled: boolean; targetGroupId: string }>,
-  ids: string[],
-  exportedGroupIds: Set<string>
-): number {
-  if (ids.length === 0) return targetExportableCount(items, exportedGroupIds)
-  const selectedIds = new Set(ids)
-  return items.filter(item => selectedIds.has(item.id) && item.enabled && exportedGroupIds.has(item.targetGroupId)).length
-}
-
-function compatibleRemoteSetCount(config: ExportConfig, remoteSets: RemoteRuleSet[], exportedGroupIds: Set<string>): number {
-  return remoteSets.filter(set => set.enabled && exportedGroupIds.has(set.targetGroupId) && isRemoteRuleSetCompatible(config.format, set)).length
-}
-
-function selectedCompatibleRemoteSetCount(
-  config: ExportConfig,
-  remoteSets: RemoteRuleSet[],
-  ids: string[],
-  exportedGroupIds: Set<string>
-): number {
-  if (ids.length === 0) return compatibleRemoteSetCount(config, remoteSets, exportedGroupIds)
-  const selectedIds = new Set(ids)
-  return remoteSets.filter(set => (
-    selectedIds.has(set.id)
-    && set.enabled
-    && exportedGroupIds.has(set.targetGroupId)
-    && isRemoteRuleSetCompatible(config.format, set)
-  )).length
 }
 
 function resolveExportedGroupIds(config: ExportConfig, groups: ProxyGroup[]): Set<string> {

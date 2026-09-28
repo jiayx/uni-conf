@@ -1,5 +1,7 @@
-export const GEOIP_MMDB_URL = 'https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb'
-export const ASN_MMDB_URL = 'https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb'
+import { RULE_DOWNLOAD_CDN } from './rule-download-url'
+
+export const GEOIP_MMDB_URL = `${RULE_DOWNLOAD_CDN}/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb`
+export const ASN_MMDB_URL = `${RULE_DOWNLOAD_CDN}/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb`
 
 // Keep system-proxy exclusions focused on loopback and private/local destinations.
 export const LOCAL_PROXY_BYPASS_ENTRIES = [

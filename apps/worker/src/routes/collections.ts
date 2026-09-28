@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { jsonStringify, mapCollection, mapGroup, mapNode, newId, now } from '../db/helpers';
+import { mapCollection, mapGroup, mapNode, newId, now } from '../db/helpers';
 import type {
   NodeCollection,
   NodeCollectionSummary,
@@ -69,13 +69,13 @@ app.post('/', async (c) => {
     .bind(
       id,
       validation.name,
-      jsonStringify(validation.sourceIds ?? []),
-      jsonStringify(validation.nodeIds ?? []),
-      jsonStringify(validation.filters ?? []),
-      jsonStringify(validation.renames ?? []),
+      JSON.stringify(validation.sourceIds ?? []),
+      JSON.stringify(validation.nodeIds ?? []),
+      JSON.stringify(validation.filters ?? []),
+      JSON.stringify(validation.renames ?? []),
       validation.dedup,
       validation.sort,
-      validation.sortCountryOrder ? jsonStringify(validation.sortCountryOrder) : null,
+      validation.sortCountryOrder ? JSON.stringify(validation.sortCountryOrder) : null,
       validation.enabled ? 1 : 0,
       validation.notes ?? null,
       ts,
@@ -135,9 +135,9 @@ app.post('/with-group', async (c) => {
       groupId,
       groupValidation.name,
       groupValidation.type,
-      jsonStringify(groupValidation.collectionIds ?? []),
-      jsonStringify(groupValidation.groupIds ?? []),
-      jsonStringify(groupValidation.builtins ?? []),
+      JSON.stringify(groupValidation.collectionIds ?? []),
+      JSON.stringify(groupValidation.groupIds ?? []),
+      JSON.stringify(groupValidation.builtins ?? []),
       groupValidation.testUrl ?? null,
       groupValidation.interval,
       groupValidation.tolerance,
@@ -204,14 +204,14 @@ app.put('/:id', async (c) => {
   )
     .bind(
       validation.name ?? existing.name,
-      validation.sourceIds !== undefined ? jsonStringify(validation.sourceIds) : existing.source_ids,
-      validation.nodeIds !== undefined ? jsonStringify(validation.nodeIds) : existing.node_ids,
-      validation.filters !== undefined ? jsonStringify(validation.filters) : existing.filters,
-      validation.renames !== undefined ? jsonStringify(validation.renames) : existing.renames,
+      validation.sourceIds !== undefined ? JSON.stringify(validation.sourceIds) : existing.source_ids,
+      validation.nodeIds !== undefined ? JSON.stringify(validation.nodeIds) : existing.node_ids,
+      validation.filters !== undefined ? JSON.stringify(validation.filters) : existing.filters,
+      validation.renames !== undefined ? JSON.stringify(validation.renames) : existing.renames,
       validation.dedup ?? existing.dedup,
       validation.sort ?? existing.sort,
       validation.sortCountryOrder !== undefined
-        ? jsonStringify(validation.sortCountryOrder)
+        ? JSON.stringify(validation.sortCountryOrder)
         : existing.sort_country_order,
       validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
       validation.notes !== undefined ? validation.notes : existing.notes,
@@ -281,7 +281,7 @@ app.put('/:id/with-group', async (c) => {
     ).bind(
       groupValidation.name,
       groupValidation.type,
-      jsonStringify([id]),
+      JSON.stringify([id]),
       groupValidation.enabled ? 1 : 0,
       ts,
       groupId,
@@ -299,9 +299,9 @@ app.put('/:id/with-group', async (c) => {
       groupId,
       groupValidation.name,
       groupValidation.type,
-      jsonStringify([id]),
-      jsonStringify([]),
-      jsonStringify([]),
+      JSON.stringify([id]),
+      JSON.stringify([]),
+      JSON.stringify([]),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
       DEFAULT_HEALTH_CHECK.tolerance,
@@ -408,7 +408,7 @@ app.delete('/:id', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       'DELETE FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ?'
-    ).bind(workspaceId, jsonStringify([id])),
+    ).bind(workspaceId, JSON.stringify([id])),
     c.env.DB.prepare('DELETE FROM collections WHERE id = ? AND workspace_id = ?').bind(id, workspaceId),
   ]);
   await ensureZeroSetupDefaults(c.env.DB, now(), workspaceId);
@@ -597,13 +597,13 @@ function prepareCollectionInsert(
   ).bind(
     id,
     validation.name,
-    jsonStringify(validation.sourceIds ?? []),
-    jsonStringify(validation.nodeIds ?? []),
-    jsonStringify(validation.filters ?? []),
-    jsonStringify(validation.renames ?? []),
+    JSON.stringify(validation.sourceIds ?? []),
+    JSON.stringify(validation.nodeIds ?? []),
+    JSON.stringify(validation.filters ?? []),
+    JSON.stringify(validation.renames ?? []),
     validation.dedup,
     validation.sort,
-    validation.sortCountryOrder ? jsonStringify(validation.sortCountryOrder) : null,
+    validation.sortCountryOrder ? JSON.stringify(validation.sortCountryOrder) : null,
     validation.enabled ? 1 : 0,
     validation.notes ?? null,
     timestamp,
@@ -627,14 +627,14 @@ function prepareCollectionUpdate(
      WHERE id = ? AND workspace_id = ?`
   ).bind(
     validation.name ?? existing.name,
-    validation.sourceIds !== undefined ? jsonStringify(validation.sourceIds) : existing.source_ids,
-    validation.nodeIds !== undefined ? jsonStringify(validation.nodeIds) : existing.node_ids,
-    validation.filters !== undefined ? jsonStringify(validation.filters) : existing.filters,
-    validation.renames !== undefined ? jsonStringify(validation.renames) : existing.renames,
+    validation.sourceIds !== undefined ? JSON.stringify(validation.sourceIds) : existing.source_ids,
+    validation.nodeIds !== undefined ? JSON.stringify(validation.nodeIds) : existing.node_ids,
+    validation.filters !== undefined ? JSON.stringify(validation.filters) : existing.filters,
+    validation.renames !== undefined ? JSON.stringify(validation.renames) : existing.renames,
     validation.dedup ?? existing.dedup,
     validation.sort ?? existing.sort,
     validation.sortCountryOrder !== undefined
-      ? jsonStringify(validation.sortCountryOrder)
+      ? JSON.stringify(validation.sortCountryOrder)
       : existing.sort_country_order,
     validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
     validation.notes !== undefined ? validation.notes : existing.notes,
@@ -662,7 +662,7 @@ async function findDedicatedLinkedGroup(
   return db.prepare(
     'SELECT * FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ? ORDER BY created_at ASC LIMIT 1'
   )
-    .bind(workspaceId, jsonStringify([collectionId]))
+    .bind(workspaceId, JSON.stringify([collectionId]))
     .first<Record<string, unknown>>();
 }
 

@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { DEFAULT_NODE_POOL_COLLECTION_ID } from '@uni-conf/shared'
 
 export const DEFAULT_WORKSPACE_ID = 'default'
-export const WORKSPACE_HEADER = 'X-Workspace-Id'
+const WORKSPACE_HEADER = 'X-Workspace-Id'
 
 const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 

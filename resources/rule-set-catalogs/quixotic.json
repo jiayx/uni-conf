@@ -133,7 +133,7 @@
       "activeForUnmatchedPolicies": ["proxy"]
     },
     {
-      "ids": ["cncidr", "cncidr-resolve"],
+      "ids": ["cncidr-resolve"],
       "category": "direct",
       "target": "DIRECT",
       "provisioning": "foundation",

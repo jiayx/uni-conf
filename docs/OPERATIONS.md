@@ -17,10 +17,43 @@
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-pnpm deploy
+pnpm run deploy
 ```
 
-`pnpm deploy` 会先应用 D1 migration，再部署 Worker 和管理页面。
+`pnpm run deploy` 会先应用 D1 migration，再部署 Worker 和管理页面。
+
+## 客户端配置
+
+更新服务或修改分流设置后，在客户端刷新订阅并重新加载配置。客户端的全局或订阅覆写可能覆盖 UniConf 输出的 DNS、TUN 和策略组设置。
+
+### 分流和规则下载
+
+默认代理模式按业务规则、国内域名、国内 IP 兜底的顺序分流，最终未匹配流量走 PROXY。国内 IP 兜底使用 `cncidr-resolve`；sing-box 和 Quantumult X 使用上游对应的原生 `cncidr` 文件，sing-box 在该规则前执行真实 IP 解析。
+
+公开 GitHub Raw 规则地址统一转换为 `testingcf.jsdelivr.net` 地址，文件格式按客户端选择。自定义非 GitHub 地址、带认证信息或查询参数的地址、GitHub Release 下载地址以及 UniConf 转换接口使用原地址。服务端规则格式转换从原始来源获取内容。
+
+CDN 可用性取决于实际网络，分支缓存可能比源站更新滞后。Mihomo 和 sing-box 的规则下载使用基础代理出口；规则中的 DIRECT / PROXY 则决定匹配流量的出口。
+
+### DNS 和健康检查
+
+| 客户端 | DNS 与接管 | 默认代理健康检查 |
+| --- | --- | --- |
+| Mihomo | 国内域名使用国内 DoH，其他真实解析经基础代理组查询境外 DoH；节点和直连出口使用独立国内 DNS。TUN 接管 UDP/TCP 53，启用 TCP 并发连接。 | HTTPS，默认地址要求 HTTP 204 |
+| sing-box | FakeIP A 查询、国内 DNS 和经代理的境外 DNS；以 `hijack-dns` 接管 DNS 流量。 | HTTPS |
+| Surge | 国内 DNS、原生域名转发和端口 53 DNS 接管。 | HTTPS |
+| Loon | 国内 DoH 和原生 FakeIP / real-ip。 | HTTPS |
+| Shadowrocket | 国内 DNS、代理 fallback 和客户端原生 DNS 接管。 | HTTPS |
+| Quantumult X | 国内 DoH、占位 IP 和远端解析。 | 全局 HTTPS |
+| Egern | 国内 `proxy_nameservers` 与普通 DNS forward 分离，使用原生 DNS 接管。 | HTTPS |
+| Stash | 国内 DoH 和原生 FakeIP。 | HTTP |
+
+自定义健康检查地址按原值输出。网络连通性探测与代理健康检查是两项独立设置。节点 URI 订阅只包含节点，不包含 DNS、分流或健康检查配置。
+
+Mihomo 没有基础代理组时使用国内 DNS。内网域名应按实际网络设置 hosts 或专用 DNS。托管 Fake-IP 排除集合用于真实解析，不能替代直连规则。
+
+DNS 接管只作用于进入客户端隧道的流量，应用内置 DoH 不属于端口 53 接管范围。IP 规则是否触发解析由该规则的 `no-resolve` 设置决定。
+
+客户端配置参考：[sing-box DNS](https://sing-box.sagernet.org/configuration/dns/rule/)、[Surge 测速](https://manual.nssurge.com/tools/testing.html)、[Loon](https://github.com/Loon0x00/LoonManual/blob/master/docs/cn/general.md)、[Quantumult X](https://github.com/crossutility/Quantumult-X/blob/master/sample.conf)、[Egern DNS](https://egernapp.com/docs/configuration/dns/)、[Stash 测速](https://stash.wiki/en/proxy-protocols/proxy-benchmark)。
 
 ## 修改管理端访问密钥
 
@@ -77,7 +110,7 @@ pnpm exec wrangler secret put API_KEY --env production
 
 1. 在浏览器中确认原地址可以访问。
 2. 检查 URL 是否发生失效或重定向。
-3. 在规则集管理页面重新检查。
+3. 在配置预览中检查规则集来源和转换提示。
 4. 如果目标客户端提供原生规则集格式，可以为该客户端设置原生来源。
 5. 如果转换后会丢失规则，选择其他来源或使用严格模式阻止导出。
 

@@ -20,10 +20,6 @@ export function jsonParse<T>(text: string | null): T | null {
   }
 }
 
-export function jsonStringify(val: unknown): string {
-  return JSON.stringify(val);
-}
-
 export function newId(): string {
   return crypto.randomUUID();
 }
@@ -201,4 +197,12 @@ export function mapExportConfig(row: Record<string, unknown>): ExportConfig {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
+}
+
+export function chunkValues<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
 }

@@ -145,7 +145,7 @@ export function normalizeOptionalStringList(value: unknown): string[] | undefine
     .filter(Boolean);
 }
 
-export function normalizeOptionalStringMap(value: unknown): Record<string, string> | undefined {
+function normalizeOptionalStringMap(value: unknown): Record<string, string> | undefined {
   if (value === null || value === undefined) return undefined;
   const parsed = typeof value === 'string' ? parseJsonObject(value) : value;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;

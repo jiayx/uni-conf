@@ -286,7 +286,6 @@
         "activeForUnmatchedPolicies": ["proxy"]
       },
       "rules": [
-        { "id": "cncidr", "name": "China IP" },
         {
           "id": "cncidr-resolve",
           "name": "China IP Resolve",

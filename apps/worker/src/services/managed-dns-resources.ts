@@ -9,7 +9,7 @@ import { safeRemoteFetch } from './safe-remote-fetch'
 
 const CACHE_KEY = 'dns-resources:quixotic-fake-ip-filter:v2'
 const MAX_RESPONSE_BYTES = 256 * 1024
-export const MANAGED_DNS_RESOURCE_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
+const MANAGED_DNS_RESOURCE_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 interface CachedFakeIpFilter {
   domains: string[]

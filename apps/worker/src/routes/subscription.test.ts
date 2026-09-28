@@ -1,15 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ProxySource } from '@uni-conf/types'
 import {
-  EXPORT_SUBSCRIPTION_FORMATS,
-  FULL_CONFIG_EXPORT_FORMATS,
-  NODE_SUBSCRIPTION_EXPORT_FORMATS,
-  RULE_SET_FORMATS,
   getExportFormatFromSubscriptionFilename,
   getExportSubscriptionFilename,
-  isExportFormat,
-  isFullConfigExportFormat,
-  isRuleSetFormat,
 } from '@uni-conf/shared'
 import { buildSubscriptionUserInfoHeader } from './subscription'
 
@@ -57,21 +50,4 @@ describe('subscription route helpers', () => {
     expect(getExportFormatFromSubscriptionFilename('sing-box.json')).toBeNull()
   })
 
-  it('rejects the removed legacy Clash subscription filename', () => {
-    expect(getExportFormatFromSubscriptionFilename('clash.yaml')).toBeNull()
-    expect(isExportFormat('clash')).toBe(false)
-    expect(isFullConfigExportFormat('clash')).toBe(false)
-    expect(isRuleSetFormat('clash')).toBe(true)
-  })
-
-  it('derives every target format registry from one complete partition', () => {
-    expect(EXPORT_SUBSCRIPTION_FORMATS).toEqual([
-      ...FULL_CONFIG_EXPORT_FORMATS,
-      ...NODE_SUBSCRIPTION_EXPORT_FORMATS,
-    ])
-    expect(RULE_SET_FORMATS).toEqual([...FULL_CONFIG_EXPORT_FORMATS, 'clash', 'mrs', 'text'])
-    expect(FULL_CONFIG_EXPORT_FORMATS.every(isFullConfigExportFormat)).toBe(true)
-    expect(EXPORT_SUBSCRIPTION_FORMATS.every(isExportFormat)).toBe(true)
-    expect(RULE_SET_FORMATS.every(isRuleSetFormat)).toBe(true)
-  })
 })

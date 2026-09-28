@@ -145,6 +145,70 @@ function ruleRow(rule: ProxyRule): Record<string, unknown> {
 }
 
 describe('remote rule set generators', () => {
+  it('exports the same CDN rule source across clients', () => {
+    const row = { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id }
+    const renders = [
+      ['surge', generateSurge], ['loon', generateLoon], ['shadowrocket', generateShadowrocket],
+      ['quantumultx', generateQuantumultX], ['egern', generateEgern],
+    ] as const
+    for (const [format, render] of renders) {
+      const content = render([], groupRows, ruleRows, [row])
+      const extension = format === 'egern' ? 'yaml' : 'list'
+      expect(content).toContain(`https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/${format}/ai.${extension}`)
+      expect(content).not.toContain('raw.githubusercontent.com')
+    }
+    const stash = generateStashYaml([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet])
+    expect(stash).toContain('https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/stash/ai.list')
+    expect(stash).not.toContain('raw.githubusercontent.com')
+  });
+
+  it('downloads Mihomo rule providers through the default proxy with CDN URLs while preserving routing targets', () => {
+    const config = yaml.load(generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet])) as {
+      'rule-providers': Record<string, { proxy: string; url: string }>;
+      rules: string[];
+    };
+    expect(config['rule-providers'].AI).toMatchObject({
+      proxy: 'PROXY',
+      url: 'https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/meta/ai.list',
+    });
+    expect(config['rule-providers']['uni-conf-fake-ip-filter']).toMatchObject({
+      proxy: 'PROXY',
+      url: 'https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/meta/domain/fake-ip-filter.mrs',
+    });
+    expect(config.rules).toContain('RULE-SET,AI,DIRECT');
+  });
+
+  it('uses the actual name of a workspace-scoped default group for Mihomo downloads', () => {
+    const renamedGroup = { ...proxyGroup, id: `workspace-1:${DEFAULT_RULE_TARGET_GROUP_ID}`, name: 'My "Proxy"' };
+    const config = yaml.load(generateMihomoYaml([], [renamedGroup, directGroup], [], [remoteSet])) as {
+      'rule-providers': Record<string, { proxy: string }>;
+    };
+    expect(Object.values(config['rule-providers']).map((provider) => provider.proxy))
+      .toEqual(['My "Proxy"', 'My "Proxy"']);
+  });
+
+  it.each([
+    { name: 'no groups', groups: [] },
+    { name: 'direct only', groups: [directGroup] },
+    { name: 'reject default', groups: [{ ...proxyGroup, type: 'reject' as const }] },
+  ])(
+    'uses DIRECT for Mihomo downloads when there is no default proxy group: $name',
+    ({ groups }) => {
+      const config = yaml.load(generateMihomoYaml([], groups, [], [remoteSet])) as {
+        'rule-providers': Record<string, { proxy: string }>;
+      };
+      expect(Object.values(config['rule-providers']).map((provider) => provider.proxy))
+        .toEqual(['DIRECT', 'DIRECT']);
+    }
+  );
+
+  it('does not add Mihomo download proxy fields to Stash rule providers', () => {
+    const config = yaml.load(generateStashYaml([], [proxyGroup, directGroup], [matchRule], [remoteSet])) as {
+      'rule-providers': Record<string, { proxy?: string }>;
+    };
+    expect(config['rule-providers'].Ads_List).not.toHaveProperty('proxy');
+  });
+
   it('keeps manual overrides ordered before remote policies and fallback in every full-config client', () => {
     const first = { ...matchRule, id: 'first', type: 'DOMAIN' as const, payload: 'first.example', order: 10 };
     const second = { ...first, id: 'second', payload: 'second.example', order: 20 };
@@ -393,7 +457,7 @@ describe('remote rule set generators', () => {
     });
     expect(config.route.rule_set).toContainEqual(expect.objectContaining({
       tag: 'geosite-google',
-      url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google.srs',
+      url: 'https://testingcf.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google.srs',
       http_client: 'ruleSetHttp',
     }));
     expect(config.route.rule_set.filter((item) => item.tag === 'geosite-cn')).toHaveLength(1);
@@ -488,7 +552,7 @@ describe('remote rule set generators', () => {
       expect(config.route.rule_set).toContainEqual(expect.objectContaining({
         tag,
         format: 'binary',
-        url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/cncidr.srs',
+        url: 'https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/singbox/version5/cncidr.srs',
       }));
     }
     const rules = config.route.rules as Array<Record<string, unknown>>;
@@ -506,10 +570,14 @@ describe('remote rule set generators', () => {
   it('maps every bundled Quixotic preset to a catalogued native sing-box resource', () => {
     const catalog = bundledRuleSetCatalogSnapshot.catalogs.find(item => item.id === 'quixotic')!;
     for (const preset of catalog.items) {
-      const nativePreset = preset.id === 'cncidr-resolve'
-        ? catalog.items.find(item => item.id === 'cncidr')!
-        : preset;
-      const nativeSource = nativePreset.sources.find(source => source.format === 'singbox');
+      if (preset.id === 'cncidr-resolve') {
+        expect(resolveQuixoticRuleSetForExport(preset.id, 'singbox')).toEqual({
+          format: 'singbox',
+          url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/cncidr.srs',
+        });
+        continue;
+      }
+      const nativeSource = preset.sources.find(source => source.format === 'singbox');
       expect(nativeSource, `${preset.id} needs a verified native source or an explicit mapping`).toBeDefined();
       const resolved = resolveQuixoticRuleSetForExport(preset.id, 'singbox');
       expect(resolved.format).toBe('singbox');
@@ -525,14 +593,14 @@ describe('remote rule set generators', () => {
       expect.objectContaining({
         tag: 'AI',
         format: 'binary',
-        url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/singbox/version5/ai.srs',
+        url: 'https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/singbox/version5/ai.srs',
       })
     );
 
     const surge = generateSurge([], groupRows, ruleRows, [
       { ...quixoticPresetSet, preset_source: 'quixotic', preset_id: 'ai', target_group_id: directGroup.id },
     ]);
-    expect(surge).toContain('RULE-SET,https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/surge/ai.list,DIRECT');
+    expect(surge).toContain('RULE-SET,https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/surge/ai.list,DIRECT');
 
     const mihomo = generateMihomoYaml([], [proxyGroup, directGroup], [matchRule], [quixoticPresetSet]);
     expect(mihomo).toContain('format: text');
@@ -662,7 +730,7 @@ describe('remote rule set generators', () => {
 
     expect(content).not.toContain('[Remote Rule]');
     expect(content).toContain(
-      'RULE-SET,https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/shadowrocket/ai.list,DIRECT',
+      'RULE-SET,https://testingcf.jsdelivr.net/gh/QuixoticHeart/rule-set@ruleset/shadowrocket/ai.list,DIRECT',
     );
   });
 

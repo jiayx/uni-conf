@@ -1,3 +1,4 @@
+import { inferQuixoticRuleSetSourceFromUrl } from '@uni-conf/shared'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +14,6 @@ import { useConfirmDialog } from '@/components/ui/ConfirmDialog/useConfirmDialog
 import { getRemoteRuleSetCompatibilityMode } from '@/core/remote-rules/compatibility'
 import { isSystemDisabledRemoteRuleSet, visibleRemoteRuleSetNotes } from '@/core/remote-rules/managed-notes'
 import {
-  inferQuixoticRuleSetSourceFromUrl,
   RULE_SET_FORMAT_OPTIONS,
 } from '@/core/remote-rules/quixotic-presets'
 import { api } from '@/lib/api'

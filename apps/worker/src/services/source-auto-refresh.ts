@@ -2,7 +2,7 @@ import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared';
 import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
 import { ensureZeroSetupDefaults } from './zero-setup';
 
-export const AUTO_REFRESH_CONCURRENCY = 4;
+const AUTO_REFRESH_CONCURRENCY = 4;
 
 export interface AutoRefreshSourceRow {
   id: string;

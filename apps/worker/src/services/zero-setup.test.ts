@@ -64,6 +64,16 @@ describe('zero setup defaults', () => {
     expect(db.prepare).toHaveBeenCalledOnce();
   });
 
+  it('reconciles existing workspaces after a defaults version upgrade', async () => {
+    const db = createDb();
+    const kv = createKv('1');
+
+    await ensureWorkspaceInitialized(db, kv, '2026-01-01T00:00:00.000Z', 'default');
+
+    expect(ensureDefaultRemoteRuleSets).toHaveBeenCalledOnce();
+    expect(kv.put).toHaveBeenCalledWith('workspace-defaults:default', String(WORKSPACE_DEFAULTS_VERSION));
+  });
+
   it('reinitializes when D1 was rebuilt but the KV version marker survived', async () => {
     const db = createDb(false);
     const kv = createKv(String(WORKSPACE_DEFAULTS_VERSION));

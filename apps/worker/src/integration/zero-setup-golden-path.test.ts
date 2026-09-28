@@ -11,7 +11,7 @@ import worker from '../index'
 import type { Env } from '../types'
 import type { ExportConfig, ExportFormat } from '@uni-conf/types'
 import { DEFAULT_NODE_POOL_COLLECTION_ID, EXPORT_FORMAT_FILENAMES } from '@uni-conf/shared'
-import { WORKSPACE_DEFAULTS_VERSION, workspaceDefaultsKey } from '../services/zero-setup'
+import { ensureWorkspaceInitialized, WORKSPACE_DEFAULTS_VERSION, workspaceDefaultsKey } from '../services/zero-setup'
 
 const singboxSchema = JSON.parse(readFileSync(new URL('../../../../packages/types/schemas/sing-box.json', import.meta.url), 'utf8')) as Record<string, unknown>
 const validateSingbox = new Ajv2020({ strict: false }).compile(singboxSchema)
@@ -102,6 +102,13 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
       ).toBe(200)
       expect(content.length, `${format} content length`).toBeGreaterThan(20)
       assertExportShape(format, content)
+      if (!format.startsWith('nodes_')) {
+        // The single China IP fallback follows the domain policies in all clients.
+        expect(content, `${format} retains the resolving China IP fallback`).toContain('cncidr')
+        const chinaUrls = content.match(/https:\/\/[^\s,"']*\/cncidr(?:-resolve)?\.(?:list|srs|yaml)/g) ?? []
+        expect(chinaUrls, `${format} has only one China IP resource`).toHaveLength(1)
+        expect(content).not.toMatch(/China_IP[,'"\s:]/)
+      }
     }
   }
 
@@ -130,6 +137,28 @@ describe('zero-setup golden path (real D1 via Miniflare)', () => {
     ).bind('default-mihomo', 'default').first<Record<string, unknown>>()
     expect(after).toEqual(before)
   }, 30000)
+
+  it('reconciles managed catalog entries while preserving manual rules and current settings', async () => {
+    const retained = await env.DB.prepare(
+      "SELECT * FROM remote_rule_sets WHERE workspace_id = 'default' AND preset_source = 'quixotic' AND preset_id = 'cncidr-resolve'",
+    ).first<Record<string, unknown>>()
+    expect(retained).not.toBeNull()
+    for (const [id, presetSource, presetId] of [
+      ['unlisted-managed-rule', 'quixotic', 'unlisted-preset'],
+      ['manual-china-ip', null, null],
+    ]) {
+      await env.DB.prepare(`INSERT INTO remote_rule_sets
+        (id, workspace_id, name, url, format, target_group_id, preset_source, preset_id, created_at, updated_at)
+        VALUES (?, 'default', 'China IP', ?, 'mihomo', ?, ?, ?, ?, ?)`)
+        .bind(id, retained!.url, retained!.target_group_id, presetSource, presetId, retained!.created_at, retained!.updated_at).run()
+    }
+    await env.KV.put(workspaceDefaultsKey('default'), '1')
+    await ensureWorkspaceInitialized(env.DB, env.KV, new Date().toISOString(), 'default')
+    expect(await env.DB.prepare("SELECT id FROM remote_rule_sets WHERE id = 'unlisted-managed-rule'").first()).toBeNull()
+    expect(await env.DB.prepare("SELECT id FROM remote_rule_sets WHERE id = 'manual-china-ip'").first()).not.toBeNull()
+    expect(await env.DB.prepare('SELECT * FROM remote_rule_sets WHERE id = ?').bind(retained!.id).first()).toEqual(retained)
+    await env.DB.prepare("DELETE FROM remote_rule_sets WHERE id = 'manual-china-ip'").run()
+  })
 
   it('turns a single pasted config import into coherent downloads for every advertised format', async () => {
     // Miniflare/D1 startup and the full zero-setup chain can be slow under CI load.

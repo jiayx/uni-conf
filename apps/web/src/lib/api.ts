@@ -127,7 +127,6 @@ const pathSegment = (value: string): string => encodeURIComponent(value)
 
 const sources = {
   list: (): Promise<ProxySource[]> => get('/sources'),
-  get: (id: string): Promise<ProxySource> => get(`/sources/${pathSegment(id)}`),
   create: (data: SourceCreateInput): Promise<SourceCreateResult> =>
     post('/sources', data),
   import: (data: SourceImportInput): Promise<SourceCreateResult> =>
@@ -261,7 +260,6 @@ async function listAllNodes(params?: Omit<NodeListParams, 'page' | 'pageSize'>):
 
 const collections = {
   list: (): Promise<NodeCollectionSummary[]> => get('/collections'),
-  get: (id: string): Promise<NodeCollection> => get(`/collections/${pathSegment(id)}`),
   create: (data: Omit<NodeCollection, 'id' | 'createdAt' | 'updatedAt'>): Promise<NodeCollection> =>
     post('/collections', data),
   update: (id: string, data: Partial<NodeCollection>): Promise<NodeCollection> =>
@@ -290,7 +288,6 @@ const collections = {
 
 const groups = {
   list: (): Promise<ProxyGroup[]> => get('/groups'),
-  get: (id: string): Promise<ProxyGroup> => get(`/groups/${pathSegment(id)}`),
   create: (data: Omit<ProxyGroup, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProxyGroup> =>
     post('/groups', data),
   update: (id: string, data: Partial<ProxyGroup>): Promise<ProxyGroup> => put(`/groups/${pathSegment(id)}`, data),
@@ -304,7 +301,6 @@ const groups = {
 
 const rules = {
   list: (): Promise<ProxyRule[]> => get('/rules'),
-  get: (id: string): Promise<ProxyRule> => get(`/rules/${pathSegment(id)}`),
   create: (data: Omit<ProxyRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProxyRule> =>
     post('/rules', data),
   update: (id: string, data: Partial<ProxyRule>): Promise<ProxyRule> => put(`/rules/${pathSegment(id)}`, data),
@@ -322,11 +318,8 @@ const rules = {
 
 const remoteRuleSets = {
   list: (): Promise<RemoteRuleSet[]> => get('/remote-rule-sets'),
-  get: (id: string): Promise<RemoteRuleSet> => get(`/remote-rule-sets/${pathSegment(id)}`),
   create: (data: Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>): Promise<RemoteRuleSet> =>
     post('/remote-rule-sets', data),
-  batchCreate: (data: Omit<RemoteRuleSet, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<RemoteRuleSet[]> =>
-    post('/remote-rule-sets/batch', { sets: data }),
   update: (id: string, data: Partial<RemoteRuleSet>): Promise<RemoteRuleSet> =>
     put(`/remote-rule-sets/${pathSegment(id)}`, data),
   remove: (id: string): Promise<void> => del(`/remote-rule-sets/${pathSegment(id)}`),
@@ -338,7 +331,6 @@ const remoteRuleSets = {
 
 const exportApi = {
   listConfigs: (): Promise<ExportConfig[]> => get('/export/configs'),
-  getConfig: (id: string): Promise<ExportConfig> => get(`/export/configs/${pathSegment(id)}`),
   createConfig: (data: ExportConfigCreateInput): Promise<ExportConfig> =>
     post('/export/configs', data),
   updateConfig: (id: string, data: Partial<ExportConfig>): Promise<ExportConfig> =>
@@ -363,7 +355,7 @@ const exportApi = {
 }
 
 function exportFormatPath(
-  action: 'preview' | 'readiness' | 'download',
+  action: 'preview' | 'download',
   format: ExportFormat,
   configId?: string,
 ): string {

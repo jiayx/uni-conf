@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { jsonStringify, mapGroup, newId, now } from '../db/helpers';
+import { mapGroup, newId, now } from '../db/helpers';
 import type {
   CompatibilityWarningRemediation,
   ProxyGroup,
@@ -137,9 +137,9 @@ app.post('/', async (c) => {
       id,
       validation.name,
       validation.type,
-      jsonStringify(validation.collectionIds ?? []),
-      jsonStringify(validation.groupIds ?? []),
-      jsonStringify(validation.builtins ?? []),
+      JSON.stringify(validation.collectionIds ?? []),
+      JSON.stringify(validation.groupIds ?? []),
+      JSON.stringify(validation.builtins ?? []),
       validation.testUrl ?? null,
       validation.interval,
       validation.tolerance,
@@ -217,10 +217,10 @@ app.put('/:id', async (c) => {
       validation.name ?? existing.name,
       validation.type ?? existing.type,
       validation.collectionIds !== undefined
-        ? jsonStringify(validation.collectionIds)
+        ? JSON.stringify(validation.collectionIds)
         : existing.collection_ids,
-      validation.groupIds !== undefined ? jsonStringify(validation.groupIds) : existing.group_ids,
-      validation.builtins !== undefined ? jsonStringify(validation.builtins) : existing.builtins,
+      validation.groupIds !== undefined ? JSON.stringify(validation.groupIds) : existing.group_ids,
+      validation.builtins !== undefined ? JSON.stringify(validation.builtins) : existing.builtins,
       validation.testUrl !== undefined ? validation.testUrl : existing.test_url,
       validation.interval !== undefined ? validation.interval : existing.interval,
       validation.tolerance !== undefined ? validation.tolerance : existing.tolerance,

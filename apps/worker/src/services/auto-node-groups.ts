@@ -8,7 +8,7 @@ import {
   makeTagAutoNodeGroupMarker,
   parseAutoNodeGroupMarker,
 } from '@uni-conf/shared';
-import { jsonStringify, newId } from '../db/helpers';
+import { newId } from '../db/helpers';
 import { enabledNodeRowsQuery } from './enabled-node-rows';
 import { getAppSettings } from './app-settings';
 import type { AutoNodeGroupType } from '@uni-conf/types';
@@ -84,7 +84,7 @@ export async function syncAutoNodeGroups(
 }
 
 async function ensureDefaultNodePoolCollection(db: D1Database, ts: string, workspaceId: string): Promise<void> {
-  const filters = jsonStringify([{ ...EXCLUDE_HIGH_MULTIPLIER_FILTER }]);
+  const filters = JSON.stringify([{ ...EXCLUDE_HIGH_MULTIPLIER_FILTER }]);
   const collectionId = defaultNodePoolId(workspaceId);
   await db
     .prepare(
@@ -227,7 +227,7 @@ async function createAutoCollection(
         (id, name, source_ids, node_ids, filters, renames, dedup, sort, sort_country_order, enabled, notes, created_at, updated_at, workspace_id)
        VALUES (?, ?, '[]', '[]', ?, '[]', 'full_config', 'name', '[]', 1, ?, ?, ?, ?)`
     )
-    .bind(id, name, jsonStringify(filters), marker, ts, ts, workspaceId)
+    .bind(id, name, JSON.stringify(filters), marker, ts, ts, workspaceId)
     .run();
 }
 
@@ -253,7 +253,7 @@ async function updateAutoCollection(
            OR notes IS NOT ?
          )`
     )
-    .bind(name, jsonStringify(filters), marker, ts, id, name, jsonStringify(filters), marker)
+    .bind(name, JSON.stringify(filters), marker, ts, id, name, JSON.stringify(filters), marker)
     .run();
 }
 
@@ -281,7 +281,7 @@ async function createLinkedGroup(
       newId(),
       name,
       type,
-      jsonStringify([collectionId]),
+      JSON.stringify([collectionId]),
       DEFAULT_HEALTH_CHECK.testUrl,
       DEFAULT_HEALTH_CHECK.interval,
       DEFAULT_HEALTH_CHECK.tolerance,
@@ -302,7 +302,7 @@ async function ensureLinkedGroup(
   ts: string,
   workspaceId: string,
 ): Promise<void> {
-  const collectionIds = jsonStringify([collectionId]);
+  const collectionIds = JSON.stringify([collectionId]);
   const row = await db
     .prepare(`SELECT id FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ? ORDER BY sort_order ASC LIMIT 1`)
     .bind(workspaceId, collectionIds)
@@ -352,7 +352,7 @@ async function deleteCollectionAndLinkedGroups(
   collectionId: string,
   workspaceId: string,
 ): Promise<void> {
-  const collectionIds = jsonStringify([collectionId]);
+  const collectionIds = JSON.stringify([collectionId]);
   await db.prepare('DELETE FROM groups WHERE workspace_id = ? AND is_builtin = 0 AND collection_ids = ?')
     .bind(workspaceId, collectionIds).run();
   await db.prepare('DELETE FROM collections WHERE id = ? AND workspace_id = ?').bind(collectionId, workspaceId).run();

@@ -31,7 +31,7 @@ export function resolveExportWarnings(
   ];
 }
 
-export function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+function validateExportReadiness(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
   if (isNodeOnlyExportFormat(format)) {
     return [
       ...validateSources(data, format),
@@ -88,7 +88,7 @@ export function findBlockingExportWarning(
   ].find((warning) => warning.level === 'unsupported') ?? null;
 }
 
-export function validateExportCompatibility(
+function validateExportCompatibility(
   data: ExportData,
   format: ExportFormat
 ): CompatibilityWarning[] {

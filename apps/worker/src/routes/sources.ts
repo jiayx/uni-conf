@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { load as parseYAML } from 'js-yaml';
 import type { Env } from '../types';
 import {
-  jsonStringify,
   mapSource,
   newId,
   now,
@@ -121,7 +120,7 @@ app.post('/', async (c) => {
       sourceFields.updateInterval ?? 0,
       sourceFields.userAgent ?? null,
       sourceFields.notes ?? null,
-      jsonStringify(sourceFields.tags ?? []),
+      JSON.stringify(sourceFields.tags ?? []),
       ts,
       ts,
       workspaceId
@@ -229,7 +228,7 @@ app.post('/import', async (c) => {
       sourceFields.updateInterval ?? 0,
       sourceFields.userAgent ?? null,
       sourceFields.notes ?? null,
-      jsonStringify(sourceFields.tags ?? []),
+      JSON.stringify(sourceFields.tags ?? []),
       ts,
       ts,
       workspaceId
@@ -519,7 +518,7 @@ app.post('/imports/:runId/structured/retry', async (c) => {
       execution.summary.remoteRuleSets,
       execution.summary.skippedRules,
       conflictCount,
-      jsonStringify(changes),
+      JSON.stringify(changes),
       now(),
       runId
     ).run();
@@ -637,7 +636,7 @@ app.put('/:id', async (c) => {
       // Allow explicitly setting to null or empty string to clear user_agent
       'userAgent' in body ? sourceFields.userAgent ?? null : existing.user_agent,
       body.notes !== undefined ? sourceFields.notes : existing.notes,
-      body.tags !== undefined ? jsonStringify(sourceFields.tags) : existing.tags,
+      body.tags !== undefined ? JSON.stringify(sourceFields.tags) : existing.tags,
       ts,
       id,
       workspaceId
@@ -766,7 +765,7 @@ async function completeSourceImportRun(db: D1Database, input: CompleteSourceImpo
     conflictCount,
     refreshHistoryError,
     structuredHistoryError,
-    jsonStringify(input.structuredUndoChanges),
+    JSON.stringify(input.structuredUndoChanges),
     input.completedAt,
     input.id
   ).run();
@@ -822,7 +821,7 @@ function mapSourceImportRun(row: Record<string, unknown>): SourceImportRun {
 
 const STALE_SOURCE_IMPORT_RUN_MS = 10 * 60 * 1000;
 
-export async function recoverStaleSourceImportRuns(
+async function recoverStaleSourceImportRuns(
   db: D1Database,
   recoveredAt = now(),
   workspaceId = DEFAULT_WORKSPACE_ID
@@ -942,7 +941,7 @@ export async function refreshSourceById(
  * Reuses the same parse -> diff -> upsert -> group-sync pipeline as refreshSourceById,
  * so file/clipboard sources behave identically to URL sources once content is available.
  */
-export async function importSourceFromContent(
+async function importSourceFromContent(
   db: D1Database,
   id: string,
   rawContent: string,
@@ -1102,9 +1101,9 @@ async function applyParsedSourceContent(
         node.port,
         node.country ?? null,
         node.countryCode ?? null,
-        jsonStringify(node.tags),
-        jsonStringify(node.rawConfig),
-        jsonStringify(node.parsedConfig),
+        JSON.stringify(node.tags),
+        JSON.stringify(node.rawConfig),
+        JSON.stringify(node.parsedConfig),
         ts,
         ts,
         workspaceId
@@ -1125,9 +1124,9 @@ async function applyParsedSourceContent(
         item.node.port,
         item.node.country ?? null,
         item.node.countryCode ?? null,
-        jsonStringify(item.node.tags),
-        jsonStringify(item.node.rawConfig),
-        jsonStringify(item.node.parsedConfig),
+        JSON.stringify(item.node.tags),
+        JSON.stringify(item.node.rawConfig),
+        JSON.stringify(item.node.parsedConfig),
         ts,
         item.id
       ));
@@ -1161,7 +1160,7 @@ async function applyParsedSourceContent(
       subscriptionInfo.downloadBytes ?? null,
       subscriptionInfo.totalBytes ?? null,
       subscriptionInfo.expireTime ?? null,
-      jsonStringify(parsedGroups),
+      JSON.stringify(parsedGroups),
       rawContent,
       ts,
       id
@@ -1227,7 +1226,7 @@ async function syncImportedSourceNodeGroups(
         .map((name) => nodeIdByName.get(name))
         .filter((id): id is string => Boolean(id))
       : [];
-    const nextNodeIds = jsonStringify([...new Set(nodeIds)]);
+    const nextNodeIds = JSON.stringify([...new Set(nodeIds)]);
     if ((collection.node_ids ?? '[]') === nextNodeIds) continue;
 
     statements.push(
@@ -1680,7 +1679,7 @@ const CLIENT_SETTING_KEYS = [
   'allow-lan', 'bind-address', 'tun', 'profile', 'hosts',
 ] as const;
 
-export function parseStructuredSourceContent(rawContent: string, format: SourceFormat): ParsedStructuredSource {
+function parseStructuredSourceContent(rawContent: string, format: SourceFormat): ParsedStructuredSource {
   const empty: ParsedStructuredSource = { rules: [], remoteRuleSets: [], skippedRules: 0, hasDns: false, clientSettingKeys: [] };
   if (format !== 'clash' && format !== 'mihomo') return empty;
 
@@ -1746,7 +1745,7 @@ export function parseStructuredSourceContent(rawContent: string, format: SourceF
   };
 }
 
-export async function importStructuredSourceContent(
+async function importStructuredSourceContent(
   db: D1Database,
   sourceId: string,
   rawContent: string,
@@ -1773,7 +1772,7 @@ export async function importStructuredSourceContent(
        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
     ).bind(
       newId(), `Imported ${rule.type}`, rule.type, rule.payload, rule.noResolve ? 1 : 0, rule.targetId,
-      ruleOrder++, marker, jsonStringify(getRuleCompatibilityForPayload(rule.type, rule.payload)), ts, ts, workspaceId
+      ruleOrder++, marker, JSON.stringify(getRuleCompatibilityForPayload(rule.type, rule.payload)), ts, ts, workspaceId
     ));
   }
 
@@ -2448,12 +2447,12 @@ function shouldUpdateNode(
     existing.protocol !== next.protocol ||
     (existing.country ?? null) !== (next.country ?? null) ||
     (existing.country_code ?? null) !== (next.countryCode ?? null) ||
-    (existing.tags ?? '[]') !== jsonStringify(next.tags) ||
-    existing.raw_config !== jsonStringify(next.rawConfig) ||
-    existing.parsed_config !== jsonStringify(next.parsedConfig);
+    (existing.tags ?? '[]') !== JSON.stringify(next.tags) ||
+    existing.raw_config !== JSON.stringify(next.rawConfig) ||
+    existing.parsed_config !== JSON.stringify(next.parsedConfig);
 }
 
-export function nodeIdentityKey(node: {
+function nodeIdentityKey(node: {
   protocol: ProxyProtocol | string;
   server: string;
   port: number;

@@ -12,7 +12,7 @@ import {
 import { PROXY_PROTOCOL_REGISTRY } from '@uni-conf/types'
 import type { ExportFormat, ProxyGroup, ProxyNode, ProxyProtocol, ProxyRule } from '@uni-conf/types'
 import type { ExportData } from '../export-data'
-import { materializeExportIntermediateRepresentation, renderExportData } from './export-renderer'
+import { renderExportData } from './export-renderer'
 import { validateRenderedExport } from '../services/export-artifact-validation'
 
 const require = createRequire(import.meta.url)
@@ -26,15 +26,13 @@ const singboxSchema = JSON.parse(
 const validateSingboxSchema = new Ajv2020({ strict: false }).compile(singboxSchema)
 
 describe('renderExportData', () => {
-  it('materializes a sanitized immutable export boundary', () => {
+  it('sanitizes exported labels without modifying stored data', () => {
     const data = makeExportData()
     data.nodes[0]!.name = 'Node\nInjected = bad,#comment'
     data.nodeRows[0]!.name = data.nodes[0]!.name
-    const ir = materializeExportIntermediateRepresentation(data)
-
-    expect(ir.nodes[0]?.name).toBe('Node Injected ＝ bad，＃comment')
-    expect(ir.nodeRows[0]?.name).toBe('Node Injected ＝ bad，＃comment')
-    expect(ir.nodeRows[0]?.parsed_config).toEqual(expect.objectContaining({ protocol: 'ss' }))
+    for (const format of ['mihomo', 'surge'] as const) {
+      expect(renderExportData(data, format)?.content).toContain('Node Injected ＝ bad，＃comment')
+    }
     expect(data.nodes[0]?.name).toBe('Node\nInjected = bad,#comment')
   })
 

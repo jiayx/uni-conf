@@ -63,8 +63,8 @@ Workers.dev 地址由项目名称和账号的 Workers.dev 子域组成，Cloudfl
 需要：
 
 - Cloudflare 账号
-- Node.js 20.19 或更高版本
-- pnpm 11.17 或更高版本
+- Node.js 22.13+（22.x）、24.x 或 26+
+- pnpm 12.3.4（与仓库 packageManager 一致）
 - UniConf 源代码
 
 安装依赖：
@@ -86,10 +86,10 @@ pnpm exec wrangler whoami
 
 ```bash
 pnpm build
-pnpm deploy
+pnpm run deploy
 ```
 
-`pnpm deploy` 会先应用 D1 migration，再部署 Worker 和管理页面。Wrangler 会根据 `wrangler.jsonc` 自动创建或复用 D1 和 KV，不需要填写资源 ID。
+`pnpm run deploy` 会先应用 D1 migration，再部署 Worker 和管理页面。Wrangler 会根据 `wrangler.jsonc` 自动创建或复用 D1 和 KV，不需要填写资源 ID。
 
 命令行首次自动创建资源时，Wrangler 可能会把生成的 ID 写回本地 `wrangler.jsonc`。这些账号专属改动只用于本机，不要提交到公共仓库。
 
@@ -132,27 +132,7 @@ unset UNICONF_API_KEY
 
 管理页面和 API 默认使用当前请求的同源地址，因此更换自定义域名后无需修改 Worker 配置。
 
-### 6. 更新现有部署
-
-获取新版本后：
-
-```bash
-pnpm install --frozen-lockfile
-pnpm build
-pnpm deploy
-```
-
-部署命令会先更新数据库结构，再部署新版本。
-
-## 常见问题
-
-| 现象                                          | 处理方法                                                           |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| 无法使用访问密钥登录                          | 确认输入的值与 production 环境中的 `API_KEY` secret 一致           |
-| `/api/ready` 提示 D1 或 KV 不可用             | 检查 Worker 的 `DB`、`KV` binding 是否已由 Wrangler 正确创建或复用 |
-| `D1_ERROR: no such table` 或 `no such column` | 重新执行 `pnpm db:migrate:production`                              |
-| 页面仍是旧版本                                | 重新执行 `pnpm build` 和 `pnpm deploy`                             |
-| 定时刷新没有立即执行                          | 定时任务每五分钟调度一次，只有已经到期的订阅或资源才会刷新         |
+更新和故障处理见[日常维护与故障处理](./OPERATIONS.md)。
 
 ## 相关文档
 

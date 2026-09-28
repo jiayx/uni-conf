@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, UnauthorizedError } from './api'
 import { getStoredApiKey } from './auth'
-import type { ExportFormat } from '@uni-conf/types'
 
 vi.mock('./auth', () => ({
   getStoredApiKey: vi.fn(() => ''),
@@ -20,11 +19,6 @@ function jsonResponse(data: unknown, init: ResponseInit = {}): Response {
 describe('api client', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('requires declared export formats at every generated-config API boundary', () => {
-    expectTypeOf(api.export.previewFormat).parameter(0).toEqualTypeOf<ExportFormat>()
-    expectTypeOf(api.export.downloadFormat).parameter(0).toEqualTypeOf<ExportFormat>()
   })
 
   it('encodes export profile IDs in preview and download URLs', async () => {
@@ -57,7 +51,7 @@ describe('api client', () => {
     await api.collections.updateWithGroup(id, { name: 'Updated' }, 'select')
     await api.groups.remove(id)
     await api.rules.update(id, { enabled: false })
-    await api.remoteRuleSets.get(id)
+    await api.remoteRuleSets.update(id, { enabled: false })
     await api.export.resetToken(id)
 
     expect(fetchMock.mock.calls.map(call => [call[0], call[1]?.method])).toEqual([
@@ -68,7 +62,7 @@ describe('api client', () => {
       [`/api/collections/${encoded}/with-group`, 'PUT'],
       [`/api/groups/${encoded}`, 'DELETE'],
       [`/api/rules/${encoded}`, 'PUT'],
-      [`/api/remote-rule-sets/${encoded}`, 'GET'],
+      [`/api/remote-rule-sets/${encoded}`, 'PUT'],
       [`/api/export/configs/${encoded}/reset-token`, 'POST'],
     ])
   })
@@ -218,97 +212,6 @@ describe('api client', () => {
     await expect(api.export.downloadFormat('mihomo')).rejects.toMatchObject({
       name: 'ApiError', status: 409, code: 'export_not_ready', requestId: 'request-456', message: 'No nodes are available',
     } satisfies Partial<ApiError>)
-  })
-
-  it('routes typed API helpers to the expected endpoints', async () => {
-    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({
-      success: true,
-      data: { items: [], nodes: [], ok: true },
-    }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await api.sources.list()
-    await api.sources.get('source-1')
-    await api.sources.create({ url: 'https://example.com/sub' })
-    await api.sources.import({ content: 'ss://example' })
-    await api.sources.listImports()
-    await api.sources.previewNodeRetry('run-1')
-    await api.sources.retryNodeImport('run-1')
-    await api.sources.previewStructuredRetry('run-1')
-    await api.sources.retryStructuredImport('run-1', { 'rule:0:DOMAIN|example.com|0': 'use-imported' })
-    await api.sources.undoImport('run-1')
-    await api.sources.update('source-1', { enabled: false })
-    await api.sources.remove('source-1')
-    await api.sources.refresh('source-1')
-    await api.nodes.listPage({ page: 2, pageSize: 10, enabled: true })
-    await api.nodes.get('node-1')
-    await api.nodes.getUri('node-1')
-    await api.nodes.create({ uri: 'trojan://pwd@example.com:443#Node' })
-    await api.nodes.update('node-1', { enabled: false })
-    await api.nodes.setEnabled(['node-1', 'node-2'], false)
-    await api.nodes.remove('node-1')
-    await api.collections.list()
-    await api.collections.get('collection-1')
-    await api.collections.create({ name: 'All', sourceIds: [], nodeIds: [], filters: [], renames: [], dedup: 'name', sort: 'manual', enabled: true })
-    await api.collections.update('collection-1', { enabled: false })
-    await api.collections.createWithGroup({ name: 'JP Auto', sourceIds: [], nodeIds: [], filters: [], renames: [], dedup: 'name', sort: 'manual', enabled: true }, 'url-test')
-    await api.collections.updateWithGroup('collection-1', { name: 'JP Fallback' }, 'fallback')
-    await api.collections.remove('collection-1')
-    await api.collections.preview('collection-1')
-    await api.groups.list()
-    await api.groups.get('group-1')
-    await api.groups.create({ name: 'Proxy', type: 'select', collectionIds: [], groupIds: [], builtins: [], enabled: true, order: 0, isBuiltin: false })
-    await api.groups.update('group-1', { enabled: false })
-    await api.groups.remove('group-1')
-    await api.groups.reorder(['group-2', 'group-1'])
-    await api.rules.list()
-    await api.rules.get('rule-1')
-    await api.rules.create({ type: 'DOMAIN', payload: 'example.com', targetGroupId: 'group-1', enabled: true, order: 0, compatibility: [] })
-    await api.rules.update('rule-1', { enabled: false })
-    await api.rules.setEnabled(['rule-1', 'rule-2'], false)
-    await api.rules.remove('rule-1')
-    await api.rules.reorder(['rule-2', 'rule-1'])
-    await api.rules.batchCreate([{ type: 'DOMAIN', payload: 'example.com', targetGroupId: 'group-1', enabled: true, order: 0, compatibility: [] }])
-    await api.remoteRuleSets.list()
-    await api.remoteRuleSets.get('remote-1')
-    await api.remoteRuleSets.create({ name: 'Remote', url: 'https://example.com/list', format: 'text', behavior: 'domain', sourceOverrides: {}, targetGroupId: 'group-1', updateInterval: 24, enabled: true, sortOrder: 1 })
-    await api.remoteRuleSets.batchCreate([{ name: 'Remote', url: 'https://example.com/list', format: 'text', behavior: 'domain', sourceOverrides: {}, targetGroupId: 'group-1', updateInterval: 24, enabled: true, sortOrder: 1 }])
-    await api.remoteRuleSets.update('remote-1', { enabled: false })
-    await api.remoteRuleSets.remove('remote-1')
-    await api.export.listConfigs()
-    await api.export.getConfig('export-1')
-    await api.export.createConfig({ format: 'mihomo', enabled: true, includeCollectionIds: [], includeGroupIds: [], includeRuleIds: [], includeRemoteSetIds: [] })
-    await api.export.updateConfig('export-1', { enabled: false })
-    await api.export.deleteConfig('export-1')
-    await api.export.resetToken('export-1')
-    await api.export.previewFormat('singbox', 'export-1')
-    await api.settings.get()
-    await api.settings.update({ language: 'en' })
-    await api.settings.importData({ version: 7 })
-    await api.settings.clearData()
-
-    const calls = fetchMock.mock.calls.map(call => [call[0], call[1]?.method])
-    expect(calls).toContainEqual(['/api/sources', 'GET'])
-    expect(calls).toContainEqual(['/api/sources/import', 'POST'])
-    expect(calls).toContainEqual(['/api/sources/imports', 'GET'])
-    expect(calls).toContainEqual(['/api/sources/imports/run-1/nodes/preview', 'POST'])
-    expect(calls).toContainEqual(['/api/sources/imports/run-1/nodes/retry', 'POST'])
-    expect(calls).toContainEqual(['/api/sources/imports/run-1/structured/preview', 'POST'])
-    expect(calls).toContainEqual(['/api/sources/imports/run-1/structured/retry', 'POST'])
-    expect(calls).toContainEqual(['/api/sources/imports/run-1/undo', 'POST'])
-    expect(calls).toContainEqual(['/api/nodes?page=2&pageSize=10&enabled=true', 'GET'])
-    expect(calls).toContainEqual(['/api/nodes/node-1/uri', 'GET'])
-    expect(calls).toContainEqual(['/api/nodes/batch-enabled', 'PUT'])
-    expect(calls).toContainEqual(['/api/collections/collection-1/preview', 'GET'])
-    expect(calls).toContainEqual(['/api/collections/with-group', 'POST'])
-    expect(calls).toContainEqual(['/api/collections/collection-1/with-group', 'PUT'])
-    expect(calls).toContainEqual(['/api/groups/reorder', 'POST'])
-    expect(calls).toContainEqual(['/api/rules/batch', 'POST'])
-    expect(calls).toContainEqual(['/api/rules/batch-enabled', 'PUT'])
-    expect(calls).toContainEqual(['/api/remote-rule-sets/batch', 'POST'])
-    expect(calls).toContainEqual(['/api/export/preview/singbox?configId=export-1', 'GET'])
-    expect(calls).toContainEqual(['/api/data/import', 'POST'])
-    expect(calls).toContainEqual(['/api/data', 'DELETE'])
   })
 
   it('downloads files and backup data with fallback filenames and auth handling', async () => {

@@ -1,3 +1,5 @@
+import { ruleDownloadUrl, RULE_DOWNLOAD_CDN } from './rule-download-url'
+import { healthCheckUrl } from './health-check'
 import type { ExportDnsPolicy, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import {
   DEFAULT_HEALTH_CHECK,
@@ -103,6 +105,9 @@ function buildDns(policy: ExportDnsPolicy, proxyDetour: string): object {
     action: 'route',
     server: 'fakeip',
   });
+
+  // Keep A queries on FakeIP; resolve other domestic records locally.
+  rules.push({ rule_set: 'geosite-cn', action: 'route', server: 'localDns' });
 
   return {
     servers,
@@ -530,7 +535,7 @@ function groupToSingbox(
         type: 'urltest',
         tag,
         outbounds: dedupedOutbounds,
-        url: group.testUrl ?? DEFAULT_HEALTH_CHECK.testUrl,
+        url: healthCheckUrl(group.testUrl),
         interval: `${group.interval ?? DEFAULT_HEALTH_CHECK.interval}s`,
         tolerance: group.tolerance ?? DEFAULT_HEALTH_CHECK.tolerance,
       };
@@ -600,7 +605,7 @@ function buildRoute(
     tag: MANAGED_FAKE_IP_FILTER_TAG,
     type: 'remote',
     format: 'binary',
-    url: QUIXOTIC_FAKE_IP_FILTER_SRS_URL,
+    url: ruleDownloadUrl(QUIXOTIC_FAKE_IP_FILTER_SRS_URL),
     http_client: 'ruleSetHttp',
     update_interval: '24h',
   });
@@ -704,7 +709,7 @@ function buildSingboxGeositeRuleSet(tag: string): object {
     tag,
     type: 'remote',
     format: 'binary',
-    url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/${tag}.srs`,
+    url: `${RULE_DOWNLOAD_CDN}/gh/SagerNet/sing-geosite@rule-set/${tag}.srs`,
     http_client: 'ruleSetHttp',
     update_interval: '1d',
   };
@@ -715,7 +720,7 @@ function buildSingboxGeoipRuleSet(tag: string): object {
     tag,
     type: 'remote',
     format: 'binary',
-    url: `https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/${tag}.srs`,
+    url: `${RULE_DOWNLOAD_CDN}/gh/SagerNet/sing-geoip@rule-set/${tag}.srs`,
     http_client: 'ruleSetHttp',
     update_interval: '1d',
   };

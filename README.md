@@ -24,8 +24,7 @@ UniConf 是一个面向个人自托管场景的代理配置管理工具。它可
 
 | 客户端或格式 | 导出内容              |
 | ------------ | --------------------- |
-| Mihomo       | 完整 YAML 配置        |
-| Clash        | 完整 YAML 配置        |
+| Mihomo / Clash.Meta | 完整 YAML 配置 |
 | sing-box     | 1.14.0 完整 JSON 配置 |
 | Loon         | 完整配置              |
 | Surge        | 完整配置              |

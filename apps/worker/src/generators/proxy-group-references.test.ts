@@ -497,6 +497,78 @@ describe('proxy group references', () => {
     expect(stash).not.toContain('https://8.8.8.8/dns-query')
   })
 
+  it('captures both UDP and TCP DNS in the generated Mihomo TUN configuration', () => {
+    const config = yaml.load(generateMihomoYaml([], [], [], [])) as {
+      tun: { 'dns-hijack': string[] }
+    }
+    expect(config.tun['dns-hijack']).toEqual(['any:53', 'tcp://any:53'])
+  })
+
+  it.each(['url-test', 'fallback', 'load-balance'] as const)(
+    'uses HTTPS and checks 204 for new and persisted default Mihomo %s health checks',
+    (type) => {
+      for (const testUrl of [undefined, 'http://www.gstatic.com/generate_204', 'https://www.gstatic.com/generate_204']) {
+        const config = yaml.load(generateMihomoYaml([ssNode], [{ ...autoGroup, type, testUrl }], [], [])) as {
+          'proxy-groups': Array<{ url: string; 'expected-status': number }>
+        }
+        expect(config['proxy-groups'][0]).toMatchObject({
+          url: 'https://www.gstatic.com/generate_204',
+          'expected-status': 204,
+        })
+      }
+    }
+  )
+
+  it.each([undefined, 'http://www.gstatic.com/generate_204', 'https://example.com/custom-check'])(
+    'exports compatible default and custom health checks across clients (%s)',
+    (testUrl) => {
+      const group = { ...autoGroup, testUrl }
+      const expected = testUrl?.includes('example.com') ? testUrl : 'https://www.gstatic.com/generate_204'
+      const rows = [toRow(group)]
+      for (const generate of [generateSurge, generateShadowrocket, generateLoon]) {
+        const content = generate([toNodeRow(ssNode)], rows, [], [])
+        expect(content).toContain(`url=${expected}`)
+        expect(content).not.toContain('expected-status')
+      }
+      const singbox = JSON.parse(generateSingboxJson([ssNode], [group], [], [])) as {
+        outbounds: Array<{ type: string; url?: string }>
+      }
+      expect(singbox.outbounds.find((outbound) => outbound.type === 'urltest')?.url).toBe(expected)
+      const egern = yaml.load(generateEgern([toNodeRow(ssNode)], rows, [], [])) as {
+        policy_groups: Array<{ auto_test: { latency_test_url: string } }>
+      }
+      expect(egern.policy_groups[0]?.auto_test.latency_test_url).toBe(expected)
+      const stash = yaml.load(generateStashYaml([ssNode], [group], [], [])) as {
+        'proxy-groups': Array<{ url: string }>
+      }
+      expect(stash['proxy-groups'][0]?.url).toBe(testUrl ?? 'http://www.gstatic.com/generate_204')
+    },
+  )
+
+  it('keeps sing-box DNS hijacking ahead of routing without restricting it to UDP', () => {
+    const config = JSON.parse(generateSingboxJson([], [], [], [])) as {
+      route: { rules: Array<Record<string, unknown>> }
+    }
+    const index = config.route.rules.findIndex((rule) => rule.action === 'hijack-dns')
+    expect(index).toBeGreaterThanOrEqual(0)
+    expect(config.route.rules[index]).toEqual({ protocol: 'dns', action: 'hijack-dns' })
+    expect(index).toBeLessThan(config.route.rules.findIndex((rule) => rule.ip_is_private))
+  })
+
+  it('preserves custom health checks and does not impose 204 on arbitrary endpoints', () => {
+    const testUrl = 'https://example.com/health'
+    const config = yaml.load(generateMihomoYaml([ssNode], [{ ...autoGroup, testUrl }], [], [])) as {
+      'proxy-groups': Array<{ url: string; 'expected-status'?: number }>
+    }
+    expect(config['proxy-groups'][0]?.url).toBe(testUrl)
+    expect(config['proxy-groups'][0]).not.toHaveProperty('expected-status')
+    const stash = yaml.load(generateStashYaml([ssNode], [autoGroup], [], [])) as {
+      'proxy-groups': Array<{ url: string; 'expected-status'?: number }>
+    }
+    expect(stash['proxy-groups'][0]?.url).toBe('http://www.gstatic.com/generate_204')
+    expect(stash['proxy-groups'][0]).not.toHaveProperty('expected-status')
+  })
+
   it('configures automatic Geo data updates for Mihomo configs', () => {
     const content = generateMihomoYaml([], [], [], [])
 
@@ -511,20 +583,29 @@ describe('proxy group references', () => {
     expect(content).toContain('GeoLite2-ASN.mmdb')
   })
 
-  it('uses FakeIP with filtered DNS fallback for Mihomo configs', () => {
-    const content = generateMihomoYaml([], [], [], [])
+  it('splits Mihomo DNS by domain while keeping node and direct resolution independent', () => {
+    const content = generateMihomoYaml([ssNode], [proxyGroup, autoGroup], [], [])
+    const config = yaml.load(content) as {
+      dns: Record<string, unknown>
+    }
 
     expect(content).toContain('enhanced-mode: fake-ip')
     expect(content).toContain('proxy-server-nameserver:')
     expect(content).toContain('direct-nameserver:')
     expect(content).toContain('    - https://223.5.5.5/dns-query')
     expect(content).toContain('    - https://223.6.6.6/dns-query')
-    expect(content).toContain('    - https://1.1.1.1/dns-query#PROXY')
-    expect(content).toContain('    - https://8.8.8.8/dns-query#PROXY')
+    expect(config.dns.nameserver).toEqual([
+      'https://1.1.1.1/dns-query#PROXY',
+      'https://8.8.8.8/dns-query#PROXY',
+    ])
+    const mainland = ['https://223.5.5.5/dns-query', 'https://223.6.6.6/dns-query', 'https://doh.pub/dns-query']
+    expect(config.dns['nameserver-policy']).toEqual({ 'geosite:cn': mainland })
+    expect(config.dns['proxy-server-nameserver']).toEqual(mainland)
+    expect(config.dns['direct-nameserver']).toEqual(mainland)
     expect(content).not.toContain('    - tls://1.1.1.1')
     expect(content).not.toContain('    - tls://8.8.8.8')
-    expect(content).toContain('fallback-filter:')
-    expect(content).not.toContain('nameserver-policy:')
+    expect(config.dns).not.toHaveProperty('fallback')
+    expect(config.dns).not.toHaveProperty('fallback-filter')
     expect(content).toContain('fake-ip-range:')
     expect(content).toContain('- "rule-set:uni-conf-fake-ip-filter"')
     expect(content).toContain('format: mrs')
@@ -536,7 +617,26 @@ describe('proxy group references', () => {
 
     expect(fakeIp).toContain('enhanced-mode: fake-ip')
     expect(fakeIp).toContain('fake-ip-filter:')
-    expect(fakeIp).toContain('fallback-filter:')
+    expect(fakeIp).toContain('nameserver-policy:')
+    expect(fakeIp).not.toContain('fallback-filter:')
+  })
+
+  it('uses the actual default group name for DNS and avoids dangling references in direct-only exports', () => {
+    const renamedGroup = { ...proxyGroup, id: 'workspace-1:builtin-proxy', name: 'My "Proxy"' }
+    const renamed = yaml.load(generateMihomoYaml([ssNode], [renamedGroup, autoGroup], [], [])) as {
+      dns: { nameserver: string[] }
+    }
+    expect(renamed.dns.nameserver).toEqual([
+      'https://1.1.1.1/dns-query#My "Proxy"',
+      'https://8.8.8.8/dns-query#My "Proxy"',
+    ])
+    for (const groups of [[], [directGroup]]) {
+      const direct = yaml.load(generateMihomoYaml([], groups, [], [])) as {
+        dns: { nameserver: string[]; 'direct-nameserver': string[] }
+      }
+      expect(direct.dns.nameserver).toEqual(direct.dns['direct-nameserver'])
+      expect(direct.dns.nameserver.every((server) => !server.includes('#'))).toBe(true)
+    }
   })
 
   it('translates managed FakeIP exceptions with each inline client\'s host syntax', () => {
@@ -649,8 +749,9 @@ describe('proxy group references', () => {
         server: 'fakeip',
       }),
     )
-    expect(fakeIp.dns.rules).not.toContainEqual(
-      expect.objectContaining({ rule_set: 'geosite-cn' }),
+    expect(fakeIp.dns.rules).toContainEqual({ rule_set: 'geosite-cn', action: 'route', server: 'localDns' })
+    expect(fakeIp.dns.rules.findIndex((rule) => rule.server === 'fakeip')).toBeLessThan(
+      fakeIp.dns.rules.findIndex((rule) => rule.rule_set === 'geosite-cn'),
     )
     expect(fakeIp.route.default_domain_resolver).toBe('localDns')
     expect(fakeIp.route.rules).toContainEqual({ ip_is_private: true, outbound: 'direct' })
@@ -690,9 +791,9 @@ describe('proxy group references', () => {
     expect(loon).toContain('wifi-access-http-port = 7222')
     expect(loon).toContain('allow-udp-proxy = true')
     expect(loon).toContain('switch-node-after-failure-times = 2')
-    expect(loon).toContain('proxy-test-url = http://www.gstatic.com/generate_204')
+    expect(loon).toContain('proxy-test-url = https://www.gstatic.com/generate_204')
     expect(loon).toContain(
-      'Auto = url-test, Supported SS, url=http://www.gstatic.com/generate_204, interval=300',
+      'Auto = url-test, Supported SS, url=https://www.gstatic.com/generate_204, interval=300',
     )
     expect(loon).toContain('[Proxy Group]')
     expect(loon).toContain('FINAL, PROXY')
@@ -701,7 +802,7 @@ describe('proxy group references', () => {
     expect(surge).toContain('[General]')
     expect(surge).toContain('loglevel = notify')
     expect(surge).toContain('ipv6 = false')
-    expect(surge).toContain('geoip-maxmind-url = https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb')
+    expect(surge).toContain('geoip-maxmind-url = https://testingcf.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb')
     expect(surge).toContain('exclude-simple-hostnames = true')
     expect(surge).toContain('tun-excluded-routes = 10.0.0.0/8')
     expect(surge).toContain(
@@ -738,7 +839,7 @@ describe('proxy group references', () => {
 
     const quantumultx = generateQuantumultX(nodeRows, rows, [], [], collectionNodeNames)
     expect(quantumultx).toContain('[general]')
-    expect(quantumultx).toContain('server_check_url=http://www.gstatic.com/generate_204')
+    expect(quantumultx).toContain('server_check_url=https://www.gstatic.com/generate_204')
     expect(quantumultx).toContain('server_check_timeout=5000')
     expect(quantumultx).toContain('excluded_routes=10.0.0.0/8')
     expect(quantumultx).toContain('[dns]\nno-system\nno-ipv6')
@@ -789,7 +890,7 @@ describe('proxy group references', () => {
     expect(egern.dns.forward).toEqual([
       { domain_wildcard: { match: '*', value: 'mainland' } },
     ])
-    expect(egern.dns.proxy_nameservers).toBeUndefined()
+    expect(egern.dns.proxy_nameservers).toEqual(egern.dns.upstreams.mainland)
     expect(egern.policy_groups.map(egernEntryBody).map((group) => group?.name)).toContain(autoGroup.name)
     expect(egern.rules).toContainEqual({ default: { policy: 'PROXY' } })
   })
@@ -883,7 +984,7 @@ describe('proxy group references', () => {
 
     expect(group).toMatchObject({
       type: 'urltest',
-      url: 'http://www.gstatic.com/generate_204',
+      url: 'https://www.gstatic.com/generate_204',
       interval: '300s',
       tolerance: 150,
     })
@@ -1427,7 +1528,7 @@ describe('proxy group references', () => {
       expect.objectContaining({
         tag: 'geoip-cn',
         format: 'binary',
-        url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
+        url: 'https://testingcf.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
       }),
     )
   })

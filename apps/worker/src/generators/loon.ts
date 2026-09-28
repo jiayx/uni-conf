@@ -1,3 +1,4 @@
+import { healthCheckUrl } from './health-check'
 import { splitOrderedRuleRows } from './rule-order'
 /**
  * Loon configuration generator
@@ -267,12 +268,12 @@ function groupToLoon(
 
   if (type === 'select') return `${name} = select, ${members}`
   if (type === 'url-test') {
-    const testUrl = String(group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl)
+    const testUrl = healthCheckUrl(group['test_url'])
     const interval = Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval)
     return `${name} = url-test, ${members}, url=${testUrl}, interval=${interval}`
   }
   if (type === 'fallback') {
-    const testUrl = String(group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl)
+    const testUrl = healthCheckUrl(group['test_url'])
     const interval = Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval)
     return `${name} = fallback, ${members}, url=${testUrl}, interval=${interval}`
   }
@@ -335,7 +336,7 @@ export function generateLoon(
   lines.push('test-timeout = 5')
   lines.push('disconnect-on-policy-change = false')
   lines.push('switch-node-after-failure-times = 2')
-  lines.push(`proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`)
+  lines.push(`proxy-test-url = ${healthCheckUrl()}`)
   lines.push('internet-test-url = http://connectivitycheck.gstatic.com/generate_204')
   lines.push('')
 

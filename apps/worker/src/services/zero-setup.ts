@@ -6,7 +6,7 @@ import { syncRoutingPolicyGroups } from './routing-policy-groups';
 import { getAppSettings } from './app-settings';
 
 // Increment when the canonical workspace graph changes and existing spaces need reconciliation.
-export const WORKSPACE_DEFAULTS_VERSION = 1;
+export const WORKSPACE_DEFAULTS_VERSION = 2;
 
 export async function ensureWorkspaceInitialized(
   db: D1Database,

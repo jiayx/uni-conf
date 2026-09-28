@@ -234,7 +234,7 @@ async function refreshManagedDnsResourcesForSchedule(env: Env): Promise<{
   }
 }
 
-export async function checkReadiness(env: Env): Promise<{
+async function checkReadiness(env: Env): Promise<{
   database: boolean
   kv: boolean
   apiKeyConfigured: boolean
@@ -262,6 +262,6 @@ async function checkBinding(check: () => Promise<boolean>): Promise<boolean> {
   }
 }
 
-export function logEvent(event: string, fields: Record<string, unknown>, level: 'log' | 'error' = 'log'): void {
+function logEvent(event: string, fields: Record<string, unknown>, level: 'log' | 'error' = 'log'): void {
   console[level](JSON.stringify({ event, timestamp: new Date().toISOString(), ...fields }))
 }

@@ -3,8 +3,7 @@ import { isRuleSetFormatCompatible, resolveRemoteRuleSetForExport } from '@uni-c
 import {
   buildQuixoticRuleSetUrl,
   inferQuixoticRuleSetSourceFromUrl,
-  resolveQuixoticRuleSetBehavior,
-} from './quixotic-presets'
+} from '@uni-conf/shared'
 import {
   describeCompatibleRuleSetFormats,
   getRemoteRuleSetCompatibilityMode,
@@ -23,7 +22,6 @@ describe('remote rule set compatibility', () => {
     expect(buildQuixoticRuleSetUrl('ai', 'egern')).toBe(
       'https://raw.githubusercontent.com/QuixoticHeart/rule-set/refs/heads/ruleset/egern/ai.yaml',
     )
-    expect(resolveQuixoticRuleSetBehavior('ai')).toBe('classical')
   })
 
   it('recognizes only strict target-specific Quixotic rule-set URLs', () => {

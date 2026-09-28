@@ -1,3 +1,4 @@
+import { healthCheckUrl } from './health-check'
 import * as yaml from 'js-yaml'
 import {
   DEFAULT_HEALTH_CHECK,
@@ -124,7 +125,7 @@ export function generateQuantumultX(
   const nodeNames = serializedNodes.map((item) => String(item.node['name'] ?? '')).filter(Boolean)
   const lines: string[] = [
     '[general]',
-    `server_check_url=${DEFAULT_HEALTH_CHECK.testUrl}`,
+    `server_check_url=${healthCheckUrl()}`,
     'server_check_timeout=5000',
     'network_check_url=http://connectivitycheck.gstatic.com/generate_204',
     'fallback_udp_policy=reject',
@@ -216,7 +217,7 @@ export function generateEgern(
     hijack_dns: ['*'],
     geoip_db_url: GEOIP_MMDB_URL,
     asn_db_url: ASN_MMDB_URL,
-    proxy_latency_test_url: DEFAULT_HEALTH_CHECK.testUrl,
+    proxy_latency_test_url: healthCheckUrl(),
     direct_latency_test_url: 'http://connectivitycheck.gstatic.com/generate_204',
     compat_route: false,
     include_all_networks: false,
@@ -319,7 +320,7 @@ function surgeGeneralLines(policy: ExportDnsPolicy, managedDomains?: string[]): 
     'wifi-access-http-port = 6152',
     'wifi-access-socks5-port = 6153',
     'internet-test-url = http://connectivitycheck.gstatic.com/generate_204',
-    `proxy-test-url = ${DEFAULT_HEALTH_CHECK.testUrl}`,
+    `proxy-test-url = ${healthCheckUrl()}`,
     'test-timeout = 5',
     '',
   ]
@@ -351,6 +352,8 @@ function shadowrocketGeneralLines(policy: ExportDnsPolicy, managedDomains?: stri
 function egernDns(_policy: ExportDnsPolicy): Record<string, unknown> {
   return {
     bootstrap: [...MAINLAND_DNS_BOOTSTRAP],
+    // Keep the internal proxy resolver independent of user-traffic forward rules.
+    proxy_nameservers: [...MAINLAND_DOH_SERVERS],
     upstreams: {
       mainland: [...MAINLAND_DOH_SERVERS],
     },
@@ -897,9 +900,9 @@ function groupToIni(
   const type = String(group['type'] ?? 'select')
   const members = collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames)
   if (type === 'url-test')
-    return `${name} = url-test, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+    return `${name} = url-test, ${members.join(', ')}, url=${healthCheckUrl(group['test_url'])}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   if (type === 'fallback')
-    return `${name} = fallback, ${members.join(', ')}, url=${group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
+    return `${name} = fallback, ${members.join(', ')}, url=${healthCheckUrl(group['test_url'])}, interval=${group['interval'] ?? DEFAULT_HEALTH_CHECK.interval}`
   if (type === 'load-balance') return `${name} = load-balance, ${members.join(', ')}`
   return `${name} = select, ${members.join(', ')}`
 }
@@ -933,7 +936,7 @@ function groupToEgern(
   const body: Record<string, unknown> = {
     name: String(group['name'] ?? ''),
     policies: collectClientGroupMembers(group, groups, nodeNames, collectionNodeNames),
-    latency_test_url: group['test_url'] ?? DEFAULT_HEALTH_CHECK.testUrl,
+    latency_test_url: healthCheckUrl(group['test_url']),
   }
   if (['auto_test', 'fallback', 'load_balance'].includes(nativeType)) {
     body['interval'] = Number(group['interval'] ?? DEFAULT_HEALTH_CHECK.interval)

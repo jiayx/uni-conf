@@ -12,7 +12,7 @@ describe('rule-set catalog snapshots', () => {
     const snapshot = await getRuleSetCatalogSnapshot(kv)
 
     expect(snapshot.catalogs.map((catalog) => catalog.id)).toEqual(['quixotic', 'broker-rules'])
-    expect(snapshot.catalogs.flatMap((catalog) => catalog.items)).toHaveLength(48)
+    expect(snapshot.catalogs.flatMap((catalog) => catalog.items)).toHaveLength(47)
     expect(
       snapshot.catalogs.find((catalog) => catalog.id === 'broker-rules')?.items[0],
     ).toMatchObject({
@@ -29,16 +29,6 @@ describe('rule-set catalog snapshots', () => {
       url: 'https://raw.githubusercontent.com/QuixoticHeart/rule-set/ruleset/meta/private.list',
       default: true,
     })
-    expect(
-      snapshot.catalogs
-        .find((catalog) => catalog.id === 'quixotic')
-        ?.items.find((item) => item.id === 'public-direct-cdn'),
-    ).toBeUndefined()
-    expect(
-      snapshot.catalogs
-        .find((catalog) => catalog.id === 'quixotic')
-        ?.items.find((item) => item.id === 'cdn'),
-    ).toBeUndefined()
     expect(
       snapshot.catalogs
         .find((catalog) => catalog.id === 'quixotic')
@@ -97,6 +87,10 @@ describe('rule-set catalog snapshots', () => {
 
     const snapshot = await refreshRuleSetCatalogSnapshot({ KV: kv }, fetcher)
 
+    const chinaItems = snapshot.catalogs.find(catalog => catalog.id === 'quixotic')!.items
+    expect(chinaItems.find(item => item.id === 'cncidr')).toMatchObject({ provisioning: 'optional' })
+    expect(chinaItems.find(item => item.id === 'cncidr-resolve')).toMatchObject({ provisioning: 'foundation', sortOrder: 810 })
+
     expect(
       fetcher.mock.calls
         .map(([input]) => String(input))
@@ -150,6 +144,10 @@ function createCatalogFetcher() {
     const extension = path.includes('singbox') ? 'srs' : path.includes('egern') ? 'yaml' : 'list'
     return Response.json([
       { type: 'file', name: `ai.${extension}`, path: `${path}/ai.${extension}` },
+      { type: 'file', name: `cncidr.${extension}`, path: `${path}/cncidr.${extension}` },
+      ...(!path.includes('singbox') && !path.includes('quantumultx')
+        ? [{ type: 'file', name: `cncidr-resolve.${extension}`, path: `${path}/cncidr-resolve.${extension}` }]
+        : []),
     ])
   })
 }

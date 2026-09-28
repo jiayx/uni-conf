@@ -6,7 +6,6 @@ import type {
   NormalizedProxyConfig,
   ProxyProtocol,
   RemoteRuleSetSourceOverrideTarget,
-  RuleSetBehavior,
   RuleSetFormat,
   RuleType,
   RoutingPolicyScenarioId,
@@ -34,7 +33,7 @@ export interface TrafficMultiplierInfo {
 export const AUTO_NODE_GROUP_PREFIX = '[uni-conf:auto-node-group]';
 export const DEFAULT_NODE_POOL_COLLECTION_ID = 'builtin-default-node-pool';
 export const DEFAULT_NODE_POOL_PREFIX = '[uni-conf:default-node-pool]';
-export const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
+const SOURCE_NODE_GROUP_PREFIX = '[uni-conf:source-node-group]';
 export const MAX_NODE_SEARCH_LENGTH = 200;
 export const MAX_NODE_BATCH_SELECTION = 500;
 export const MAX_RULE_BATCH_SELECTION = 500;
@@ -145,7 +144,7 @@ export const DEFAULT_HEALTH_CHECK = {
 
 export const DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 240;
 
-export const DEFAULT_PROXY_PORTS: Partial<Record<ProxyProtocol, number>> = {
+const DEFAULT_PROXY_PORTS: Partial<Record<ProxyProtocol, number>> = {
   anytls: 443,
   trojan: 443,
   vless: 443,
@@ -251,7 +250,7 @@ function parseProxyHostPort(hostPort: string, protocol: ProxyProtocol): { server
 
 const WEB_URL_PROXY_SCHEMES = new Set(['http', 'https']);
 
-export const PROXY_LINK_URI_SCHEMES = Object.keys(URI_SCHEME_TO_PROTOCOL)
+const PROXY_LINK_URI_SCHEMES = Object.keys(URI_SCHEME_TO_PROTOCOL)
   .filter((scheme) => !WEB_URL_PROXY_SCHEMES.has(scheme))
   .sort((a, b) => b.length - a.length || a.localeCompare(b));
 
@@ -260,7 +259,7 @@ export function getProxyLinkUriScheme(value: string): string | null {
   return PROXY_LINK_URI_SCHEMES.find((scheme) => trimmed.startsWith(`${scheme}://`)) ?? null;
 }
 
-export const IMPLICIT_TLS_PROXY_PROTOCOLS = [
+const IMPLICIT_TLS_PROXY_PROTOCOLS = [
   'https',
   'hysteria',
   'hysteria2',
@@ -438,7 +437,7 @@ export function isWorkspaceEntityId(id: string, baseId: string): boolean {
   return id === baseId || id.endsWith(`:${baseId}`);
 }
 
-export function isGlobalNodeOutletGroupId(id: string): boolean {
+function isGlobalNodeOutletGroupId(id: string): boolean {
   return GLOBAL_NODE_OUTLET_GROUP_IDS.some((baseId) => isWorkspaceEntityId(id, baseId));
 }
 
@@ -576,7 +575,7 @@ export const EXPORT_FORMAT_FILENAMES: Record<ExportFormat, string> = {
   nodes_raw: 'nodes-raw.txt',
 };
 
-export const EXPORT_FORMAT_BY_FILENAME: Record<string, ExportFormat> = Object.fromEntries(
+const EXPORT_FORMAT_BY_FILENAME: Record<string, ExportFormat> = Object.fromEntries(
   Object.entries(EXPORT_FORMAT_FILENAMES).map(([format, filename]) => [filename, format])
 ) as Record<string, ExportFormat>;
 
@@ -1090,7 +1089,7 @@ function isIpv4Address(value: string): boolean {
 }
 
 export type DnsEngine = 'enhanced-mode' | 'dns-server-graph' | 'native-fake-ip' | 'none';
-export const MAX_DNS_REAL_IP_DOMAINS = 256;
+const MAX_DNS_REAL_IP_DOMAINS = 256;
 
 export function normalizeDnsRealIpDomain(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -1126,7 +1125,7 @@ export interface ExportClientCapabilities {
   dns: ExportDnsCapabilities;
 }
 
-export const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
+const EXPORT_CAPABILITY_PROFILE_ID = 'uni-conf-exporter';
 export const EXPORT_CAPABILITY_PROFILE_REVISION = 25;
 
 const MIHOMO_EXPORT_NODE_PROTOCOLS = [
@@ -1289,7 +1288,7 @@ const NODE_SUBSCRIPTION_PROTOCOLS = [
  * downstream client. Validation and UI compatibility checks should consume
  * this registry instead of maintaining exporter-specific copies.
  */
-export const EXPORT_CLIENT_CAPABILITIES = {
+const EXPORT_CLIENT_CAPABILITIES = {
   mihomo: {
     outputKind: 'full-config',
     nodeProtocols: MIHOMO_EXPORT_NODE_PROTOCOLS,
@@ -1509,7 +1508,7 @@ function resolveRemoteRuleSetSourceOverride(
   return typeof url === 'string' && url ? { url, format: exportFormat as RuleSetFormat } : null;
 }
 
-export const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
+const SUBSCRIPTION_INFO_NODE_PATTERNS: RegExp[] = [
   /官网|官方网站|官方地址|用户中心|客户中心|订阅|更新订阅|订阅地址/,
   /剩余.*流量|流量.*剩余|已用.*流量|流量.*用量|总.*流量|流量.*总量|流量[:：]/,
   /套餐|到期|过期|有效期|重置/,
@@ -1567,7 +1566,7 @@ export const COUNTRY_FLAG_MAP: Array<[string, string, string]> = [
   ['🇧🇪', 'Belgium', 'BE'],
 ];
 
-export const COUNTRY_KEYWORD_MAP: Array<[RegExp, string, string]> = [
+const COUNTRY_KEYWORD_MAP: Array<[RegExp, string, string]> = [
   [/\b(hong\s*kong|hongkong)\b|香港|港(?!口)/i, 'Hong Kong', 'HK'],
   [/\b(japan|tokyo|osaka)\b|日本|东京|大阪/i, 'Japan', 'JP'],
   [/\b(usa|united\s+states|america|los\s+angeles|san\s+jose)\b|美国|洛杉矶|圣何塞/i, 'United States', 'US'],
@@ -1582,7 +1581,7 @@ export const COUNTRY_KEYWORD_MAP: Array<[RegExp, string, string]> = [
   [/\b(canada|toronto|vancouver)\b|加拿大|多伦多|温哥华/i, 'Canada', 'CA'],
 ];
 
-export const STANDARD_COUNTRY_NAME_MAP: Record<string, string> = {
+const STANDARD_COUNTRY_NAME_MAP: Record<string, string> = {
   HK: '香港',
   JP: '日本',
   US: '美国',
@@ -1760,7 +1759,7 @@ export function getSubscriptionUrlName(rawUrl: string | undefined): string | und
   }
 }
 
-export function supportsQuixoticRuleSetExport(format: string): boolean {
+function supportsQuixoticRuleSetExport(format: string): boolean {
   return format in QUIXOTIC_FORMAT_PATHS;
 }
 
@@ -1819,10 +1818,6 @@ export function resolveQuixoticRuleSetForExport(id: string, format: string): { u
     url: buildQuixoticRuleSetUrl(nativeId, format),
     format: target.ruleSetFormat,
   };
-}
-
-export function resolveQuixoticRuleSetBehavior(_id: string): RuleSetBehavior {
-  return 'classical';
 }
 
 export interface RoutingPolicyScenario {

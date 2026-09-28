@@ -57,8 +57,8 @@ describe('client-local state boundaries', () => {
   it('exports Loon GeoIP resources and separate proxy/TUN bypass lists', () => {
     const content = generateLoon([], [], [], [])
 
-    expect(content).toContain('geoip-url = https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb')
-    expect(content).toContain('ipasn-url = https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb')
+    expect(content).toContain('geoip-url = https://testingcf.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb')
+    expect(content).toContain('ipasn-url = https://testingcf.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb')
     expect(content).toContain(
       'skip-proxy = localhost, *.local, 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16',
     )

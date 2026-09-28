@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { jsonStringify, mapRule, newId, now } from '../db/helpers';
+import { chunkValues, mapRule, newId, now } from '../db/helpers';
 import type { ProxyRule } from '@uni-conf/types';
 import {
   getRuleCompatibilityForPayload,
@@ -139,7 +139,7 @@ app.post('/batch', async (c) => {
         rule.enabled !== false ? 1 : 0,
         sortOrder,
         normalizeNullableRuleText(rule.notes),
-        jsonStringify(compatibility),
+        JSON.stringify(compatibility),
         ts,
         ts,
         workspaceId
@@ -255,7 +255,7 @@ app.post('/', async (c) => {
       body.enabled !== false ? 1 : 0,
       sortOrder,
       body.notes ?? null,
-      jsonStringify(getRuleCompatibilityForPayload(ruleType, payload)),
+      JSON.stringify(getRuleCompatibilityForPayload(ruleType, payload)),
       ts,
       ts,
       workspaceId
@@ -329,7 +329,7 @@ app.put('/:id', async (c) => {
       body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       body.order !== undefined ? body.order : existing.sort_order,
       body.notes !== undefined ? normalizeNullableRuleText(body.notes) : existing.notes,
-      jsonStringify(getRuleCompatibilityForPayload(nextType, normalizedPayload.payload)),
+      JSON.stringify(getRuleCompatibilityForPayload(nextType, normalizedPayload.payload)),
       ts,
       id,
       workspaceId
@@ -455,12 +455,4 @@ export function validateRuleBatchEnabledInput(value: unknown): RuleBatchEnabledV
     ids.push(value.trim());
   }
   return { valid: true, ids: [...new Set(ids)], enabled: body.enabled };
-}
-
-function chunkValues<T>(values: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
 }
