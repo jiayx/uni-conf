@@ -195,6 +195,25 @@ select {
   font-size: inherit;
 }
 
+/* Keep native select behavior while aligning the indicator across pages. */
+:root select:not([multiple]):not([size]),
+:root select:not([multiple])[size='1'] {
+  appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2388889f' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 1rem 1rem;
+  background-position: right 0.75rem center;
+}
+
+@media (forced-colors: active) {
+  :root select:not([multiple]):not([size]),
+  :root select:not([multiple])[size='1'] {
+    appearance: auto;
+    background-image: none;
+  }
+}
+
 ul,
 ol {
   list-style: none;
@@ -384,4 +403,15 @@ samp {
 #root {
   display: flex;
   min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  :root input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']),
+  :root select,
+  :root textarea { font-size: 16px; min-height: 44px; min-width: 0; max-width: 100%; }
+  :root input[type='checkbox'], :root input[type='radio'] { width: 20px; height: 20px; flex-shrink: 0; }
+  :root summary { min-height: 44px; align-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

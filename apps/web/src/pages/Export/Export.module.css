@@ -244,3 +244,17 @@
   .previewModalActions { width: 100%; flex-wrap: wrap; }
   .previewModalActions button { flex: 1 1 auto; }
 }
+
+@media (max-width: 640px) {
+  .quickFormatActions { gap: 0.25rem; align-items: center; }
+  .importLink { min-height: 44px; justify-content: center; }
+  .optionList { grid-template-columns: minmax(0, 1fr); }
+  .selectorHeader { flex-wrap: wrap; gap: 0.5rem; }
+  .clearButton { min-height: 44px; }
+}
+
+@media (max-width: 640px) {
+  .moreTrigger, .moreMenuItem { min-height: 44px; }
+  .moreMenuItem { display: flex; align-items: center; }
+  .optionItem { min-height: 44px; }
+}

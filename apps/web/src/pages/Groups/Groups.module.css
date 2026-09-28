@@ -126,3 +126,11 @@
   .preferenceInline { width: 100%; }
   .preferenceSelect { width: 100%; }
 }
+
+@media (max-width: 640px) {
+  .scenarioShortcuts button { min-height: 44px; }
+  .cardFooter { flex-wrap: wrap; }
+  .preferenceInline { white-space: normal; flex-wrap: wrap; }
+  .groupName { white-space: normal; overflow-wrap: anywhere; }
+  .effectiveRows { grid-template-columns: minmax(0, 1fr); }
+}

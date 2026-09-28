@@ -24,7 +24,7 @@
     top: 0;
     bottom: 0;
     height: 100vh;
-    z-index: 1000;
+    z-index: 100;
     transform: translateX(-100%);
     visibility: hidden;
     pointer-events: none;
@@ -165,4 +165,12 @@
   color: var(--color-text-secondary);
   opacity: 0.45;
   line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .sidebar { height: 100dvh; max-width: calc(100vw - 3rem); padding-top: env(safe-area-inset-top); animation: none; }
+  .nav { min-height: 0; }
+  .navItem { min-height: 44px; }
+  .closeButton { width: 44px; height: 44px; }
+  .footer { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
 }

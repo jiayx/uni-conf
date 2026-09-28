@@ -36,3 +36,8 @@
   flex-direction: column;
   gap: 0.75rem;
 }
+
+@media (max-width: 768px) {
+  .page { min-height: 100dvh; padding: 1rem; }
+  .card { padding: 1.25rem; }
+}

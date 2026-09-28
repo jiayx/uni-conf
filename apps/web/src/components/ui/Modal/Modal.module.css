@@ -157,3 +157,13 @@
     justify-content: flex-end;
   }
 }
+
+@media (max-width: 768px) {
+  .content { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); }
+  .header, .footer { flex-shrink: 0; padding: 1rem; }
+  .body { min-height: 0; padding: 1rem; overscroll-behavior: contain; }
+  .header > div { min-width: 0; overflow-wrap: anywhere; }
+  .closeButton { width: 44px; height: 44px; flex-basis: 44px; }
+  .footer { flex-wrap: wrap; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .footer > button, .discardActions > button { flex: 1; white-space: normal; }
+}

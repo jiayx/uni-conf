@@ -81,3 +81,10 @@
 
 .error { font-size: 0.75rem; color: var(--color-error); }
 .helper { font-size: 0.75rem; color: var(--color-text-secondary); }
+
+@media (max-width: 768px) {
+  .wrapper, .inputShell { min-width: 0; }
+  .trailingAction { right: 0; }
+  .trailingAction button { width: 44px; height: 44px; }
+  .input.hasTrailingAction { padding-right: 3rem; }
+}

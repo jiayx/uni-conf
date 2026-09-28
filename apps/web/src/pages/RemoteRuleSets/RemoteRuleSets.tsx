@@ -565,10 +565,10 @@ export function RemoteRuleSets() {
         title={t('remoteRuleSets.title')}
         description={t('remoteRuleSets.description', { strategyCount: setsByTargetGroup.length, setCount: sets.length })}
         actions={
-          <div className={styles.headerActions}>
+          <>
             <Button variant="secondary" onClick={() => void loadSets()} loading={loading}>{t('common.refresh')}</Button>
             <Button onClick={() => openCreate()} icon={<PlusIcon />}>{t('remoteRuleSets.add_supplement')}</Button>
-          </div>
+          </>
         }
       />
 

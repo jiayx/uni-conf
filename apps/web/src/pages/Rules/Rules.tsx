@@ -377,10 +377,10 @@ export function Rules() {
         title={t('rules.title')}
         description={`${t('rules.reorder_hint')} · ${t('rules.count_summary', { shown: filteredRules.length, total: rules.length })}`}
         actions={
-          <div className={styles.headerActions}>
+          <>
             <Button variant="secondary" onClick={openBatch}>{t('rules.batch_add')}</Button>
             <Button onClick={openCreate} icon={<PlusIcon />}>{t('rules.new')}</Button>
-          </div>
+          </>
         }
       />
       {loadError && <ErrorNotice error={loadError} className={styles.bulkError} />}
@@ -447,14 +447,19 @@ export function Rules() {
           <table className={styles.table}>
             <thead><tr>
               <th className={styles.selectionColumn}>
-                <input
-                  type="checkbox"
-                  aria-label={t(filteredRules.length > MAX_RULE_BATCH_SELECTION
+                <label className={styles.selectAll}>
+                  <input
+                    type="checkbox"
+                    aria-label={t(filteredRules.length > MAX_RULE_BATCH_SELECTION
+                      ? 'rules.select_visible_limit'
+                      : 'rules.select_all_visible', { count: MAX_RULE_BATCH_SELECTION })}
+                    checked={allVisibleSelected}
+                    onChange={toggleVisibleSelection}
+                  />
+                  <span className={styles.selectionLabel}>{t(filteredRules.length > MAX_RULE_BATCH_SELECTION
                     ? 'rules.select_visible_limit'
-                    : 'rules.select_all_visible', { count: MAX_RULE_BATCH_SELECTION })}
-                  checked={allVisibleSelected}
-                  onChange={toggleVisibleSelection}
-                />
+                    : 'rules.select_all_visible', { count: MAX_RULE_BATCH_SELECTION })}</span>
+                </label>
               </th>
               <th>#</th>
               <th>{t('rules.type')}</th>

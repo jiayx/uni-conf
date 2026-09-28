@@ -25,3 +25,8 @@
   border-color: currentColor;
   border-right-color: transparent;
 }
+
+@media (max-width: 768px) {
+  .button.button { width: 44px; height: 44px; min-width: 44px; flex: 0 0 44px; }
+  .button svg { width: 19px; height: 19px; }
+}

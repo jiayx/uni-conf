@@ -44,6 +44,9 @@ export function Layout() {
     const focusTimer = window.setTimeout(() => focusable[0]?.focus(), 0)
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const activeDialog = event.target instanceof Element ? event.target.closest('[role="dialog"]') : null
+      if (activeDialog && activeDialog !== sidebar) return
+
       if (event.key === 'Escape') {
         event.preventDefault()
         closeSidebar()

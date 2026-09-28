@@ -128,3 +128,10 @@
   .attentionItem { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
   .attentionItem > a { grid-column: 2; }
 }
+
+@media (max-width: 640px) {
+  .quickExport { padding: 1rem; }
+  .quickLinkActions { align-items: center; }
+  .manageLink { min-height: 44px; display: inline-flex; align-items: center; }
+  .pausedExport { flex-wrap: wrap; }
+}

@@ -88,3 +88,7 @@
   display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+  .btn { min-height: 44px; }
+}

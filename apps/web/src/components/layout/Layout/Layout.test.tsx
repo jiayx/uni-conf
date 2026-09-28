@@ -89,6 +89,21 @@ describe('application layout navigation', () => {
     await waitFor(() => expect(toggle).toHaveFocus())
   })
 
+  it('keeps the drawer open when dismissing the configuration space dialog', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+    await user.click(screen.getByRole('button', { name: 'Open primary navigation' }))
+    await user.click(screen.getByRole('button', { name: 'Manage configuration spaces' }))
+    const manager = await screen.findByRole('dialog', { name: 'Manage configuration spaces' })
+    await waitFor(() => expect(manager).toHaveFocus())
+    await user.tab()
+    expect(manager).toContainElement(document.activeElement as HTMLElement)
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(manager).not.toBeInTheDocument())
+    expect(screen.getByRole('dialog', { name: 'Primary navigation' })).toBeInTheDocument()
+  })
+
   it('closes the mobile sidebar from its visible close button', async () => {
     const user = userEvent.setup()
     renderLayout()

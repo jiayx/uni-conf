@@ -37,3 +37,7 @@
 .control[aria-checked='true'] .track { background: var(--color-accent); }
 .control[aria-checked='true'] .thumb { transform: translateX(12px); }
 @media (prefers-reduced-motion: reduce) { .track, .thumb { transition: none; } }
+
+@media (max-width: 768px) {
+  .control.control { min-height: 44px; }
+}

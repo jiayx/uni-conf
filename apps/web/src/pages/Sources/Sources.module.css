@@ -106,3 +106,12 @@
 .advanced { border-top: 1px solid var(--color-border); padding-top: 0.75rem; }
 .advanced summary { cursor: pointer; color: var(--color-text-secondary); font-size: 0.8125rem; font-weight: 500; }
 .advancedBody { display: flex; flex-direction: column; gap: 0.875rem; padding-top: 0.75rem; }
+
+@media (max-width: 640px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .cardHeader { align-items: stretch; flex-direction: column; }
+  .cardTitle { white-space: normal; overflow-wrap: anywhere; }
+  .cardActions { flex-wrap: wrap; }
+  .cardActions > :first-child { margin-right: auto; }
+  .cardStats, .subscriptionInfo { gap: 0.5rem 1rem; }
+}

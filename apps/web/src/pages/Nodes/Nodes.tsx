@@ -451,14 +451,19 @@ export function Nodes() {
             <thead>
               <tr>
                 <th className={styles.selectionColumn}>
-                  <input
-                    type="checkbox"
-                    aria-label={t(filtered.length > MAX_NODE_BATCH_SELECTION
+                  <label className={styles.selectAll}>
+                    <input
+                      type="checkbox"
+                      aria-label={t(filtered.length > MAX_NODE_BATCH_SELECTION
+                        ? 'nodes.select_visible_limit'
+                        : 'nodes.select_all_visible', { count: MAX_NODE_BATCH_SELECTION })}
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleSelection}
+                    />
+                    <span className={styles.selectionLabel}>{t(filtered.length > MAX_NODE_BATCH_SELECTION
                       ? 'nodes.select_visible_limit'
-                      : 'nodes.select_all_visible', { count: MAX_NODE_BATCH_SELECTION })}
-                    checked={allVisibleSelected}
-                    onChange={toggleVisibleSelection}
-                  />
+                      : 'nodes.select_all_visible', { count: MAX_NODE_BATCH_SELECTION })}</span>
+                  </label>
                 </th>
                 <th>{t('common.name')}</th>
                 <th>{t('nodes.protocol')}</th>
