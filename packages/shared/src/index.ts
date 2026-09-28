@@ -1630,6 +1630,15 @@ export function detectCountry(
     }
   }
 
+  // Treat punctuation-separated labels as codes, not words in ordinary prose.
+  // Explicit flags, names, and uppercase codes above retain priority.
+  if (options.source !== 'hostname') {
+    const codes = new Set(name.split(/[-_.|｜/()[\]{}【】]+/)
+      .map(part => part.trim().match(/^([a-z]{2})(?:\s*\d+)?$/i)?.[1]?.toUpperCase()));
+    const matches = COUNTRY_FLAG_MAP.filter(([, , code]) => codes.has(code));
+    if (matches.length === 1) return { country: matches[0][1], countryCode: matches[0][2] };
+  }
+
   return null;
 }
 

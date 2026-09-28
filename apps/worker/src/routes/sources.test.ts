@@ -678,6 +678,42 @@ proxies:
     expect(detectCountry('[三网]HK 01')).toEqual({ country: 'Hong Kong', countryCode: 'HK' })
   })
 
+  it.each([
+    ['tencent-sg-01', 'SG'],
+    ['dmit-us-01', 'US'],
+    ['sg-01', 'SG'],
+    ['tencent-sg', 'SG'],
+    ['dmit-us', 'US'],
+    ['tencent-sg-01-premium', 'SG'],
+    ['tencent-sg-01backup', 'SG'],
+    ['provider_jp_backup', 'JP'],
+    ['sg01', 'SG'],
+    ['sg 01', 'SG'],
+    ['provider | sg | premium', 'SG'],
+    ['provider [jp] backup', 'JP'],
+    ['provider【de】backup', 'DE'],
+    ['provider_de_02', 'DE'],
+    ['provider-Sg-03', 'SG'],
+    ['tencent-SG-01', 'SG'],
+    ['香港 dmit-us-01', 'HK'],
+    ['🇯🇵 tencent-sg-01', 'JP'],
+  ])('detects the region from a distinct code segment in %s', (name, countryCode) => {
+    expect(detectCountry(name)?.countryCode).toBe(countryCode)
+  })
+
+  it.each([
+    'About us premium',
+    'Rio de Janeiro',
+    'in 01 minutes',
+    'status-01',
+    'provider-xx-01',
+    'sing-01',
+    'provider-sg01backup',
+    'provider-sg-us-01',
+  ])('does not infer a region from prose, partial words, or ambiguous codes: %s', name => {
+    expect(detectCountry(name)).toBeNull()
+  })
+
   it('should detect countries from Chinese aliases and city names', () => {
     expect(detectCountry('香港 IEPL 2x')).toEqual({ country: 'Hong Kong', countryCode: 'HK' })
     expect(detectCountry('日本 Osaka 03')).toEqual({ country: 'Japan', countryCode: 'JP' })
