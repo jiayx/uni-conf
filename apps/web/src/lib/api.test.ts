@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, UnauthorizedError } from './api'
 import { getStoredApiKey } from './auth'
+import { DEFAULT_WORKSPACE_ID, setActiveWorkspaceId } from './workspace'
 
 vi.mock('./auth', () => ({
   getStoredApiKey: vi.fn(() => ''),
@@ -111,6 +112,21 @@ describe('api client', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard/stats', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer secret' }),
     }))
+  })
+
+  it('scopes requests to the selected workspace and falls back when no selection is stored', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ success: true, data: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      setActiveWorkspaceId('workspace-two')
+      await api.sources.list()
+      expect(fetchMock.mock.lastCall?.[1].headers['X-Workspace-Id']).toBe('workspace-two')
+      setActiveWorkspaceId('')
+      await api.sources.list()
+      expect(fetchMock.mock.lastCall?.[1].headers['X-Workspace-Id']).toBe(DEFAULT_WORKSPACE_ID)
+    } finally {
+      localStorage.clear()
+    }
   })
 
   it('throws a typed error for unauthorized API responses', async () => {

@@ -1636,7 +1636,8 @@ export function detectCountry(
     const codes = new Set(name.split(/[-_.|｜/()[\]{}【】]+/)
       .map(part => part.trim().match(/^([a-z]{2})(?:\s*\d+)?$/i)?.[1]?.toUpperCase()));
     const matches = COUNTRY_FLAG_MAP.filter(([, , code]) => codes.has(code));
-    if (matches.length === 1) return { country: matches[0][1], countryCode: matches[0][2] };
+    const match = matches.length === 1 ? matches[0] : undefined;
+    if (match) return { country: match[1], countryCode: match[2] };
   }
 
   return null;
