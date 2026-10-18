@@ -235,6 +235,9 @@
     "import_default_name": "导入配置"
   },
   "nodes": {
+    "client_default": "客户端默认",
+    "option_enabled": "开启",
+    "option_disabled": "关闭",
     "title": "节点列表",
     "add_manual": "手动录入节点",
     "edit_manual": "编辑手动节点",

@@ -1,4 +1,6 @@
 import { URI_SCHEME_TO_PROTOCOL } from '@uni-conf/types';
+import { readNodeNetworkOptions } from './node-network-options';
+export { readNodeNetworkOptions, SINGBOX_NETWORK_PROTOCOLS } from './node-network-options';
 import { resolveRuleSetRuleForTarget } from '@uni-conf/rule-set/rule-compatibility';
 import type {
   AutoNodeGroupType,
@@ -304,6 +306,10 @@ export function buildStructuredProxyConfig(
 
 function normalizeProxyExtra(rawConfig: Record<string, unknown>): Record<string, unknown> {
   const extra = { ...rawConfig };
+  delete extra.udp;
+  delete extra.blockQuic;
+  for (const key of ['udp-relay', 'udp_relay', 'block-quic', 'block_quic']) delete extra[key];
+  Object.assign(extra, readNodeNetworkOptions(rawConfig));
   assignAlias(extra, 'password', rawConfig.pass);
   assignAlias(extra, 'uuid', rawConfig.id);
   assignAlias(extra, 'sni', rawConfig.servername, rawConfig.host, rawConfig.peer);

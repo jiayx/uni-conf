@@ -12,6 +12,8 @@ import {
   resolveRuleForExport,
   getRuleNoResolveHandling,
   validateAndNormalizeRulePayload,
+  readNodeNetworkOptions,
+  SINGBOX_NETWORK_PROTOCOLS,
 } from '@uni-conf/shared';
 import type { ExportData } from '../export-data';
 import { nodeToSubscriptionUri } from '../generators/node-subscription';
@@ -235,9 +237,12 @@ function groupRemediation(
 }
 
 function validateNodeCompatibility(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
-  if (isNodeOnlyExportFormat(format)) return validateNodeSubscriptionCompatibility(data, format);
+  if (isNodeOnlyExportFormat(format)) return [
+    ...validateNodeSubscriptionCompatibility(data, format),
+    ...validateNodeNetworkOptions(data, format),
+  ];
 
-  const warnings: CompatibilityWarning[] = [];
+  const warnings: CompatibilityWarning[] = validateNodeNetworkOptions(data, format);
   for (const node of data.nodes) {
     if (isNodeRenderableForFormat(node, format)) continue;
     if (
@@ -282,6 +287,38 @@ function validateNodeCompatibility(data: ExportData, format: ExportFormat): Comp
     });
   }
   return warnings;
+}
+
+function validateNodeNetworkOptions(data: ExportData, format: ExportFormat): CompatibilityWarning[] {
+  return data.nodes.flatMap((node) => {
+    if (!isNodeRenderableForFormat(node, format)) return [];
+    const { udp, blockQuic } = readNodeNetworkOptions(node.parsedConfig.extra);
+    const omitted: string[] = [];
+    const blockQuicSupported = format === 'surge' || format === 'stash'
+      || (format === 'loon' && node.protocol !== 'wireguard')
+      || (format === 'egern' && !['http', 'https'].includes(node.protocol));
+    if (blockQuic !== undefined && !blockQuicSupported) omitted.push('block-quic');
+    if (udp === false && (
+      (format === 'singbox' && !SINGBOX_NETWORK_PROTOCOLS.has(node.protocol))
+      || (format === 'surge' && !['ss', 'socks5'].includes(node.protocol))
+      || (format === 'egern' && ['hysteria2', 'tuic', 'wireguard'].includes(node.protocol))
+    )) omitted.push('udp=false');
+    if (isNodeOnlyExportFormat(format) && udp !== undefined && ['ss', 'ssr', 'vmess', 'socks5'].includes(node.protocol)) {
+      omitted.push('udp');
+    }
+    if (format === 'shadowrocket' && udp !== undefined
+      && ['ss', 'ssr', 'vmess', 'vless', 'trojan', 'socks5', 'mieru'].includes(node.protocol)) omitted.push('udp');
+    if (omitted.length === 0) return [];
+    return [{
+      code: 'node-network-option-unsupported',
+      nodeId: node.id,
+      client: format,
+      level: 'partial' as const,
+      message: `节点 "${node.name}" 的 ${omitted.join('、')} 无法由 ${format} 导出器在节点级表达；该选项不会生效，请在客户端设置或分流规则中配置`,
+      messageEn: `Node "${node.name}": ${format} cannot export ${omitted.join(', ')} per node. Configure it in the client or routing rules instead.`,
+      remediation: nodeRemediation(node),
+    }];
+  });
 }
 
 function validateNodeSubscriptionCompatibility(

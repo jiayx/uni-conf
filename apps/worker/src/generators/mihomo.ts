@@ -7,6 +7,7 @@ import {
   isRuleSetFormatCompatible,
   resolveRuleForExport,
   getRuleNoResolveHandling,
+  readNodeNetworkOptions,
 } from '@uni-conf/shared';
 import type { ExportDnsPolicy, ExportFormat, ProxyNode, ProxyGroup, ProxyRule, RemoteRuleSet } from '@uni-conf/types';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
@@ -199,10 +200,8 @@ export function generateMihomoYaml(
   const matchRule = enabledRules.find((r) => r.type === 'MATCH');
 
   lines.push('rules:');
-  // Stash can identify and reject application QUIC directly.
-  if (ruleSetExportFormat === 'stash') {
-    lines.push('  - PROTOCOL,QUIC,REJECT');
-  }
+  // Stash applies block-quic per proxy. A global reject would override an
+  // explicit block-quic: off and also block QUIC routed directly.
 
   for (const rule of enabledRules) {
     if (rule.type === 'MATCH') continue;
@@ -310,9 +309,30 @@ function nodeToMihomo(
   node: ProxyNode,
   target: Extract<ExportFormat, 'mihomo' | 'stash'>
 ): string | null {
-  const nativeProxy = nativeMihomoProxy(node);
-  if (nativeProxy) return JSON.stringify(nativeProxy);
+  const options = readNodeNetworkOptions(node.parsedConfig.extra);
+  const normalized = { ...node, parsedConfig: { ...node.parsedConfig, extra: { ...node.parsedConfig.extra, ...options } } };
+  const fields = {
+    ...(options.udp !== undefined ? { udp: options.udp } : {}),
+    ...(target === 'stash' && options.blockQuic !== undefined ? { 'block-quic': options.blockQuic ? 'on' : 'off' } : {}),
+  };
+  const nativeProxy = nativeMihomoProxy(normalized);
+  if (nativeProxy) {
+    if (target !== 'stash') delete nativeProxy['block-quic'];
+    return JSON.stringify({ ...nativeProxy, ...fields });
+  }
+  const line = serializeMihomoProxy(normalized, target);
+  if (!line) return null;
+  // Structured protocol serializers already produce JSON. Merge fields as
+  // data so passwords and node names cannot be mistaken for option keys.
+  if (line.startsWith('{"')) return JSON.stringify({ ...JSON.parse(line), ...fields });
+  const suffix = Object.entries(fields).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
+  return suffix.length > 0 ? `${line.slice(0, -1)}, ${suffix.join(', ')}}` : line;
+}
 
+function serializeMihomoProxy(
+  node: ProxyNode,
+  target: Extract<ExportFormat, 'mihomo' | 'stash'>
+): string | null {
   const cfg = node.parsedConfig;
   const name = escapeName(node.name);
 
@@ -627,7 +647,6 @@ function nodeToMihomo(
       const alpn = cfg.extra?.alpn;
       let obj = `{name: "${name}", type: anytls, server: ${node.server}, port: ${node.port}, password: "${pass}"`;
       if (fingerprint) obj += `, client-fingerprint: "${fingerprint}"`;
-      if (cfg.extra?.udp !== undefined) obj += `, udp: ${Boolean(cfg.extra.udp)}`;
       if (cfg.sni) obj += `, sni: "${cfg.sni}"`;
       if (Array.isArray(alpn) && alpn.length > 0) {
         obj += `, alpn: [${alpn.map((item) => `"${String(item)}"`).join(', ')}]`;

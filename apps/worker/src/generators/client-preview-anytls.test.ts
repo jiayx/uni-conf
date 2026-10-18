@@ -546,7 +546,7 @@ describe('AnyTLS preview generators', () => {
     const content = generateSurge([snellRow, trustTunnelRow], [], [], [])
 
     expect(content).toContain(
-      'Snell Proxy = snell, snell.example.com, 44046, psk=snell-psk, version=4, reuse=true, udp-relay=true, obfs=http, obfs-host=bing.com',
+      'Snell Proxy = snell, snell.example.com, 44046, psk=snell-psk, version=4, reuse=true, obfs=http, obfs-host=bing.com',
     )
     expect(content).toContain(
       'TrustTunnel Proxy = trust-tunnel, trust.example.com, 443, username=trust-user, password=trust-pass, sni=trust.example.com, alpn=h2',

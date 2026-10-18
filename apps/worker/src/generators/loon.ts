@@ -16,6 +16,7 @@ import {
   isRuleSetFormatCompatible,
   resolveRuleForExport,
   getRuleNoResolveHandling,
+  readNodeNetworkOptions,
 } from '@uni-conf/shared'
 import type { ExportDnsPolicy } from '@uni-conf/types'
 import { DEFAULT_FAKE_IP_POLICY, inlineRealIpDomains } from './dns-policy'
@@ -40,6 +41,14 @@ function safeJson(text: unknown): Record<string, unknown> {
 }
 
 function nodeToLoonProxy(node: Record<string, unknown>): string | null {
+  const parsed = safeJson(node['parsed_config'])
+  const extra = { ...(parsed['extra'] as Record<string, unknown>), ...readNodeNetworkOptions(parsed['extra'] as Record<string, unknown>) }
+  const line = serializeLoonProxy({ ...node, parsed_config: { ...parsed, extra } })
+  if (!line || node['protocol'] === 'wireguard' || extra.blockQuic === undefined) return line
+  return `${line},block-quic=${extra.blockQuic}`
+}
+
+function serializeLoonProxy(node: Record<string, unknown>): string | null {
   const name = String(node['name'] ?? '')
   const server = String(node['server'] ?? '')
   const port = Number(node['port'] ?? 0)
@@ -90,6 +99,7 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
       appendLoonTransport(fields, parsed, extra)
       fields.push(`alterId=${Number(extra['alterId'] ?? 0)}`)
       appendLoonTls(fields, parsed)
+      appendBooleanField(fields, 'udp', extra['udp'])
       return `${name} = ${fields.join(',')}`
     }
     case 'vless': {
@@ -97,6 +107,7 @@ function nodeToLoonProxy(node: Record<string, unknown>): string | null {
       const fields = ['VLESS', server, String(port), quoteLoonValue(String(parsed['uuid'] ?? ''))]
       appendLoonTransport(fields, parsed, extra)
       appendLoonTls(fields, parsed)
+      appendBooleanField(fields, 'udp', extra['udp'])
       return `${name} = ${fields.join(',')}`
     }
     case 'trojan': {

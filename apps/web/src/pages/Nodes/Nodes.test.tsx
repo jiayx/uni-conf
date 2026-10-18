@@ -13,7 +13,7 @@ const stores = vi.hoisted(() => ({
     error: null as unknown,
     fetchNodes: vi.fn(async () => undefined),
     addNode: vi.fn(async () => undefined),
-    updateNode: vi.fn(async () => undefined),
+    updateNode: vi.fn<(id: string, patch: Partial<ProxyNode>) => Promise<void>>(async () => undefined),
     setNodesEnabled: vi.fn(async () => undefined),
     deleteNode: vi.fn(async () => undefined),
   },
@@ -306,14 +306,14 @@ describe('Nodes filters', () => {
 
   it('shows and saves the AnyTLS UDP relay setting when editing', async () => {
     const anytlsNode = makeNode('anytls-manual', 'AnyTLS Relay', 'anytls.example.com', 'manual', 'anytls', 'HK', true, true)
-    anytlsNode.rawConfig = { password: 'secret', udp: false }
+    anytlsNode.rawConfig = { password: 'secret', udp: false, 'block-quic': 'on' }
     anytlsNode.parsedConfig = {
       protocol: 'anytls',
       server: anytlsNode.server,
       port: anytlsNode.port,
       password: 'secret',
       tls: true,
-      extra: { udp: false },
+      extra: { udp: false, blockQuic: true },
     }
     stores.nodes.nodes = [anytlsNode]
     apiMocks.getNode.mockResolvedValue(anytlsNode)
@@ -330,18 +330,44 @@ describe('Nodes filters', () => {
     expect(within(tlsIdentity).getByLabelText('ALPN')).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: 'TLS' })).not.toBeInTheDocument()
 
-    const udpRelay = within(connectionOptions).getByRole('checkbox', { name: 'UDP Relay' })
+    const udpRelay = within(connectionOptions).getByRole('combobox', { name: 'UDP Relay' })
     expect(within(connectionOptions).getByRole('checkbox', { name: 'Skip Cert Verify' })).toBeInTheDocument()
-    expect(udpRelay).not.toBeChecked()
+    expect(udpRelay).toHaveValue('false')
+    const blockQuic = within(connectionOptions).getByRole('combobox', { name: 'Block QUIC' })
+    expect(blockQuic).toHaveValue('true')
 
-    await user.click(udpRelay)
+    await user.selectOptions(udpRelay, 'true')
+    await user.selectOptions(blockQuic, 'false')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(stores.nodes.updateNode).toHaveBeenCalledWith('anytls-manual', expect.objectContaining({
       parsedConfig: expect.objectContaining({
-        extra: expect.objectContaining({ udp: true }),
+        extra: expect.objectContaining({ udp: true, blockQuic: false }),
       }),
     }))
+  })
+
+  it('can restore client defaults without retaining stale raw network options', async () => {
+    const node = makeNode('ss-manual', 'SS Relay', 'ss.example.com', 'manual', 'ss', 'HK', true, true)
+    node.rawConfig = { password: 'secret', method: 'aes-256-gcm', udp: true, 'block-quic': 'off', tfo: true }
+    node.parsedConfig = { protocol: 'ss', server: node.server, port: node.port, password: 'secret',
+      extra: { udp: true, blockQuic: false } }
+    stores.nodes.nodes = [node]
+    apiMocks.getNode.mockResolvedValue(node)
+    const user = userEvent.setup()
+    render(<MemoryRouter><Nodes /></MemoryRouter>)
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    const udp = await screen.findByRole('combobox', { name: 'UDP Relay' })
+    await user.selectOptions(udp, '')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Block QUIC' }), '')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    const payload = stores.nodes.updateNode.mock.calls[0]![1]
+    expect(payload.rawConfig).not.toHaveProperty('udp')
+    expect(payload.rawConfig).not.toHaveProperty('block-quic')
+    expect(payload.rawConfig).not.toHaveProperty('blockQuic')
+    expect(payload.rawConfig).toMatchObject({ tfo: true })
+    expect(payload.parsedConfig?.extra).not.toHaveProperty('udp')
+    expect(payload.parsedConfig?.extra).not.toHaveProperty('blockQuic')
   })
 
   it('keeps the editor open and reports detail or save failures', async () => {

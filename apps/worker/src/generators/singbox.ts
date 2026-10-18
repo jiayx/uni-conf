@@ -9,6 +9,8 @@ import {
   parseSingboxWireGuardEndpoint,
   parseRulePortPayload,
   resolveRuleForExport,
+  readNodeNetworkOptions,
+  SINGBOX_NETWORK_PROTOCOLS,
 } from '@uni-conf/shared';
 import { resolveRemoteRuleSetForExport } from './remote-rule-set-resolver';
 import {
@@ -192,6 +194,16 @@ function buildOutbounds(
 // ─── Node serialization ───────────────────────────────────────────────────────
 
 function nodeToSingbox(node: ProxyNode): object | null {
+  const outbound = serializeSingboxOutbound(node) as Record<string, unknown> | null;
+  if (!outbound || !SINGBOX_NETWORK_PROTOCOLS.has(node.protocol)) return outbound;
+  const { udp } = readNodeNetworkOptions(node.parsedConfig.extra);
+  if (udp === false) outbound.network = 'tcp';
+  if (udp === true && (outbound.network === 'tcp'
+    || (Array.isArray(outbound.network) && !outbound.network.includes('udp')))) delete outbound.network;
+  return outbound;
+}
+
+function serializeSingboxOutbound(node: ProxyNode): object | null {
   if (node.protocol === 'ssr' || node.protocol === 'wireguard') return null;
   const nativeOutbound = nativeSingboxOutbound(node);
   if (nativeOutbound) return nativeOutbound;

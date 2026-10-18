@@ -290,12 +290,9 @@ describe('remote rule set generators', () => {
     expect(mihomo).not.toContain('DST-PORT,443)),REJECT');
     expect(mihomo).toContain('  - MATCH,PROXY\n  - NETWORK,UDP,REJECT');
 
-    expect(stash).toContain('  - PROTOCOL,QUIC,REJECT');
+    expect(stash).not.toContain('  - PROTOCOL,QUIC,REJECT');
     expect(stash).toContain('  - MATCH,PROXY');
     expect(stash).not.toContain('NETWORK,UDP,REJECT');
-    expect(stash.indexOf('  - PROTOCOL,QUIC,REJECT')).toBeLessThan(
-      stash.indexOf('  - MATCH,PROXY')
-    );
 
     const directMatch = { ...matchRule, targetGroupId: directGroup.id };
     const direct = generateMihomoYaml([], [directGroup], [directMatch], []);

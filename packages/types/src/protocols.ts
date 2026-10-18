@@ -215,6 +215,7 @@ export interface ProtocolFieldDefinition {
   label: string
   type: ProtocolFieldType
   required?: boolean
+  allowUnset?: boolean
   placeholder?: string
   options?: readonly ProtocolFieldOption[]
   defaultValue?: string | number | boolean | string[]
@@ -303,7 +304,7 @@ const TRANSPORT_FIELDS = [
   },
 ] as const satisfies readonly ProtocolFieldDefinition[]
 
-export const PROTOCOL_FORM_FIELDS = {
+const BASE_PROTOCOL_FORM_FIELDS = {
   ss: [
     { key: 'method', label: 'Cipher', type: 'text', required: true, defaultValue: 'aes-256-gcm', nativeKeys: { mihomo: 'cipher', singbox: 'method' } },
     { key: 'password', label: 'Password', type: 'password', required: true, nativeKeys: { mihomo: 'password', singbox: 'password', uri: 'userinfo' } },
@@ -398,7 +399,7 @@ export const PROTOCOL_FORM_FIELDS = {
   snell: [
     { key: 'psk', label: 'PSK', type: 'password', required: true, nativeKeys: { mihomo: 'psk', uri: 'userinfo' } },
     { key: 'version', label: 'Version', type: 'number', defaultValue: 4, nativeKeys: { mihomo: 'version', uri: 'version' } },
-    { key: 'udp', label: 'UDP Relay', type: 'boolean', defaultValue: true, nativeKeys: { mihomo: 'udp', uri: 'udp' } },
+    { key: 'udp', label: 'UDP Relay', type: 'boolean', nativeKeys: { mihomo: 'udp', uri: 'udp' } },
     { key: 'reuse', label: 'Connection Reuse', type: 'boolean', nativeKeys: { mihomo: 'reuse' } },
     { key: 'obfs', label: 'Obfs', type: 'select', options: [{ label: 'None', value: '' }, { label: 'HTTP', value: 'http' }, { label: 'TLS', value: 'tls' }], nativeKeys: { mihomo: 'obfs-opts.mode', uri: 'obfs' } },
     { key: 'obfsHost', label: 'Obfs Host', type: 'text', nativeKeys: { mihomo: 'obfs-opts.host', uri: 'obfs-host' } },
@@ -449,3 +450,25 @@ export const PROTOCOL_FORM_FIELDS = {
   reject: [],
   unknown: [],
 } as const satisfies Record<ProxyProtocol, readonly ProtocolFieldDefinition[]>
+
+const UDP_PROTOCOLS = new Set<ProxyProtocol>([
+  'ss', 'ssr', 'vmess', 'vless', 'trojan', 'hysteria', 'hysteria2', 'tuic',
+  'anytls', 'wireguard', 'socks5', 'snell', 'mieru', 'sudoku', 'trusttunnel', 'juicity', 'masque',
+])
+
+export const PROTOCOL_FORM_FIELDS: Record<ProxyProtocol, readonly ProtocolFieldDefinition[]> = {
+  ...BASE_PROTOCOL_FORM_FIELDS,
+}
+
+for (const protocol of Object.keys(BASE_PROTOCOL_FORM_FIELDS) as ProxyProtocol[]) {
+  const result: ProtocolFieldDefinition[] = BASE_PROTOCOL_FORM_FIELDS[protocol].map(field =>
+    field.key === 'udp' ? { ...field, allowUnset: true } : field,
+  )
+  if (UDP_PROTOCOLS.has(protocol) && !result.some(field => field.key === 'udp')) {
+    result.push({ key: 'udp', label: 'UDP Relay', type: 'boolean', allowUnset: true, nativeKeys: { mihomo: 'udp', uri: 'udp' } })
+  }
+  if (PROXY_PROTOCOL_REGISTRY[protocol].mainstream) {
+    result.push({ key: 'blockQuic', label: 'Block QUIC', type: 'boolean', allowUnset: true })
+  }
+  PROTOCOL_FORM_FIELDS[protocol] = result
+}

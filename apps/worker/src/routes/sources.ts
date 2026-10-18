@@ -9,6 +9,7 @@ import {
 import {
   buildNodeRecognitionTags,
   buildStructuredProxyConfig,
+  readNodeNetworkOptions,
   decodeBase64UrlUtf8,
   detectCountry,
   extractSourceNodeGroupMarkerKey,
@@ -2816,6 +2817,16 @@ function singboxTypeToProtocol(type: string, outbound?: Record<string, unknown>)
 
 export function parseRawLines(lines: string[]): ParsedNodeRaw[] {
   const nodes: ParsedNodeRaw[] = [];
+  const appendNode = (node: ParsedNodeRaw, uri: string): void => {
+    const query = uri.includes('?') ? uri.slice(uri.indexOf('?') + 1).split('#', 1)[0] : '';
+    const options = {
+      ...readNodeNetworkOptions(node.parsedConfig.extra),
+      ...readNodeNetworkOptions(Object.fromEntries(new URLSearchParams(query))),
+    };
+    Object.assign(node.rawConfig, options);
+    Object.assign(node.parsedConfig.extra, options);
+    nodes.push(node);
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -2824,25 +2835,25 @@ export function parseRawLines(lines: string[]): ParsedNodeRaw[] {
     try {
       if (trimmed.startsWith('vmess://')) {
         const node = parseVmessUri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       } else if (trimmed.startsWith('ss://')) {
         const node = parseSsUri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       } else if (trimmed.startsWith('ssr://')) {
         const node = parseSsrUri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       } else if (trimmed.startsWith('trojan://')) {
         const node = parseTrojanUri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       } else if (trimmed.startsWith('vless://')) {
         const node = parseVlessUri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       } else if (trimmed.startsWith('hysteria2://') || trimmed.startsWith('hy2://')) {
         const node = parseHysteria2Uri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       } else if (getProxyLinkUriScheme(trimmed) !== null || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
         const node = parseGenericUrlUri(trimmed);
-        if (node) nodes.push(node);
+        if (node) appendNode(node, trimmed);
       }
     } catch {
       // Skip malformed URIs

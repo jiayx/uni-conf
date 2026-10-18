@@ -235,6 +235,9 @@
     "import_default_name": "Imported Config"
   },
   "nodes": {
+    "client_default": "Client default",
+    "option_enabled": "Enabled",
+    "option_disabled": "Disabled",
     "title": "Node List",
     "add_manual": "Manual Entry",
     "edit_manual": "Edit Manual Node",

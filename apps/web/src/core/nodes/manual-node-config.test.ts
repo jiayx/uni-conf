@@ -16,6 +16,7 @@ describe('manual node config helpers', () => {
       tls: true,
       skipCertVerify: false,
       udp: true,
+      blockQuic: false,
       empty: '',
     })
     const parsed = buildManualNodeParsedConfig('anytls', 'hk.example.com', 443, extra)
@@ -36,6 +37,7 @@ describe('manual node config helpers', () => {
         tls: true,
         skipCertVerify: false,
         udp: true,
+        blockQuic: false,
       },
     })
     expect(parsed.extra).not.toHaveProperty('empty')

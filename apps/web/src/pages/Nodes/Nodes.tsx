@@ -33,6 +33,7 @@ import {
 import {
   COUNTRY_FLAG_MAP,
   detectCountry,
+  buildStructuredProxyConfig,
   MAX_NODE_BATCH_SELECTION,
   MAX_NODE_SEARCH_LENGTH,
 } from '@uni-conf/shared'
@@ -224,8 +225,10 @@ export function Nodes() {
       enabled: node.enabled,
       notes: node.notes ?? '',
       extra: {
-        ...node.rawConfig,
-        ...node.parsedConfig.extra,
+        ...buildStructuredProxyConfig(node.protocol, node.server, node.port, {
+          ...node.rawConfig,
+          ...node.parsedConfig.extra,
+        }).extra,
         ...(node.parsedConfig.password ? { password: node.parsedConfig.password } : {}),
         ...(node.parsedConfig.uuid ? { uuid: node.parsedConfig.uuid } : {}),
         ...(node.parsedConfig.tls !== undefined ? { tls: node.parsedConfig.tls } : {}),
@@ -294,10 +297,7 @@ export function Nodes() {
           enabled: form.enabled,
           tags: editingNode?.tags ?? [],
           notes: form.notes.trim(),
-          rawConfig: {
-            ...(editingNode?.rawConfig ?? {}),
-            ...extra,
-          },
+          rawConfig: extra,
           parsedConfig: buildManualNodeParsedConfig(form.protocol, form.server, form.port, extra, editingNode?.parsedConfig),
           isManual: true,
         }
@@ -672,6 +672,21 @@ function ProtocolFieldInput({
   const { t } = useTranslation()
   const [secretVisible, setSecretVisible] = useState(false)
 
+  if (field.type === 'boolean' && field.allowUnset) {
+    const selectId = `manual-node-field-${field.key}`
+    return (
+      <div>
+        <label className={styles.selectLabel} htmlFor={selectId}>{field.label}</label>
+        <select id={selectId} className={styles.filterSelect} value={String(value ?? '')}
+          onChange={e => onChange(e.target.value === '' ? '' : e.target.value === 'true')}>
+          <option value="">{t('nodes.client_default')}</option>
+          <option value="true">{t('nodes.option_enabled')}</option>
+          <option value="false">{t('nodes.option_disabled')}</option>
+        </select>
+      </div>
+    )
+  }
+
   if (field.type === 'boolean') {
     return (
       <label className={styles.checkboxRow}>
@@ -757,7 +772,7 @@ function ProtocolFieldsEditor({
       <div key={field.key} className={className}>
         <ProtocolFieldInput
           field={field}
-          value={values[field.key] ?? field.defaultValue ?? (field.type === 'boolean' ? false : '')}
+          value={values[field.key] ?? field.defaultValue ?? (field.type === 'boolean' && !field.allowUnset ? false : '')}
           onChange={value => onChange(field.key, value)}
         />
       </div>
@@ -793,6 +808,7 @@ function ProtocolFieldsEditor({
           </div>
           <div className={styles.protocolToggleGrid}>
             {renderField('udp')}
+            {renderField('blockQuic')}
             {renderField('skipCertVerify')}
           </div>
         </fieldset>
@@ -806,7 +822,7 @@ function ProtocolFieldsEditor({
         <ProtocolFieldInput
           key={field.key}
           field={field}
-          value={values[field.key] ?? field.defaultValue ?? (field.type === 'boolean' ? false : '')}
+          value={values[field.key] ?? field.defaultValue ?? (field.type === 'boolean' && !field.allowUnset ? false : '')}
           onChange={value => onChange(field.key, value)}
         />
       ))}

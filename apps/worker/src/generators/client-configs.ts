@@ -9,6 +9,7 @@ import {
   isRuleSetFormatCompatible,
   resolveRuleForExport,
   getRuleNoResolveHandling,
+  readNodeNetworkOptions,
 } from '@uni-conf/shared'
 import { generateMihomoYaml } from './mihomo'
 import { splitOrderedRuleRows } from './rule-order'
@@ -373,12 +374,19 @@ function nodeToIniProxy(node: Row, client: 'surge' | 'shadowrocket'): string | n
 }
 
 function nodeToSurgeProxy(node: Row): string | null {
+  const parsed = safeJson(node['parsed_config'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
+  const line = serializeSurgeProxy({ ...node, parsed_config: { ...parsed, extra } })
+  return line && extra.blockQuic !== undefined ? `${line}, block-quic=${extra.blockQuic ? 'on' : 'off'}` : line
+}
+
+function serializeSurgeProxy(node: Row): string | null {
   const name = String(node['name'] ?? '')
   const server = String(node['server'] ?? '')
   const port = Number(node['port'] ?? 0)
   const protocol = String(node['protocol'] ?? '')
   const parsed = safeJson(node['parsed_config'])
-  const extra = asRecord(parsed['extra'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
   if (!name || !server || !port) return null
 
   const prefix = `${name} = ${protocol}, ${server}, ${port}`
@@ -409,7 +417,6 @@ function nodeToSurgeProxy(node: Row): string | null {
       `password=${password}`,
       ...surgeWebSocketFields(parsed),
       ...surgeTlsFields(parsed, extra),
-      ...(extra['udp'] !== undefined ? [`udp-relay=${Boolean(extra['udp'])}`] : []),
     ].join(', ')}`
   }
   if (protocol === 'anytls') {
@@ -457,7 +464,6 @@ function nodeToSurgeProxy(node: Row): string | null {
     if (!psk) return null
     const fields = [`psk=${psk}`, `version=${Number(extra['version'] ?? 4)}`]
     if (extra['reuse'] !== undefined) fields.push(`reuse=${Boolean(extra['reuse'])}`)
-    if (extra['udp'] !== undefined) fields.push(`udp-relay=${Boolean(extra['udp'])}`)
     const obfs = String(extra['obfs'] ?? '')
     if (obfs === 'http') {
       fields.push('obfs=http')
@@ -489,7 +495,7 @@ function nodeToSurgeProxy(node: Row): string | null {
 function surgeWebSocketFields(parsed: Row): string[] {
   if (String(parsed['network'] ?? 'tcp') !== 'ws') return []
   const fields = ['ws=true']
-  const extra = asRecord(parsed['extra'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
   const path = String(parsed['wsPath'] ?? extra['wsPath'] ?? '')
   if (path) fields.push(`ws-path=${path}`)
   const headers = asRecord(parsed['wsHeaders'])
@@ -517,7 +523,7 @@ function surgeAuxiliarySections(nodes: Row[]): string[] {
   for (const node of nodes) {
     const protocol = String(node['protocol'] ?? '')
     const parsed = safeJson(node['parsed_config'])
-    const extra = asRecord(parsed['extra'])
+    const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
     if (protocol === 'wireguard') {
       const section = surgeWireGuardSectionLines(node, extra)
       if (section.length > 0) {
@@ -614,7 +620,7 @@ function nodeToShadowrocketProxy(node: Row): string | null {
   const port = Number(node['port'] ?? 0)
   const protocol = String(node['protocol'] ?? '')
   const parsed = safeJson(node['parsed_config'])
-  const extra = asRecord(parsed['extra'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
   if (!name || !server || !port) return null
 
   if (protocol === 'ss') {
@@ -758,7 +764,7 @@ function nodeToShadowrocketProxy(node: Row): string | null {
     const uuid = String(parsed['uuid'] ?? '')
     const password = String(parsed['password'] ?? '')
     if (!uuid || !password) return null
-    const fields = [`user=${uuid}`, `password=${password}`, 'udp=1']
+    const fields = [`user=${uuid}`, `password=${password}`, `udp=${extra['udp'] === false ? 0 : 1}`]
     if (parsed['sni']) fields.push(`peer=${String(parsed['sni'])}`)
     if (parsed['skipCertVerify']) fields.push('insecure=1')
     const alpn = configStringArray(extra['alpn'])
@@ -786,7 +792,7 @@ function nodeToQuantumultX(node: Row): string | null {
   const port = Number(node['port'] ?? 0)
   const protocol = String(node['protocol'] ?? '')
   const parsed = safeJson(node['parsed_config'])
-  const extra = asRecord(parsed['extra'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
   if (!name || !server || !port) return null
 
   const endpoint = `${server}:${port}`
@@ -1020,12 +1026,22 @@ function ruleToEgern(rule: Row, groups: Row[]): Record<string, unknown> | null {
 }
 
 function nodeToEgernProxy(node: Row): Record<string, unknown> | null {
+  const parsed = safeJson(node['parsed_config'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
+  const entry = serializeEgernProxy({ ...node, parsed_config: { ...parsed, extra } })
+  // Egern's HTTP(S) proxy schema has no block_quic field.
+  if (!entry || ['http', 'https'].includes(String(node['protocol'])) || extra.blockQuic === undefined) return entry
+  const type = Object.keys(entry)[0]!
+  return { [type]: { ...asRecord(entry[type]), block_quic: extra.blockQuic } }
+}
+
+function serializeEgernProxy(node: Row): Record<string, unknown> | null {
   const name = String(node['name'] ?? '')
   const server = String(node['server'] ?? '')
   const port = Number(node['port'] ?? 0)
   const protocol = String(node['protocol'] ?? '')
   const parsed = safeJson(node['parsed_config'])
-  const extra = asRecord(parsed['extra'])
+  const extra: Row = { ...asRecord(parsed['extra']), ...readNodeNetworkOptions(asRecord(parsed['extra'])) }
   if (!name || !server || !port) return null
   if (!isEgernTransportSupported(protocol, parsed['network'])) return null
   const common = { name, server, port }
