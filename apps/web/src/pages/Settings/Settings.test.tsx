@@ -5,7 +5,7 @@ import { Settings } from './Settings'
 import { ApiError, api } from '@/lib/api'
 import i18n from '@/i18n'
 import type { AppSettings } from '@uni-conf/types'
-import { MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
+import { MAX_BACKUP_JSON_BYTES } from '@uni-conf/shared'
 
 const settings = vi.hoisted((): AppSettings => ({
   language: 'en', theme: 'system', unmatchedTrafficPolicy: 'proxy', routingPolicyScenarios: ['ai-development', 'streaming', 'diagnostics'],
@@ -79,14 +79,14 @@ describe('Settings data safety', () => {
 
   it('rejects oversized backups before reading or validating them', async () => {
     const text = vi.fn()
-    const oversizedFile = { name: 'huge.json', size: MAX_BACKUP_FILE_BYTES + 1, text } as unknown as File
+    const oversizedFile = { name: 'huge.json', size: MAX_BACKUP_JSON_BYTES + 1, text } as unknown as File
     const { container } = render(<Settings />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     await waitForImportReady()
 
     fireEvent.change(input, { target: { files: [oversizedFile] } })
 
-    expect(await screen.findByText('Backup file must not exceed 25 MiB.')).toBeInTheDocument()
+    expect(await screen.findByText('Backup file must not exceed 48 MiB.')).toBeInTheDocument()
     expect(text).not.toHaveBeenCalled()
     expect(api.settings.validateImportData).not.toHaveBeenCalled()
   })

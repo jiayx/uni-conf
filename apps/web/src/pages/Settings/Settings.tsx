@@ -10,7 +10,7 @@ import { buildAutoNodeGroupTypeSettingsPatch } from '@/core/collections/auto-nod
 import { api } from '@/lib/api'
 import { clearStoredApiKey } from '@/lib/auth'
 import { useSettingsStore } from '@/store/settings.store'
-import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, MAX_BACKUP_FILE_BYTES, normalizeDnsRealIpDomainList } from '@uni-conf/shared'
+import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, MAX_BACKUP_FILE_BYTES, MAX_BACKUP_JSON_BYTES, normalizeDnsRealIpDomainList } from '@uni-conf/shared'
 import type { AppSettingsPatch, AutoNodeGroupType, ExportNodeNamingMode, Language, RuleSetConversionPolicy, ThemePreference } from '@uni-conf/types'
 import styles from './Settings.module.css'
 
@@ -165,7 +165,7 @@ export function Settings() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `uni-conf-backup-${new Date().toISOString().slice(0, 10)}.json`
+      link.download = `uni-conf-backup-${new Date().toISOString().slice(0, 10)}.json${blob.type === 'application/gzip' ? '.gz' : ''}`
       link.click()
       URL.revokeObjectURL(url)
       setSuccessMessage(t('settings.export_success'))
@@ -184,16 +184,25 @@ export function Settings() {
     setActionError(null)
     setSuccessMessage(null)
     try {
-      if (file.size > MAX_BACKUP_FILE_BYTES) {
-        setActionError(t('settings.import_too_large', { size: MAX_BACKUP_FILE_BYTES / 1024 / 1024 }))
+      const compressed = file.name.toLowerCase().endsWith('.gz') || file.type === 'application/gzip'
+      const limit = compressed ? MAX_BACKUP_FILE_BYTES : MAX_BACKUP_JSON_BYTES
+      if (file.size > limit) {
+        setActionError(t('settings.import_too_large', { size: limit / 1024 / 1024 }))
         return
       }
-      const text = await file.text()
-      if (new TextEncoder().encode(text).byteLength > MAX_BACKUP_FILE_BYTES) {
-        setActionError(t('settings.import_too_large', { size: MAX_BACKUP_FILE_BYTES / 1024 / 1024 }))
-        return
+      let data: unknown
+      if (compressed) {
+        data = file.slice(0, file.size, 'application/gzip')
+      } else if (file.size > MAX_BACKUP_FILE_BYTES) {
+        const gzip = await new Response(file.stream().pipeThrough(new CompressionStream('gzip'))).blob()
+        if (gzip.size > MAX_BACKUP_FILE_BYTES) {
+          setActionError(t('settings.import_too_large', { size: MAX_BACKUP_FILE_BYTES / 1024 / 1024 }))
+          return
+        }
+        data = gzip.slice(0, gzip.size, 'application/gzip')
+      } else {
+        data = JSON.parse(await file.text()) as unknown
       }
-      const data = JSON.parse(text) as unknown
       const validation = await api.settings.validateImportData(data)
       if (!(await confirmAction({
         description: t('settings.import_confirm', { count: validation.totalRows, version: validation.version }),
@@ -493,7 +502,7 @@ export function Settings() {
           ref={fileInputRef}
           className={styles.fileInput}
           type="file"
-          accept="application/json,.json"
+          accept="application/json,application/gzip,.json,.gz"
           disabled={actionLocked}
           onChange={e => void handleImport(e.target.files?.[0])}
         />

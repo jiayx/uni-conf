@@ -1,3 +1,4 @@
+import { HTTPException } from 'hono/http-exception'
 import type { Context } from 'hono'
 import { DEFAULT_NODE_POOL_COLLECTION_ID } from '@uni-conf/shared'
 
@@ -7,7 +8,11 @@ const WORKSPACE_HEADER = 'X-Workspace-Id'
 const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 
 export function requestWorkspaceId(c: Pick<Context, 'req'>): string {
-  return normalizeWorkspaceId(c.req.header(WORKSPACE_HEADER)) ?? DEFAULT_WORKSPACE_ID
+  const value = c.req.header(WORKSPACE_HEADER)
+  if (value === undefined) return DEFAULT_WORKSPACE_ID
+  const workspaceId = normalizeWorkspaceId(value)
+  if (!workspaceId) throw new HTTPException(400, { message: 'Invalid X-Workspace-Id' })
+  return workspaceId
 }
 
 export function normalizeWorkspaceId(value: unknown): string | null {

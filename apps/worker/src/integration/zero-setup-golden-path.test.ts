@@ -1065,6 +1065,64 @@ rule-providers:
     }
   }, 30000)
 
+  it('guards rule references, rejects invalid workspace headers and resets DNS settings', async () => {
+    const space = await (await request('/api/workspaces', {
+      method: 'POST', body: JSON.stringify({ name: 'Reference checks' }),
+    })).json() as { data: { id: string } }
+    const id = space.data.id
+    const headers = { 'X-Workspace-Id': id, 'content-type': 'application/json' }
+    const rule = crypto.randomUUID()
+    const set = crypto.randomUUID()
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO rules (id,workspace_id,type,payload,target_group_id,created_at,updated_at)
+          SELECT ?,?,'DOMAIN','example.org',id,'t','t' FROM groups WHERE workspace_id=? LIMIT 1`).bind(rule,id,id),
+        env.DB.prepare(`INSERT INTO remote_rule_sets (id,workspace_id,name,url,format,target_group_id,created_at,updated_at)
+          SELECT ?,?,'Set','https://example.org/set','mihomo',id,'t','t' FROM groups WHERE workspace_id=? LIMIT 1`).bind(set,id,id),
+      ])
+      const profile = { format: 'mihomo', includeRuleIds: [rule], includeRemoteSetIds: [set] }
+      const createProfile = (data: unknown) => request('/api/export/configs', { method: 'POST', headers, body: JSON.stringify(data) })
+      expect((await createProfile(profile)).status).toBe(201)
+      expect((await createProfile({ ...profile, includeRuleIds: ['missing'] })).status).toBe(409)
+      for (const path of [`/api/rules/${rule}`, `/api/remote-rule-sets/${set}`]) {
+        expect((await request(path, { method: 'DELETE', headers })).status).toBe(409)
+      }
+      for (const invalid of ['', 'invalid/id']) {
+        expect((await request('/api/data', { method: 'DELETE', headers: { 'X-Workspace-Id': invalid } })).status).toBe(400)
+      }
+      await env.DB.prepare("UPDATE app_settings SET dns_real_ip_domains='[\"example.org\"]' WHERE id=?").bind(id).run()
+      expect((await request('/api/data', { method: 'DELETE', headers })).status).toBe(200)
+      expect(await env.DB.prepare('SELECT dns_real_ip_domains FROM app_settings WHERE id=?').bind(id).first('dns_real_ip_domains')).toBe('[]')
+    } finally {
+      await request(`/api/workspaces/${id}`, { method: 'DELETE' })
+    }
+  }, 30000)
+
+  it('exports, validates and restores a workspace larger than 25 MiB', async () => {
+    const space = await (await request('/api/workspaces', {
+      method: 'POST', body: JSON.stringify({ name: 'Large backup' }),
+    })).json() as { data: { id: string } }
+    const id = space.data.id
+    const headers = { 'X-Workspace-Id': id }
+    try {
+      await env.DB.prepare(`WITH RECURSIVE n(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<30)
+        INSERT INTO sources (id,workspace_id,name,type,raw_content,created_at,updated_at)
+        SELECT ? || i, ?, 'Fixture','file', ?,'t','t' FROM n`).bind(id, id, 'x'.repeat(900_000)).run()
+      const response = await request('/api/data/export', { headers })
+      if (!response.ok) throw new Error(await response.text())
+      expect(response.headers.get('content-type')).toBe('application/gzip')
+      const body = await response.arrayBuffer()
+      expect(body.byteLength).toBeLessThan(25 * 1024 * 1024)
+      for (const path of ['/api/data/import/validate', '/api/data/import']) {
+        const result = await request(path, { method: 'POST', headers: { ...headers, 'content-type': 'application/gzip' }, body })
+        expect(result.status).toBe(200)
+      }
+      expect(await env.DB.prepare('SELECT sum(length(raw_content)) AS bytes FROM sources WHERE workspace_id=?').bind(id).first('bytes')).toBe(27_000_000)
+    } finally {
+      await request(`/api/workspaces/${id}`, { method: 'DELETE' })
+    }
+  }, 60000)
+
   it('keeps configuration data isolated between workspaces', async () => {
     const createResponse = await request('/api/workspaces', {
       method: 'POST',

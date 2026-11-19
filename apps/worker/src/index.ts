@@ -1,3 +1,5 @@
+import { HTTPException } from 'hono/http-exception'
+import { MAX_BACKUP_FILE_BYTES } from '@uni-conf/shared'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { bodyLimit } from 'hono/body-limit'
@@ -73,7 +75,7 @@ app.use('/api/*', (c, next) =>
 app.use(
   '/api/*',
   bodyLimit({
-    maxSize: 25 * 1024 * 1024,
+    maxSize: MAX_BACKUP_FILE_BYTES,
     onError: (c) => c.json({ success: false, error: 'Request body exceeds 25 MiB' }, 413),
   }),
 )
@@ -129,6 +131,13 @@ app.notFound((c) => c.json({ success: false, error: 'Not found' }, 404))
 
 // Error handler
 app.onError((err, c) => {
+  if (err instanceof HTTPException) return c.json({ success: false, error: err.message }, err.status)
+  if (err.message.includes('export_rule_reference')) {
+    return c.json({ success: false, error: '请先在导出档案中移除对该规则或规则集的引用', code: 'export_rule_reference' }, 409)
+  }
+  if (err.message.includes('missing_export_rule')) {
+    return c.json({ success: false, error: '所选规则或规则集已不存在，请刷新后重新选择', code: 'missing_export_rule' }, 409)
+  }
   logEvent(
     'worker_error',
     {

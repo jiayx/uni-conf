@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
+import { decodeBackup, encodeBackup } from '../services/backup-file'
 import { now } from '../db/helpers'
 import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import { isSafeRemoteHttpUrl } from '../services/safe-remote-fetch'
 import { validateGroupReferenceGraph } from '../services/group-reference-graph'
 import {
-  DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES,
   FULL_CONFIG_EXPORT_FORMATS,
   isExportFormat,
   isFullConfigExportFormat,
@@ -85,8 +85,10 @@ app.get('/export', async (c) => {
 
   c.header('Cache-Control', 'no-store')
   c.header('Pragma', 'no-cache')
-  c.header('Content-Disposition', `attachment; filename="uni-conf-backup-${new Date().toISOString().slice(0, 10)}.json"`)
-  return c.json({
+  if (Object.values(data).reduce((count, rows) => count + rows.length, 0) > MAX_BACKUP_ROWS) {
+    return c.json({ success: false, error: `Backup exceeds ${MAX_BACKUP_ROWS} rows` }, 413)
+  }
+  const file = await encodeBackup({
     success: true,
     data: {
       exportedAt: new Date().toISOString(),
@@ -95,11 +97,15 @@ app.get('/export', async (c) => {
       tables: data,
     },
   })
+  const extension = file.type === 'application/gzip' ? '.json.gz' : '.json'
+  c.header('Content-Disposition', `attachment; filename="uni-conf-backup-${new Date().toISOString().slice(0, 10)}${extension}"`)
+  c.header('Content-Type', file.type)
+  return c.body(file.stream())
 })
 
 app.post('/import', async (c) => {
   const workspaceId = requestWorkspaceId(c)
-  const body = await c.req.json<unknown>()
+  const body = await decodeBackup(c.req.raw)
   const validation = validateBackupPayload(body)
   if (!validation.valid) return c.json({ success: false, error: validation.error }, 400)
   const tables = validation.tables
@@ -123,7 +129,7 @@ app.post('/import', async (c) => {
 })
 
 app.post('/import/validate', async (c) => {
-  const body = await c.req.json<unknown>()
+  const body = await decodeBackup(c.req.raw)
   const validation = validateBackupPayload(body)
   if (!validation.valid) return c.json({ success: false, error: validation.error }, 400)
   return c.json({
@@ -149,26 +155,8 @@ app.delete('/', async (c) => {
     c.env.DB.prepare('DELETE FROM sources WHERE workspace_id = ?').bind(workspaceId),
     c.env.DB.prepare('DELETE FROM source_import_runs WHERE workspace_id = ?').bind(workspaceId),
     c.env.DB.prepare('DELETE FROM groups WHERE workspace_id = ? AND is_builtin = 0').bind(workspaceId),
-    c.env.DB.prepare(
-      `UPDATE app_settings SET
-        language = 'zh',
-        theme = 'system',
-        unmatched_traffic_policy = 'proxy',
-        routing_policy_scenarios = '["ai-development","streaming","diagnostics"]',
-        routing_outlet_preferences = NULL,
-        export_node_naming_mode = 'smart',
-        default_export_token = NULL,
-        show_compatibility_warnings = 1,
-        rule_set_conversion_policy = 'compatible',
-        enable_auto_refresh = 1,
-        auto_refresh_interval = ?,
-        auto_node_groups_enabled = 1,
-        auto_node_group_types = '["url-test"]',
-        auto_node_group_keys = NULL,
-        auto_node_group_include_flag = 1,
-        updated_at = ?
-       WHERE id = ?`
-    ).bind(DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES, ts, workspaceId),
+    c.env.DB.prepare('DELETE FROM app_settings WHERE id = ?').bind(workspaceId),
+    c.env.DB.prepare('INSERT INTO app_settings (id, updated_at) VALUES (?, ?)').bind(workspaceId, ts),
   ])
 
   await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId)

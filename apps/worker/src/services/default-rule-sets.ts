@@ -46,7 +46,10 @@ export async function ensureDefaultRemoteRuleSets(
 
   for (const [key, existing] of existingPresets) {
     if (!managedPresetKeys.has(key)) {
-      statements.push(db.prepare('DELETE FROM remote_rule_sets WHERE id = ?').bind(existing.id))
+      statements.push(db.prepare(`DELETE FROM remote_rule_sets WHERE id = ? AND NOT EXISTS (
+        SELECT 1 FROM export_configs e, json_each(e.include_remote_set_ids) ref
+        WHERE e.workspace_id = remote_rule_sets.workspace_id AND ref.value = remote_rule_sets.id
+      )`).bind(existing.id))
     }
   }
 

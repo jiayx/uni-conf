@@ -73,10 +73,11 @@ function authHeaders(): Record<string, string> {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const isFile = body instanceof Blob
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: body != null ? JSON.stringify(body) : undefined,
+    headers: { 'Content-Type': isFile ? body.type : 'application/json', ...authHeaders() },
+    body: isFile ? body : body != null ? JSON.stringify(body) : undefined,
   })
   if (res.status === 401) throw new UnauthorizedError()
   let json: {

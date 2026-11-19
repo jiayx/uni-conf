@@ -40,6 +40,7 @@ export const MAX_NODE_SEARCH_LENGTH = 200;
 export const MAX_NODE_BATCH_SELECTION = 500;
 export const MAX_RULE_BATCH_SELECTION = 500;
 export const MAX_SOURCE_CONTENT_BYTES = 4 * 1024 * 1024;
+export const MAX_BACKUP_JSON_BYTES = 48 * 1024 * 1024;
 export const MAX_BACKUP_FILE_BYTES = 25 * 1024 * 1024;
 
 export const AUTO_NODE_GROUP_TYPE_ORDER = [

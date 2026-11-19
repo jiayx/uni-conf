@@ -251,6 +251,19 @@ describe('api client', () => {
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ cache: 'no-store' })
   })
 
+  it('sends the same gzip file for backup validation and restore', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ success: true, data: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new Blob([new Uint8Array([31, 139])], { type: 'application/gzip' })
+    await api.settings.validateImportData(file)
+    await api.settings.importData(file)
+    for (const path of ['/api/data/import/validate', '/api/data/import']) {
+      expect(fetchMock).toHaveBeenCalledWith(path, expect.objectContaining({
+        body: file, headers: expect.objectContaining({ 'Content-Type': 'application/gzip' }),
+      }))
+    }
+  })
+
   it('does not download a backup when the export endpoint returns an error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
       success: false,

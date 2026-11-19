@@ -82,6 +82,8 @@ pnpm exec wrangler secret put API_KEY --env production
 - 恢复其他备份
 - 清空配置
 
+小备份保存为 JSON，超过 25 MiB 时自动保存为 `.json.gz`。恢复时可直接选择这两种文件。单次备份最多支持 100,000 行、48 MiB 原始 JSON 和 25 MiB 上传文件，超过限制会在导出时提示。
+
 备份包含订阅地址、节点凭据和导出 Token。不要公开上传、发送或粘贴完整备份。
 
 ## 订阅刷新
