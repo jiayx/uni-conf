@@ -7,7 +7,7 @@ import { generateLoon } from './loon'
 import { generateEgern, generateQuantumultX, generateStashYaml, generateSurge } from './client-configs'
 import { generateMihomoYaml } from './mihomo'
 import { generateSingboxJson } from './singbox'
-import { parseClashYaml, parseRawLines } from '../routes/sources'
+import { parseClashYaml, parseRawLines } from '../services/source-parser'
 import { resolveExportWarnings } from '../services/export-validation'
 
 function makeNode(protocol: ProxyProtocol, extra: Record<string, unknown> = {}): ProxyNode {

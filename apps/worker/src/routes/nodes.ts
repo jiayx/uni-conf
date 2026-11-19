@@ -4,7 +4,7 @@ import { chunkValues, jsonParse, mapNode, newId, now } from '../db/helpers';
 import type { ProxyProtocol } from '@uni-conf/types';
 import { ensureZeroSetupDefaults } from '../services/zero-setup';
 import { isUsableProxyProtocol, missingRequiredProtocolFields } from '../services/protocol-validation';
-import { parseRawLines } from './sources';
+import { parseRawLines } from '../services/source-parser';
 import { validateOptionalBooleanFields } from '../services/request-validation';
 import {
   buildNodeRecognitionTags,

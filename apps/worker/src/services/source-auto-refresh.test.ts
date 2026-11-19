@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { refreshDueSources, resolveDueSources } from './source-auto-refresh';
 
-vi.mock('../routes/sources', () => ({
+vi.mock('./source-refresh', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./source-refresh')>(),
   refreshSourceById: vi.fn(async (_db: D1Database, id: string) => {
     if (id === 'source-fail') throw new Error('network failed');
     return { sourceId: id, success: true, nodeCount: 1 };
   }),
-  recordSourceRefreshError: vi.fn(async () => undefined),
 }));
 
 vi.mock('./zero-setup', () => ({
   ensureZeroSetupDefaults: vi.fn(async () => undefined),
 }));
 
-import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
+import { refreshSourceById } from './source-refresh';
 import { ensureZeroSetupDefaults } from './zero-setup';
 
 const nowMs = Date.parse('2026-06-21T12:00:00.000Z');
@@ -77,7 +77,6 @@ describe('source auto refresh', () => {
     expect(ensureZeroSetupDefaults).toHaveBeenCalledWith(db, '2026-06-21T12:00:00.000Z', 'default');
     expect(refreshSourceById).toHaveBeenNthCalledWith(1, db, 'source-ok', 'default', { reconcileDefaults: false });
     expect(refreshSourceById).toHaveBeenNthCalledWith(2, db, 'source-fail', 'default', { reconcileDefaults: false });
-    expect(recordSourceRefreshError).toHaveBeenCalledWith(db, 'source-fail', 'network failed');
     expect(result).toMatchObject({
       checkedCount: 3,
       refreshedCount: 1,

@@ -18,7 +18,7 @@ export function WorkspaceSwitcher() {
   const { t } = useTranslation()
   const confirm = useConfirmDialog()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [activeId, setActiveId] = useState(getActiveWorkspaceId)
+  const [activeId] = useState(getActiveWorkspaceId)
   const [managerOpen, setManagerOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [editingNames, setEditingNames] = useState<Record<string, string>>({})
@@ -29,9 +29,9 @@ export function WorkspaceSwitcher() {
     const items = await api.workspaces.list()
     setWorkspaces(items)
     setEditingNames(Object.fromEntries(items.map((item) => [item.id, item.name])))
-    if (!items.some((item) => item.id === activeId)) {
+    if (activeId !== DEFAULT_WORKSPACE_ID && !items.some((item) => item.id === activeId)) {
       setActiveWorkspaceId(DEFAULT_WORKSPACE_ID)
-      setActiveId(DEFAULT_WORKSPACE_ID)
+      window.location.reload()
     }
   }, [activeId])
 

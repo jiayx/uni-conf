@@ -1,5 +1,5 @@
 import { DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES } from '@uni-conf/shared';
-import { recordSourceRefreshError, refreshSourceById } from '../routes/sources';
+import { SourceRefreshError, refreshSourceById } from './source-refresh';
 import { ensureZeroSetupDefaults } from './zero-setup';
 
 const AUTO_REFRESH_CONCURRENCY = 4;
@@ -63,8 +63,8 @@ export async function refreshDueSources(db: D1Database, nowMs = Date.now()): Pro
           refreshedInWorkspace++;
           continue;
         }
+        if (result.reason instanceof SourceRefreshError && result.reason.status === 409) continue;
         const error = String(result.reason instanceof Error ? result.reason.message : result.reason);
-        await recordSourceRefreshError(db, source.id, error);
         totals.errors.push({ sourceId: source.id, error });
         totals.failedCount++;
       }

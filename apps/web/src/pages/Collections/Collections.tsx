@@ -1077,7 +1077,7 @@ function scopeText(
   collection: NodeCollection,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
-  if (collection.nodeIds.length > 0) {
+  if (collection.emptySelection || collection.nodeIds.length > 0) {
     return t('collections.scope_specific_nodes', { count: collection.nodeIds.length })
   }
   return collection.sourceIds.length === 0

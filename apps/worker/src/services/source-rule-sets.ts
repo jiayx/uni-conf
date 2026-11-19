@@ -88,6 +88,17 @@ export async function syncSourceLinkedRemoteRuleSets(
 ): Promise<void> {
   const candidates = await listSourceRemoteRuleSets(db, sourceId, workspaceId)
   if (candidates === null) return
+  const statements = await prepareSourceRuleSetUpdates(db, sourceId, ts, workspaceId, candidates)
+  if (statements.length > 0) await db.batch(statements)
+}
+
+export async function prepareSourceRuleSetUpdates(
+  db: D1Database,
+  sourceId: string,
+  ts: string,
+  workspaceId: string,
+  candidates: SourceRemoteRuleSetCandidate[],
+): Promise<D1PreparedStatement[]> {
   const candidateByKey = new Map(candidates.map(candidate => [candidate.key, candidate]))
   const { results } = await db.prepare(
     `SELECT id, source_rule_set_key, url, format, behavior, update_interval, source_missing
@@ -102,7 +113,7 @@ export async function syncSourceLinkedRemoteRuleSets(
     update_interval: number
     source_missing: number | null
   }>()
-  if (results.length === 0) return
+  if (results.length === 0) return []
 
   const statements: D1PreparedStatement[] = []
   for (const row of results) {
@@ -139,7 +150,7 @@ export async function syncSourceLinkedRemoteRuleSets(
       ),
     )
   }
-  if (statements.length > 0) await db.batch(statements)
+  return statements
 }
 
 function resolveProviderUrl(value: string, baseUrl?: string): string | null {

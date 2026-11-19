@@ -56,6 +56,17 @@ describe('safe remote fetch', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the fetch deadline active while the caller reads the response body', async () => {
+    const fetcher: typeof fetch = async (_url, init) => new Response(new ReadableStream({
+      start(controller) {
+        const signal = init!.signal!
+        signal.addEventListener('abort', () => controller.error(signal.reason), { once: true })
+      },
+    }))
+    const response = await safeRemoteFetch(fetcher, 'https://example.com/slow', {}, { timeoutMs: 20 })
+    await expect(response.text()).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+
   it('limits redirect chains', async () => {
     const fetcher = vi.fn(async () => new Response(null, {
       status: 302,

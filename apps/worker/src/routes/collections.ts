@@ -196,30 +196,7 @@ app.put('/:id', async (c) => {
     return c.json({ success: false, error: validation.error }, 400);
   }
   const ts = now();
-  await c.env.DB.prepare(
-    `UPDATE collections SET
-      name = ?, source_ids = ?, node_ids = ?, filters = ?, renames = ?,
-      dedup = ?, sort = ?, sort_country_order = ?, enabled = ?, notes = ?, updated_at = ?
-     WHERE id = ? AND workspace_id = ?`
-  )
-    .bind(
-      validation.name ?? existing.name,
-      validation.sourceIds !== undefined ? JSON.stringify(validation.sourceIds) : existing.source_ids,
-      validation.nodeIds !== undefined ? JSON.stringify(validation.nodeIds) : existing.node_ids,
-      validation.filters !== undefined ? JSON.stringify(validation.filters) : existing.filters,
-      validation.renames !== undefined ? JSON.stringify(validation.renames) : existing.renames,
-      validation.dedup ?? existing.dedup,
-      validation.sort ?? existing.sort,
-      validation.sortCountryOrder !== undefined
-        ? JSON.stringify(validation.sortCountryOrder)
-        : existing.sort_country_order,
-      validation.enabled !== undefined ? (validation.enabled ? 1 : 0) : existing.enabled,
-      validation.notes !== undefined ? validation.notes : existing.notes,
-      ts,
-      id,
-      workspaceId,
-    )
-    .run();
+  await prepareCollectionUpdate(c.env.DB, id, existing, validation, ts, workspaceId).run();
 
   await ensureZeroSetupDefaults(c.env.DB, ts, workspaceId);
 
@@ -430,7 +407,9 @@ app.get('/:id/preview', async (c) => {
   // Fetch candidate nodes
   let nodeRows: Record<string, unknown>[];
 
-  if (collection.nodeIds.length > 0) {
+  if (collection.emptySelection) {
+    nodeRows = [];
+  } else if (collection.nodeIds.length > 0) {
     // Explicit node selection
     const placeholders = collection.nodeIds.map(() => '?').join(',');
     const { results } = await c.env.DB.prepare(
@@ -623,7 +602,8 @@ function prepareCollectionUpdate(
   return db.prepare(
     `UPDATE collections SET
       name = ?, source_ids = ?, node_ids = ?, filters = ?, renames = ?,
-      dedup = ?, sort = ?, sort_country_order = ?, enabled = ?, notes = ?, updated_at = ?
+      dedup = ?, sort = ?, sort_country_order = ?, enabled = ?, notes = ?, updated_at = ?,
+      empty_selection = CASE WHEN source_ids != ?2 OR node_ids != ?3 THEN 0 ELSE empty_selection END
      WHERE id = ? AND workspace_id = ?`
   ).bind(
     validation.name ?? existing.name,
@@ -674,7 +654,7 @@ export function isManagedNodeCollectionNotes(value: unknown): boolean {
 
 export function countCollectionNodes(nodes: ProxyNode[], collection: NodeCollection): number {
   let candidates = nodes;
-  if (collection.nodeIds.length > 0) {
+  if (collection.emptySelection || collection.nodeIds.length > 0) {
     const nodeIds = new Set(collection.nodeIds);
     candidates = nodes.filter(node => nodeIds.has(node.id));
   } else if (collection.sourceIds.length > 0) {

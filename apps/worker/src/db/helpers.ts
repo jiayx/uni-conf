@@ -97,6 +97,7 @@ export function mapCollection(row: Record<string, unknown>): NodeCollection {
     id: row.id as string,
     name: row.name as string,
     sourceIds: jsonParse<string[]>(row.source_ids as string | null) ?? [],
+    emptySelection: Boolean(row.empty_selection),
     nodeIds: jsonParse<string[]>(row.node_ids as string | null) ?? [],
     filters: jsonParse<NodeCollection['filters']>(row.filters as string | null) ?? [],
     renames: jsonParse<NodeCollection['renames']>(row.renames as string | null) ?? [],

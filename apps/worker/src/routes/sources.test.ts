@@ -1,3 +1,5 @@
+import { SourceRefreshError, isValidSourceFormat, readLimitedSourceContent, refreshSourceById } from '../services/source-refresh'
+import { detectAndParse, filterUsableParsedContent, parseClashGroups, parseClashYaml, parseSingboxGroups } from '../services/source-parser'
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { detectCountry, detectTrafficMultiplier, isSubscriptionInfoNodeName, makeSourceNodeGroupMarker, MAX_SOURCE_CONTENT_BYTES, SOURCE_FORMATS } from '@uni-conf/shared'
 import type { SourceRefreshResult } from '@uni-conf/types'
@@ -5,19 +7,10 @@ import { ensureZeroSetupDefaults } from '../services/zero-setup'
 import {
   deleteSourceById,
   deriveSourceName,
-  detectAndParse,
-  filterUsableParsedContent,
   isHttpUrl,
-  isValidSourceFormat,
   isValidSourceType,
-  parseClashGroups,
-  parseClashYaml,
-  parseSingboxGroups,
   previewParsedSourceContent,
-  readLimitedSourceContent,
-  refreshSourceById,
   resolveSourceNameInput,
-  SourceRefreshError,
   validateSourceMutableFields,
 } from './sources'
 import sourcesApp from './sources'
@@ -802,7 +795,7 @@ proxies:
     expect(Array.isArray(nodes)).toBe(true)
   })
 
-  it('caches fetched raw subscription content before parse validation fails', async () => {
+  it('preserves the active subscription when parse validation fails', async () => {
     const db = createRefreshMockDb()
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
@@ -817,15 +810,7 @@ proxies:
       status: 422,
     } satisfies Partial<SourceRefreshError>)
 
-    expect(db.operations).toContainEqual({
-      operation: 'cache-raw-content',
-      rawContent: 'this is not a supported proxy subscription yet',
-      uploadBytes: 10,
-      downloadBytes: 20,
-      totalBytes: 100,
-      expireTime: 1893456000,
-      id: 'source-1',
-    })
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'cache-raw-content' }))
   })
 
   it('rejects a declared oversized subscription before reading or caching its body', async () => {
@@ -999,15 +984,7 @@ proxy-groups:
       id: 'source-1',
       error: expect.stringContaining('No usable proxy nodes parsed'),
     }))
-    expect(db.operations).toContainEqual({
-      operation: 'cache-raw-content',
-      rawContent,
-      uploadBytes: 1,
-      downloadBytes: 2,
-      totalBytes: 3,
-      expireTime: 1893456000,
-      id: 'source-1',
-    })
+    expect(db.operations).not.toContainEqual(expect.objectContaining({ operation: 'cache-raw-content' }))
     expect(ensureZeroSetupDefaults).not.toHaveBeenCalled()
   })
 
@@ -1395,6 +1372,7 @@ function createRefreshMockDb(): D1Database & { operations: Array<Record<string, 
             return {
               id: args[0],
               type: 'url',
+              refresh_revision: 0,
               url: 'https://example.com/sub',
               format: 'auto',
               user_agent: null,
@@ -1479,6 +1457,7 @@ function createRefreshUpdateMockDb(): D1Database & { operations: Array<Record<st
             return {
               id: args[0],
               type: 'url',
+              refresh_revision: 0,
               url: 'https://example.com/sub',
               format: 'auto',
               user_agent: null,
@@ -1568,6 +1547,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
             return {
               id: args[0],
               type: 'url',
+              refresh_revision: 0,
               url: 'https://example.com/sub',
               format: 'auto',
               user_agent: null,
@@ -1578,7 +1558,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
         all: async () => {
           if (sql.includes('SELECT id, name, server, port, protocol')) return { results: nodes }
           if (sql.includes('SELECT COUNT(*) as cnt FROM nodes WHERE source_id = ?')) return { results: [{ cnt: nodes.length }] }
-          if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE workspace_id = ?')) return { results: [collection] }
+          if (sql.includes('SELECT id, node_ids, notes, empty_selection FROM collections WHERE workspace_id = ?')) return { results: [collection] }
           if (sql.includes('SELECT id, name FROM nodes WHERE source_id = ? AND is_manual = 0 AND enabled = 1')) {
             return { results: nodes.filter(node => node.enabled !== 0).map(node => ({ id: node.id, name: node.name })) }
           }
@@ -1621,7 +1601,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
             operations.push({
               operation: 'update-collection-node-ids',
               nodeIds: args[0],
-              id: args[2],
+              id: args[3],
             })
           }
           return { success: true }
@@ -1630,7 +1610,7 @@ function createRefreshSourceGroupSyncMockDb(): D1Database & { operations: Array<
       }),
       first: async () => null,
       all: async () => {
-        if (sql.includes('SELECT id, node_ids, notes FROM collections WHERE workspace_id = ?')) return { results: [collection] }
+        if (sql.includes('SELECT id, node_ids, notes, empty_selection FROM collections WHERE workspace_id = ?')) return { results: [collection] }
         return { results: [] }
       },
       run: async () => ({ success: true }),

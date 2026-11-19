@@ -441,7 +441,7 @@ function scopeRowsForCollection(
   rows: Record<string, unknown>[],
   collection: NodeCollection
 ): Record<string, unknown>[] {
-  if (collection.nodeIds.length > 0) {
+  if (collection.emptySelection || collection.nodeIds.length > 0) {
     const nodeIds = new Set(collection.nodeIds)
     return rows.filter((row) => nodeIds.has(String(row.id)))
   }

@@ -998,6 +998,73 @@ rule-providers:
     expect((await request(`/api/groups/${parent.data.id}`, { method: 'DELETE' })).status).toBe(200)
   }, 30000)
 
+  it('commits one overlapping refresh and preserves its data after an invalid response', async () => {
+    const sourceId = crypto.randomUUID()
+    await env.DB.prepare(
+      `INSERT INTO sources (id, workspace_id, name, type, url, created_at, updated_at)
+       VALUES (?, 'default', 'Refresh test', 'url', 'https://example.com/config', 't', 't')`
+    ).bind(sourceId).run()
+    const raw = 'trojan://password@node.example.org:443#Node'
+    const refresh = () => request(`/api/sources/${sourceId}/refresh`, { method: 'POST' })
+    const originalFetch = globalThis.fetch
+    let release!: () => void
+    const bothFetching = new Promise<void>(resolve => { release = resolve })
+    let calls = 0
+    try {
+      globalThis.fetch = async () => {
+        if (++calls === 2) release()
+        await bothFetching
+        return new Response(raw)
+      }
+      const responses = await Promise.all([refresh(), refresh()])
+      expect(responses.map(response => response.status).sort()).toEqual([200, 409])
+      const snapshot = () => env.DB.prepare(
+        'SELECT raw_content, node_count, refresh_revision, last_updated FROM sources WHERE id = ?'
+      ).bind(sourceId).first()
+      const active = await snapshot()
+      expect(active).toMatchObject({ raw_content: raw, node_count: 1, refresh_revision: 1 })
+      const nodes = await env.DB.prepare('SELECT id FROM nodes WHERE source_id = ?').bind(sourceId).all()
+      expect(nodes.results).toHaveLength(1)
+      const linkedSetId = crypto.randomUUID()
+      await env.DB.prepare(
+        `INSERT INTO remote_rule_sets (id, workspace_id, name, url, format, source_id, source_rule_set_key, target_group_id, created_at, updated_at)
+         SELECT ?, 'default', 'Provider', 'https://example.com/rules', 'mihomo', ?, 'provider', id, 't', 't'
+         FROM groups WHERE workspace_id = 'default' LIMIT 1`
+      ).bind(linkedSetId, sourceId).run()
+      globalThis.fetch = async () => new Response('<html>Maintenance</html>')
+      expect((await refresh()).status).toBe(422)
+      expect(await snapshot()).toEqual(active)
+      expect(await env.DB.prepare('SELECT source_missing FROM remote_rule_sets WHERE id = ?').bind(linkedSetId).first())
+        .toEqual({ source_missing: 0 })
+      expect((await env.DB.prepare('SELECT id FROM nodes WHERE source_id = ?').bind(sourceId).all()).results).toEqual(nodes.results)
+    } finally {
+      globalThis.fetch = originalFetch
+      await env.DB.prepare('DELETE FROM remote_rule_sets WHERE source_id = ?').bind(sourceId).run()
+      await env.DB.prepare('DELETE FROM sources WHERE id = ?').bind(sourceId).run()
+    }
+  }, 30000)
+
+  it('round-trips an empty explicit collection after deleting its final node', async () => {
+    const space = await (await request('/api/workspaces', {
+      method: 'POST', body: JSON.stringify({ name: 'Backup round trip' }),
+    })).json() as { data: { id: string } }
+    const headers = { 'X-Workspace-Id': space.data.id, 'content-type': 'application/json' }
+    const post = (path: string, body: unknown) => request(path, { method: 'POST', headers, body: JSON.stringify(body) })
+    try {
+      const node = await (await post('/api/nodes', { uri: 'trojan://pw@selected.example.org:443#Selected' })).json() as { data: { id: string } }
+      expect((await post('/api/nodes', { uri: 'trojan://pw@other.example.org:443#Other' })).status).toBe(201)
+      const collection = await (await post('/api/collections', { name: 'Selected', nodeIds: [node.data.id] })).json() as { data: { id: string } }
+      expect((await request(`/api/nodes/${node.data.id}`, { method: 'DELETE', headers })).status).toBe(200)
+      const backup = await (await request('/api/data/export', { headers })).json()
+      expect((await post('/api/data/import/validate', backup)).status).toBe(200)
+      expect((await post('/api/data/import', backup)).status).toBe(200)
+      const preview = await (await request(`/api/collections/${collection.data.id}/preview`, { headers })).json()
+      expect(preview).toMatchObject({ data: { nodes: [] } })
+    } finally {
+      await request(`/api/workspaces/${space.data.id}`, { method: 'DELETE' })
+    }
+  }, 30000)
+
   it('keeps configuration data isolated between workspaces', async () => {
     const createResponse = await request('/api/workspaces', {
       method: 'POST',

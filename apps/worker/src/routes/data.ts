@@ -33,7 +33,7 @@ const BACKUP_VERSION = 9
 const TABLE_COLUMNS = {
   sources: ['id', 'name', 'type', 'url', 'format', 'enabled', 'node_count', 'last_updated', 'last_refresh_error', 'update_interval', 'user_agent', 'notes', 'tags', 'source_groups', 'raw_content', 'upload_bytes', 'download_bytes', 'total_bytes', 'expire_time', 'created_at', 'updated_at'],
   nodes: ['id', 'source_id', 'name', 'protocol', 'server', 'port', 'country', 'country_code', 'enabled', 'tags', 'notes', 'raw_config', 'parsed_config', 'is_manual', 'created_at', 'updated_at'],
-  collections: ['id', 'name', 'source_ids', 'node_ids', 'filters', 'renames', 'dedup', 'sort', 'sort_country_order', 'enabled', 'notes', 'created_at', 'updated_at'],
+  collections: ['id', 'name', 'source_ids', 'node_ids', 'empty_selection', 'filters', 'renames', 'dedup', 'sort', 'sort_country_order', 'enabled', 'notes', 'created_at', 'updated_at'],
   groups: ['id', 'name', 'type', 'collection_ids', 'group_ids', 'builtins', 'test_url', 'interval', 'tolerance', 'lazy', 'enabled', 'sort_order', 'is_builtin', 'created_at', 'updated_at'],
   rules: ['id', 'name', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'notes', 'compatibility', 'created_at', 'updated_at'],
   remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'preset_source', 'preset_id', 'source_overrides', 'source_id', 'source_rule_set_key', 'source_missing', 'target_group_id', 'target_override_group_id', 'update_interval', 'enabled', 'sort_order', 'last_updated', 'notes', 'created_at', 'updated_at'],
@@ -48,7 +48,7 @@ type ExportPayload = Record<TableName, Record<string, unknown>[]>
 const NON_NULL_COLUMNS = {
   sources: ['id', 'name', 'type', 'format', 'enabled', 'node_count', 'tags', 'source_groups', 'created_at', 'updated_at'],
   nodes: ['id', 'source_id', 'name', 'protocol', 'server', 'port', 'enabled', 'tags', 'raw_config', 'parsed_config', 'is_manual', 'created_at', 'updated_at'],
-  collections: ['id', 'name', 'source_ids', 'node_ids', 'filters', 'renames', 'dedup', 'sort', 'enabled', 'created_at', 'updated_at'],
+  collections: ['id', 'name', 'source_ids', 'node_ids', 'empty_selection', 'filters', 'renames', 'dedup', 'sort', 'enabled', 'created_at', 'updated_at'],
   groups: ['id', 'name', 'type', 'collection_ids', 'group_ids', 'builtins', 'enabled', 'sort_order', 'is_builtin', 'created_at', 'updated_at'],
   rules: ['id', 'type', 'payload', 'no_resolve', 'target_group_id', 'enabled', 'sort_order', 'compatibility', 'created_at', 'updated_at'],
   remote_rule_sets: ['id', 'name', 'url', 'format', 'behavior', 'source_overrides', 'source_missing', 'target_group_id', 'update_interval', 'enabled', 'sort_order', 'created_at', 'updated_at'],
@@ -70,15 +70,17 @@ app.get('/export', async (c) => {
     app_settings: [],
     source_import_runs: [],
   }
-  for (const table of TABLES) {
+  const queries = TABLES.map(table => {
     const columns = TABLE_COLUMNS[table].join(', ')
-    const statement = table === 'app_settings'
+    return table === 'app_settings'
       ? c.env.DB.prepare(`SELECT ${columns} FROM app_settings WHERE id = ?`).bind(workspaceId)
       : c.env.DB.prepare(`SELECT ${columns} FROM ${table} WHERE workspace_id = ?`).bind(workspaceId)
-    const { results } = await statement.all<Record<string, unknown>>()
-    data[table] = table === 'app_settings'
-      ? results.map(row => ({ ...row, id: 'workspace' }))
-      : results
+  })
+  // Read the entire reference graph from one database snapshot.
+  const snapshot = await c.env.DB.batch<Record<string, unknown>>(queries)
+  for (const [index, table] of TABLES.entries()) {
+    const rows = snapshot[index]!.results
+    data[table] = table === 'app_settings' ? rows.map(row => ({ ...row, id: 'workspace' })) : rows
   }
 
   c.header('Cache-Control', 'no-store')
@@ -230,6 +232,7 @@ export function validateBackupPayload(value: unknown): BackupValidation {
       for (const column of Object.keys(row)) {
         if (!allowed.has(column)) return { valid: false, error: `unknown column ${table}.${column}` }
       }
+      if (table === 'collections' && !Object.hasOwn(row, 'empty_selection')) row.empty_selection = 0
       for (const column of expectedColumns) {
         if (!Object.hasOwn(row, column)) return { valid: false, error: `${table}[${index}].${column} is required` }
       }
@@ -249,6 +252,9 @@ function validateBackupRowShape(table: TableName, row: Record<string, unknown>, 
     if (row[column] == null) return `${table}[${index}].${column} must not be null`
   }
 
+  if (table === 'collections' && row.empty_selection !== 0 && row.empty_selection !== 1) {
+    return `collections[${index}].empty_selection must be 0 or 1`
+  }
   if (table === 'sources' && !['url', 'manual', 'file', 'clipboard'].includes(String(row.type))) {
     return `sources[${index}].type is invalid`
   }
@@ -360,6 +366,16 @@ function validateBackupRelations(tables: ExportPayload): string | undefined {
   }
 
   for (const [index, row] of tables.collections.entries()) {
+    // Backups created before deletion cleanup may contain former members.
+    for (const [column, liveIds] of [['node_ids', nodeIds], ['source_ids', sourceIds]] as const) {
+      let members: unknown
+      try { members = JSON.parse(String(row[column])) } catch { continue }
+      if (!Array.isArray(members) || members.some(id => typeof id !== 'string' || !id.trim())) continue
+      const live = members.filter(id => liveIds.has(id))
+      if (live.length === members.length) continue
+      row[column] = JSON.stringify(live)
+      if (!live.length && (column === 'node_ids' || row.node_ids === '[]')) row.empty_selection = 1
+    }
     const sourceError = validateJsonReferences(row.source_ids, `collections[${index}].source_ids`, sourceIds, 'source')
     if (sourceError) return sourceError
     const nodeError = validateJsonReferences(row.node_ids, `collections[${index}].node_ids`, nodeIds, 'node')

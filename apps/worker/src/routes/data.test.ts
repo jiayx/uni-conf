@@ -134,6 +134,13 @@ describe('data reset defaults', () => {
     })).toEqual({ valid: false, error: 'export_configs[1].token duplicates shared' })
   })
 
+  it('recovers deleted members from a backup without widening an explicit collection', () => {
+    const backup = currentBackup({ collections: [{ ...collectionRow('saved'), node_ids: '["deleted"]' }] })
+    expect(validateBackupPayload(backup)).toMatchObject({
+      valid: true, tables: { collections: [{ node_ids: '[]', empty_selection: 1 }] },
+    })
+  })
+
   it('rejects malformed and dangling JSON relationship lists', () => {
     expect(validateBackupPayload({
       version: 9,
@@ -282,7 +289,7 @@ function createMockDb(): D1Database {
       all: async () => ({ results: [] }),
       raw: async () => [],
     })),
-    batch: vi.fn(async () => []),
+    batch: vi.fn(async (queries: D1PreparedStatement[]) => Promise.all(queries.map(query => query.all()))),
   } as unknown as D1Database
 }
 

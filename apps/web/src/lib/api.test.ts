@@ -119,13 +119,15 @@ describe('api client', () => {
     vi.stubGlobal('fetch', fetchMock)
     try {
       setActiveWorkspaceId('workspace-two')
+      localStorage.setItem('uniconf.workspaceId', 'another-tab')
       await api.sources.list()
       expect(fetchMock.mock.lastCall?.[1].headers['X-Workspace-Id']).toBe('workspace-two')
       setActiveWorkspaceId('')
       await api.sources.list()
       expect(fetchMock.mock.lastCall?.[1].headers['X-Workspace-Id']).toBe(DEFAULT_WORKSPACE_ID)
     } finally {
-      localStorage.clear()
+      localStorage.removeItem('uniconf.workspaceId')
+      sessionStorage.clear()
     }
   })
 

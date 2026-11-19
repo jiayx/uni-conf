@@ -67,45 +67,40 @@ export async function safeRemoteFetch(
 ): Promise<Response> {
   let current = parseSafeRemoteHttpUrl(value)
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs)
+  const signal = AbortSignal.timeout(options.timeoutMs)
   let method = (init.method ?? 'GET').toUpperCase()
   let headers = new Headers(init.headers)
 
-  try {
-    for (let redirectCount = 0; ; redirectCount += 1) {
-      const response = await fetcher(current.toString(), {
-        ...init,
-        method,
-        headers,
-        redirect: 'manual',
-        signal: controller.signal,
-      })
-      if (!isRedirectStatus(response.status)) return response
-      if (redirectCount >= maxRedirects) {
-        throw new SafeRemoteUrlError('too_many_redirects', `Remote URL exceeded ${maxRedirects} redirects`)
-      }
-      const location = response.headers.get('location')
-      if (!location) throw new SafeRemoteUrlError('invalid_redirect', 'Remote redirect has no Location header')
-
-      let next: URL
-      try {
-        next = parseSafeRemoteHttpUrl(new URL(location, current).toString())
-      } catch (error) {
-        if (error instanceof SafeRemoteUrlError) throw error
-        throw new SafeRemoteUrlError('invalid_redirect', 'Remote redirect URL is invalid')
-      }
-      if (next.origin !== current.origin) {
-        headers = new Headers(headers)
-        headers.delete('authorization')
-        headers.delete('cookie')
-        headers.delete('proxy-authorization')
-      }
-      if (response.status === 303 && method !== 'HEAD') method = 'GET'
-      current = next
+  for (let redirectCount = 0; ; redirectCount += 1) {
+    const response = await fetcher(current.toString(), {
+      ...init,
+      method,
+      headers,
+      redirect: 'manual',
+      signal,
+    })
+    if (!isRedirectStatus(response.status)) return response
+    if (redirectCount >= maxRedirects) {
+      throw new SafeRemoteUrlError('too_many_redirects', `Remote URL exceeded ${maxRedirects} redirects`)
     }
-  } finally {
-    clearTimeout(timer)
+    const location = response.headers.get('location')
+    if (!location) throw new SafeRemoteUrlError('invalid_redirect', 'Remote redirect has no Location header')
+
+    let next: URL
+    try {
+      next = parseSafeRemoteHttpUrl(new URL(location, current).toString())
+    } catch (error) {
+      if (error instanceof SafeRemoteUrlError) throw error
+      throw new SafeRemoteUrlError('invalid_redirect', 'Remote redirect URL is invalid')
+    }
+    if (next.origin !== current.origin) {
+      headers = new Headers(headers)
+      headers.delete('authorization')
+      headers.delete('cookie')
+      headers.delete('proxy-authorization')
+    }
+    if (response.status === 303 && method !== 'HEAD') method = 'GET'
+    current = next
   }
 }
 

@@ -203,6 +203,7 @@ export interface NodeCollection {
   id: string;
   name: string;
   sourceIds: string[]; // empty = all sources
+  emptySelection?: boolean; // explicit selection whose last member was deleted
   nodeIds: string[]; // explicit node selection (for manual picks)
   filters: NodeFilter[];
   renames: NodeRename[];
